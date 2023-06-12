@@ -51,12 +51,12 @@ fn get_disks() -> Vec<Drive> {
 }
 
 #[tauri::command]
-fn open_disk(disk_letter: String) -> Vec<DirectoryChild> {
-    let mut disk_children = Vec::new();
+fn open_directory(path: String) -> Vec<DirectoryChild> {
+    let mut dir_children = Vec::new();
 
-    let directory = read_dir(disk_letter + ":\\");
+    let directory = read_dir(path);
     if !directory.is_ok() {
-        return disk_children; // TODO(conaticus): handle error
+        return dir_children; // TODO(conaticus): handle error
     }
 
     for entry in directory.unwrap() {
@@ -64,14 +64,14 @@ fn open_disk(disk_letter: String) -> Vec<DirectoryChild> {
         let file_name = os_to_string(entry.file_name());
 
         if entry.file_type().unwrap().is_file() {
-            disk_children.push(DirectoryChild::File(file_name));
+            dir_children.push(DirectoryChild::File(file_name));
             continue;
         }
 
-        disk_children.push(DirectoryChild::Directory(file_name));
+        dir_children.push(DirectoryChild::Directory(file_name));
     }
 
-    disk_children
+    dir_children
 }
 
 fn main() {
