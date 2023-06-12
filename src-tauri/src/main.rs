@@ -3,9 +3,10 @@
 
 mod util;
 
+use std::fs::{FileType, read_dir};
 use serde::Serialize;
 use sysinfo::{DiskExt, System, SystemExt};
-use util::conversions::{bytes_to_gb, os_to_string, path_to_string};
+use util::conversions::{bytes_to_gb, os_to_string, path_to_string, ostr_to_string};
 
 // struct State {
 // }
@@ -18,6 +19,7 @@ struct Drive {
     letter: String,
 }
 
+#[derive(Serialize)]
 enum DirectoryChild {
     File(String), // String is the path to the file
     Directory(String)
@@ -35,7 +37,7 @@ fn get_disks() -> Vec<Drive> {
         let used_gb = bytes_to_gb(used_bytes);
         let total_gb = bytes_to_gb(disk.total_space());
 
-        let mut name = os_to_string(disk.name());
+        let mut name = ostr_to_string(disk.name());
         if name.len() == 0 {
             name = String::from("Local Disk");
         }
@@ -48,9 +50,33 @@ fn get_disks() -> Vec<Drive> {
     disks
 }
 
+#[tauri::command]
+fn open_disk(disk_letter: String) -> Vec<DirectoryChild> {
+    let mut disk_children = Vec::new();
+
+    let directory = read_dir(disk_letter + ":\\");
+    if !directory.is_ok() {
+        return disk_children; // TODO(conaticus): handle error
+    }
+
+    for entry in directory.unwrap() {
+        let entry = entry.unwrap();
+        let file_name = os_to_string(entry.file_name());
+
+        if entry.file_type().unwrap().is_file() {
+            disk_children.push(DirectoryChild::File(file_name));
+            continue;
+        }
+
+        disk_children.push(DirectoryChild::Directory(file_name));
+    }
+
+    disk_children
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_disks])
+        .invoke_handler(tauri::generate_handler![get_disks, open_disk])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

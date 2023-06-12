@@ -1,9 +1,10 @@
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
-pub fn os_to_string(os_string: &OsStr) -> String {
+pub fn ostr_to_string(os_string: &OsStr) -> String {
     os_string.to_string_lossy().to_string()
 }
+pub fn os_to_string(os_string: OsString) -> String { os_string.to_string_lossy().to_string() }
 
 pub fn path_to_string(os_string: &Path) -> String {
     let s = os_string.to_string_lossy();
