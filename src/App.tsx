@@ -4,8 +4,8 @@ import { invoke } from "@tauri-apps/api/tauri";
 
 interface Disk {
     name: string;
-    used_capacity: number;
-    total_capacity: number;
+    used_gb: number;
+    total_gb: number;
 }
 
 function App() {
