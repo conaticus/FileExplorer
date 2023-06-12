@@ -1,9 +1,14 @@
+import {MouseEventHandler} from "react";
+
 interface Props {
     name: string;
+    onClick: MouseEventHandler<HTMLButtonElement>;
 }
 
-export default function Directory({ name }: Props) {
+export default function Directory({ name, onClick }: Props) {
     return (
-        <>Directory: {name}<br /></>
+        <button onClick={onClick}>
+            Directory: {name}
+        </button>
     )
 }

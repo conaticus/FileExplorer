@@ -12,8 +12,14 @@ function App() {
     const [directoryContents, setDirectoryContents] = useState<DirectoryContent[]>([]);
 
     async function onDiskClick(letter: string) {
-        setCurrentPath(letter + ":\\");
+        setCurrentPath(letter + ":/");
         const directoryContents = await openDirectory(currentPath);
+        setDirectoryContents(directoryContents);
+    }
+
+    async function onDirectoryClick(name:string) {
+        setCurrentPath(name + "/")
+        const directoryContents= await openDirectory(currentPath);
         setDirectoryContents(directoryContents);
     }
 
@@ -43,7 +49,7 @@ function App() {
                     const [fileType, fileName] = Object.entries(content)[0];
 
                     if (fileType === "Directory") {
-                        return <Directory key={idx} name={fileName} />;
+                        return <Directory onClick={() => onDirectoryClick(fileName)} key={idx} name={fileName} />;
                     } else {
                         return <File key={idx} name={fileName} />;
                     }
