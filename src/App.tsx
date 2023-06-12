@@ -17,7 +17,7 @@ function App() {
             const disks = await invoke<Disk[]>("get_disks");
             console.log(disks);
 
-            const diskContents = await invoke("open_disk", { diskLetter: "C" });
+            const diskContents = await invoke("open_directory", { path: "C:\\" });
             console.log(diskContents)
         }
 

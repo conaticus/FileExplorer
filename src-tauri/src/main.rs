@@ -76,7 +76,7 @@ fn open_directory(path: String) -> Vec<DirectoryChild> {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_disks, open_disk])
+        .invoke_handler(tauri::generate_handler![get_disks, open_directory])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
