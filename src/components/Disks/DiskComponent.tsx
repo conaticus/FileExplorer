@@ -1,4 +1,4 @@
-import {Disk} from "../types";
+import {Disk} from "../../types";
 import {MouseEventHandler} from "react";
 
 interface Props {

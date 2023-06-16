@@ -1,11 +1,10 @@
 import {useEffect, useState} from "react";
-import { invoke } from "@tauri-apps/api/tauri";
+import {invoke} from "@tauri-apps/api/tauri";
 import {DirectoryContent, Disk} from "./types";
-import DiskComponent from "./components/DiskComponent";
 import {openDirectory} from "./ipc/fileExplorer";
-import DirectoryEntity from "./components/DirectoryEntity";
-import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faArrowRight } from "@fortawesome/free-solid-svg-icons";
+import DiskList from "./components/Disks/DiskList";
+import FolderNavigation from "./components/FolderNavigation";
+import {DirectoryContents} from "./components/DirectoryContents";
 
 function App() {
     const [disks, setDisks] = useState<Disk[]>([]);
@@ -42,13 +41,8 @@ function App() {
         setDisks(disks);
     }
 
-    function canGoForward(): boolean {
-        return historyPlace < pathHistory.length - 1;
-    }
-
-    function canGoBackward(): boolean {
-        return historyPlace > 0;
-    }
+    function canGoForward(): boolean { return historyPlace < pathHistory.length - 1 }
+    function canGoBackward(): boolean { return historyPlace > 0 }
 
     function onBackArrowClick() {
         pathHistory.push(pathHistory[historyPlace - 1]);
@@ -59,12 +53,7 @@ function App() {
         setHistoryPlace(historyPlace + 1);
     }
 
-    useEffect(() => {
-        getData().catch(console.error);
-    }, [])
-
     async function updateCurrentDirectory() {
-        console.log(pathHistory)
         if (pathHistory[historyPlace] == "") {
             return getData();
         }
@@ -73,59 +62,24 @@ function App() {
         setDirectoryContents(directoryContents);
     }
 
+
+    useEffect(() => {
+        getData().catch(console.error);
+    }, [])
+
     useEffect(() => {
         updateCurrentDirectory();
     }, [historyPlace])
 
     return (
         <div className="p-4">
-            <div className="mb-5">
-                <div className="space-x-4">
-                    <button onClick={onBackArrowClick} disabled={!canGoBackward()}>
-                        <FontAwesomeIcon
-                            icon={faArrowLeft}
-                            size="xl"
-                            className={canGoBackward() ? undefined : "text-gray-600"}
-                        />
-                    </button>
-
-                    <button onClick={onForwardArrowClick} disabled={!canGoForward()}>
-                        <FontAwesomeIcon icon={faArrowRight} size="xl" className={canGoForward() ? undefined : "text-gray-600"} />
-                    </button>
-                </div>
-            </div>
+            <FolderNavigation onBackArrowClick={onBackArrowClick} canGoBackward={canGoBackward()} onForwardArrowClick={onForwardArrowClick}
+                              canGoForward={canGoForward()}/>
 
             {pathHistory[historyPlace] === "" ? (
-                <div className="space-x-4">
-                    {disks.map((disk, idx) => (
-                        <DiskComponent
-                            onClick={() => onDiskClick(disk.letter)}
-                            disk={disk}
-                            key={idx}
-                        />
-                    ))}
-                </div>
+                <DiskList disks={disks} onClick={onDiskClick}/>
             ) : (
-                <>
-                    {directoryContents.length === 0 ? "There are no files in this directory." : ""}
-
-                    {directoryContents.map((content, idx) => {
-                        const [fileType, fileName] = Object.entries(content)[0];
-
-                        return (
-                            <DirectoryEntity
-                                type={fileType === "Directory" ? "directory" : "file"}
-                                onClick={() =>
-                                    fileType === "Directory"
-                                        ? onDirectoryClick(fileName)
-                                        : undefined
-                                }
-                                key={idx}
-                                name={fileName}
-                            />
-                        );
-                    })}
-                </>
+                <DirectoryContents content={directoryContents} onDirectoryClick={onDirectoryClick}/>
             )}
         </div>
     );
