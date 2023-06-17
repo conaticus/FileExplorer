@@ -1,6 +1,5 @@
 import Input, {InputSize} from "../../ui/Input";
-import {ChangeEvent, Dispatch, SetStateAction, useState} from "react";
-import {DirectoryContent} from "../../types";
+import {ChangeEvent, Dispatch, SetStateAction} from "react";
 import {ISearchFilter} from "./SearchBar";
 
 interface Props {

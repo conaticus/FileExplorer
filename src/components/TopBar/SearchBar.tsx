@@ -17,7 +17,7 @@ export interface ISearchFilter {
 
 export default function SearchBar({ currentDirectoryPath, setSearchResults }: Props) {
     const [searchValue, setSearchValue] = useState("");
-    const [searchFilter, setSeachFilter] = useState<ISearchFilter>({
+    const [searchFilter, setSearchFilter] = useState<ISearchFilter>({
         extension: "",
         acceptFiles: true,
         acceptDirectories: true,
@@ -41,7 +41,7 @@ export default function SearchBar({ currentDirectoryPath, setSearchResults }: Pr
     return (
         <div>
             <Input value={searchValue} setValue={setSearchValue} placeholder={`Search ${currentPlace || "PC."}`} className="rounded-bl-none rounded-br-none" onSubmit={onSearch} size={InputSize.Large} />
-            <SearchFilter filters={searchFilter} setFilters={setSeachFilter} />
+            <SearchFilter filters={searchFilter} setFilters={setSearchFilter} />
         </div>
     )
 }

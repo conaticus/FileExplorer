@@ -1,4 +1,4 @@
-import {ChangeEvent, Dispatch, SetStateAction} from "react";
+import {ChangeEvent, Dispatch, SetStateAction, KeyboardEvent} from "react";
 
 export enum InputSize {
     Tiny,
@@ -30,6 +30,10 @@ export default function Input({ value, onChange, setValue, placeholder, onSubmit
         default: break;
     }
 
+    function onKeydown({ key, target }: KeyboardEvent<HTMLInputElement>) {
+        if (key === "Enter" && onSubmit) { onSubmit(); }
+    }
+
     return (
        <input
            disabled={disabled}
@@ -37,7 +41,7 @@ export default function Input({ value, onChange, setValue, placeholder, onSubmit
            onChange={(e) => setValue ? setValue(e.target.value) : onChange ? onChange(e) : undefined}
            className={styles}
            placeholder={placeholder}
-           onSubmit={onSubmit}
+           onKeyDown={onKeydown}
        />
    )
 }
