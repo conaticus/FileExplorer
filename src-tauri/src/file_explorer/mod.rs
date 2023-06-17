@@ -14,7 +14,7 @@ pub struct Drive {
     letter: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub enum DirectoryChild {
     File(String), // String is the path to the file
     Directory(String)
