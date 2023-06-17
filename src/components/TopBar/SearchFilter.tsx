@@ -1,29 +1,53 @@
 import Input, {InputSize} from "../../ui/Input";
 import {ChangeEvent, Dispatch, SetStateAction, useState} from "react";
 import {DirectoryContent} from "../../types";
+import {ISearchFilter} from "./SearchBar";
 
 interface Props {
-    extValue: string;
-    setExtValue: Dispatch<SetStateAction<string>>;
-    acceptFilesValue: boolean;
-    setAcceptFilesValue: Dispatch<SetStateAction<boolean>>;
-    acceptDirsValue: boolean;
-    setAcceptDirsValue: Dispatch<SetStateAction<boolean>>;
+    filters: ISearchFilter;
+    setFilters: Dispatch<SetStateAction<ISearchFilter>>;
 }
 
-export default function SearchFilter({ extValue, setExtValue, acceptFilesValue, setAcceptFilesValue, acceptDirsValue, setAcceptDirsValue }: Props) {
+export default function SearchFilter({ filters, setFilters }: Props) {
     function onAcceptFilesChange(e: ChangeEvent<HTMLInputElement>) {
-        setAcceptFilesValue(e.target.checked);
-        if (!e.target.checked && !acceptDirsValue) {
-            setAcceptDirsValue(true);
+        if (!e.target.checked && !filters.acceptDirectories) {
+            setFilters({
+                ...filters,
+                acceptFiles: false,
+                acceptDirectories: true,
+            });
+
+            return;
         }
+
+        setFilters({
+            ...filters,
+            acceptFiles: e.target.checked,
+        });
     }
 
     function onAcceptDirsChange(e: ChangeEvent<HTMLInputElement>) {
-        setAcceptDirsValue(e.target.checked);
-        if (!e.target.checked && !acceptFilesValue) {
-            setAcceptFilesValue(true);
+        if (!e.target.checked && !filters.acceptFiles) {
+            setFilters({
+                ...filters,
+                acceptDirectories: false,
+                acceptFiles: true,
+            });
+
+            return;
         }
+
+        setFilters({
+            ...filters,
+            acceptDirectories: e.target.checked,
+        });
+    }
+
+    function onExtensionChange(e: ChangeEvent<HTMLInputElement>) {
+        setFilters({
+            ...filters,
+            extension: e.target.value,
+        })
     }
 
     return (
@@ -35,14 +59,14 @@ export default function SearchFilter({ extValue, setExtValue, acceptFilesValue, 
             </div>
 
             <div className="flex flex-col space-y-2 relative">
-                <Input value={extValue} setValue={setExtValue} placeholder="ext" size={InputSize.Tiny} disabled={!acceptFilesValue} />
+                <Input onChange={onExtensionChange} value={filters.extension} placeholder="ext" size={InputSize.Tiny} disabled={!filters.acceptFiles} />
                 <input
-                    checked={acceptFilesValue}
+                    checked={filters.acceptFiles}
                     onChange={onAcceptFilesChange}
                     className="absolute left-2 top-8" type="checkbox"
                 />
                 <input
-                    checked={acceptDirsValue}
+                    checked={filters.acceptDirectories}
                     onChange={onAcceptDirsChange}
                     className="absolute left-2 top-16" type="checkbox"
                 />
