@@ -5,14 +5,27 @@ import {openDirectory} from "./ipc/fileExplorer";
 import DiskList from "./components/Disks/DiskList";
 import FolderNavigation from "./components/FolderNavigation";
 import {DirectoryContents} from "./components/DirectoryContents";
+import useNavigation from "./hooks/useNavigation";
 
 function App() {
     const [disks, setDisks] = useState<Disk[]>([]);
-
-    const [pathHistory, setPathHistory] = useState<string[]>([""]);
-    const [historyPlace, setHistoryPlace] = useState<number>(0);
-
     const [directoryContents, setDirectoryContents] = useState<DirectoryContent[]>([]);
+
+    const {
+        pathHistory,
+        setPathHistory,
+        historyPlace,
+        setHistoryPlace,
+        onBackArrowClick,
+        onForwardArrowClick,
+        canGoBackward,
+        canGoForward,
+    } = useNavigation();
+
+    async function updateDirectoryContents() {
+        const contents = await openDirectory(pathHistory[historyPlace]);
+        setDirectoryContents(directoryContents);
+    }
 
     async function onDiskClick(letter: string) {
         const path = letter + ":/";
@@ -32,42 +45,28 @@ function App() {
         pathHistory.push(newPath);
         setHistoryPlace(pathHistory.length - 1);
 
-        const directoryContents= await openDirectory(pathHistory[historyPlace]);
-        setDirectoryContents(directoryContents);
+        updateDirectoryContents();
     }
 
-    async function getData() {
+    async function getDisks() {
         const disks = await invoke<Disk[]>("get_disks");
         setDisks(disks);
     }
 
-    function canGoForward(): boolean { return historyPlace < pathHistory.length - 1 }
-    function canGoBackward(): boolean { return historyPlace > 0 }
-
-    function onBackArrowClick() {
-        pathHistory.push(pathHistory[historyPlace - 1]);
-        setHistoryPlace(historyPlace - 1);
-    }
-
-    function onForwardArrowClick() {
-        setHistoryPlace(historyPlace + 1);
-    }
-
     async function updateCurrentDirectory() {
         if (pathHistory[historyPlace] == "") {
-            return getData();
+            return getDisks();
         }
 
-        const directoryContents= await openDirectory(pathHistory[historyPlace]);
-        setDirectoryContents(directoryContents);
+        await updateDirectoryContents();
     }
 
-
     useEffect(() => {
-        getData().catch(console.error);
-    }, [])
+        if (pathHistory[historyPlace] == "") {
+            getDisks().catch(console.error);
+            return;
+        }
 
-    useEffect(() => {
         updateCurrentDirectory();
     }, [historyPlace])
 
@@ -76,11 +75,9 @@ function App() {
             <FolderNavigation onBackArrowClick={onBackArrowClick} canGoBackward={canGoBackward()} onForwardArrowClick={onForwardArrowClick}
                               canGoForward={canGoForward()}/>
 
-            {pathHistory[historyPlace] === "" ? (
-                <DiskList disks={disks} onClick={onDiskClick}/>
-            ) : (
-                <DirectoryContents content={directoryContents} onDirectoryClick={onDirectoryClick}/>
-            )}
+            {pathHistory[historyPlace] === ""
+                ? <DiskList disks={disks} onClick={onDiskClick}/>
+                : <DirectoryContents content={directoryContents} onDirectoryClick={onDirectoryClick}/>}
         </div>
     );
 }

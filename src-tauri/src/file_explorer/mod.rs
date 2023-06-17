@@ -50,7 +50,7 @@ pub fn open_directory(path: String) -> Vec<DirectoryChild> {
 
     let directory = read_dir(path);
     if !directory.is_ok() {
-        return dir_children; // TODO(con): handle error
+        return dir_children;
     }
 
     for entry in directory.unwrap() {
