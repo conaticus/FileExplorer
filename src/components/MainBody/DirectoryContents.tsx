@@ -1,5 +1,5 @@
 import DirectoryEntity from "./DirectoryEntity";
-import {DirectoryContent} from "../types";
+import {DirectoryContent} from "../../types";
 
 interface Props {
     content: DirectoryContent[];

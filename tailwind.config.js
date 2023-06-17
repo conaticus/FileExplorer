@@ -9,6 +9,9 @@ export default {
       colors: {
         "background": "#212121",
         "darker": "#1a1a1a",
+      },
+      borderWidth: {
+        "1": "1px",
       }
     },
   },

@@ -2,14 +2,18 @@ import {useEffect, useState} from "react";
 import {invoke} from "@tauri-apps/api/tauri";
 import {DirectoryContent, Disk} from "./types";
 import {openDirectory} from "./ipc/fileExplorer";
-import DiskList from "./components/Disks/DiskList";
-import FolderNavigation from "./components/FolderNavigation";
-import {DirectoryContents} from "./components/DirectoryContents";
+import DiskList from "./components/MainBody/Disks/DiskList";
+import FolderNavigation from "./components/TopBar/FolderNavigation";
+import {DirectoryContents} from "./components/MainBody/DirectoryContents";
 import useNavigation from "./hooks/useNavigation";
+import SearchBar from "./components/TopBar/SearchBar";
+import SearchFilter from "./components/TopBar/SearchFilter";
 
 function App() {
     const [disks, setDisks] = useState<Disk[]>([]);
     const [directoryContents, setDirectoryContents] = useState<DirectoryContent[]>([]);
+
+    const [searchResults, setSearchResults] = useState<DirectoryContent[]>([])
 
     const {
         pathHistory,
@@ -24,7 +28,7 @@ function App() {
 
     async function updateDirectoryContents() {
         const contents = await openDirectory(pathHistory[historyPlace]);
-        setDirectoryContents(directoryContents);
+        setDirectoryContents(contents);
     }
 
     async function onDiskClick(letter: string) {
@@ -72,12 +76,16 @@ function App() {
 
     return (
         <div className="p-4">
-            <FolderNavigation onBackArrowClick={onBackArrowClick} canGoBackward={canGoBackward()} onForwardArrowClick={onForwardArrowClick}
-                              canGoForward={canGoForward()}/>
+            <div className="flex justify-between pb-5">
+                <FolderNavigation onBackArrowClick={onBackArrowClick} canGoBackward={canGoBackward()} onForwardArrowClick={onForwardArrowClick}
+                                  canGoForward={canGoForward()}/>
 
-            {pathHistory[historyPlace] === ""
+                <SearchBar currentDirectoryPath={pathHistory[historyPlace]} setSearchResults={setSearchResults} />
+            </div>
+
+            {pathHistory[historyPlace] === "" && searchResults.length === 0
                 ? <DiskList disks={disks} onClick={onDiskClick}/>
-                : <DirectoryContents content={directoryContents} onDirectoryClick={onDirectoryClick}/>}
+                : <DirectoryContents content={searchResults.length === 0 ? directoryContents : searchResults} onDirectoryClick={onDirectoryClick}/>}
         </div>
     );
 }

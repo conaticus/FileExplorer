@@ -1,3 +1,5 @@
+pub mod search;
+
 use std::fs::{FileType, read_dir};
 use serde::Serialize;
 use sysinfo::{DiskExt, System, SystemExt};
