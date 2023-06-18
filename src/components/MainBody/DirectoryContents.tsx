@@ -11,7 +11,7 @@ export function DirectoryContents({content, onDirectoryClick}: Props) {
         {content.length === 0 ? "There are no files in this directory." : ""}
 
         {content.map((content, idx) => {
-            const [fileType, fileName] = Object.entries(content)[0];
+            const [fileType, [fileName, filePath]] = Object.entries(content)[0];
 
             return (
                 <DirectoryEntity

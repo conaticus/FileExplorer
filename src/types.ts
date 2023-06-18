@@ -9,5 +9,5 @@ export interface Disk {
 export type DirectoryEntityType = "file" | "directory";
 
 export interface DirectoryContent {
-    [key: string]: string; // Key will be either "Directory" or "File"
+    [key: string]: [string, string]; // Key will be either "Directory" or "File"
 }

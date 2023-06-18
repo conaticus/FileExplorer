@@ -677,6 +677,7 @@ name = "file-explorer"
 version = "0.0.0"
 dependencies = [
  "fuzzy-matcher",
+ "rayon",
  "serde",
  "serde_json",
  "sysinfo",

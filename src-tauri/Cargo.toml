@@ -19,6 +19,7 @@ serde_json = "1.0"
 sysinfo = "0.29.2"
 walkdir = "2.3.3"
 fuzzy-matcher = "*"
+rayon = "1.7.0"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
