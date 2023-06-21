@@ -89,7 +89,7 @@ pub fn get_disks(state_mux: State<'_, StateSafe>) -> Vec<Drive> {
     }
 
     for disk in sys.disks() {
-        let used_bytes= disk.total_space() - disk.available_space();
+        let used_bytes = disk.total_space() - disk.available_space();
         let available_gb = bytes_to_gb(disk.available_space());
         let used_gb = bytes_to_gb(used_bytes);
         let total_gb = bytes_to_gb(disk.total_space());
