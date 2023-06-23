@@ -17,6 +17,7 @@ Bare in mind this was just a proof of concept and this is **not complete**, sadl
 - Stable [NodeJS](https://nodejs.org/) Install
 - Stable [Rust](https://www.rust-lang.org/) Install
 - Correct packages installed for Tauri to work (For Linux users)
+- Yarn installation (`npm i -g yarn`)
 
 ## Steps
 ```
@@ -24,7 +25,7 @@ Bare in mind this was just a proof of concept and this is **not complete**, sadl
 cargo install tauri-cli
 
 # Install dependencies
-npm i
+yarn
 
 # Run app for development
 cargo tauri dev
