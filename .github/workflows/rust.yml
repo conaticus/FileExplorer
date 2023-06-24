@@ -35,4 +35,6 @@ jobs:
     #  run: cargo tauri dev
 
     - name: Build for production
-      run: cargo tauri build
+      run: |
+        cargo tauri build
+        ls -gh
