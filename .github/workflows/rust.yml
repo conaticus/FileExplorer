@@ -1,0 +1,35 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    branches: [ "dev" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup node
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+    - run: npm i -g yarn
+
+    - name: Make sure you have Tauri CLI installed
+      run: cargo install tauri-cli
+
+    - name: Install dependencies
+      run: yarn
+
+    #- name: Run app for development
+    #  run: cargo tauri dev
+
+    - name: Build for production
+      run: cargo tauri build
