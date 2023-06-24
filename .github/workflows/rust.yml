@@ -21,6 +21,9 @@ jobs:
       with:
         node-version: 18
     - run: npm i -g yarn
+    
+    - name: Install libgtk
+      run: sudo apt install libgtk-3-dev -y
 
     - name: Make sure you have Tauri CLI installed
       run: cargo install tauri-cli
