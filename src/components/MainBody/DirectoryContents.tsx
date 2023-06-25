@@ -3,7 +3,7 @@ import {DirectoryContent} from "../../types";
 
 interface Props {
     content: DirectoryContent[];
-    onDirectoryClick: (fileName: string) => any;
+    onDirectoryClick: (filePath: string) => any;
 }
 
 export function DirectoryContents({content, onDirectoryClick}: Props) {
@@ -18,7 +18,7 @@ export function DirectoryContents({content, onDirectoryClick}: Props) {
                     type={fileType === "Directory" ? "directory" : "file"}
                     onClick={() =>
                         fileType === "Directory"
-                            ? onDirectoryClick(fileName)
+                            ? onDirectoryClick(filePath)
                             : undefined
                     }
                     key={idx}

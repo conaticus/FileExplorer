@@ -16,7 +16,6 @@ function App() {
 
     const {
         pathHistory,
-        setPathHistory,
         historyPlace,
         setHistoryPlace,
         onBackArrowClick,
@@ -31,7 +30,7 @@ function App() {
     }
 
     async function onDiskClick(letter: string) {
-        const path = letter + ":\\";
+        const path = letter + ":\\"; // Important that we use backslashes as this is the default in Rust (for comparisons)
         if (pathHistory[pathHistory.length - 1] != path) {
             pathHistory.push(path);
         }
@@ -41,14 +40,15 @@ function App() {
         setDirectoryContents(directoryContents);
     }
 
-    async function onDirectoryClick(name: string) {
-        const currentPath = pathHistory[pathHistory.length - 1];
-        const newPath = currentPath + name + "\\"; // Important that we use backslashes as this is the default in Rust (for comparisons)
+    async function onDirectoryClick(filePath: string) {
+        if (searchResults.length > 0) {
+            setSearchResults([]);
+        }
 
-        pathHistory.push(newPath);
+        pathHistory.push(filePath);
         setHistoryPlace(pathHistory.length - 1);
 
-        updateDirectoryContents();
+        await updateDirectoryContents();
     }
 
     async function getDisks() {
