@@ -57,7 +57,7 @@ pub fn search_directory(state_mux: State<'_, StateSafe>, query: String, search_d
 
     let mut results: Vec<_> = Vec::new();
     let mut fuzzy_scores: Vec<i16> = Vec::new();
-    let matcher = SkimMatcherV2::default();
+    let matcher = SkimMatcherV2::default().smart_case();
 
     let state = state_mux.lock().unwrap();
     let letter = search_directory.chars().next().unwrap().to_string();

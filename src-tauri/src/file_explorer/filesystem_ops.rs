@@ -9,7 +9,7 @@ use sysinfo::{DiskExt, System, SystemExt};
 use tauri::State;
 use walkdir::WalkDir;
 use crate::{CachedPath, StateSafe};
-use crate::util::strings::{bytes_to_gb, os_to_string, get_letter_from_path, ostr_to_string, pathbuf_to_string};
+use crate::util::strings::{bytes_to_gb, os_to_string, get_letter_from_path, ostr_to_string, pathbuf_to_string, path_to_string};
 use rayon::prelude::*;
 
 const CACHE_FILE_PATH: &str = "./disk_cache.json";
@@ -54,8 +54,8 @@ pub fn cache_disk(state_mux: &StateSafe, path: &Path, letter: String) {
         .par_bridge()
         .filter_map(|entry| entry.ok())
         .for_each(|entry| {
-            let file_name = entry.file_name().to_string_lossy().to_lowercase();
-            let file_path = entry.path().to_string_lossy().to_string();
+            let file_name = ostr_to_string(entry.file_name());
+            let file_path = path_to_string(entry.path());
 
             let walkdir_filetype = entry.file_type();
             let mut file_type = String::from("file");
