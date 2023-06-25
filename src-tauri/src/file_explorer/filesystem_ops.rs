@@ -125,9 +125,7 @@ pub fn open_directory(path: String) -> Vec<DirectoryChild> {
     let mut dir_children = Vec::new();
 
     let directory = read_dir(path);
-    if !directory.is_ok() {
-        return dir_children;
-    }
+    if directory.is_err() { return dir_children }
 
     for entry in directory.unwrap() {
         let entry = entry.unwrap();

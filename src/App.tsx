@@ -53,8 +53,10 @@ function App() {
     }
 
     async function getDisks() {
-        const disks = await invoke<Disk[]>("get_disks");
-        setDisks(disks);
+        if (disks.length != 0) { return }
+
+        const newDisks = await invoke<Disk[]>("get_disks");
+        setDisks(newDisks);
     }
 
     async function updateCurrentDirectory() {
