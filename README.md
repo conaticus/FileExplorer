@@ -1,5 +1,5 @@
 # Fast File Explorer
-This is a fast file explorer written in Rust. After testing on my C drive, this file explorer was able to find a file in 280ms. In comparison, Windows took 3 minutes and 45 seconds.
+This is a fast file explorer written in Rust. After testing on my C drive, this file explorer was able to find a file in 280ms. In comparison, Windows took 3 minutes and 45 seconds. Currently this **only supports Windows**.
 
 Bare in mind this was just a proof of concept and this is **not complete**, sadly I did not have time to implement these features for the video:
 - Up to date cache with file watching
@@ -16,7 +16,7 @@ Bare in mind this was just a proof of concept and this is **not complete**, sadl
 ## Prerequisites
 - Stable [NodeJS](https://nodejs.org/) Install
 - Stable [Rust](https://www.rust-lang.org/) Install
-- Correct packages installed for Tauri to work (For Linux users)
+- Yarn installation (`npm i -g yarn`)
 
 ## Steps
 ```
@@ -24,7 +24,7 @@ Bare in mind this was just a proof of concept and this is **not complete**, sadl
 cargo install tauri-cli
 
 # Install dependencies
-npm i
+yarn
 
 # Run app for development
 cargo tauri dev
