@@ -2,7 +2,6 @@ use std::path::Path;
 use std::time::Instant;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
-use rayon::prelude::*;
 use tauri::State;
 use crate::file_explorer::filesystem_ops::DirectoryChild;
 use crate::StateSafe;

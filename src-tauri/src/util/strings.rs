@@ -7,9 +7,6 @@ pub fn ostr_to_string(os_string: &OsStr) -> String {
 pub fn os_to_string(os_string: OsString) -> String { os_string.to_string_lossy().to_string() }
 pub fn pathbuf_to_string(path: PathBuf) -> String { path.to_string_lossy().to_string() }
 pub fn path_to_string(path: &Path) -> String { path.to_string_lossy().to_string() }
-pub fn bytes_to_gb(bytes: u64) -> u16 { (bytes / (1e+9 as u64)) as u16 }
 
-pub fn get_letter_from_path(path: &Path) -> String {
-    let s = path.to_string_lossy();
-    s.chars().next().unwrap().to_string()
-}
+
+pub fn bytes_to_gb(bytes: u64) -> u16 { (bytes / (1e+9 as u64)) as u16 }
