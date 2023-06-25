@@ -7,7 +7,7 @@ mod file_explorer;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
-use file_explorer::{get_disks, open_directory};
+use file_explorer::filesystem_ops::{get_disks, open_directory};
 use file_explorer::search::{search_directory};
 
 #[derive(Serialize, Deserialize)]
@@ -20,7 +20,7 @@ pub type DiskCache = HashMap<String, Vec<CachedPath>>;
 
 #[derive(Default)]
 pub struct AppState {
-    drive_cache: HashMap<String, DiskCache>,
+    disk_cache: HashMap<String, DiskCache>,
 }
 
 pub type StateSafe = Arc<Mutex<AppState>>;

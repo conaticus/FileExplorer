@@ -1,1 +1,1 @@
-pub mod conversions;
+pub mod strings;
