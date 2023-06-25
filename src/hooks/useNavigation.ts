@@ -1,10 +1,18 @@
 import { useState } from "react";
+import {DirectoryContent} from "../types";
 
-export default function useNavigation() {
+export default function useNavigation(searchResults: DirectoryContent[], setSearchResults: Function) {
     const [pathHistory, setPathHistory] = useState([""]);
     const [historyPlace, setHistoryPlace] = useState(0);
 
     function onBackArrowClick() {
+        if (searchResults.length > 0) {
+            setHistoryPlace(historyPlace);
+
+            setSearchResults([]);
+            return;
+        }
+
         pathHistory.push(pathHistory[historyPlace - 1]);
         setHistoryPlace((prevPlace) => prevPlace - 1);
     }

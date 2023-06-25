@@ -51,7 +51,6 @@ fn check_file(
 /// Reads the cache and does a fuzzy search for a directory.
 /// Takes into account the filters provided.
 /// Returns the results ONLY when the entire disk is searched
-// TODO(conaticus): Optimise this to return files as soon as they are matched, instead of after the entire disk is searched
 #[tauri::command]
 pub fn search_directory(state_mux: State<'_, StateSafe>, query: String, search_directory: String, extension: String, accept_files: bool, accept_directories: bool) -> Vec<DirectoryChild> {
     let start_time = Instant::now();

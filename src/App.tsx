@@ -23,7 +23,7 @@ function App() {
         onForwardArrowClick,
         canGoBackward,
         canGoForward,
-    } = useNavigation();
+    } = useNavigation(searchResults, setSearchResults);
 
     async function updateDirectoryContents() {
         const contents = await openDirectory(pathHistory[historyPlace]);
