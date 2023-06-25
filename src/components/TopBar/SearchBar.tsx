@@ -23,7 +23,7 @@ export default function SearchBar({ currentDirectoryPath, setSearchResults }: Pr
         acceptDirectories: true,
     });
 
-    const split = currentDirectoryPath.split("/");
+    const split = currentDirectoryPath.split("\\");
     const currentPlace = split[split.length - 2];
 
     async function onSearch() {

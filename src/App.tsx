@@ -7,7 +7,6 @@ import FolderNavigation from "./components/TopBar/FolderNavigation";
 import {DirectoryContents} from "./components/MainBody/DirectoryContents";
 import useNavigation from "./hooks/useNavigation";
 import SearchBar from "./components/TopBar/SearchBar";
-import SearchFilter from "./components/TopBar/SearchFilter";
 
 function App() {
     const [disks, setDisks] = useState<Disk[]>([]);
@@ -32,7 +31,7 @@ function App() {
     }
 
     async function onDiskClick(letter: string) {
-        const path = letter + ":/";
+        const path = letter + ":\\";
         if (pathHistory[pathHistory.length - 1] != path) {
             pathHistory.push(path);
         }
@@ -44,7 +43,7 @@ function App() {
 
     async function onDirectoryClick(name: string) {
         const currentPath = pathHistory[pathHistory.length - 1];
-        const newPath = currentPath + name + "/";
+        const newPath = currentPath + name + "\\"; // Important that we use backslashes as this is the default in Rust (for comparisons)
 
         pathHistory.push(newPath);
         setHistoryPlace(pathHistory.length - 1);
