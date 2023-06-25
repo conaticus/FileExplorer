@@ -44,7 +44,7 @@ pub fn cache_disk(state_mux: &StateSafe, path: &Path, letter: String) {
     let state = &mut state_mux.lock().unwrap();
 
     let disk_cache = state.disk_cache
-        .entry(letter.clone())
+        .entry(letter)
         .or_insert_with(HashMap::new);
 
     let disk_cache = Arc::new(Mutex::new(disk_cache));
@@ -65,7 +65,7 @@ pub fn cache_disk(state_mux: &StateSafe, path: &Path, letter: String) {
 
             let cache_guard = &mut disk_cache.lock().unwrap();
             cache_guard.entry(file_name)
-                .or_insert_with(|| Vec::new())
+                .or_insert_with(Vec::new)
                 .push(CachedPath { file_path, file_type });
         });
 }
@@ -101,7 +101,7 @@ pub fn get_disks(state_mux: State<'_, StateSafe>) -> Vec<Disk> {
         let total_gb = bytes_to_gb(disk.total_space());
 
         let mut name = ostr_to_string(disk.name());
-        if name.len() == 0 {
+        if name.is_empty() {
             name = String::from("Local Disk");
         }
 

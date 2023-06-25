@@ -10,7 +10,7 @@ use crate::StateSafe;
 const MINIMUM_SCORE: i16 = 20;
 
 /// Checks if the filename passes the extension filter, also checks if extension filter is provided.
-fn passed_extension(filename: &String, extension: &String) -> bool { extension.len() > 0 && !filename.ends_with(extension.as_str()) }
+fn passed_extension(filename: &str, extension: &String) -> bool { !extension.is_empty() && !filename.ends_with(extension.as_str()) }
 
 /// Gives a filename a fuzzy matcher score
 /// Returns 1000 if there is an exact match for prioritizing
@@ -58,7 +58,7 @@ pub fn search_directory(state_mux: State<'_, StateSafe>, query: String, search_d
     let matcher = SkimMatcherV2::default();
 
     let state = state_mux.lock().unwrap();
-    let letter = search_directory.chars().nth(0).unwrap().to_string();
+    let letter = search_directory.chars().next().unwrap().to_string();
     let query = query.to_lowercase();
 
     let disk_cache = state.disk_cache.get(letter.as_str()).unwrap();
