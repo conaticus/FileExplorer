@@ -1,11 +1,11 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod file_explorer;
-mod util;
+mod filesystem;
+mod search;
 
-use file_explorer::filesystem_ops::{get_disks, open_directory};
-use file_explorer::search::search_directory;
+use filesystem::{get_disks, open_directory};
+use search::search_directory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

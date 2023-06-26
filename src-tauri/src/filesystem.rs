@@ -1,32 +1,34 @@
-use crate::util::strings::{
-    bytes_to_gb, os_to_string, ostr_to_string, path_to_string, pathbuf_to_string,
-};
 use crate::{CachedPath, StateSafe};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::fs::{read_dir, File, FileType};
+use std::fs::{read_dir, File};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use sysinfo::{DiskExt, System, SystemExt};
+use sysinfo::{Disk, DiskExt, System, SystemExt};
 use tauri::State;
 use walkdir::WalkDir;
 
 const CACHE_FILE_PATH: &str = "./disk_cache.json";
 
-#[derive(Serialize)]
-pub struct Disk {
-    name: String,
-    available_gb: u16,
-    used_gb: u16,
-    total_gb: u16,
-    fs: DiskFileSystem,
+const fn bytes_to_gb(bytes: u64) -> u16 {
+    (bytes / (1e+9 as u64)) as u16
 }
 
 #[derive(Serialize)]
-pub struct DiskFileSystem {
+pub struct Volume {
+    name: String,
+    mountpoint: PathBuf,
+    available_gb: u16,
+    used_gb: u16,
+    total_gb: u16,
+    fs: VolumeFileSystem,
+}
+
+#[derive(Serialize)]
+pub struct VolumeFileSystem {
     root: PathBuf,
     documents: PathBuf,
     downloads: PathBuf,
@@ -37,7 +39,7 @@ pub struct DiskFileSystem {
     desktop: PathBuf,
 }
 
-impl DiskFileSystem {
+impl VolumeFileSystem {
     fn try_new() -> Result<Self, ()> {
         macro_rules! handle_err {
             ($func:expr) => {
@@ -79,6 +81,75 @@ impl DiskFileSystem {
     }
 }
 
+impl Volume {
+    fn from(disk: &Disk) -> Self {
+        let used_bytes = disk.total_space() - disk.available_space();
+        let available_gb = bytes_to_gb(disk.available_space());
+        let used_gb = bytes_to_gb(used_bytes);
+        let total_gb = bytes_to_gb(disk.total_space());
+
+        let name = {
+            let disk_name = disk.name().to_str().unwrap();
+            match disk_name.is_empty() {
+                true => "Local Disk",
+                false => disk_name,
+            }
+            .to_string()
+        };
+
+        let mountpoint = disk.mount_point().to_path_buf();
+
+        let fs = VolumeFileSystem::try_new().unwrap();
+
+        Self {
+            name,
+            available_gb,
+            used_gb,
+            total_gb,
+            fs,
+            mountpoint,
+        }
+    }
+
+    /// This traverses the provided disk and adds the file structure to the cache in memory.
+    fn create_cache(&self, state_mux: &StateSafe) {
+        let state = &mut state_mux.lock().unwrap();
+
+        let disk_cache = state
+            .disk_cache
+            .entry(self.fs.root.to_str().unwrap().into())
+            .or_insert_with(HashMap::new);
+
+        let disk_cache = Arc::new(Mutex::new(disk_cache));
+
+        WalkDir::new(self.mountpoint.clone())
+            .into_iter()
+            .par_bridge()
+            .filter_map(|entry| entry.ok())
+            .for_each(|entry| {
+                let file_name = entry.file_name().to_str().unwrap().to_string();
+                let file_path = entry.path().to_str().unwrap().to_string();
+
+                let walkdir_filetype = entry.file_type();
+                let file_type = if walkdir_filetype.is_dir() {
+                    "directory"
+                } else {
+                    "file"
+                }
+                .to_string();
+
+                let cache_guard = &mut disk_cache.lock().unwrap();
+                cache_guard
+                    .entry(file_name)
+                    .or_insert_with(Vec::new)
+                    .push(CachedPath {
+                        file_path,
+                        file_type,
+                    });
+            });
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub enum DirectoryChild {
     File(String, String), // Name of file, path to file
@@ -87,7 +158,7 @@ pub enum DirectoryChild {
 
 /// Gets the cache from the state (in memory), encodes and saves it to the cache file path.
 /// This needs optimising.
-pub fn save_cache_to_disk(state_mux: &StateSafe) {
+pub fn save_system_cache(state_mux: &StateSafe) {
     let state = &mut state_mux.lock().unwrap();
     let serialized_cache = serde_json::to_string(&state.disk_cache).unwrap();
 
@@ -98,44 +169,8 @@ pub fn save_cache_to_disk(state_mux: &StateSafe) {
     file.write_all(serialized_cache.as_bytes()).unwrap();
 }
 
-/// This traverses the provided disk and adds the file structure to the cache in memory.
-pub fn cache_disk(state_mux: &StateSafe, path: &Path, fs_root: PathBuf) {
-    let state = &mut state_mux.lock().unwrap();
-
-    let disk_cache = state
-        .disk_cache
-        .entry(fs_root.to_str().unwrap().into())
-        .or_insert_with(HashMap::new);
-
-    let disk_cache = Arc::new(Mutex::new(disk_cache));
-
-    WalkDir::new(path)
-        .into_iter()
-        .par_bridge()
-        .filter_map(|entry| entry.ok())
-        .for_each(|entry| {
-            let file_name = ostr_to_string(entry.file_name());
-            let file_path = path_to_string(entry.path());
-
-            let walkdir_filetype = entry.file_type();
-            let mut file_type = String::from("file");
-            if FileType::is_dir(&walkdir_filetype) {
-                file_type = String::from("directory");
-            }
-
-            let cache_guard = &mut disk_cache.lock().unwrap();
-            cache_guard
-                .entry(file_name)
-                .or_insert_with(Vec::new)
-                .push(CachedPath {
-                    file_path,
-                    file_type,
-                });
-        });
-}
-
 /// Reads and decodes the cache file and stores it in memory for quick access.
-pub fn load_cache(state_mux: &StateSafe) {
+pub fn load_system_cache(state_mux: &StateSafe) {
     let state = &mut state_mux.lock().unwrap();
     let file_contents = fs::read_to_string(CACHE_FILE_PATH).unwrap();
     state.disk_cache = serde_json::from_str(&file_contents).unwrap();
@@ -145,7 +180,7 @@ pub fn load_cache(state_mux: &StateSafe) {
 /// If there is a cache stored on disk it is loaded.
 /// If there is no cache stored on disk, one is created as well as stored in memory.
 #[tauri::command]
-pub fn get_disks(state_mux: State<'_, StateSafe>) -> Vec<Disk> {
+pub fn get_disks(state_mux: State<StateSafe>) -> Vec<Volume> {
     let mut disks = Vec::new();
 
     let mut sys = System::new_all();
@@ -153,38 +188,20 @@ pub fn get_disks(state_mux: State<'_, StateSafe>) -> Vec<Disk> {
 
     let cache_exists = fs::metadata(CACHE_FILE_PATH).is_ok();
     if cache_exists {
-        load_cache(&state_mux);
+        load_system_cache(&state_mux);
     } else {
         File::create(CACHE_FILE_PATH).unwrap();
     }
 
     for disk in sys.disks() {
-        let used_bytes = disk.total_space() - disk.available_space();
-        let available_gb = bytes_to_gb(disk.available_space());
-        let used_gb = bytes_to_gb(used_bytes);
-        let total_gb = bytes_to_gb(disk.total_space());
-
-        let mut name = ostr_to_string(disk.name());
-        if name.is_empty() {
-            name = String::from("Local Disk");
-        }
-
-        let mnt_point = disk.mount_point();
-
-        let fs = DiskFileSystem::try_new().unwrap();
+        let volume = Volume::from(disk);
 
         if !cache_exists {
-            cache_disk(&state_mux, mnt_point, fs.root.clone());
-            save_cache_to_disk(&state_mux);
+            volume.create_cache(&state_mux);
+            save_system_cache(&state_mux);
         }
 
-        disks.push(Disk {
-            name,
-            available_gb,
-            used_gb,
-            total_gb,
-            fs,
-        });
+        disks.push(volume);
     }
 
     disks
@@ -201,20 +218,17 @@ pub fn open_directory(path: String) -> Vec<DirectoryChild> {
 
     for entry in directory {
         let entry = entry.unwrap();
-        let file_name = os_to_string(entry.file_name());
 
-        if entry.file_type().unwrap().is_file() {
-            dir_children.push(DirectoryChild::File(
-                file_name,
-                pathbuf_to_string(entry.path()),
-            ));
+        let file_name = entry.file_name().to_str().unwrap().to_string();
+        let entry_is_file = entry.file_type().unwrap().is_file();
+        let entry = entry.path().to_str().unwrap().to_string();
+
+        if entry_is_file {
+            dir_children.push(DirectoryChild::File(file_name, entry));
             continue;
         }
 
-        dir_children.push(DirectoryChild::Directory(
-            file_name,
-            pathbuf_to_string(entry.path()),
-        ));
+        dir_children.push(DirectoryChild::Directory(file_name, entry));
     }
 
     dir_children

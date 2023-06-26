@@ -3,7 +3,7 @@ use std::time::Instant;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use tauri::State;
-use crate::file_explorer::filesystem_ops::DirectoryChild;
+use crate::filesystem::DirectoryChild;
 use crate::StateSafe;
 
 const MINIMUM_SCORE: i16 = 20;
@@ -51,7 +51,7 @@ fn check_file(
 /// Takes into account the filters provided.
 /// Returns the results ONLY when the entire disk is searched
 #[tauri::command]
-pub fn search_directory(state_mux: State<'_, StateSafe>, query: String, search_directory: String, extension: String, accept_files: bool, accept_directories: bool) -> Vec<DirectoryChild> {
+pub fn search_directory(state_mux: State<StateSafe>, query: String, search_directory: String, extension: String, accept_files: bool, accept_directories: bool) -> Vec<DirectoryChild> {
     let start_time = Instant::now();
 
     let mut results: Vec<_> = Vec::new();
