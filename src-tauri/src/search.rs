@@ -1,23 +1,27 @@
-use std::path::Path;
-use std::time::Instant;
-use fuzzy_matcher::FuzzyMatcher;
-use fuzzy_matcher::skim::SkimMatcherV2;
-use tauri::State;
 use crate::filesystem::DirectoryChild;
 use crate::StateSafe;
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
+use std::path::Path;
+use std::time::Instant;
+use tauri::State;
 
 const MINIMUM_SCORE: i16 = 20;
 
 /// Checks if the filename passes the extension filter, also checks if extension filter is provided.
 fn passed_extension(filename: &str, extension: &String) -> bool {
-    if extension.is_empty() { return true }
+    if extension.is_empty() {
+        return true;
+    }
     filename.ends_with(extension.as_str())
 }
 
 /// Gives a filename a fuzzy matcher score
 /// Returns 1000 if there is an exact match for prioritizing
 fn score_filename(matcher: &SkimMatcherV2, filename: &str, query: &str) -> i16 {
-    if filename == query { return 1000 }
+    if filename == query {
+        return 1000;
+    }
     matcher.fuzzy_match(filename, query).unwrap_or(0) as i16
 }
 
@@ -31,8 +35,12 @@ fn check_file(
     results: &mut Vec<DirectoryChild>,
     fuzzy_scores: &mut Vec<i16>,
 ) {
-    if !accept_files { return }
-    if !passed_extension(filename, extension) { return }
+    if !accept_files {
+        return;
+    }
+    if !passed_extension(filename, extension) {
+        return;
+    }
 
     let filename_path = Path::new(filename);
     let cleaned_filename = filename_path
@@ -41,9 +49,14 @@ fn check_file(
         .unwrap_or("");
 
     let score = score_filename(matcher, cleaned_filename, query.as_str());
-    if score < MINIMUM_SCORE { return }
+    if score < MINIMUM_SCORE {
+        return;
+    }
 
-    results.push(DirectoryChild::File(filename.to_string(), file_path.to_string()));
+    results.push(DirectoryChild::File(
+        filename.to_string(),
+        file_path.to_string(),
+    ));
     fuzzy_scores.push(score);
 }
 
@@ -51,7 +64,14 @@ fn check_file(
 /// Takes into account the filters provided.
 /// Returns the results ONLY when the entire disk is searched
 #[tauri::command]
-pub fn search_directory(state_mux: State<StateSafe>, query: String, search_directory: String, extension: String, accept_files: bool, accept_directories: bool) -> Vec<DirectoryChild> {
+pub fn search_directory(
+    state_mux: State<StateSafe>,
+    query: String,
+    search_directory: String,
+    extension: String,
+    accept_files: bool,
+    accept_directories: bool,
+) -> Vec<DirectoryChild> {
     let start_time = Instant::now();
 
     let mut results: Vec<_> = Vec::new();
@@ -68,26 +88,38 @@ pub fn search_directory(state_mux: State<StateSafe>, query: String, search_direc
             let file_type = &path.file_type;
             let file_path = &path.file_path;
 
-            if !file_path.starts_with(&search_directory) { continue }
+            if !file_path.starts_with(&search_directory) {
+                continue;
+            }
 
             if file_type == "file" {
                 check_file(
                     &matcher,
                     accept_files,
-                    filename, file_path, &extension,
+                    filename,
+                    file_path,
+                    &extension,
                     query.clone(),
-                    &mut results, &mut fuzzy_scores
+                    &mut results,
+                    &mut fuzzy_scores,
                 );
 
                 continue;
             }
 
-            if !accept_directories { continue }
+            if !accept_directories {
+                continue;
+            }
 
             let score = score_filename(&matcher, filename, &query);
-            if score < MINIMUM_SCORE { continue; }
+            if score < MINIMUM_SCORE {
+                continue;
+            }
 
-            results.push(DirectoryChild::Directory(filename.to_string(), file_path.to_string()));
+            results.push(DirectoryChild::Directory(
+                filename.to_string(),
+                file_path.to_string(),
+            ));
             fuzzy_scores.push(score);
         }
     }
@@ -99,5 +131,8 @@ pub fn search_directory(state_mux: State<StateSafe>, query: String, search_direc
     let mut tuples: Vec<(usize, _)> = fuzzy_scores.iter().enumerate().collect();
     tuples.sort_by(|a, b| b.1.cmp(a.1));
 
-    tuples.into_iter().map(|(index, _)| results[index].clone()).collect()
+    tuples
+        .into_iter()
+        .map(|(index, _)| results[index].clone())
+        .collect()
 }

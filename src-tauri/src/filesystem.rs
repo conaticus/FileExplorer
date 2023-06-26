@@ -198,11 +198,12 @@ pub fn get_disks(state_mux: State<StateSafe>) -> Vec<Volume> {
 
         if !cache_exists {
             volume.create_cache(&state_mux);
-            save_system_cache(&state_mux);
         }
 
         disks.push(volume);
     }
+
+    save_system_cache(&state_mux);
 
     disks
 }
