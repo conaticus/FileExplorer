@@ -11,7 +11,7 @@ use sysinfo::{Disk, DiskExt, System, SystemExt};
 use tauri::State;
 use walkdir::WalkDir;
 
-const CACHE_FILE_PATH: &str = "./disk_cache.json";
+const CACHE_FILE_PATH: &str = "./system_cache.json";
 
 const fn bytes_to_gb(bytes: u64) -> u16 {
     (bytes / (1e+9 as u64)) as u16
@@ -89,10 +89,10 @@ impl Volume {
         let total_gb = bytes_to_gb(disk.total_space());
 
         let name = {
-            let disk_name = disk.name().to_str().unwrap();
-            match disk_name.is_empty() {
-                true => "Local Disk",
-                false => disk_name,
+            let volume_name = disk.name().to_str().unwrap();
+            match volume_name.is_empty() {
+                true => "Local Volume",
+                false => volume_name,
             }
             .to_string()
         };
@@ -111,16 +111,16 @@ impl Volume {
         }
     }
 
-    /// This traverses the provided disk and adds the file structure to the cache in memory.
+    /// This traverses the provided volume and adds the file structure to the cache in memory.
     fn create_cache(&self, state_mux: &StateSafe) {
         let state = &mut state_mux.lock().unwrap();
 
-        let disk_cache = state
-            .disk_cache
+        let volume = state
+            .system_cache
             .entry(self.mountpoint.to_string_lossy().to_string())
             .or_insert_with(HashMap::new);
 
-        let disk_cache = Arc::new(Mutex::new(disk_cache));
+        let system_cache = Arc::new(Mutex::new(volume));
 
         WalkDir::new(self.mountpoint.clone())
             .into_iter()
@@ -138,7 +138,7 @@ impl Volume {
                 }
                 .to_string();
 
-                let cache_guard = &mut disk_cache.lock().unwrap();
+                let cache_guard = &mut system_cache.lock().unwrap();
                 cache_guard
                     .entry(file_name)
                     .or_insert_with(Vec::new)
@@ -160,7 +160,7 @@ pub enum DirectoryChild {
 /// This needs optimising.
 pub fn save_system_cache(state_mux: &StateSafe) {
     let state = &mut state_mux.lock().unwrap();
-    let serialized_cache = serde_json::to_string(&state.disk_cache).unwrap();
+    let serialized_cache = serde_json::to_string(&state.system_cache).unwrap();
 
     let mut file = fs::OpenOptions::new()
         .write(true)
@@ -173,15 +173,15 @@ pub fn save_system_cache(state_mux: &StateSafe) {
 pub fn load_system_cache(state_mux: &StateSafe) {
     let state = &mut state_mux.lock().unwrap();
     let file_contents = fs::read_to_string(CACHE_FILE_PATH).unwrap();
-    state.disk_cache = serde_json::from_str(&file_contents).unwrap();
+    state.system_cache = serde_json::from_str(&file_contents).unwrap();
 }
 
-/// Gets list of disk partitions and returns them.
-/// If there is a cache stored on disk it is loaded.
-/// If there is no cache stored on disk, one is created as well as stored in memory.
+/// Gets list of volumes and returns them.
+/// If there is a cache stored on volume it is loaded.
+/// If there is no cache stored on volume, one is created as well as stored in memory.
 #[tauri::command]
-pub fn get_disks(state_mux: State<StateSafe>) -> Vec<Volume> {
-    let mut disks = Vec::new();
+pub fn get_volumes(state_mux: State<StateSafe>) -> Vec<Volume> {
+    let mut volumes = Vec::new();
 
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -200,12 +200,12 @@ pub fn get_disks(state_mux: State<StateSafe>) -> Vec<Volume> {
             volume.create_cache(&state_mux);
         }
 
-        disks.push(volume);
+        volumes.push(volume);
     }
 
     save_system_cache(&state_mux);
 
-    disks
+    volumes
 }
 
 /// Searches and returns the files in a given directory. This is not recursive.

@@ -4,7 +4,7 @@
 mod filesystem;
 mod search;
 
-use filesystem::{get_disks, open_directory};
+use filesystem::{get_volumes, open_directory};
 use search::search_directory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -16,11 +16,11 @@ pub struct CachedPath {
     file_type: String,
 }
 
-pub type DiskCache = HashMap<String, Vec<CachedPath>>;
+pub type VolumeCache = HashMap<String, Vec<CachedPath>>;
 
 #[derive(Default)]
 pub struct AppState {
-    disk_cache: HashMap<String, DiskCache>,
+    system_cache: HashMap<String, VolumeCache>,
 }
 
 pub type StateSafe = Arc<Mutex<AppState>>;
@@ -28,7 +28,7 @@ pub type StateSafe = Arc<Mutex<AppState>>;
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            get_disks,
+            get_volumes,
             open_directory,
             search_directory
         ])
