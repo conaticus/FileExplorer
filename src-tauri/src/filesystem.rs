@@ -127,8 +127,9 @@ impl Volume {
             .par_bridge()
             .filter_map(|entry| entry.ok())
             .for_each(|entry| {
-                let file_name = entry.file_name().to_str().unwrap().to_string();
-                let file_path = entry.path().to_str().unwrap().to_string();
+                // string is should be lossy, otherwise it crashes on windows
+                let file_name = entry.file_name().to_string_lossy().to_string();
+                let file_path = entry.path().to_string_lossy().to_string();
 
                 let walkdir_filetype = entry.file_type();
                 let file_type = if walkdir_filetype.is_dir() {
