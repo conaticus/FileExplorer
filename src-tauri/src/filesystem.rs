@@ -117,7 +117,7 @@ impl Volume {
 
         let disk_cache = state
             .disk_cache
-            .entry(self.fs.root.to_str().unwrap().into())
+            .entry(self.mountpoint.to_string_lossy().to_string())
             .or_insert_with(HashMap::new);
 
         let disk_cache = Arc::new(Mutex::new(disk_cache));
@@ -127,8 +127,8 @@ impl Volume {
             .par_bridge()
             .filter_map(|entry| entry.ok())
             .for_each(|entry| {
-                let file_name = entry.file_name().to_str().unwrap().to_string();
-                let file_path = entry.path().to_str().unwrap().to_string();
+                let file_name = entry.file_name().to_string_lossy().to_string();
+                let file_path = entry.path().to_string_lossy().to_string();
 
                 let walkdir_filetype = entry.file_type();
                 let file_type = if walkdir_filetype.is_dir() {

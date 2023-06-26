@@ -68,6 +68,7 @@ pub fn search_directory(
     state_mux: State<StateSafe>,
     query: String,
     search_directory: String,
+    mount_pnt: String,
     extension: String,
     accept_files: bool,
     accept_directories: bool,
@@ -79,10 +80,9 @@ pub fn search_directory(
     let matcher = SkimMatcherV2::default().smart_case();
 
     let state = state_mux.lock().unwrap();
-    let letter = search_directory.chars().next().unwrap().to_string();
     let query = query.to_lowercase();
 
-    let disk_cache = state.disk_cache.get(letter.as_str()).unwrap();
+    let disk_cache = state.disk_cache.get(&mount_pnt).unwrap();
     for (filename, paths) in disk_cache {
         for path in paths {
             let file_type = &path.file_type;
