@@ -62,7 +62,7 @@ fn check_file(
 
 /// Reads the cache and does a fuzzy search for a directory.
 /// Takes into account the filters provided.
-/// Returns the results ONLY when the entire disk is searched
+/// Returns the results ONLY when the entire volume is searched
 #[tauri::command]
 pub fn search_directory(
     state_mux: State<StateSafe>,
@@ -82,8 +82,8 @@ pub fn search_directory(
     let state = state_mux.lock().unwrap();
     let query = query.to_lowercase();
 
-    let disk_cache = state.disk_cache.get(&mount_pnt).unwrap();
-    for (filename, paths) in disk_cache {
+    let system_cache = state.system_cache.get(&mount_pnt).unwrap();
+    for (filename, paths) in system_cache {
         for path in paths {
             let file_type = &path.file_type;
             let file_path = &path.file_path;

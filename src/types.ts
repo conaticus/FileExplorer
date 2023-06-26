@@ -1,4 +1,4 @@
-export interface Disk {
+export interface Volume {
     name: string;
     mountpoint: string;
     available_gb: number;

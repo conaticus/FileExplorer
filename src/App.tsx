@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/tauri";
-import { DirectoryContent, Disk } from "./types";
+import { DirectoryContent, Volume } from "./types";
 import { openDirectory } from "./ipc/fileExplorer";
-import DiskList from "./components/MainBody/Disks/DiskList";
+import VolumeList from "./components/MainBody/Volumes/VolumeList";
 import FolderNavigation from "./components/TopBar/FolderNavigation";
 import { DirectoryContents } from "./components/MainBody/DirectoryContents";
 import useNavigation from "./hooks/useNavigation";
 import SearchBar from "./components/TopBar/SearchBar";
 
 function App() {
-  const [disks, setDisks] = useState<Disk[]>([]);
+  const [volumes, setVolumes] = useState<Volume[]>([]);
   const [directoryContents, setDirectoryContents] = useState<
     DirectoryContent[]
   >([]);
@@ -33,7 +33,7 @@ function App() {
     setDirectoryContents(contents);
   }
 
-  async function onDiskClick(mountpoint: string) {
+  async function onVolumeClick(mountpoint: string) {
     if (pathHistory[pathHistory.length - 1] != mountpoint) {
       pathHistory.push(mountpoint);
     }
@@ -55,18 +55,18 @@ function App() {
     await updateDirectoryContents();
   }
 
-  async function getDisks() {
-    if (disks.length != 0) {
+  async function getVolumes() {
+    if (volumes.length != 0) {
       return;
     }
 
-    const newDisks = await invoke<Disk[]>("get_disks");
-    setDisks(newDisks);
+    const newVolumes = await invoke<Volume[]>("get_volumes");
+    setVolumes(newVolumes);
   }
 
   async function updateCurrentDirectory() {
     if (pathHistory[historyPlace] == "") {
-      return getDisks();
+      return getVolumes();
     }
 
     await updateDirectoryContents();
@@ -74,7 +74,7 @@ function App() {
 
   useEffect(() => {
     if (pathHistory[historyPlace] == "") {
-      getDisks().catch(console.error);
+      getVolumes().catch(console.error);
       setCurrentVolume("");
       return;
     }
@@ -100,7 +100,7 @@ function App() {
       </div>
 
       {pathHistory[historyPlace] === "" && searchResults.length === 0 ? (
-        <DiskList disks={disks} onClick={onDiskClick} />
+        <VolumeList volumes={volumes} onClick={onVolumeClick} />
       ) : (
         <DirectoryContents
           content={
