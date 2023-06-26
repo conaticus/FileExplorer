@@ -20,6 +20,10 @@ jobs:
       with:
         node-version: 18
     - run: npm i -g yarn
+    
+    - name: Make sure you have Tauri CLI installed
+      run: |
+        cargo install tauri-cli
 
     - name: Install dependencies
       run: yarn
