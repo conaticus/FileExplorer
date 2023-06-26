@@ -29,10 +29,9 @@ function App() {
         setDirectoryContents(contents);
     }
 
-    async function onDiskClick(letter: string) {
-        const path = letter + ":\\"; // Important that we use backslashes as this is the default in Rust (for comparisons)
-        if (pathHistory[pathHistory.length - 1] != path) {
-            pathHistory.push(path);
+    async function onDiskClick(mountpoint: string) {
+        if (pathHistory[pathHistory.length - 1] != mountpoint) {
+            pathHistory.push(mountpoint);
         }
         setHistoryPlace(pathHistory.length - 1);
 
