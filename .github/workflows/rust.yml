@@ -38,7 +38,7 @@ jobs:
       run: |
         cargo tauri build
         ls -gh
-        zip -r build.zip dist
+        zip -r ./build.zip ./src-tauri
     
     - name: Create Release
       id: create_release
