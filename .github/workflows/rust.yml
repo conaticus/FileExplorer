@@ -31,8 +31,8 @@ jobs:
     - name: Build for production 
       run: |
         cargo tauri build
-        list
-        tar -cvzf build.zip ./src-tauri/target/release
+        dir "./src-tauri/target/release/bundle"
+        tar -cvzf build.zip ./src-tauri/target/release/bundle
     
     - name: Create Release
       id: create_release
