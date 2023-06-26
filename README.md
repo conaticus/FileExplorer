@@ -1,4 +1,4 @@
-[![Rust](https://github.com/vicentefelipechile/FileExplorer/actions/workflows/rust.yml/badge.svg)](https://github.com/vicentefelipechile/FileExplorer/actions/workflows/rust.yml)
+[![Rust](https://github.com/vicentefelipechile/FileExplorer/actions/workflows/rust.yml/badge.svg?event=push)](https://github.com/vicentefelipechile/FileExplorer/actions/workflows/rust.yml)
 
 # Fast File Explorer
 This is a fast file explorer written in Rust. After testing on my C drive, this file explorer was able to find a file in 280ms. In comparison, Windows took 3 minutes and 45 seconds.
