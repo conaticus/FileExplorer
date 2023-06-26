@@ -51,7 +51,7 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
           asset_path: ./src-tauri/target/release/bundle/msi/file-explorer_0.0.0_x64_en-US.msi
           asset_name: file-explorer_${{ github.run_number }}_x64_en-US.msi
-          #asset_content_type: application/zip
+          asset_content_type: application/x-msi
 
     - name: Upload Executable
       id: upload-release-asset-exe
@@ -62,4 +62,4 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./src-tauri/target/release/bundle/nsis/file-explorer_0.0.0_x64-setup.exe
           asset_name: file-explorer_${{ github.run_number }}_x64-setup.exe
-          #asset_content_type: application/zip
+          asset_content_type: application/x-msdownload
