@@ -4,7 +4,7 @@ import {MouseEventHandler} from "react";
 
 interface Props {
     disks: Disk[];
-    onClick: (letter: string) => any;
+    onClick: (mountpoint: string) => any;
 }
 
 export default function DiskList({ disks, onClick }: Props) {
@@ -12,7 +12,7 @@ export default function DiskList({ disks, onClick }: Props) {
         <div className="space-x-4">
             {disks.map((disk, idx) => (
                 <DiskComponent
-                    onClick={() => onClick(disk.letter)}
+                    onClick={() => onClick(disk.mountpoint)}
                     disk={disk}
                     key={idx}
                 />

@@ -1,29 +1,47 @@
 import { useState } from "react";
+import { DirectoryContent } from "../types";
 
-export default function useNavigation() {
-    const [pathHistory, setPathHistory] = useState([""]);
-    const [historyPlace, setHistoryPlace] = useState(0);
+export default function useNavigation(
+  searchResults: DirectoryContent[],
+  setSearchResults: Function
+) {
+  const [pathHistory, setPathHistory] = useState([""]);
+  const [historyPlace, setHistoryPlace] = useState(0);
+  const [currentVolume, setCurrentVolume] = useState("");
 
-    function onBackArrowClick() {
-        pathHistory.push(pathHistory[historyPlace - 1]);
-        setHistoryPlace((prevPlace) => prevPlace - 1);
+  function onBackArrowClick() {
+    if (searchResults.length > 0) {
+      setHistoryPlace(historyPlace);
+
+      setSearchResults([]);
+      return;
     }
 
-    function onForwardArrowClick() {
-        setHistoryPlace((prevPlace) => prevPlace + 1);
-    }
+    pathHistory.push(pathHistory[historyPlace - 1]);
+    setHistoryPlace((prevPlace) => prevPlace - 1);
+  }
 
-    function canGoForward(): boolean { return historyPlace < pathHistory.length - 1; }
-    function canGoBackward(): boolean { return historyPlace > 0; }
+  function onForwardArrowClick() {
+    setHistoryPlace((prevPlace) => prevPlace + 1);
+  }
 
-    return {
-        pathHistory,
-        setPathHistory,
-        historyPlace,
-        setHistoryPlace,
-        onBackArrowClick,
-        onForwardArrowClick,
-        canGoForward,
-        canGoBackward,
-    }
+  function canGoForward(): boolean {
+    return historyPlace < pathHistory.length - 1;
+  }
+  function canGoBackward(): boolean {
+    return historyPlace > 0;
+  }
+
+  return {
+    pathHistory,
+    setPathHistory,
+    historyPlace,
+    setHistoryPlace,
+    onBackArrowClick,
+    onForwardArrowClick,
+    canGoForward,
+    canGoBackward,
+    currentVolume,
+    setCurrentVolume,
+  };
 }

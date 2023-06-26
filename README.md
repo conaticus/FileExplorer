@@ -5,7 +5,6 @@ This is a fast file explorer written in Rust. After testing on my C drive, this 
 
 Bare in mind this was just a proof of concept and this is **not complete**, sadly I did not have time to implement these features for the video:
 - Up to date cache with file watching
-- Ability to search specific directories instead of just a cached disk
 - Run on startup
 - Top navigation bar
 - Search/caching progress counter

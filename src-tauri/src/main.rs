@@ -1,14 +1,14 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod util;
-mod file_explorer;
+mod filesystem;
+mod search;
 
+use filesystem::{get_disks, open_directory};
+use search::search_directory;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use serde::{Deserialize, Serialize};
-use file_explorer::{get_disks, open_directory};
-use file_explorer::search::{search_directory};
 
 #[derive(Serialize, Deserialize)]
 pub struct CachedPath {
@@ -20,15 +20,20 @@ pub type DiskCache = HashMap<String, Vec<CachedPath>>;
 
 #[derive(Default)]
 pub struct AppState {
-    drive_cache: HashMap<String, DiskCache>,
+    disk_cache: HashMap<String, DiskCache>,
 }
 
 pub type StateSafe = Arc<Mutex<AppState>>;
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_disks, open_directory, search_directory])
+        .invoke_handler(tauri::generate_handler![
+            get_disks,
+            open_directory,
+            search_directory
+        ])
         .manage(Arc::new(Mutex::new(AppState::default())))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
