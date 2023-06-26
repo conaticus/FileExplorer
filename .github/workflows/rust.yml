@@ -26,7 +26,9 @@ jobs:
       run: sudo apt install libwebkit2gtk-4.0-dev libssl-dev libgtk-3-dev libsoup2.4-dev libayatana-appindicator3-dev librsvg2-dev -y
 
     - name: Make sure you have Tauri CLI installed
-      run: cargo install tauri-cli
+      run: |
+        rustup target add x86_64-pc-windows-gnu
+        cargo install tauri-cli
 
     - name: Install dependencies
       run: yarn
@@ -38,7 +40,7 @@ jobs:
       run: |
         cargo tauri build
         ls -gh
-        zip -r ./build.zip ./src-tauri
+        zip -r ./build.zip ./src-tauri/target/release
     
     - name: Create Release
       id: create_release
