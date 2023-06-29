@@ -141,8 +141,16 @@ fn save_to_cache(state: &mut MutexGuard<AppState>) {
 }
 
 /// Reads and decodes the cache file and stores it in memory for quick access.
-pub fn load_system_cache(state_mux: &StateSafe) {
+/// Returns false if the cache was unable to deserialize.
+pub fn load_system_cache(state_mux: &StateSafe) -> bool {
     let state = &mut state_mux.lock().unwrap();
     let file_contents = fs::read_to_string(CACHE_FILE_PATH).unwrap();
-    state.system_cache = serde_json::from_str(&file_contents).unwrap();
+
+    let deserialize_result = serde_json::from_str(&file_contents);
+    if let Ok(system_cache) = deserialize_result {
+        state.system_cache = system_cache;
+        return true;
+    }
+
+    false
 }

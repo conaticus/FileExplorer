@@ -180,9 +180,9 @@ pub fn get_volumes(state_mux: State<StateSafe>) -> Vec<Volume> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
-    let cache_exists = fs::metadata(CACHE_FILE_PATH).is_ok();
+    let mut cache_exists = fs::metadata(CACHE_FILE_PATH).is_ok();
     if cache_exists {
-        load_system_cache(&state_mux);
+        cache_exists = load_system_cache(&state_mux);
     } else {
         File::create(CACHE_FILE_PATH).unwrap();
     }
