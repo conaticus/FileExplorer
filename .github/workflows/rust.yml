@@ -2,12 +2,14 @@ name: Rust
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "dev" ]
+    branches: [ "main" ]
 
 env:
   CARGO_TERM_COLOR: always
+  VERSION_MAJOR: 1
+  VERSION_MINOR: 0
 
 jobs:
   build_windows:
@@ -39,8 +41,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
       with:
-        tag_name: ${{ github.run_number }}
-        release_name: Release ${{ github.run_number }}
+        tag_name: v${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ github.run_number }}
+        release_name: Release ${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ github.run_number }}
 
     - name: Upload MSI
       id: upload-release-asset-msi
@@ -50,7 +52,7 @@ jobs:
       with:
           upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
           asset_path: ./src-tauri/target/release/bundle/msi/file-explorer_0.0.0_x64_en-US.msi
-          asset_name: file-explorer_${{ github.run_number }}_x64_en-US.msi
+          asset_name: file-explorer_${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ github.run_number }}_x64_en-US.msi
           asset_content_type: application/x-msi
 
     - name: Upload Executable
@@ -61,5 +63,5 @@ jobs:
       with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./src-tauri/target/release/bundle/nsis/file-explorer_0.0.0_x64-setup.exe
-          asset_name: file-explorer_${{ github.run_number }}_x64-setup.exe
+          asset_name: file-explorer_${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ github.run_number }}_x64-setup.exe
           asset_content_type: application/x-msdownload
