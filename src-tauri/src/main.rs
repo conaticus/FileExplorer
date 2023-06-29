@@ -4,7 +4,8 @@
 mod filesystem;
 mod search;
 
-use filesystem::{get_volumes, open_directory};
+use filesystem::open_directory;
+use filesystem::volume::get_volumes;
 use search::search_directory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -25,7 +26,8 @@ pub struct AppState {
 
 pub type StateSafe = Arc<Mutex<AppState>>;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             get_volumes,
@@ -36,4 +38,3 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

@@ -2,20 +2,17 @@ use crate::{CachedPath, StateSafe};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
-use std::fs::{read_dir, File};
-use std::io::Write;
-use std::path::PathBuf;
+use std::{fs, thread};
+use std::fs::{File};
+use std::path::{PathBuf};
 use std::sync::{Arc, Mutex};
 use sysinfo::{Disk, DiskExt, System, SystemExt};
-use tauri::State;
+use tauri::{State};
 use walkdir::WalkDir;
-
-const CACHE_FILE_PATH: &str = "./system_cache.json";
-
-const fn bytes_to_gb(bytes: u64) -> u16 {
-    (bytes / (1e+9 as u64)) as u16
-}
+use notify::{Watcher, RecursiveMode};
+use tokio::task::block_in_place;
+use crate::filesystem::{bytes_to_gb, DIRECTORY, FILE};
+use crate::filesystem::cache::{CACHE_FILE_PATH, FsEventHandler, load_system_cache, run_cache_interval, save_system_cache};
 
 #[derive(Serialize)]
 pub struct Volume {
@@ -94,7 +91,7 @@ impl Volume {
                 true => "Local Volume",
                 false => volume_name,
             }
-            .to_string()
+                .to_string()
         };
 
         let mountpoint = disk.mount_point().to_path_buf();
@@ -131,12 +128,8 @@ impl Volume {
                 let file_path = entry.path().to_string_lossy().to_string();
 
                 let walkdir_filetype = entry.file_type();
-                let file_type = if walkdir_filetype.is_dir() {
-                    "directory"
-                } else {
-                    "file"
-                }
-                .to_string();
+                let file_type = if walkdir_filetype.is_dir() { DIRECTORY } else { FILE }
+                    .to_string();
 
                 let cache_guard = &mut system_cache.lock().unwrap();
                 cache_guard
@@ -148,32 +141,33 @@ impl Volume {
                     });
             });
     }
+
+    fn watch_changes(&self, state_mux: &StateSafe) {
+        let mut fs_event_manager = FsEventHandler::new(state_mux.clone(), self.mountpoint.clone());
+
+        let mut watcher = notify::recommended_watcher(move |res| {
+            match res {
+                Ok(event) => fs_event_manager.handle_event(event),
+                Err(e) => panic!("Failed to handle event: {:?}", e),
+            }
+        }).unwrap();
+
+        let path = self.mountpoint.clone();
+
+        thread::spawn(move || {
+            watcher.watch(&path, RecursiveMode::Recursive).unwrap();
+
+            block_in_place(|| loop {
+                thread::park();
+            })
+        });
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum DirectoryChild {
     File(String, String), // Name of file, path to file
     Directory(String, String),
-}
-
-/// Gets the cache from the state (in memory), encodes and saves it to the cache file path.
-/// This needs optimising.
-pub fn save_system_cache(state_mux: &StateSafe) {
-    let state = &mut state_mux.lock().unwrap();
-    let serialized_cache = serde_json::to_string(&state.system_cache).unwrap();
-
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .open(CACHE_FILE_PATH)
-        .unwrap();
-    file.write_all(serialized_cache.as_bytes()).unwrap();
-}
-
-/// Reads and decodes the cache file and stores it in memory for quick access.
-pub fn load_system_cache(state_mux: &StateSafe) {
-    let state = &mut state_mux.lock().unwrap();
-    let file_contents = fs::read_to_string(CACHE_FILE_PATH).unwrap();
-    state.system_cache = serde_json::from_str(&file_contents).unwrap();
 }
 
 /// Gets list of volumes and returns them.
@@ -186,9 +180,9 @@ pub fn get_volumes(state_mux: State<StateSafe>) -> Vec<Volume> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
-    let cache_exists = fs::metadata(CACHE_FILE_PATH).is_ok();
+    let mut cache_exists = fs::metadata(CACHE_FILE_PATH).is_ok();
     if cache_exists {
-        load_system_cache(&state_mux);
+        cache_exists = load_system_cache(&state_mux);
     } else {
         File::create(CACHE_FILE_PATH).unwrap();
     }
@@ -200,37 +194,12 @@ pub fn get_volumes(state_mux: State<StateSafe>) -> Vec<Volume> {
             volume.create_cache(&state_mux);
         }
 
+        volume.watch_changes(&state_mux);
         volumes.push(volume);
     }
 
     save_system_cache(&state_mux);
+    run_cache_interval(&state_mux);
 
     volumes
-}
-
-/// Searches and returns the files in a given directory. This is not recursive.
-#[tauri::command]
-pub fn open_directory(path: String) -> Vec<DirectoryChild> {
-    let mut dir_children = Vec::new();
-
-    let Ok(directory) = read_dir(path) else {
-        return dir_children;
-    };
-
-    for entry in directory {
-        let entry = entry.unwrap();
-
-        let file_name = entry.file_name().to_str().unwrap().to_string();
-        let entry_is_file = entry.file_type().unwrap().is_file();
-        let entry = entry.path().to_str().unwrap().to_string();
-
-        if entry_is_file {
-            dir_children.push(DirectoryChild::File(file_name, entry));
-            continue;
-        }
-
-        dir_children.push(DirectoryChild::Directory(file_name, entry));
-    }
-
-    dir_children
 }

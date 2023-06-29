@@ -22,6 +22,7 @@ fuzzy-matcher = "*"
 rayon = "1.7.0"
 dirs = "5.0.1"
 notify = "6.0.1"
+tokio = { version = "1.28.2", features = ["full"] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
