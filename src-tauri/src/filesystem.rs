@@ -1,20 +1,20 @@
-use crate::{CachedPath, StateSafe};
+use crate::{ CachedPath, StateSafe };
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::{ Deserialize, Serialize };
 use std::collections::HashMap;
 use std::fs;
-use std::fs::{read_dir, File};
+use std::fs::{ read_dir, File };
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use sysinfo::{Disk, DiskExt, System, SystemExt};
+use std::sync::{ Arc, Mutex };
+use sysinfo::{ Disk, DiskExt, System, SystemExt };
 use tauri::State;
 use walkdir::WalkDir;
 
 const CACHE_FILE_PATH: &str = "./system_cache.json";
 
 const fn bytes_to_gb(bytes: u64) -> u16 {
-    (bytes / (1e+9 as u64)) as u16
+    (bytes / (1e9 as u64)) as u16
 }
 
 #[derive(Serialize)]
@@ -90,11 +90,12 @@ impl Volume {
 
         let name = {
             let volume_name = disk.name().to_str().unwrap();
-            match volume_name.is_empty() {
-                true => "Local Volume",
-                false => volume_name,
-            }
-            .to_string()
+            (
+                match volume_name.is_empty() {
+                    true => "Local Volume",
+                    false => volume_name,
+                }
+            ).to_string()
         };
 
         let mountpoint = disk.mount_point().to_path_buf();
@@ -115,8 +116,7 @@ impl Volume {
     fn create_cache(&self, state_mux: &StateSafe) {
         let state = &mut state_mux.lock().unwrap();
 
-        let volume = state
-            .system_cache
+        let volume = state.system_cache
             .entry(self.mountpoint.to_string_lossy().to_string())
             .or_insert_with(HashMap::new);
 
@@ -131,21 +131,19 @@ impl Volume {
                 let file_path = entry.path().to_string_lossy().to_string();
 
                 let walkdir_filetype = entry.file_type();
-                let file_type = if walkdir_filetype.is_dir() {
-                    "directory"
-                } else {
-                    "file"
-                }
-                .to_string();
+                let file_type = (
+                    if walkdir_filetype.is_dir() {
+                        "directory"
+                    } else {
+                        "file"
+                    }
+                ).to_string();
 
                 let cache_guard = &mut system_cache.lock().unwrap();
-                cache_guard
-                    .entry(file_name)
-                    .or_insert_with(Vec::new)
-                    .push(CachedPath {
-                        file_path,
-                        file_type,
-                    });
+                cache_guard.entry(file_name).or_insert_with(Vec::new).push(CachedPath {
+                    file_path,
+                    file_type,
+                });
             });
     }
 }
@@ -162,10 +160,7 @@ pub fn save_system_cache(state_mux: &StateSafe) {
     let state = &mut state_mux.lock().unwrap();
     let serialized_cache = serde_json::to_string(&state.system_cache).unwrap();
 
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .open(CACHE_FILE_PATH)
-        .unwrap();
+    let mut file = fs::OpenOptions::new().write(true).open(CACHE_FILE_PATH).unwrap();
     file.write_all(serialized_cache.as_bytes()).unwrap();
 }
 

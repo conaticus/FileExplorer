@@ -84,7 +84,7 @@ function App() {
 
   return (
     <div className="p-4">
-      <div className="flex justify-between pb-5">
+      <div className="flex justify-between pb-5 ">
         <FolderNavigation
           onBackArrowClick={onBackArrowClick}
           canGoBackward={canGoBackward()}

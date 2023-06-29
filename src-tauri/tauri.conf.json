@@ -39,8 +39,11 @@
         "resizable": true,
         "title": "file-explorer",
         "width": 1024,
-        "height": 678
+        "height": 678,
+        "transparent": true,
+        "decorations": true
       }
-    ]
+    ],
+    "macOSPrivateApi": true
   }
 }

@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 body {
-  @apply m-0 p-0 box-border text-white bg-background;
+  @apply m-0 p-0 box-border text-white;
+  background-color: rgba(33, 33, 33, 0.75);
 }
 
 h3 {

@@ -49,8 +49,8 @@ export default function SearchBar({
       <Input
         value={searchValue}
         setValue={setSearchValue}
-        placeholder={`Search ${currentPlace || "PC"}`}
-        className="rounded-bl-none rounded-br-none"
+        placeholder={`Search ${currentPlace || "computer"}`}
+        className="rounded-bl-none rounded-br-non "
         onSubmit={onSearch}
         size={InputSize.Large}
       />
