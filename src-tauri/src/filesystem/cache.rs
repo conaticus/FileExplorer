@@ -129,7 +129,6 @@ pub fn save_system_cache(state_mux: &StateSafe) {
 /// Gets the cache from the state (in memory), encodes and saves it to the cache file path.
 /// This needs optimising.
 fn save_to_cache(state: &mut MutexGuard<AppState>) {
-    println!("saving cache");
     let serialized_cache = serde_json::to_string(&state.system_cache).unwrap();
 
     let mut file = fs::OpenOptions::new()
@@ -139,8 +138,6 @@ fn save_to_cache(state: &mut MutexGuard<AppState>) {
         .unwrap();
 
     file.write_all(serialized_cache.as_bytes()).unwrap();
-
-    println!("cache saved");
 }
 
 /// Reads and decodes the cache file and stores it in memory for quick access.
