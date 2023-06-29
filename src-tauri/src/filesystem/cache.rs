@@ -152,5 +152,6 @@ pub fn load_system_cache(state_mux: &StateSafe) -> bool {
         return true;
     }
 
+    println!("Failed to deserialize the cache from disk, recaching...");
     false
 }
