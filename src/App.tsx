@@ -56,7 +56,7 @@ function App() {
   }
 
   async function getVolumes() {
-    if (volumes.length != 0) {
+    if (volumes.length > 0) {
       return;
     }
 
@@ -64,22 +64,23 @@ function App() {
     setVolumes(newVolumes);
   }
 
-  async function updateCurrentDirectory() {
-    if (pathHistory[historyPlace] == "") {
-      return getVolumes();
+  let render = 0;
+
+  useEffect(() => {
+    if (render === 0) {
+      getVolumes().catch(console.error);
     }
 
-    await updateDirectoryContents();
-  }
+    render += 1; // I don't know why but the use effect runs twice causing the "get_volumes" to be called twice.
+  }, [])
 
   useEffect(() => {
     if (pathHistory[historyPlace] == "") {
-      getVolumes().catch(console.error);
       setCurrentVolume("");
       return;
     }
 
-    updateCurrentDirectory();
+    updateDirectoryContents().catch(console.error);
   }, [historyPlace]);
 
   return (
