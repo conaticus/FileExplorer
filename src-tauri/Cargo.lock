@@ -706,6 +706,7 @@ dependencies = [
  "sysinfo",
  "tauri",
  "tauri-build",
+ "tokio",
  "walkdir",
 ]
 

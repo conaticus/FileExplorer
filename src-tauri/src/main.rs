@@ -4,7 +4,8 @@
 mod filesystem;
 mod search;
 
-use filesystem::{get_volumes, open_directory};
+use filesystem::open_directory;
+use filesystem::volume::get_volumes;
 use search::search_directory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
