@@ -12,7 +12,7 @@ use walkdir::WalkDir;
 use notify::{Watcher, RecursiveMode};
 use tokio::task::block_in_place;
 use crate::filesystem::{bytes_to_gb, DIRECTORY, FILE};
-use crate::filesystem::cache::{CACHE_FILE_PATH, FsEventHandler, load_system_cache, save_system_cache};
+use crate::filesystem::cache::{CACHE_FILE_PATH, FsEventHandler, load_system_cache, run_cache_interval, save_system_cache};
 
 #[derive(Serialize)]
 pub struct Volume {
@@ -199,6 +199,7 @@ pub fn get_volumes(state_mux: State<StateSafe>) -> Vec<Volume> {
     }
 
     save_system_cache(&state_mux);
+    run_cache_interval(&state_mux);
 
     volumes
 }

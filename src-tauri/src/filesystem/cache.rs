@@ -2,8 +2,11 @@ use crate::{AppState, CachedPath, StateSafe, VolumeCache};
 use std::{fs};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, MutexGuard};
+use std::time::Duration;
 use notify::{Event};
 use notify::event::{CreateKind, ModifyKind, RenameMode};
+use tokio::time;
 use crate::filesystem::{DIRECTORY, FILE};
 
 pub const CACHE_FILE_PATH: &str = "./system_cache.json";
@@ -100,17 +103,44 @@ impl FsEventHandler {
     }
 }
 
-/// Gets the cache from the state (in memory), encodes and saves it to the cache file path.
-/// This needs optimising.
+/// Starts a constant interval loop where the cache is updated every ~30 seconds.
+pub fn run_cache_interval(state_mux: &StateSafe) {
+    let state_clone = Arc::clone(state_mux);
+
+    tokio::spawn(async move { // We use tokio spawn because async closures with std spawn is unstable
+        let mut interval = time::interval(Duration::from_secs(30));
+        interval.tick().await; // Wait 30 seconds before doing first re-cache
+
+        loop {
+            interval.tick().await;
+
+            let guard = &mut state_clone.lock().unwrap();
+            save_to_cache(guard);
+        }
+    });
+}
+
+/// This takes in an Arc<Mutex<AppState>> and calls `save_to_cache` after locking it.
 pub fn save_system_cache(state_mux: &StateSafe) {
     let state = &mut state_mux.lock().unwrap();
+    save_to_cache(state);
+}
+
+/// Gets the cache from the state (in memory), encodes and saves it to the cache file path.
+/// This needs optimising.
+fn save_to_cache(state: &mut MutexGuard<AppState>) {
+    println!("saving cache");
     let serialized_cache = serde_json::to_string(&state.system_cache).unwrap();
 
     let mut file = fs::OpenOptions::new()
         .write(true)
+        .truncate(true) // I have literally no clue why but without truncate, the JSON gets messed up and a trailing character error occurs when deserializing the file contents.
         .open(CACHE_FILE_PATH)
         .unwrap();
+
     file.write_all(serialized_cache.as_bytes()).unwrap();
+
+    println!("cache saved");
 }
 
 /// Reads and decodes the cache file and stores it in memory for quick access.
