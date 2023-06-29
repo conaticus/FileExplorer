@@ -133,7 +133,7 @@ fn save_to_cache(state: &mut MutexGuard<AppState>) {
 
     let mut file = fs::OpenOptions::new()
         .write(true)
-        .truncate(true) // I have literally no clue why but without truncate, the JSON gets messed up and a trailing character error occurs when deserializing the file contents.
+        .truncate(true)
         .open(CACHE_FILE_PATH)
         .unwrap();
 
