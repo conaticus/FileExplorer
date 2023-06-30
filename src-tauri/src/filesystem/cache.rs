@@ -6,9 +6,9 @@ use notify::Event;
 use std::fs::{self, File};
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, MutexGuard};
 use std::time::Duration;
-use tokio::time;
 
 lazy_static! {
     pub static ref CACHE_FILE_PATH: String = {
@@ -127,21 +127,30 @@ impl FsEventHandler {
 /// Starts a constant interval loop where the cache is updated every ~30 seconds.
 pub fn run_cache_interval(state_mux: &StateSafe) {
     let state_clone = Arc::clone(state_mux);
+    let task_running = Arc::new(AtomicBool::new(false));
 
     tokio::spawn(async move {
-        // We use tokio spawn because async closures with std spawn is unstable
-        let mut interval = time::interval(Duration::from_secs(30));
+        let mut interval = tokio::time::interval(Duration::from_secs(30));
         interval.tick().await; // Wait 30 seconds before doing first re-cache
 
         loop {
             interval.tick().await;
 
-            let mut guard = match state_clone.lock() {
-                Ok(state) => state,
-                Err(poisoned_error) => poisoned_error.into_inner(),
-            };
+            if !task_running.load(Ordering::SeqCst) {
+                task_running.store(true, Ordering::SeqCst);
 
-            save_to_cache(&mut guard);
+                let state_clone = Arc::clone(&state_clone);
+                let task_running = Arc::clone(&task_running);
+
+                tokio::spawn(async move {
+                    let guard = &mut state_clone.lock().unwrap();
+                    save_to_cache(guard);
+
+                    task_running.store(false, Ordering::SeqCst);
+                });
+            } else {
+                println!("Task running, won't re-cache");
+            }
         }
     });
 }
