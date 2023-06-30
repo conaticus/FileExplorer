@@ -23,61 +23,6 @@ pub struct Volume {
     available_gb: u16,
     used_gb: u16,
     total_gb: u16,
-    fs: VolumeFileSystem,
-}
-
-#[derive(Serialize)]
-pub struct VolumeFileSystem {
-    root: PathBuf,
-    documents: PathBuf,
-    downloads: PathBuf,
-    pictures: PathBuf,
-    videos: PathBuf,
-    home: PathBuf,
-    audio: PathBuf,
-    desktop: PathBuf,
-}
-
-impl VolumeFileSystem {
-    fn try_new() -> Result<Self, ()> {
-        macro_rules! handle_err {
-            ($func:expr) => {
-                match $func {
-                    Some(dir) => dir,
-                    None => return Err(()),
-                }
-            };
-        }
-
-        let documents = handle_err!(dirs::document_dir());
-        let downloads = handle_err!(dirs::download_dir());
-        let pictures = handle_err!(dirs::picture_dir());
-        let videos = handle_err!(dirs::video_dir());
-        let home = handle_err!(dirs::home_dir());
-        let audio = handle_err!(dirs::audio_dir());
-        let desktop = handle_err!(dirs::desktop_dir());
-        let root: PathBuf = {
-            #[cfg(target_family = "unix")]
-            {
-                "/".into()
-            }
-            #[cfg(target_family = "windows")]
-            {
-                "C:".into()
-            }
-        };
-
-        Ok(Self {
-            root,
-            documents,
-            downloads,
-            pictures,
-            videos,
-            home,
-            audio,
-            desktop,
-        })
-    }
 }
 
 impl Volume {
@@ -98,14 +43,11 @@ impl Volume {
 
         let mountpoint = disk.mount_point().to_path_buf();
 
-        let fs = VolumeFileSystem::try_new().unwrap();
-
         Self {
             name,
             available_gb,
             used_gb,
             total_gb,
-            fs,
             mountpoint,
         }
     }
@@ -179,9 +121,7 @@ pub enum DirectoryChild {
 /// If there is a cache stored on volume it is loaded.
 /// If there is no cache stored on volume, one is created as well as stored in memory.
 #[tauri::command]
-pub fn get_volumes(state_mux: State<StateSafe>) -> Vec<Volume> {
-    let mut volumes = Vec::new();
-
+pub async fn get_volumes(state_mux: State<'_, StateSafe>) -> Result<Vec<Volume>, ()> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
@@ -192,19 +132,23 @@ pub fn get_volumes(state_mux: State<StateSafe>) -> Vec<Volume> {
         File::create(&CACHE_FILE_PATH[..]).unwrap();
     }
 
-    for disk in sys.disks() {
-        let volume = Volume::from(disk);
+    let volumes = sys
+        .disks()
+        .iter()
+        .map(|disk| {
+            let volume = Volume::from(disk);
 
-        if !cache_exists {
-            volume.create_cache(&state_mux);
-        }
+            if !cache_exists {
+                volume.create_cache(&state_mux);
+            }
 
-        volume.watch_changes(&state_mux);
-        volumes.push(volume);
-    }
+            volume.watch_changes(&state_mux);
+            volume
+        })
+        .collect();
 
     save_system_cache(&state_mux);
     run_cache_interval(&state_mux);
 
-    volumes
+    Ok(volumes)
 }
