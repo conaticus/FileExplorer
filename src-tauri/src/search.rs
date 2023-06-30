@@ -1,10 +1,10 @@
+use crate::filesystem::volume::DirectoryChild;
 use crate::StateSafe;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use std::path::Path;
 use std::time::Instant;
 use tauri::State;
-use crate::filesystem::volume::DirectoryChild;
 
 const MINIMUM_SCORE: i16 = 20;
 

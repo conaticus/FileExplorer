@@ -1,13 +1,15 @@
 pub mod cache;
 pub mod volume;
 
-use std::fs::{read_dir};
 use crate::filesystem::volume::DirectoryChild;
+use std::fs::read_dir;
 
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";
 
-pub const fn bytes_to_gb(bytes: u64) -> u16 { (bytes / (1e+9 as u64)) as u16 }
+pub const fn bytes_to_gb(bytes: u64) -> u16 {
+    (bytes / (1e+9 as u64)) as u16
+}
 
 /// Searches and returns the files in a given directory. This is not recursive.
 #[tauri::command]
