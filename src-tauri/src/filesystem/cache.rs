@@ -1,13 +1,13 @@
+use crate::filesystem::{DIRECTORY, FILE};
 use crate::{AppState, CachedPath, StateSafe, VolumeCache};
-use std::{fs};
+use notify::event::{CreateKind, ModifyKind, RenameMode};
+use notify::Event;
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, MutexGuard};
 use std::time::Duration;
-use notify::{Event};
-use notify::event::{CreateKind, ModifyKind, RenameMode};
 use tokio::time;
-use crate::filesystem::{DIRECTORY, FILE};
 
 pub const CACHE_FILE_PATH: &str = "./system_cache.json";
 
@@ -19,15 +19,22 @@ pub struct FsEventHandler {
 
 impl FsEventHandler {
     pub fn new(state_mux: StateSafe, mountpoint: PathBuf) -> Self {
-        Self { state_mux, mountpoint }
+        Self {
+            state_mux,
+            mountpoint,
+        }
     }
 
     /// Gets the current volume from the cache
     fn get_from_cache<'a>(&self, state: &'a mut AppState) -> &'a mut VolumeCache {
         let mountpoint = self.mountpoint.to_string_lossy().to_string();
 
-        state.system_cache.get_mut(&mountpoint)
-            .unwrap_or_else(|| panic!("Failed to find mountpoint '{:?}' in cache.", self.mountpoint))
+        state.system_cache.get_mut(&mountpoint).unwrap_or_else(|| {
+            panic!(
+                "Failed to find mountpoint '{:?}' in cache.",
+                self.mountpoint
+            )
+        })
     }
 
     pub fn handle_create(&self, kind: CreateKind, path: &Path) {
@@ -39,10 +46,14 @@ impl FsEventHandler {
             CreateKind::File => FILE,
             CreateKind::Folder => DIRECTORY,
             _ => return, // Other options are weird lol
-        }.to_string();
+        }
+        .to_string();
 
         let file_path = path.to_string_lossy().to_string();
-        current_volume.entry(filename).or_insert(vec![CachedPath{file_path, file_type}]);
+        current_volume.entry(filename).or_insert(vec![CachedPath {
+            file_path,
+            file_type,
+        }]);
     }
 
     pub fn handle_delete(&self, path: &Path) {
@@ -58,7 +69,7 @@ impl FsEventHandler {
         let state = &mut self.state_mux.lock().unwrap();
         let current_volume = self.get_from_cache(state);
 
-        let old_path_string=  old_path.to_string_lossy().to_string();
+        let old_path_string = old_path.to_string_lossy().to_string();
         let old_filename = old_path.file_name().unwrap().to_string_lossy().to_string();
 
         let empty_vec = &mut Vec::new();
@@ -82,7 +93,10 @@ impl FsEventHandler {
         let file_type = if new_path.is_dir() { DIRECTORY } else { FILE };
 
         let path_string = new_path.to_string_lossy().to_string();
-        current_volume.entry(filename).or_insert(vec![CachedPath{file_path: path_string, file_type: String::from(file_type)}]);
+        current_volume.entry(filename).or_insert(vec![CachedPath {
+            file_path: path_string,
+            file_type: String::from(file_type),
+        }]);
     }
 
     pub fn handle_event(&mut self, event: Event) {
@@ -95,7 +109,7 @@ impl FsEventHandler {
                 } else if modify_kind == ModifyKind::Name(RenameMode::To) {
                     self.handle_rename_to(&paths[0]);
                 }
-            },
+            }
             notify::EventKind::Create(kind) => self.handle_create(kind, &paths[0]),
             notify::EventKind::Remove(_) => self.handle_delete(&paths[0]),
             _ => (),
@@ -107,15 +121,20 @@ impl FsEventHandler {
 pub fn run_cache_interval(state_mux: &StateSafe) {
     let state_clone = Arc::clone(state_mux);
 
-    tokio::spawn(async move { // We use tokio spawn because async closures with std spawn is unstable
+    tokio::spawn(async move {
+        // We use tokio spawn because async closures with std spawn is unstable
         let mut interval = time::interval(Duration::from_secs(30));
         interval.tick().await; // Wait 30 seconds before doing first re-cache
 
         loop {
             interval.tick().await;
 
-            let guard = &mut state_clone.lock().unwrap();
-            save_to_cache(guard);
+            let mut guard = match state_clone.lock() {
+                Ok(state) => state,
+                Err(poisoned_error) => poisoned_error.into_inner(),
+            };
+
+            save_to_cache(&mut guard);
         }
     });
 }
