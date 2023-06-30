@@ -8,56 +8,132 @@ use tauri::State;
 
 const MINIMUM_SCORE: i16 = 20;
 
-/// Checks if the filename passes the extension filter, also checks if extension filter is provided.
-fn passed_extension(filename: &str, extension: &String) -> bool {
-    if extension.is_empty() {
-        return true;
-    }
-    filename.ends_with(extension.as_str())
-}
+#[derive(Default)]
+struct SearchEngine {
+    matcher: SkimMatcherV2,
 
-/// Gives a filename a fuzzy matcher score
-/// Returns 1000 if there is an exact match for prioritizing
-fn score_filename(matcher: &SkimMatcherV2, filename: &str, query: &str) -> i16 {
-    if filename == query {
-        return 1000;
-    }
-    matcher.fuzzy_match(filename, query).unwrap_or(0) as i16
-}
+    /// the mountpoint for the volume the user is in
+    mountpoint: Option<String>,
 
-fn check_file(
-    matcher: &SkimMatcherV2,
-    accept_files: bool,
-    filename: &String,
-    file_path: &String,
-    extension: &String,
+    /// search query entry
     query: String,
-    results: &mut Vec<DirectoryChild>,
-    fuzzy_scores: &mut Vec<i16>,
-) {
-    if !accept_files {
-        return;
-    }
-    if !passed_extension(filename, extension) {
-        return;
+
+    /// searches for files that have a certain extension
+    extension: Option<String>,
+
+    /// includes files in search
+    is_file: bool,
+
+    /// includes directories in search
+    is_dir: bool,
+
+    /// stores search results
+    results: Vec<DirectoryChild>,
+
+    /// stores match scores where 1000 means exact match and 0 means no match
+    fuzzy_scores: Vec<i16>,
+
+    /// ???
+    search_directory: String,
+}
+
+impl SearchEngine {
+    fn search_query(&mut self, state_mux: State<StateSafe>) -> Option<Vec<DirectoryChild>> {
+        let start_time = Instant::now();
+        let state = state_mux.lock().unwrap();
+        let query = self.query.to_lowercase();
+
+        let mountpoint = &self.mountpoint.clone()?;
+        let system_cache = state.system_cache.get(mountpoint).unwrap();
+        for (filename, paths) in system_cache {
+            for path in paths {
+                let file_type = &path.file_type;
+                let file_path = &path.file_path;
+
+                if !file_path.starts_with(&self.search_directory) {
+                    continue;
+                }
+
+                if file_type == "file" {
+                    self.check_file(filename, &file_path);
+
+                    continue;
+                }
+
+                if self.is_dir {
+                    // Gives a filename a fuzzy matcher score
+                    // score is 1000 if there is an exact match
+                    let score = if *filename == query {
+                        1000
+                    } else {
+                        self.matcher
+                            .fuzzy_match(filename, self.query.as_str())
+                            .unwrap_or(0) as i16
+                    };
+
+                    if score < MINIMUM_SCORE {
+                        continue;
+                    }
+
+                    self.results.push(DirectoryChild::Directory(
+                        filename.to_string(),
+                        file_path.to_string(),
+                    ));
+                    self.fuzzy_scores.push(score);
+                }
+            }
+        }
+
+        let end_time = Instant::now();
+        println!("Elapsed time: {:?}", end_time - start_time);
+
+        // Sort by best match first.
+        let mut tuples: Vec<(usize, _)> = self.fuzzy_scores.iter().enumerate().collect();
+        tuples.sort_by(|a, b| b.1.cmp(a.1));
+
+        Some(tuples
+            .into_iter()
+            .map(|(index, _)| self.results[index].clone())
+            .collect())
     }
 
-    let filename_path = Path::new(filename);
-    let cleaned_filename = filename_path
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .unwrap_or("");
+    fn check_file(&mut self, filename: &String, filepath: &String) {
+        if !self.is_file {
+            return;
+        }
 
-    let score = score_filename(matcher, cleaned_filename, query.as_str());
-    if score < MINIMUM_SCORE {
-        return;
+        // checks for file extension match
+        if let Some(ref extension) = self.extension {
+            if !filename.ends_with(extension.as_str()) {
+                return;
+            }
+        }
+
+        let filename_path = Path::new(filename);
+        let cleaned_filename = filename_path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("");
+
+        let score = if *filename == self.query {
+            1000
+        } else {
+            self.matcher
+                .fuzzy_match(cleaned_filename, self.query.as_str())
+                .unwrap_or(0) as i16
+        };
+
+        if score < MINIMUM_SCORE {
+            return;
+        }
+
+        self.results.push(DirectoryChild::File(
+            filename.to_string(),
+            filepath.to_string(),
+        ));
+
+        self.fuzzy_scores.push(score);
     }
-
-    results.push(DirectoryChild::File(
-        filename.to_string(),
-        file_path.to_string(),
-    ));
-    fuzzy_scores.push(score);
 }
 
 /// Reads the cache and does a fuzzy search for a directory.
@@ -67,72 +143,16 @@ fn check_file(
 pub fn search_directory(
     state_mux: State<StateSafe>,
     query: String,
-    search_directory: String,
     mount_pnt: String,
     extension: String,
     accept_files: bool,
     accept_directories: bool,
 ) -> Vec<DirectoryChild> {
-    let start_time = Instant::now();
-
-    let mut results: Vec<_> = Vec::new();
-    let mut fuzzy_scores: Vec<i16> = Vec::new();
-    let matcher = SkimMatcherV2::default().smart_case();
-
-    let state = state_mux.lock().unwrap();
-    let query = query.to_lowercase();
-
-    let system_cache = state.system_cache.get(&mount_pnt).unwrap();
-    for (filename, paths) in system_cache {
-        for path in paths {
-            let file_type = &path.file_type;
-            let file_path = &path.file_path;
-
-            if !file_path.starts_with(&search_directory) {
-                continue;
-            }
-
-            if file_type == "file" {
-                check_file(
-                    &matcher,
-                    accept_files,
-                    filename,
-                    file_path,
-                    &extension,
-                    query.clone(),
-                    &mut results,
-                    &mut fuzzy_scores,
-                );
-
-                continue;
-            }
-
-            if !accept_directories {
-                continue;
-            }
-
-            let score = score_filename(&matcher, filename, &query);
-            if score < MINIMUM_SCORE {
-                continue;
-            }
-
-            results.push(DirectoryChild::Directory(
-                filename.to_string(),
-                file_path.to_string(),
-            ));
-            fuzzy_scores.push(score);
-        }
-    }
-
-    let end_time = Instant::now();
-    println!("Elapsed time: {:?}", end_time - start_time);
-
-    // Sort by best match first.
-    let mut tuples: Vec<(usize, _)> = fuzzy_scores.iter().enumerate().collect();
-    tuples.sort_by(|a, b| b.1.cmp(a.1));
-
-    tuples
-        .into_iter()
-        .map(|(index, _)| results[index].clone())
-        .collect()
+    let mut engine = SearchEngine::default();
+    engine.query = query;
+    engine.mountpoint = Some(mount_pnt);
+    engine.extension = Some(extension);
+    engine.is_dir = accept_directories;
+    engine.is_file = accept_files;
+    engine.search_query(state_mux).unwrap()
 }
