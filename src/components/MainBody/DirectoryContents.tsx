@@ -11,8 +11,7 @@ export function DirectoryContents({content, onDirectoryClick}: Props) {
     async function onFileClick(path: string) {
         const err = await openFile(path);
         if (err.length != 0) {
-            alert("Failed to open file.");
-            console.error(err);
+            alert(err);
         }
     }
 

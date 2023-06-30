@@ -1,6 +1,7 @@
 pub mod cache;
 pub mod volume;
 
+use std::fmt::Debug;
 use crate::filesystem::volume::DirectoryChild;
 use std::fs::read_dir;
 use std::io;
@@ -19,17 +20,17 @@ pub const fn bytes_to_gb(bytes: u64) -> u16 {
 #[tauri::command]
 pub async fn open_file(path: String) -> Result<String, ()> {
     Ok(tokio::task::spawn_blocking(move || {
-        let status_res = open::commands(path)[0].status();
-        let status = match status_res {
-            Ok(status) => status,
-            Err(err) => return format!("Failed to get open command status: {}", err)
+        let output_res = open::commands(path)[0].output();
+        let output = match output_res {
+            Ok(output) => output,
+            Err(err) => return format!("Failed to get open command output: {}", err)
         };
 
-        if status.success() {
-            return String::new()
+        if output.status.success() {
+            return String::new();
         }
 
-        status.to_string()
+        String::from_utf8(output.stderr).unwrap_or(String::from("Failed to open file and deserialize stderr."))
     }).await.unwrap_or(String::from("Failed to create tokio thread when opening file.")))
 }
 
