@@ -14,12 +14,23 @@ pub const fn bytes_to_gb(bytes: u64) -> u16 {
     (bytes / (1e+9 as u64)) as u16
 }
 
-/// Opens a file at the given path. Returns true if was successful
+/// Opens a file at the given path. Returns a string if there was an error.
+// NOTE(conaticus): I tried handling the errors nicely here but Tauri was mega cringe and wouldn't let me nest results in async functions, so used string error messages instead.
 #[tauri::command]
-pub async fn open_file(path: String) -> Result<bool, ()> {
+pub async fn open_file(path: String) -> Result<String, ()> {
     Ok(tokio::task::spawn_blocking(move || {
-        open::commands(path)[0].status().is_ok()
-    }).await.unwrap_or(false)) // NOTE(conaticus): I tried handling the errors nicely here but Tauri was mega cringe and wouldn't let me nest results in async functiona
+        let status_res = open::commands(path)[0].status();
+        let status = match status_res {
+            Ok(status) => status,
+            Err(err) => return format!("Failed to get open command status: {}", err)
+        };
+
+        if status.success() {
+            return String::new()
+        }
+
+        status.to_string()
+    }).await.unwrap_or(String::from("Failed to create tokio thread when opening file.")))
 }
 
 /// Searches and returns the files in a given directory. This is not recursive.
