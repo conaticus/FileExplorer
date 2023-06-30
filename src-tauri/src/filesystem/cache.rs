@@ -13,9 +13,7 @@ use tokio::time;
 lazy_static! {
     pub static ref CACHE_FILE_PATH: String = {
         let mut cache_path = dirs::cache_dir().expect("Failed to get base cache path");
-        cache_path.push(env!("CARGO_PKG_NAME"));
-        cache_path.push("cache.dat");
-        println!("{:?}", cache_path);
+        cache_path.push(format!("{}.cache.bin", env!("CARGO_PKG_NAME")));
         cache_path.to_string_lossy().to_string()
     };
 }
