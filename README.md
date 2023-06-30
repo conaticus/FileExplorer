@@ -3,6 +3,8 @@
 # Fast File Explorer
 This is a fast file explorer written in Rust. After testing on my C drive, this file explorer was able to find a file in 280ms. In comparison, Windows took 3 minutes and 45 seconds.
 
+Before contributing please read the [contributing guidelines](./CONTRIBUTING.md).
+
 ## Supported operating systems
 - Windows
 - Linux
