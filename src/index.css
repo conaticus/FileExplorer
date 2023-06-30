@@ -10,6 +10,10 @@ h3 {
   @apply text-2xl font-bold;
 }
 
+h2 {
+  @apply text-3xl font-bold;
+}
+
 progress[value] {
   background-color: blue;
 }

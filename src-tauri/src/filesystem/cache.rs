@@ -1,15 +1,22 @@
 use crate::filesystem::{DIRECTORY, FILE};
 use crate::{AppState, CachedPath, StateSafe, VolumeCache};
+use lazy_static::lazy_static;
 use notify::event::{CreateKind, ModifyKind, RenameMode};
 use notify::Event;
-use std::fs;
-use std::io::Write;
+use std::fs::{self, File};
+use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, MutexGuard};
 use std::time::Duration;
 use tokio::time;
 
-pub const CACHE_FILE_PATH: &str = "./system_cache.json";
+lazy_static! {
+    pub static ref CACHE_FILE_PATH: String = {
+        let mut cache_path = dirs::cache_dir().expect("Failed to get base cache path");
+        cache_path.push(format!("{}.cache.bin", env!("CARGO_PKG_NAME")));
+        cache_path.to_string_lossy().to_string()
+    };
+}
 
 /// Handles filesystem events, currently intended for cache invalidation.
 pub struct FsEventHandler {
@@ -148,28 +155,37 @@ pub fn save_system_cache(state_mux: &StateSafe) {
 /// Gets the cache from the state (in memory), encodes and saves it to the cache file path.
 /// This needs optimising.
 fn save_to_cache(state: &mut MutexGuard<AppState>) {
-    let serialized_cache = serde_json::to_string(&state.system_cache).unwrap();
+    let serialized_cache = serde_bencode::to_string(&state.system_cache).unwrap();
 
     let mut file = fs::OpenOptions::new()
         .write(true)
         .truncate(true)
-        .open(CACHE_FILE_PATH)
+        .open(&CACHE_FILE_PATH[..])
         .unwrap();
 
-    file.write_all(serialized_cache.as_bytes()).unwrap();
+    file.write_all(
+        &zstd::encode_all(serialized_cache.as_bytes(), 0)
+            .expect("Failed to compress cache contents.")[..],
+    )
+    .unwrap();
 }
 
 /// Reads and decodes the cache file and stores it in memory for quick access.
 /// Returns false if the cache was unable to deserialize.
 pub fn load_system_cache(state_mux: &StateSafe) -> bool {
-    let state = &mut state_mux.lock().unwrap();
-    let file_contents = fs::read_to_string(CACHE_FILE_PATH).unwrap();
+    let state = &mut state_mux.lock().expect("Failed to lock mutex");
 
-    let deserialize_result = serde_json::from_str(&file_contents);
-    if let Ok(system_cache) = deserialize_result {
-        state.system_cache = system_cache;
-        return true;
+    let cache_file = File::open(&CACHE_FILE_PATH[..]).expect("Failed to open cache file");
+    let reader = BufReader::new(cache_file);
+
+    if let Ok(decompressed) = zstd::decode_all(reader) {
+        let deserialize_result = serde_bencode::from_bytes(&decompressed[..]);
+        if let Ok(system_cache) = deserialize_result {
+            state.system_cache = system_cache;
+            return true;
+        }
     }
 
+    println!("Failed to deserialize the cache from disk, recaching...");
     false
 }

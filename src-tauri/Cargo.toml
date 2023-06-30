@@ -1,8 +1,8 @@
 [package]
 name = "file-explorer"
-version = "0.0.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "1.0.0"
+description = "File Explorer"
+authors = ["Conaticus", "ProtogenDelta", ]
 license = ""
 repository = ""
 edition = "2021"
@@ -23,6 +23,9 @@ rayon = "1.7.0"
 dirs = "5.0.1"
 notify = "6.0.1"
 tokio = { version = "1.28.2", features = ["full"] }
+serde_bencode = "0.2.3"
+zstd = "0.12.3"
+lazy_static = "1.4.0"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

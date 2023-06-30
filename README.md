@@ -9,7 +9,7 @@ This is a fast file explorer written in Rust. After testing on my C drive, this 
 
 Note that when opening the program it will freeze as we have not yet implemented a loading screen for the caching process. When this happens don't worry, it will launch when it's done caching.
 
-Bare in mind this is still in development and missing the following core features:
+Bear in mind this is still in development and missing the following core features:
 - Caching service (constant file watching to keep cache up to date) - only works when program is open
 - Top navigation bar
 - Search/caching progress counter

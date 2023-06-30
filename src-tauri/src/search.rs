@@ -1,10 +1,10 @@
+use crate::filesystem::volume::DirectoryChild;
 use crate::StateSafe;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use std::path::Path;
 use std::time::Instant;
 use tauri::State;
-use crate::filesystem::volume::DirectoryChild;
 
 const MINIMUM_SCORE: i16 = 20;
 
@@ -64,15 +64,15 @@ fn check_file(
 /// Takes into account the filters provided.
 /// Returns the results ONLY when the entire volume is searched
 #[tauri::command]
-pub fn search_directory(
-    state_mux: State<StateSafe>,
+pub async fn search_directory(
+    state_mux: State<'_, StateSafe>,
     query: String,
     search_directory: String,
     mount_pnt: String,
     extension: String,
     accept_files: bool,
     accept_directories: bool,
-) -> Vec<DirectoryChild> {
+) -> Result<Vec<DirectoryChild>, ()> {
     let start_time = Instant::now();
 
     let mut results: Vec<_> = Vec::new();
@@ -131,8 +131,8 @@ pub fn search_directory(
     let mut tuples: Vec<(usize, _)> = fuzzy_scores.iter().enumerate().collect();
     tuples.sort_by(|a, b| b.1.cmp(a.1));
 
-    tuples
+    Ok(tuples
         .into_iter()
         .map(|(index, _)| results[index].clone())
-        .collect()
+        .collect())
 }
