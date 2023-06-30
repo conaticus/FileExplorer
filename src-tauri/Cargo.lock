@@ -721,7 +721,7 @@ dependencies = [
 
 [[package]]
 name = "file-explorer"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "dirs",
  "fuzzy-matcher",

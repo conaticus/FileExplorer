@@ -174,8 +174,8 @@ impl SearchEngine {
 /// Takes into account the filters provided.
 /// Returns the results ONLY when the entire volume is searched
 #[tauri::command]
-pub fn search_directory(
-    state_mux: State<StateSafe>,
+pub async fn search_directory(
+    state_mux: State<'_, StateSafe>,
     query: String,
     mount_pnt: String,
     extension: String,

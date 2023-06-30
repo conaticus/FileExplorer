@@ -1,8 +1,8 @@
 [package]
 name = "file-explorer"
-version = "0.0.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "1.0.0"
+description = "File Explorer"
+authors = ["Conaticus", "ProtogenDelta", ]
 license = ""
 repository = ""
 edition = "2021"

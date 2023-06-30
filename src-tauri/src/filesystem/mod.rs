@@ -13,27 +13,24 @@ pub const fn bytes_to_gb(bytes: u64) -> u16 {
 
 /// Searches and returns the files in a given directory. This is not recursive.
 #[tauri::command]
-pub fn open_directory(path: String) -> Vec<DirectoryChild> {
-    let mut dir_children = Vec::new();
-
+pub async fn open_directory(path: String) -> Result<Vec<DirectoryChild>, ()> {
     let Ok(directory) = read_dir(path) else {
-        return dir_children;
+        return Ok(Vec::new());
     };
 
-    for entry in directory {
-        let entry = entry.unwrap();
+    Ok(directory
+        .map(|entry| {
+            let entry = entry.unwrap();
 
-        let file_name = entry.file_name().to_str().unwrap().to_string();
-        let entry_is_file = entry.file_type().unwrap().is_file();
-        let entry = entry.path().to_str().unwrap().to_string();
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            let entry_is_file = entry.file_type().unwrap().is_file();
+            let entry = entry.path().to_string_lossy().to_string();
 
-        if entry_is_file {
-            dir_children.push(DirectoryChild::File(file_name, entry));
-            continue;
-        }
+            if entry_is_file {
+                return DirectoryChild::File(file_name, entry);
+            }
 
-        dir_children.push(DirectoryChild::Directory(file_name, entry));
-    }
-
-    dir_children
+            DirectoryChild::Directory(file_name, entry)
+        })
+        .collect())
 }
