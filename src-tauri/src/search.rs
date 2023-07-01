@@ -73,6 +73,13 @@ pub async fn search_directory(
     accept_files: bool,
     accept_directories: bool,
 ) -> Result<Vec<DirectoryChild>, ()> {
+
+    // mount_pnt needs a default value or to be an optional 
+    if mount_pnt == "" {
+        println!("select a mount point by clicking on an icon"); // move to ui
+        return Err(())
+    }
+
     let start_time = Instant::now();
 
     let mut results: Vec<_> = Vec::new();
