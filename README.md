@@ -9,14 +9,11 @@ Before contributing please read the [contributing guidelines](./CONTRIBUTING.md)
 - Windows
 - Linux
 
-Note that when opening the program it will freeze as we have not yet implemented a loading screen for the caching process. When this happens don't worry, it will launch when it's done caching.
-
 Bear in mind this is still in development and missing the following core features:
 - Caching service (constant file watching to keep cache up to date) - only works when program is open
 - Top navigation bar
 - Search/caching progress counter
 - Ability to search for file extensions without including any name
-- Ability to open files
 - Ability to copy/cut/paste files
 - Ability to move files
 - Ability to create files
