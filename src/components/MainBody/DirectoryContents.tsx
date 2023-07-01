@@ -9,10 +9,7 @@ interface Props {
 
 export function DirectoryContents({content, onDirectoryClick}: Props) {
     async function onFileClick(path: string) {
-        const err = await openFile(path);
-        if (err.length != 0) {
-            alert(err);
-        }
+        await openFile(path).catch(err => alert(err));
     }
 
     return <>

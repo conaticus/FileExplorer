@@ -3,6 +3,7 @@
 
 mod filesystem;
 mod search;
+mod errors;
 
 use filesystem::{open_directory, open_file};
 use filesystem::volume::get_volumes;

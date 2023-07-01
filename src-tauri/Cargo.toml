@@ -27,6 +27,7 @@ serde_bencode = "0.2.3"
 zstd = "0.12.3"
 lazy_static = "1.4.0"
 open = "5.0.0"
+thiserror = "1.0.40"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
