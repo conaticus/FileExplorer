@@ -1,4 +1,4 @@
-import {useEffect, useState, MouseEvent} from "react";
+import {useEffect, useState} from "react";
 
 export interface IContextMenu {
     open: boolean;

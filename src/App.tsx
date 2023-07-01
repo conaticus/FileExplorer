@@ -7,7 +7,6 @@ import FolderNavigation from "./components/TopBar/FolderNavigation";
 import { DirectoryContents } from "./components/MainBody/DirectoryContents";
 import useNavigation from "./hooks/useNavigation";
 import SearchBar from "./components/TopBar/SearchBar";
-import useContextMenu from "./hooks/useContextMenu";
 import ContextMenu from "./components/ContextMenus/ContextMenu";
 import MainContextMenu from "./components/ContextMenus/MainContextMenu";
 
