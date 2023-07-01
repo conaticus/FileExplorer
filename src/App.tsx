@@ -7,6 +7,9 @@ import FolderNavigation from "./components/TopBar/FolderNavigation";
 import { DirectoryContents } from "./components/MainBody/DirectoryContents";
 import useNavigation from "./hooks/useNavigation";
 import SearchBar from "./components/TopBar/SearchBar";
+import useContextMenu from "./hooks/useContextMenu";
+import ContextMenu from "./components/ContextMenus/ContextMenu";
+import MainContextMenu from "./components/ContextMenus/MainContextMenu";
 
 function App() {
   const [volumes, setVolumes] = useState<Volume[]>([]);
@@ -85,6 +88,8 @@ function App() {
 
   return (
     <div className="p-4">
+      <ContextMenu children={<MainContextMenu />} />
+
       <div className="flex justify-between pb-5">
         <FolderNavigation
           onBackArrowClick={onBackArrowClick}
