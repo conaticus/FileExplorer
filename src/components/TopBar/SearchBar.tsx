@@ -14,7 +14,7 @@ export interface ISearchFilter {
   extension: string;
   acceptFiles: boolean;
   acceptDirectories: boolean;
-}
+}``
 
 export default function SearchBar({
   currentDirectoryPath,
@@ -32,6 +32,11 @@ export default function SearchBar({
   const currentPlace = split[split.length - 2];
 
   async function onSearch() {
+    if (currentVolume.length == 0) {
+      alert("Please select a volume before searching.");
+      return;
+    }
+
     const results = await invoke<DirectoryContent[]>("search_directory", {
       query: searchValue,
       searchDirectory: currentDirectoryPath,
