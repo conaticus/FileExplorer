@@ -14,7 +14,7 @@ export interface ISearchFilter {
   extension: string;
   acceptFiles: boolean;
   acceptDirectories: boolean;
-}``
+}
 
 export default function SearchBar({
   currentDirectoryPath,
