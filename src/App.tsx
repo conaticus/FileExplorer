@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/tauri";
-import { DirectoryContent, Volume } from "./types";
-import { openDirectory } from "./ipc/fileExplorer";
+import {MouseEvent, useEffect, useState} from "react";
+import {invoke} from "@tauri-apps/api/tauri";
+import {ContextMenuType, DirectoryContent, Volume} from "./types";
+import {openDirectory} from "./ipc/fileExplorer";
 import VolumeList from "./components/MainBody/Volumes/VolumeList";
 import FolderNavigation from "./components/TopBar/FolderNavigation";
-import { DirectoryContents } from "./components/MainBody/DirectoryContents";
+import {DirectoryContents} from "./components/MainBody/DirectoryContents";
 import useNavigation from "./hooks/useNavigation";
 import SearchBar from "./components/TopBar/SearchBar";
-import ContextMenu from "./components/ContextMenus/ContextMenu";
-import MainContextMenu from "./components/ContextMenus/MainContextMenu";
+import ContextMenu from "./components/ContextMenu";
+import {useAppDispatch, useAppSelector} from "./state/hooks";
+import {selectCurrentContextMenu, updateContextMenu} from "./state/slices/contextMenuSlice";
+import {NO_CONTEXT_MENU} from "./state/constants/constants";
 
 function App() {
   const [volumes, setVolumes] = useState<Volume[]>([]);
@@ -85,35 +87,71 @@ function App() {
     updateDirectoryContents().catch(console.error);
   }, [historyPlace]);
 
+  const dispatch = useAppDispatch();
+
+  function handleContextMenu(e: MouseEvent<HTMLDivElement>)  {
+      e.preventDefault();
+
+      if (e.target instanceof HTMLElement && e.target.id === "directory-entity") { return; }
+
+      dispatch(updateContextMenu({
+        currentContextMenu: ContextMenuType.General,
+        mouseX: e.pageX,
+        mouseY: e.pageY,
+      }));
+  }
+
+  function handleCloseContextMenu(e: MouseEvent<HTMLDivElement>) {
+    if (e.target instanceof HTMLElement) {
+      if (document.getElementById("context-menu")?.contains(e.target)) return;
+    }
+
+    dispatch(updateContextMenu(NO_CONTEXT_MENU));
+  }
+
+  const currentContextMenu = useAppSelector(selectCurrentContextMenu);
+
   return (
-    <div className="p-4">
-      <ContextMenu children={<MainContextMenu />} />
+    <div className="h-full" onClick={handleCloseContextMenu} onContextMenu={handleContextMenu}>
+      {currentContextMenu === ContextMenuType.General ? (
+          <ContextMenu options={[
+            { name: "General Opt 1", onClick: () => {} },
+            { name: "General Opt 2", onClick: () => {} }
+          ]} />
+      ) : currentContextMenu === ContextMenuType.DirectoryEntity ? (
+          <ContextMenu options={[
+            { name: "Entity Opt 1", onClick: () => {} },
+            { name: "Entity Opt 2", onClick: () => {} }
+          ]} />
+      ) : ""}
 
-      <div className="flex justify-between pb-5">
-        <FolderNavigation
-          onBackArrowClick={onBackArrowClick}
-          canGoBackward={canGoBackward()}
-          onForwardArrowClick={onForwardArrowClick}
-          canGoForward={canGoForward()}
-        />
+      <div className="p-4">
+        <div className="flex justify-between pb-5">
+          <FolderNavigation
+              onBackArrowClick={onBackArrowClick}
+              canGoBackward={canGoBackward()}
+              onForwardArrowClick={onForwardArrowClick}
+              canGoForward={canGoForward()}
+          />
 
-        <SearchBar
-          currentVolume={currentVolume}
-          currentDirectoryPath={pathHistory[historyPlace]}
-          setSearchResults={setSearchResults}
-        />
+          <SearchBar
+              currentVolume={currentVolume}
+              currentDirectoryPath={pathHistory[historyPlace]}
+              setSearchResults={setSearchResults}
+          />
+        </div>
+
+        {pathHistory[historyPlace] === "" && searchResults.length === 0 ? (
+            <VolumeList volumes={volumes} onClick={onVolumeClick} />
+        ) : (
+            <DirectoryContents
+                content={
+                  searchResults.length === 0 ? directoryContents : searchResults
+                }
+                onDirectoryClick={onDirectoryClick}
+            />
+        )}
       </div>
-
-      {pathHistory[historyPlace] === "" && searchResults.length === 0 ? (
-        <VolumeList volumes={volumes} onClick={onVolumeClick} />
-      ) : (
-        <DirectoryContents
-          content={
-            searchResults.length === 0 ? directoryContents : searchResults
-          }
-          onDirectoryClick={onDirectoryClick}
-        />
-      )}
     </div>
   );
 }

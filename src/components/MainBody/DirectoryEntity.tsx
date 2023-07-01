@@ -1,7 +1,9 @@
-import {MouseEventHandler, MutableRefObject, useRef} from "react";
-import {DirectoryEntityType} from "../../types";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import { faFile, faFolder } from "@fortawesome/free-solid-svg-icons"
+import {MouseEvent, MouseEventHandler, useRef} from "react";
+import {ContextMenuType, DirectoryEntityType} from "../../types";
+import {FontAwesomeIcon} from "@fortawesome/react-fontawesome"
+import {faFile, faFolder} from "@fortawesome/free-solid-svg-icons"
+import {useAppDispatch} from "../../state/hooks";
+import {updateContextMenu} from "../../state/slices/contextMenuSlice";
 
 interface Props {
     name: string;
@@ -10,12 +12,25 @@ interface Props {
 }
 
 export default function DirectoryEntity({ name, type, onDoubleClick }: Props) {
-    const buttonRef = useRef<HTMLButtonElement>(null);
+    const buttonRef = useRef<HTMLButtonElement | null>(null);
+    const dispatch = useAppDispatch();
+
+    function handleContextMenu(e: MouseEvent<HTMLButtonElement>) {
+        e.preventDefault();
+
+        dispatch(updateContextMenu({
+            currentContextMenu: ContextMenuType.DirectoryEntity,
+            mouseX: e.pageX,
+            mouseY: e.pageY,
+        }))
+    }
 
     return (
         <>
             <button
-                className="bg-background hover:bg-darker cursor-pointer w-full h-8 flex focus:bg-darker"
+                id="directory-entity"
+                onContextMenu={handleContextMenu}
+                className="directory-entity bg-background hover:bg-darker cursor-pointer w-full h-8 flex focus:bg-darker"
                 onDoubleClick={(e) => {
                     onDoubleClick(e);
                     buttonRef.current?.blur();

@@ -11,3 +11,9 @@ export type DirectoryEntityType = "file" | "directory";
 export interface DirectoryContent {
     [key: string]: [string, string]; // Key will be either "Directory" or "File"
 }
+
+export enum ContextMenuType {
+    None,
+    General,
+    DirectoryEntity,
+}

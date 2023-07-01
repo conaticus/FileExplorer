@@ -2,8 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  @apply h-full;
+}
+
 body {
-  @apply m-0 p-0 box-border text-white bg-background;
+  @apply m-0 p-0 box-border text-white bg-background min-h-full;
+}
+
+#root {
+  height: 100vh;
 }
 
 h3 {

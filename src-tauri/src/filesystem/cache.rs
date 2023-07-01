@@ -54,7 +54,7 @@ impl FsEventHandler {
             CreateKind::Folder => DIRECTORY,
             _ => return, // Other options are weird lol
         }
-        .to_string();
+            .to_string();
 
         let file_path = path.to_string_lossy().to_string();
         current_volume.entry(filename).or_insert(vec![CachedPath {
@@ -163,7 +163,7 @@ fn save_to_cache(state: &mut MutexGuard<AppState>) {
         &zstd::encode_all(serialized_cache.as_bytes(), 0)
             .expect("Failed to compress cache contents.")[..],
     )
-    .unwrap();
+        .unwrap();
 }
 
 /// Reads and decodes the cache file and stores it in memory for quick access.
