@@ -8,7 +8,6 @@ interface Props {
 }
 
 export default function VolumeList({ volumes, onClick }: Props) {
-    console.log(volumes)
     return (
         <div className="space-x-4">
             {volumes.length == 0 ? <LoadingPlaceholder/> : volumes.map((volume, idx) => (
