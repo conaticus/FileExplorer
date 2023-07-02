@@ -1,4 +1,4 @@
-import {MouseEvent, useEffect, useState} from "react";
+import {useEffect, useState} from "react";
 import {invoke} from "@tauri-apps/api/tauri";
 import {ContextMenuType, DirectoryContent, Volume} from "./types";
 import {openDirectory} from "./ipc/fileExplorer";
@@ -9,13 +9,13 @@ import useNavigation from "./hooks/useNavigation";
 import SearchBar from "./components/TopBar/SearchBar";
 import ContextMenu from "./components/ContextMenu";
 import {useAppDispatch, useAppSelector} from "./state/hooks";
-import {selectCurrentContextMenu, updateContextMenu} from "./state/slices/contextMenuSlice";
-import {NO_CONTEXT_MENU} from "./state/constants/constants";
+import {selectCurrentContextMenu} from "./state/slices/contextMenuSlice";
+import useContextMenu from "./hooks/useContextMenu";
 
 function App() {
   const [volumes, setVolumes] = useState<Volume[]>([]);
   const [directoryContents, setDirectoryContents] = useState<
-    DirectoryContent[]
+      DirectoryContent[]
   >([]);
 
   const [searchResults, setSearchResults] = useState<DirectoryContent[]>([]);
@@ -88,26 +88,7 @@ function App() {
   }, [historyPlace]);
 
   const dispatch = useAppDispatch();
-
-  function handleContextMenu(e: MouseEvent<HTMLDivElement>)  {
-      e.preventDefault();
-
-      if (e.target instanceof HTMLElement && e.target.id === "directory-entity") { return; }
-
-      dispatch(updateContextMenu({
-        currentContextMenu: ContextMenuType.General,
-        mouseX: e.pageX,
-        mouseY: e.pageY,
-      }));
-  }
-
-  function handleCloseContextMenu(e: MouseEvent<HTMLDivElement>) {
-    if (e.target instanceof HTMLElement) {
-      if (document.getElementById("context-menu")?.contains(e.target)) return;
-    }
-
-    dispatch(updateContextMenu(NO_CONTEXT_MENU));
-  }
+  const [handleContextMenu, handleCloseContextMenu] = useContextMenu(dispatch);
 
   const currentContextMenu = useAppSelector(selectCurrentContextMenu);
 

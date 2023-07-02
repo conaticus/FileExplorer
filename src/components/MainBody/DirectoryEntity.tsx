@@ -11,6 +11,8 @@ interface Props {
     onDoubleClick: MouseEventHandler<HTMLButtonElement>;
 }
 
+export const DIRECTORY_ENTITY_ID = "directory-entity";
+
 export default function DirectoryEntity({ name, type, onDoubleClick }: Props) {
     const buttonRef = useRef<HTMLButtonElement | null>(null);
     const dispatch = useAppDispatch();
@@ -28,7 +30,7 @@ export default function DirectoryEntity({ name, type, onDoubleClick }: Props) {
     return (
         <>
             <button
-                id="directory-entity"
+                id={DIRECTORY_ENTITY_ID}
                 onContextMenu={handleContextMenu}
                 className="directory-entity bg-background hover:bg-darker cursor-pointer w-full h-8 flex focus:bg-darker"
                 onDoubleClick={(e) => {
