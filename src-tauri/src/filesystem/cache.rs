@@ -57,7 +57,7 @@ impl FsEventHandler {
             .to_string();
 
         let file_path = path.to_string_lossy().to_string();
-        current_volume.entry(filename).or_insert(vec![CachedPath {
+        current_volume.entry(filename).or_insert_with(|| vec![CachedPath {
             file_path,
             file_type,
         }]);
@@ -100,7 +100,7 @@ impl FsEventHandler {
         let file_type = if new_path.is_dir() { DIRECTORY } else { FILE };
 
         let path_string = new_path.to_string_lossy().to_string();
-        current_volume.entry(filename).or_insert(vec![CachedPath {
+        current_volume.entry(filename).or_insert_with(|| vec![CachedPath {
             file_path: path_string,
             file_type: String::from(file_type),
         }]);
