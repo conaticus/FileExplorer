@@ -1,21 +1,25 @@
 import {useEffect, useState} from "react";
 import {invoke} from "@tauri-apps/api/tauri";
 import {DirectoryContent, Volume} from "./types";
-import {openDirectory} from "./ipc/fileExplorer";
+import {openDirectory} from "./ipc";
 import VolumeList from "./components/MainBody/Volumes/VolumeList";
 import FolderNavigation from "./components/TopBar/FolderNavigation";
 import {DirectoryContents} from "./components/MainBody/DirectoryContents";
 import useNavigation from "./hooks/useNavigation";
 import SearchBar from "./components/TopBar/SearchBar";
-import {useAppDispatch} from "./state/hooks";
+import {useAppDispatch, useAppSelector} from "./state/hooks";
 import useContextMenu from "./hooks/useContextMenu";
 import ContextMenus from "./components/ContextMenus/ContextMenus";
+import {
+  selectDirectoryContents,
+  unselectDirectoryContents,
+  updateDirectoryContents
+} from "./state/slices/currentDirectorySlice";
 
 function App() {
   const [volumes, setVolumes] = useState<Volume[]>([]);
-  const [directoryContents, setDirectoryContents] = useState<
-      DirectoryContent[]
-  >([]);
+  const directoryContents = useAppSelector(selectDirectoryContents);
+  const dispatch = useAppDispatch();
 
   const [searchResults, setSearchResults] = useState<DirectoryContent[]>([]);
 
@@ -31,9 +35,9 @@ function App() {
     setCurrentVolume,
   } = useNavigation(searchResults, setSearchResults);
 
-  async function updateDirectoryContents() {
+  async function getNewDirectoryContents() {
     const contents = await openDirectory(pathHistory[historyPlace]);
-    setDirectoryContents(contents);
+    dispatch(updateDirectoryContents(contents));
   }
 
   async function onVolumeClick(mountpoint: string) {
@@ -43,8 +47,7 @@ function App() {
     setHistoryPlace(pathHistory.length - 1);
     setCurrentVolume(mountpoint);
 
-    const directoryContents = await openDirectory(pathHistory[historyPlace]);
-    setDirectoryContents(directoryContents);
+    await getNewDirectoryContents();
   }
 
   async function onDirectoryClick(filePath: string) {
@@ -55,7 +58,7 @@ function App() {
     pathHistory.push(filePath);
     setHistoryPlace(pathHistory.length - 1);
 
-    await updateDirectoryContents();
+    await getNewDirectoryContents();
   }
 
   async function getVolumes() {
@@ -83,14 +86,16 @@ function App() {
       return;
     }
 
-    updateDirectoryContents().catch(console.error);
+    getNewDirectoryContents().catch(console.error);
   }, [historyPlace]);
 
-  const dispatch = useAppDispatch();
-  const [handleMainContextMenu, handleCloseContextMenu] = useContextMenu(dispatch);
+  const [handleMainContextMenu, handleCloseContextMenu] = useContextMenu(dispatch, pathHistory[historyPlace]);
 
   return (
-    <div className="h-full" onClick={handleCloseContextMenu} onContextMenu={handleMainContextMenu}>
+    <div className="h-full" onClick={(e) => {
+      dispatch(unselectDirectoryContents());
+      handleCloseContextMenu(e);
+    }} onContextMenu={handleMainContextMenu}>
       <ContextMenus />
 
       <div className="p-4">
@@ -108,7 +113,7 @@ function App() {
               setSearchResults={setSearchResults}
           />
 
-          <div className="w-full">
+          <div className="w-7/12">
             {pathHistory[historyPlace] === "" && searchResults.length === 0 ? (
                 <VolumeList volumes={volumes} onClick={onVolumeClick} />
             ) : (

@@ -16,17 +16,17 @@ export default function ContextMenu({ options }: Props) {
     const { mouseX, mouseY } = useAppSelector(state => state.contextMenu);
 
     return (
-        <div id="context-menu" className="bg-darker w-56" style={{
+        <div id="context-menu" className="bg-darker w-48" style={{
             position: "absolute",
             left: mouseX,
             top: mouseY,
         }}>
             {options.map((option, idx) => (
-                <div key={idx}>
+                <div key={idx} className="">
                     <button onClick={() => {
                         option.onClick();
                         dispatch(updateContextMenu(NO_CONTEXT_MENU));
-                    }} className="bg-darker hover:bg-gray-600 w-full">{option.name}</button>
+                    }} className="bg-darker hover:bg-bright w-full">{option.name}</button>
                     <br />
                 </div>
             ))}

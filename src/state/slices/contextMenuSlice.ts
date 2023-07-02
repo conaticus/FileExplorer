@@ -1,28 +1,37 @@
 import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import {ContextMenuType} from "../../types";
-import {RootState} from "../store";
 
-interface ContextMenuState {
+export interface ContextMenuState {
     currentContextMenu: ContextMenuType,
+    contextMenuPayload?: any;
     mouseX: number;
     mouseY: number;
 }
 
-const initialState: ContextMenuState = { currentContextMenu: ContextMenuType.None, mouseX: 0, mouseY: 0, };
+export interface GeneralContextPayload {
+    currentPath: string;
+}
+
+export interface DirectoryEntityContextPayload {
+    fileName: string;
+    filePath: string;
+}
+
+const initialState: ContextMenuState = { currentContextMenu: ContextMenuType.None, mouseX: 0, mouseY: 0, contextMenuPayload: {} };
 
 export const contextMenuSlice = createSlice({
     name: "contextMenu",
     initialState,
     reducers: {
         updateContextMenu: (state, action: PayloadAction<ContextMenuState>) => {
-            state.currentContextMenu = action.payload.currentContextMenu;
-            state.mouseX = action.payload.mouseX;
-            state.mouseY = action.payload.mouseY;
+            return {
+                ...state, // Ensures we keep the context menu payload when a modal appears and the context menu closes
+                ...action.payload
+            }
         },
     }
 })
 
 export const { updateContextMenu } = contextMenuSlice.actions;
-export const selectCurrentContextMenu = (state: RootState) => state.contextMenu.currentContextMenu;
 export default contextMenuSlice.reducer;

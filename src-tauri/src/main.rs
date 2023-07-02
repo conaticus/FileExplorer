@@ -5,7 +5,7 @@ mod filesystem;
 mod search;
 mod errors;
 
-use filesystem::{open_directory, open_file};
+use filesystem::explorer::{open_file, open_directory, create_file};
 use filesystem::volume::get_volumes;
 use search::search_directory;
 use serde::{Deserialize, Serialize};
@@ -36,7 +36,8 @@ async fn main() {
             get_volumes,
             open_directory,
             search_directory,
-            open_file
+            open_file,
+            create_file
         ])
         .manage(Arc::new(Mutex::new(AppState::default())))
         .run(tauri::generate_context!())

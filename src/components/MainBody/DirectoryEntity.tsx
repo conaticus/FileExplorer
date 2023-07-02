@@ -2,20 +2,28 @@ import {MouseEvent, MouseEventHandler, useRef} from "react";
 import {ContextMenuType, DirectoryEntityType} from "../../types";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome"
 import {faFile, faFolder} from "@fortawesome/free-solid-svg-icons"
-import {useAppDispatch} from "../../state/hooks";
-import {updateContextMenu} from "../../state/slices/contextMenuSlice";
+import {useAppDispatch, useAppSelector} from "../../state/hooks";
+import {DirectoryEntityContextPayload, updateContextMenu} from "../../state/slices/contextMenuSlice";
+import {
+    selectContentIdx,
+    selectCurrentSelectedContentIdx,
+    unselectDirectoryContents
+} from "../../state/slices/currentDirectorySlice";
 
 interface Props {
     name: string;
+    path: string;
     type: DirectoryEntityType;
     onDoubleClick: MouseEventHandler<HTMLButtonElement>;
+    idx: number;
 }
 
 export const DIRECTORY_ENTITY_ID = "directory-entity";
 
-export default function DirectoryEntity({ name, type, onDoubleClick }: Props) {
+export default function DirectoryEntity({ idx, name, path, type, onDoubleClick }: Props) {
     const buttonRef = useRef<HTMLButtonElement | null>(null);
     const dispatch = useAppDispatch();
+    const selectedContentIdx = useAppSelector(selectCurrentSelectedContentIdx);
 
     function handleContextMenu(e: MouseEvent<HTMLButtonElement>) {
         e.preventDefault();
@@ -24,6 +32,7 @@ export default function DirectoryEntity({ name, type, onDoubleClick }: Props) {
             currentContextMenu: ContextMenuType.DirectoryEntity,
             mouseX: e.pageX,
             mouseY: e.pageY,
+            contextMenuPayload: { fileName: name, filePath: path } as DirectoryEntityContextPayload,
         }))
     }
 
@@ -32,15 +41,16 @@ export default function DirectoryEntity({ name, type, onDoubleClick }: Props) {
             <button
                 id={DIRECTORY_ENTITY_ID}
                 onContextMenu={handleContextMenu}
-                className="directory-entity bg-background hover:bg-darker cursor-pointer w-7/12 h-7 flex focus:bg-darker"
+                className={`directory-entity bg-background hover:bg-bright cursor-pointer w-full h-7 flex ${selectedContentIdx === idx ? "bg-bright" : "" }`}
                 onDoubleClick={(e) => {
                     onDoubleClick(e);
-                    buttonRef.current?.blur();
+                    dispatch(unselectDirectoryContents());
                 }}
+                onClick={() => dispatch(selectContentIdx(idx))}
                 ref={buttonRef}
             >
-                <div className="mr-1">
-                    <FontAwesomeIcon icon={type == "file" ? faFile : faFolder} size="sm" color={type == "file" ? "gray" : "#FFD54F"} />
+                <div className="mr-1 ml-1">
+                    <FontAwesomeIcon icon={type == "file" ? faFile : faFolder} size="lg" color={type == "file" ? "gray" : "#FFD54F"} />
                 </div>
                 {name}
             </button>
