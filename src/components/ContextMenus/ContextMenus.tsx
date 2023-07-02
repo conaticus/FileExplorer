@@ -26,7 +26,7 @@ export default function ContextMenus() {
 
     async function onNewFile(name: string) {
         try {
-            const path = generalPayload.currentPath + name;
+            const path = generalPayload.currentPath + "\\" + name;
             await createFile(path);
 
             const newDirectoryContent = {"File": [name, path]} as DirectoryContent;

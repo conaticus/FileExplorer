@@ -15,6 +15,7 @@ import {
   unselectDirectoryContents,
   updateDirectoryContents
 } from "./state/slices/currentDirectorySlice";
+import {DIRECTORY_ENTITY_ID} from "./components/MainBody/DirectoryEntity";
 
 function App() {
   const [volumes, setVolumes] = useState<Volume[]>([]);
@@ -93,8 +94,13 @@ function App() {
 
   return (
     <div className="h-full" onClick={(e) => {
-      dispatch(unselectDirectoryContents());
       handleCloseContextMenu(e);
+
+      if (e.target instanceof HTMLElement) {
+        if (e.target.id === DIRECTORY_ENTITY_ID) return;
+      }
+
+      dispatch(unselectDirectoryContents());
     }} onContextMenu={handleMainContextMenu}>
       <ContextMenus />
 
