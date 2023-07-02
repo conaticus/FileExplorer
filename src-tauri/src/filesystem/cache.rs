@@ -54,10 +54,10 @@ impl FsEventHandler {
             CreateKind::Folder => DIRECTORY,
             _ => return, // Other options are weird lol
         }
-        .to_string();
+            .to_string();
 
         let file_path = path.to_string_lossy().to_string();
-        current_volume.entry(filename).or_insert(vec![CachedPath {
+        current_volume.entry(filename).or_insert_with(|| vec![CachedPath {
             file_path,
             file_type,
         }]);
@@ -100,7 +100,7 @@ impl FsEventHandler {
         let file_type = if new_path.is_dir() { DIRECTORY } else { FILE };
 
         let path_string = new_path.to_string_lossy().to_string();
-        current_volume.entry(filename).or_insert(vec![CachedPath {
+        current_volume.entry(filename).or_insert_with(|| vec![CachedPath {
             file_path: path_string,
             file_type: String::from(file_type),
         }]);
@@ -130,7 +130,7 @@ pub fn run_cache_interval(state_mux: &StateSafe) {
 
     tokio::spawn(async move {
         // We use tokio spawn because async closures with std spawn is unstable
-        let mut interval = time::interval(Duration::from_secs(30));
+        let mut interval = time::interval(Duration::from_secs(60));
         interval.tick().await; // Wait 30 seconds before doing first re-cache
 
         loop {
@@ -163,7 +163,7 @@ fn save_to_cache(state: &mut MutexGuard<AppState>) {
         &zstd::encode_all(serialized_cache.as_bytes(), 0)
             .expect("Failed to compress cache contents.")[..],
     )
-    .unwrap();
+        .unwrap();
 }
 
 /// Reads and decodes the cache file and stores it in memory for quick access.

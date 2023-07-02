@@ -1,6 +1,6 @@
 import DirectoryEntity from "./DirectoryEntity";
-import {DirectoryContent} from "../../types";
-import {openFile} from "../../ipc/fileExplorer";
+import {DirectoryContent, DirectoryContentType} from "../../types";
+import {openFile} from "../../ipc";
 
 interface Props {
     content: DirectoryContent[];
@@ -20,14 +20,16 @@ export function DirectoryContents({content, onDirectoryClick}: Props) {
 
             return (
                 <DirectoryEntity
-                    type={fileType === "Directory" ? "directory" : "file"}
+                    type={fileType as DirectoryContentType}
                     onDoubleClick={() =>
                         fileType === "Directory"
                             ? onDirectoryClick(filePath)
                             : onFileClick(filePath)
                     }
                     key={idx}
+                    idx={idx}
                     name={fileName}
+                    path={filePath}
                 />
             );
         })}

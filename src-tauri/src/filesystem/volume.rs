@@ -66,7 +66,7 @@ impl Volume {
         WalkDir::new(self.mountpoint.clone())
             .into_iter()
             .par_bridge()
-            .filter_map(|entry| entry.ok())
+            .filter_map(Result::ok)
             .for_each(|entry| {
                 let file_name = entry.file_name().to_string_lossy().to_string();
                 let file_path = entry.path().to_string_lossy().to_string();
@@ -95,7 +95,7 @@ impl Volume {
 
         let mut watcher = notify::recommended_watcher(move |res| match res {
             Ok(event) => fs_event_manager.handle_event(event),
-            Err(e) => panic!("Failed to handle event: {:?}", e),
+            Err(e) => panic!("Failed to handle event: {}", e),
         })
         .unwrap();
 
@@ -106,7 +106,7 @@ impl Volume {
 
             block_in_place(|| loop {
                 thread::park();
-            })
+            });
         });
     }
 }
