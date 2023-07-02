@@ -1,16 +1,15 @@
 import {useEffect, useState} from "react";
 import {invoke} from "@tauri-apps/api/tauri";
-import {ContextMenuType, DirectoryContent, Volume} from "./types";
+import {DirectoryContent, Volume} from "./types";
 import {openDirectory} from "./ipc/fileExplorer";
 import VolumeList from "./components/MainBody/Volumes/VolumeList";
 import FolderNavigation from "./components/TopBar/FolderNavigation";
 import {DirectoryContents} from "./components/MainBody/DirectoryContents";
 import useNavigation from "./hooks/useNavigation";
 import SearchBar from "./components/TopBar/SearchBar";
-import ContextMenu from "./components/ContextMenu";
-import {useAppDispatch, useAppSelector} from "./state/hooks";
-import {selectCurrentContextMenu} from "./state/slices/contextMenuSlice";
+import {useAppDispatch} from "./state/hooks";
 import useContextMenu from "./hooks/useContextMenu";
+import ContextMenus from "./components/ContextMenus/ContextMenus";
 
 function App() {
   const [volumes, setVolumes] = useState<Volume[]>([]);
@@ -88,50 +87,41 @@ function App() {
   }, [historyPlace]);
 
   const dispatch = useAppDispatch();
-  const [handleContextMenu, handleCloseContextMenu] = useContextMenu(dispatch);
-
-  const currentContextMenu = useAppSelector(selectCurrentContextMenu);
+  const [handleMainContextMenu, handleCloseContextMenu] = useContextMenu(dispatch);
 
   return (
-    <div className="h-full" onClick={handleCloseContextMenu} onContextMenu={handleContextMenu}>
-      {currentContextMenu === ContextMenuType.General ? (
-          <ContextMenu options={[
-            { name: "General Opt 1", onClick: () => {} },
-            { name: "General Opt 2", onClick: () => {} }
-          ]} />
-      ) : currentContextMenu === ContextMenuType.DirectoryEntity ? (
-          <ContextMenu options={[
-            { name: "Entity Opt 1", onClick: () => {} },
-            { name: "Entity Opt 2", onClick: () => {} }
-          ]} />
-      ) : ""}
+    <div className="h-full" onClick={handleCloseContextMenu} onContextMenu={handleMainContextMenu}>
+      <ContextMenus />
 
       <div className="p-4">
-        <div className="flex justify-between pb-5">
-          <FolderNavigation
-              onBackArrowClick={onBackArrowClick}
-              canGoBackward={canGoBackward()}
-              onForwardArrowClick={onForwardArrowClick}
-              canGoForward={canGoForward()}
-          />
+        <FolderNavigation
+            onBackArrowClick={onBackArrowClick}
+            canGoBackward={canGoBackward()}
+            onForwardArrowClick={onForwardArrowClick}
+            canGoForward={canGoForward()}
+        />
 
+        <div className="pb-5">
           <SearchBar
               currentVolume={currentVolume}
               currentDirectoryPath={pathHistory[historyPlace]}
               setSearchResults={setSearchResults}
           />
+
+          <div className="w-full">
+            {pathHistory[historyPlace] === "" && searchResults.length === 0 ? (
+                <VolumeList volumes={volumes} onClick={onVolumeClick} />
+            ) : (
+                <DirectoryContents
+                    content={
+                      searchResults.length === 0 ? directoryContents : searchResults
+                    }
+                    onDirectoryClick={onDirectoryClick}
+                />
+            )}
+          </div>
         </div>
 
-        {pathHistory[historyPlace] === "" && searchResults.length === 0 ? (
-            <VolumeList volumes={volumes} onClick={onVolumeClick} />
-        ) : (
-            <DirectoryContents
-                content={
-                  searchResults.length === 0 ? directoryContents : searchResults
-                }
-                onDirectoryClick={onDirectoryClick}
-            />
-        )}
       </div>
     </div>
   );

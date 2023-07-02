@@ -28,11 +28,11 @@ export default function DirectoryEntity({ name, type, onDoubleClick }: Props) {
     }
 
     return (
-        <>
+        <div title={name} className="overflow-ellipsis whitespace-nowrap overflow-hidden">
             <button
                 id={DIRECTORY_ENTITY_ID}
                 onContextMenu={handleContextMenu}
-                className="directory-entity bg-background hover:bg-darker cursor-pointer w-full h-8 flex focus:bg-darker"
+                className="directory-entity bg-background hover:bg-darker cursor-pointer w-7/12 h-7 flex focus:bg-darker"
                 onDoubleClick={(e) => {
                     onDoubleClick(e);
                     buttonRef.current?.blur();
@@ -40,10 +40,10 @@ export default function DirectoryEntity({ name, type, onDoubleClick }: Props) {
                 ref={buttonRef}
             >
                 <div className="mr-1">
-                    <FontAwesomeIcon icon={type == "file" ? faFile : faFolder} size="lg" color={type == "file" ? "gray" : "#FFD54F"} />
+                    <FontAwesomeIcon icon={type == "file" ? faFile : faFolder} size="sm" color={type == "file" ? "gray" : "#FFD54F"} />
                 </div>
                 {name}
             </button>
-        </>
+        </div>
     )
 }

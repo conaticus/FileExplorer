@@ -1,7 +1,6 @@
-import {useAppDispatch, useAppSelector} from "../state/hooks";
-import {updateContextMenu} from "../state/slices/contextMenuSlice";
-import {ContextMenuType} from "../types";
-import {NO_CONTEXT_MENU} from "../state/constants/constants";
+import {useAppDispatch, useAppSelector} from "../../state/hooks";
+import {updateContextMenu} from "../../state/slices/contextMenuSlice";
+import {NO_CONTEXT_MENU} from "../../state/constants/constants";
 
 interface ContextMenuOption {
     name: string;

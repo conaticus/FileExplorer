@@ -6,7 +6,7 @@ import {AppDispatch} from "../state/store";
 import {DIRECTORY_ENTITY_ID} from "../components/MainBody/DirectoryEntity";
 
 export default function useContextMenu(dispatch: AppDispatch) {
-    function handleContextMenu(e: MouseEvent<HTMLDivElement>)  {
+    function handleMainContextMenu(e: MouseEvent<HTMLDivElement>)  {
         e.preventDefault();
 
         if (e.target instanceof HTMLElement && e.target.id === DIRECTORY_ENTITY_ID) { return; }
@@ -26,5 +26,5 @@ export default function useContextMenu(dispatch: AppDispatch) {
         dispatch(updateContextMenu(NO_CONTEXT_MENU));
     }
 
-    return [handleContextMenu, handleCloseContextMenu];
+    return [handleMainContextMenu, handleCloseContextMenu];
 }

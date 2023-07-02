@@ -9,7 +9,7 @@ export interface Props {
 }
 
 export default function FolderNavigation({ onBackArrowClick, canGoBackward, onForwardArrowClick, canGoForward }: Props) {
-    return <div className="mb-5">
+    return <div className="mb-5 w-full">
         <div className="space-x-4">
             <button onClick={onBackArrowClick} disabled={!canGoBackward}>
                 <FontAwesomeIcon
