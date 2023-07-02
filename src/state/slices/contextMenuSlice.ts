@@ -1,6 +1,6 @@
 import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
-import {ContextMenuType} from "../../types";
+import {ContextMenuType, DirectoryContentType} from "../../types";
 
 export interface ContextMenuState {
     currentContextMenu: ContextMenuType,
@@ -16,6 +16,7 @@ export interface GeneralContextPayload {
 export interface DirectoryEntityContextPayload {
     fileName: string;
     filePath: string;
+    type: DirectoryContentType;
 }
 
 const initialState: ContextMenuState = { currentContextMenu: ContextMenuType.None, mouseX: 0, mouseY: 0, contextMenuPayload: {} };

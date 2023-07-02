@@ -1,5 +1,5 @@
 import {MouseEvent, MouseEventHandler, useRef} from "react";
-import {ContextMenuType, DirectoryEntityType} from "../../types";
+import {ContextMenuType, DirectoryContentType, DirectoryEntityType} from "../../types";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome"
 import {faFile, faFolder} from "@fortawesome/free-solid-svg-icons"
 import {useAppDispatch, useAppSelector} from "../../state/hooks";
@@ -13,7 +13,7 @@ import {
 interface Props {
     name: string;
     path: string;
-    type: DirectoryEntityType;
+    type: DirectoryContentType;
     onDoubleClick: MouseEventHandler<HTMLButtonElement>;
     idx: number;
 }
@@ -32,7 +32,7 @@ export default function DirectoryEntity({ idx, name, path, type, onDoubleClick }
             currentContextMenu: ContextMenuType.DirectoryEntity,
             mouseX: e.pageX,
             mouseY: e.pageY,
-            contextMenuPayload: { fileName: name, filePath: path } as DirectoryEntityContextPayload,
+            contextMenuPayload: { fileName: name, filePath: path, type } as DirectoryEntityContextPayload,
         }))
     }
 
@@ -50,7 +50,7 @@ export default function DirectoryEntity({ idx, name, path, type, onDoubleClick }
                 ref={buttonRef}
             >
                 <div className="mr-1 ml-1">
-                    <FontAwesomeIcon icon={type == "file" ? faFile : faFolder} size="lg" color={type == "file" ? "gray" : "#FFD54F"} />
+                    <FontAwesomeIcon icon={type == "File" ? faFile : faFolder} size="lg" color={type == "File" ? "gray" : "#FFD54F"} />
                 </div>
                 {name}
             </button>

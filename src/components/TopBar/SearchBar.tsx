@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useState } from "react";
+import {Dispatch, SetStateAction, useEffect, useState} from "react";
 import { DirectoryContent } from "../../types";
 import { invoke } from "@tauri-apps/api/tauri";
 import SearchFilter from "./SearchFilter";
@@ -28,8 +28,12 @@ export default function SearchBar({
     acceptDirectories: true,
   });
 
-  const split = currentDirectoryPath.split("\\");
-  const currentPlace = split[split.length - 2];
+  const [currentPlace, setCurrentPlace] = useState<string | undefined>();
+
+  useEffect(() => {
+    const split = currentDirectoryPath.split("\\");
+    setCurrentPlace(split[split.length - 2]);
+  }, [currentDirectoryPath])
 
   async function onSearch() {
     if (currentVolume.length == 0) {

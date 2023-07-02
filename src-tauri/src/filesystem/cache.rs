@@ -130,7 +130,7 @@ pub fn run_cache_interval(state_mux: &StateSafe) {
 
     tokio::spawn(async move {
         // We use tokio spawn because async closures with std spawn is unstable
-        let mut interval = time::interval(Duration::from_secs(30));
+        let mut interval = time::interval(Duration::from_secs(60));
         interval.tick().await; // Wait 30 seconds before doing first re-cache
 
         loop {

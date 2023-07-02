@@ -26,10 +26,18 @@ export const currentDirectorySlice = createSlice({
         unselectDirectoryContents: (state) => {
             state.currentSelectedIdx = undefined;
         },
+        renameContent: (state, action: PayloadAction<[DirectoryContent, DirectoryContent]>) => {
+            const [oldContent, newContent] = action.payload;
+            state.contents = state.contents.filter(c => c !== oldContent);
+            state.contents = [newContent, ...state.contents];
+        },
+        deleteContent: (state, action: PayloadAction<DirectoryContent>) => {
+            state.contents = state.contents.filter(c => c !== action.payload);
+        }
     }
 })
 
-export const { updateDirectoryContents, unselectDirectoryContents, selectContentIdx, addContent } = currentDirectorySlice.actions;
+export const { updateDirectoryContents, unselectDirectoryContents, selectContentIdx, addContent, renameContent, deleteContent } = currentDirectorySlice.actions;
 export const selectDirectoryContents = (state: RootState) => state.currentDirectory.contents;
 export const selectCurrentSelectedContentIdx = (state: RootState) => state.currentDirectory.currentSelectedIdx;
 export default currentDirectorySlice.reducer;
