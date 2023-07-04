@@ -2,7 +2,7 @@ import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import {DirectoryContent} from "../../types";
 import {RootState} from "../store";
-import _ from "lodash";
+import isEqual from "fast-deep-equal";
 
 export interface CurrentDirectoryState {
     contents: DirectoryContent[];
@@ -29,11 +29,11 @@ export const currentDirectorySlice = createSlice({
         },
         renameContent: (state, action: PayloadAction<[DirectoryContent, DirectoryContent]>) => {
             const [oldContent, newContent] = action.payload;
-            state.contents = state.contents.filter(c => !_.isEqual(c, oldContent));
+            state.contents = state.contents.filter(c => !isEqual(c, oldContent));
             state.contents = [newContent, ...state.contents];
         },
         deleteContent: (state, action: PayloadAction<DirectoryContent>) => {
-            state.contents = state.contents.filter(c => !_.isEqual(c, action.payload));
+            state.contents = state.contents.filter(c => !isEqual(c, action.payload));
         }
     }
 })
