@@ -17,7 +17,6 @@ export default function useNavigation(
       return;
     }
 
-    pathHistory.push(pathHistory[historyPlace - 1]);
     setHistoryPlace((prevPlace) => prevPlace - 1);
   }
 

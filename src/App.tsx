@@ -42,9 +42,9 @@ function App() {
   }
 
   async function onVolumeClick(mountpoint: string) {
-    if (pathHistory[pathHistory.length - 1] != mountpoint) {
-      pathHistory.push(mountpoint);
-    }
+    pathHistory.splice(1);
+    pathHistory.push(mountpoint);
+
     setHistoryPlace(pathHistory.length - 1);
     setCurrentVolume(mountpoint);
 
@@ -56,6 +56,7 @@ function App() {
       setSearchResults([]);
     }
 
+    pathHistory.splice(historyPlace + 1);
     pathHistory.push(filePath);
     setHistoryPlace(pathHistory.length - 1);
 
