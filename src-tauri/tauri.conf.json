@@ -7,12 +7,15 @@
     "withGlobalTauri": false
   },
   "package": {
-    "productName": "file-explorer",
+    "productName": "File Explorer",
     "version": "0.0.0"
   },
   "tauri": {
     "allowlist": {
       "all": false,
+      "dialog": {
+        "all": true
+      },
       "shell": {
         "all": false,
         "open": true

@@ -3,8 +3,9 @@
 
 mod filesystem;
 mod search;
+mod errors;
 
-use filesystem::open_directory;
+use filesystem::explorer::{open_file, open_directory, create_file, create_directory, rename_file, delete_file};
 use filesystem::volume::get_volumes;
 use search::search_directory;
 use serde::{Deserialize, Serialize};
@@ -13,7 +14,9 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Serialize, Deserialize)]
 pub struct CachedPath {
+    #[serde(rename = "p")]
     file_path: String,
+    #[serde(rename = "t")]
     file_type: String,
 }
 
@@ -32,7 +35,12 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             get_volumes,
             open_directory,
-            search_directory
+            search_directory,
+            open_file,
+            create_file,
+            create_directory,
+            rename_file,
+            delete_file
         ])
         .manage(Arc::new(Mutex::new(AppState::default())))
         .run(tauri::generate_context!())

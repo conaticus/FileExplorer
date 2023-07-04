@@ -1,5 +1,6 @@
 import DirectoryEntity from "./DirectoryEntity";
-import {DirectoryContent} from "../../types";
+import {DirectoryContent, DirectoryContentType} from "../../types";
+import {openFile} from "../../ipc";
 
 interface Props {
     content: DirectoryContent[];
@@ -7,6 +8,10 @@ interface Props {
 }
 
 export function DirectoryContents({content, onDirectoryClick}: Props) {
+    async function onFileClick(path: string) {
+        await openFile(path).catch(err => alert(err));
+    }
+
     return <>
         {content.length === 0 ? "There are no files in this directory." : ""}
 
@@ -15,14 +20,16 @@ export function DirectoryContents({content, onDirectoryClick}: Props) {
 
             return (
                 <DirectoryEntity
-                    type={fileType === "Directory" ? "directory" : "file"}
-                    onClick={() =>
+                    type={fileType as DirectoryContentType}
+                    onDoubleClick={() =>
                         fileType === "Directory"
                             ? onDirectoryClick(filePath)
-                            : undefined
+                            : onFileClick(filePath)
                     }
                     key={idx}
+                    idx={idx}
                     name={fileName}
+                    path={filePath}
                 />
             );
         })}
