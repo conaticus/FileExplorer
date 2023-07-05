@@ -7,7 +7,8 @@ Before contributing please read the [contributing guidelines](./CONTRIBUTING.md)
 
 ## Supported operating systems
 - Windows
-- Linux
+
+There are some issues with Linux and Mac but we shall work on these soon.
 
 Bear in mind this is still in development and missing the following core features:
 - Caching service (constant file watching to keep cache up to date) - only works when program is open
