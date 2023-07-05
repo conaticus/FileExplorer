@@ -45,7 +45,7 @@ function App() {
     pathHistory.splice(1);
     pathHistory.push(mountpoint);
 
-    setHistoryPlace(pathHistory.length - 1);
+    setHistoryPlace(1);
     setCurrentVolume(mountpoint);
 
     await getNewDirectoryContents();
