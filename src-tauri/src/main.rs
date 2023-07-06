@@ -5,6 +5,7 @@ mod filesystem;
 mod search;
 mod errors;
 
+use filesystem::FileType;
 use filesystem::explorer::{open_file, open_directory, create_file, create_directory, rename_file, delete_file};
 use filesystem::volume::get_volumes;
 use search::search_directory;
@@ -17,7 +18,7 @@ pub struct CachedPath {
     #[serde(rename = "p")]
     file_path: String,
     #[serde(rename = "t")]
-    file_type: String,
+    file_type: FileType,
 }
 
 pub type VolumeCache = HashMap<String, Vec<CachedPath>>;

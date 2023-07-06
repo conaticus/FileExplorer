@@ -1,4 +1,4 @@
-use crate::filesystem::{DIRECTORY, FILE};
+use crate::filesystem::FileType;
 use crate::{AppState, CachedPath, StateSafe, VolumeCache};
 use lazy_static::lazy_static;
 use notify::event::{CreateKind, ModifyKind, RenameMode};
@@ -50,11 +50,10 @@ impl FsEventHandler {
 
         let filename = path.file_name().unwrap().to_string_lossy().to_string();
         let file_type = match kind {
-            CreateKind::File => FILE,
-            CreateKind::Folder => DIRECTORY,
+            CreateKind::File => FileType::File,
+            CreateKind::Folder => FileType::Directory,
             _ => return, // Other options are weird lol
-        }
-            .to_string();
+        };
 
         let file_path = path.to_string_lossy().to_string();
         current_volume.entry(filename).or_insert_with(|| vec![CachedPath {
@@ -97,12 +96,12 @@ impl FsEventHandler {
         let current_volume = self.get_from_cache(state);
 
         let filename = new_path.file_name().unwrap().to_string_lossy().to_string();
-        let file_type = if new_path.is_dir() { DIRECTORY } else { FILE };
+        let file_type = if new_path.is_dir() { FileType::Directory } else { FileType::File };
 
         let path_string = new_path.to_string_lossy().to_string();
         current_volume.entry(filename).or_insert_with(|| vec![CachedPath {
             file_path: path_string,
-            file_type: String::from(file_type),
+            file_type: file_type,
         }]);
     }
 

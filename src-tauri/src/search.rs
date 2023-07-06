@@ -1,4 +1,5 @@
 use crate::filesystem::volume::DirectoryChild;
+use crate::filesystem::FileType;
 use crate::StateSafe;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -92,7 +93,7 @@ pub async fn search_directory(
                 continue;
             }
 
-            if file_type == "file" {
+            if *file_type == FileType::File {
                 check_file(
                     &matcher,
                     accept_files,

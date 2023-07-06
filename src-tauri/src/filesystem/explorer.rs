@@ -1,12 +1,11 @@
 use std::fs;
 use std::fs::read_dir;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use notify::event::CreateKind;
 use tauri::State;
 use crate::errors::Error;
 use crate::filesystem::cache::FsEventHandler;
-use crate::filesystem::fs_utils;
 use crate::filesystem::fs_utils::get_mount_point;
 use crate::filesystem::volume::DirectoryChild;
 use crate::StateSafe;
