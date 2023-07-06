@@ -7,7 +7,7 @@ html {
 }
 
 body {
-  @apply m-0 p-0 box-border text-white bg-background min-h-full;
+  @apply m-0 p-0 box-border text-white bg-zinc-950 min-h-full;
 }
 
 #root {
@@ -22,6 +22,32 @@ h2 {
   @apply text-3xl font-bold;
 }
 
-progress[value] {
-  background-color: blue;
+progress[value]::-webkit-progress-bar {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #3f3f46;
+  border-radius: 10px;
 }
+
+progress[value]::-webkit-progress-value {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #4ade80;
+  border-radius: 10px;
+}
+
+progress[value].mid::-webkit-progress-value {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #fde047;
+  border-radius: 10px;
+}
+
+progress[value].full::-webkit-progress-value {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #ef4444;
+  border-radius: 10px;
+}
+
+

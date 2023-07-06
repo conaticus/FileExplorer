@@ -18,7 +18,7 @@ export default function InputModal({ shown, setShown, title, onSubmit, submitNam
             <div className="absolute w-full h-full z-10" style={{
                 backgroundColor: "rgba(0,0,0, 0.4)"
             }}>
-                <div className="flex justify-around flex-col absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-darker rounded-lg w-60 h-32 z-20 border-gray-700 border-1">
+                <div className="flex justify-around flex-col absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-darker rounded-lg w-60 h-32 z-20 border-zinc-700 border-1">
                     <h3 className="text-center">{title}</h3>
                     <Input value={inputValue} setValue={setInputValue} size={InputSize.Tiny} className="block mr-auto ml-auto text-center w-48" />
 
