@@ -1,21 +1,21 @@
-import {useEffect, useState} from "react";
-import {invoke} from "@tauri-apps/api/tauri";
-import {DirectoryContent, Volume} from "./types";
-import {openDirectory} from "./ipc";
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/tauri";
+import { DirectoryContent, Volume } from "./types";
+import { openDirectory } from "./ipc";
 import VolumeList from "./components/MainBody/Volumes/VolumeList";
 import FolderNavigation from "./components/TopBar/FolderNavigation";
-import {DirectoryContents} from "./components/MainBody/DirectoryContents";
+import { DirectoryContents } from "./components/MainBody/DirectoryContents";
 import useNavigation from "./hooks/useNavigation";
 import SearchBar from "./components/TopBar/SearchBar";
-import {useAppDispatch, useAppSelector} from "./state/hooks";
+import { useAppDispatch, useAppSelector } from "./state/hooks";
 import useContextMenu from "./hooks/useContextMenu";
 import ContextMenus from "./components/ContextMenus/ContextMenus";
 import {
   selectDirectoryContents,
   unselectDirectoryContents,
-  updateDirectoryContents
+  updateDirectoryContents,
 } from "./state/slices/currentDirectorySlice";
-import {DIRECTORY_ENTITY_ID} from "./components/MainBody/DirectoryEntity";
+import { DIRECTORY_ENTITY_ID } from "./components/MainBody/DirectoryEntity";
 
 function App() {
   const [volumes, setVolumes] = useState<Volume[]>([]);
@@ -79,7 +79,7 @@ function App() {
     }
 
     render += 1; // I don't know why but the use effect runs twice causing the "get_volumes" to be called twice.
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (pathHistory[historyPlace] == "") {
@@ -90,49 +90,51 @@ function App() {
     getNewDirectoryContents().catch(console.error);
   }, [historyPlace]);
 
-  const [handleMainContextMenu, handleCloseContextMenu] = useContextMenu(dispatch, pathHistory[historyPlace]);
+  const [handleMainContextMenu, handleCloseContextMenu] = useContextMenu(
+    dispatch,
+    pathHistory[historyPlace]
+  );
 
   return (
-    <div className="h-full" onClick={(e) => {
-      handleCloseContextMenu(e);
+    <div
+      className="h-full"
+      onClick={(e) => {
+        handleCloseContextMenu(e);
 
-      if (e.target instanceof HTMLElement) {
-        if (e.target.id === DIRECTORY_ENTITY_ID) return;
-      }
+        if (e.target instanceof HTMLElement) {
+          if (e.target.id === DIRECTORY_ENTITY_ID) return;
+        }
 
-      dispatch(unselectDirectoryContents());
-    }} onContextMenu={handleMainContextMenu}>
+        dispatch(unselectDirectoryContents());
+      }}
+      onContextMenu={handleMainContextMenu}
+    >
       <ContextMenus />
 
       <div className="p-4">
         <FolderNavigation
-            onBackArrowClick={onBackArrowClick}
-            canGoBackward={canGoBackward()}
-            onForwardArrowClick={onForwardArrowClick}
-            canGoForward={canGoForward()}
+          onBackArrowClick={onBackArrowClick}
+          canGoBackward={canGoBackward()}
+          onForwardArrowClick={onForwardArrowClick}
+          canGoForward={canGoForward()}
+          currentVolume={currentVolume}
+          currentDirectoryPath={pathHistory[historyPlace]}
+          setSearchResults={setSearchResults}
         />
-
         <div className="pb-5">
-          <SearchBar
-              currentVolume={currentVolume}
-              currentDirectoryPath={pathHistory[historyPlace]}
-              setSearchResults={setSearchResults}
-          />
-
-          <div className="w-7/12">
+          <div>
             {pathHistory[historyPlace] === "" && searchResults.length === 0 ? (
-                <VolumeList volumes={volumes} onClick={onVolumeClick} />
+              <VolumeList volumes={volumes} onClick={onVolumeClick} />
             ) : (
-                <DirectoryContents
-                    content={
-                      searchResults.length === 0 ? directoryContents : searchResults
-                    }
-                    onDirectoryClick={onDirectoryClick}
-                />
+              <DirectoryContents
+                content={
+                  searchResults.length === 0 ? directoryContents : searchResults
+                }
+                onDirectoryClick={onDirectoryClick}
+              />
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

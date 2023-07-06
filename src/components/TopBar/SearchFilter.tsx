@@ -1,75 +1,84 @@
-import Input, {InputSize} from "../../ui/Input";
-import {ChangeEvent, Dispatch, SetStateAction} from "react";
-import {ISearchFilter} from "./SearchBar";
-
+import Input, { InputSize } from "../../ui/Input";
+import { ChangeEvent, Dispatch, SetStateAction } from "react";
+import { ISearchFilter } from "./SearchBar";
 interface Props {
-    filters: ISearchFilter;
-    setFilters: Dispatch<SetStateAction<ISearchFilter>>;
+  filters: ISearchFilter;
+  setFilters: Dispatch<SetStateAction<ISearchFilter>>;
 }
 
 export default function SearchFilter({ filters, setFilters }: Props) {
-    function onAcceptFilesChange(e: ChangeEvent<HTMLInputElement>) {
-        if (!e.target.checked && !filters.acceptDirectories) {
-            setFilters({
-                ...filters,
-                acceptFiles: false,
-                acceptDirectories: true,
-            });
+  function onAcceptFilesChange(e: ChangeEvent<HTMLInputElement>) {
+    if (!e.target.checked && !filters.acceptDirectories) {
+      setFilters({
+        ...filters,
+        acceptFiles: false,
+        acceptDirectories: true,
+      });
 
-            return;
-        }
-
-        setFilters({
-            ...filters,
-            acceptFiles: e.target.checked,
-        });
+      return;
     }
 
-    function onAcceptDirsChange(e: ChangeEvent<HTMLInputElement>) {
-        if (!e.target.checked && !filters.acceptFiles) {
-            setFilters({
-                ...filters,
-                acceptDirectories: false,
-                acceptFiles: true,
-            });
+    setFilters({
+      ...filters,
+      acceptFiles: e.target.checked,
+    });
+  }
 
-            return;
-        }
+  function onAcceptDirsChange(e: ChangeEvent<HTMLInputElement>) {
+    if (!e.target.checked && !filters.acceptFiles) {
+      setFilters({
+        ...filters,
+        acceptDirectories: false,
+        acceptFiles: true,
+      });
 
-        setFilters({
-            ...filters,
-            acceptDirectories: e.target.checked,
-        });
+      return;
     }
 
-    function onExtensionChange(e: ChangeEvent<HTMLInputElement>) {
-        setFilters({
-            ...filters,
-            extension: e.target.value,
-        })
-    }
+    setFilters({
+      ...filters,
+      acceptDirectories: e.target.checked,
+    });
+  }
 
-    return (
-        <div className="space-x-2 flex justify-center bg-darker p-4 rounded-bl-lg rounded-br-lg w-62">
-            <div className="flex flex-col space-y-2">
-                <label>Extension</label>
-                <label>Files</label>
-                <label>Folders</label>
-            </div>
+  function onExtensionChange(e: ChangeEvent<HTMLInputElement>) {
+    setFilters({
+      ...filters,
+      extension: e.target.value,
+    });
+  }
 
-            <div className="flex flex-col space-y-2 relative">
-                <Input onChange={onExtensionChange} value={filters.extension} placeholder="ext" size={InputSize.Tiny} disabled={!filters.acceptFiles} />
-                <input
-                    checked={filters.acceptFiles}
-                    onChange={onAcceptFilesChange}
-                    className="absolute left-2 top-8" type="checkbox"
-                />
-                <input
-                    checked={filters.acceptDirectories}
-                    onChange={onAcceptDirsChange}
-                    className="absolute left-2 top-16" type="checkbox"
-                />
-            </div>
-        </div>
-    )
+  return (
+    <div className="flex flex-row items-center rounded-xl w-full bg-zinc-700 px-2 h-12 font-semibold">
+      <div className="inline-flex items-center rounded-xl bg-zinc-900 px-2 py-1">
+        <p className="mr-2 text-zinc-500">Extension</p>
+        <input
+          className="text-sm font-semibold bg-zinc-800 rounded-md px-2 border-none ring-none ring-transparent border-transparent"
+          type="text"
+          disabled={!filters.acceptFiles}
+          onChange={onExtensionChange}
+          value={filters.extension}
+          placeholder="ext"
+        />
+      </div>
+      <div className="inline-flex items-center rounded-xl bg-zinc-900 px-2 py-1 ml-2">
+        <p className="mr-2 text-zinc-500">Files</p>
+        <input
+          checked={filters.acceptFiles}
+          onChange={onAcceptFilesChange}
+          className=""
+          type="checkbox"
+        />
+      </div>
+      <div className="inline-flex items-center rounded-xl bg-zinc-900 px-2 py-1 ml-2">
+        <p className="mr-2 text-zinc-500">Folders</p>
+        <input
+          checked={filters.acceptDirectories}
+          onChange={onAcceptDirsChange}
+          className=""
+          type="checkbox"
+        />
+      </div>
+    </div>
+  );
 }

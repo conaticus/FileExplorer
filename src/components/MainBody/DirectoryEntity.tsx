@@ -41,7 +41,7 @@ export default function DirectoryEntity({ idx, name, path, type, onDoubleClick }
             <button
                 id={DIRECTORY_ENTITY_ID}
                 onContextMenu={handleContextMenu}
-                className={`directory-entity bg-background hover:bg-bright cursor-pointer w-full h-7 flex ${selectedContentIdx === idx ? "bg-bright" : "" }`}
+                className={`directory-entity bg-background hover:bg-bright rounded-xl px-2 items-center cursor-pointer m-[1px] w-full h-7 flex ${selectedContentIdx === idx ? "bg-bright" : "" }`}
                 onDoubleClick={(e) => {
                     onDoubleClick(e);
                     dispatch(unselectDirectoryContents());
@@ -50,7 +50,7 @@ export default function DirectoryEntity({ idx, name, path, type, onDoubleClick }
                 ref={buttonRef}
             >
                 <div className="mr-1 ml-1">
-                    <FontAwesomeIcon icon={type == "File" ? faFile : faFolder} size="lg" color={type == "File" ? "gray" : "#FFD54F"} />
+                    <FontAwesomeIcon icon={type == "File" ? faFile : faFolder} size="lg" color={type == "File" ? "zinc" : "#FFD54F"} />
                 </div>
                 {name}
             </button>
