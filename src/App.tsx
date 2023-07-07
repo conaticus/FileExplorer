@@ -16,6 +16,7 @@ import {
   updateDirectoryContents
 } from "./state/slices/currentDirectorySlice";
 import {DIRECTORY_ENTITY_ID} from "./components/MainBody/DirectoryEntity";
+import FilePathBar from "./components/TopBar/FilePathBar";
 
 function App() {
   const [volumes, setVolumes] = useState<Volume[]>([]);
@@ -104,7 +105,7 @@ function App() {
     }} onContextMenu={handleMainContextMenu}>
       <ContextMenus />
 
-      <div className="p-4">
+      <div className="flex p-4 h-20">
         <FolderNavigation
             onBackArrowClick={onBackArrowClick}
             canGoBackward={canGoBackward()}
@@ -112,14 +113,20 @@ function App() {
             canGoForward={canGoForward()}
         />
 
-        <div className="pb-5">
-          <SearchBar
-              currentVolume={currentVolume}
-              currentDirectoryPath={pathHistory[historyPlace]}
-              setSearchResults={setSearchResults}
-          />
+        <FilePathBar
+          currentDirectoryPath={pathHistory[historyPlace]}
+          onDirectoryClick={onDirectoryClick}
+        />
 
-          <div className="w-7/12">
+        <SearchBar
+            currentVolume={currentVolume}
+            currentDirectoryPath={pathHistory[historyPlace]}
+            setSearchResults={setSearchResults}
+        />
+      </div>
+
+
+      <div className="pl-4 w-7/12">
             {pathHistory[historyPlace] === "" && searchResults.length === 0 ? (
                 <VolumeList volumes={volumes} onClick={onVolumeClick} />
             ) : (
@@ -131,9 +138,6 @@ function App() {
                 />
             )}
           </div>
-        </div>
-
-      </div>
     </div>
   );
 }

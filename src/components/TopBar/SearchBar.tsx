@@ -54,7 +54,7 @@ export default function SearchBar({
   }
 
   return (
-    <div className="absolute right-4 top-4">
+    <div className="mt-auto">
       <Input
         value={searchValue}
         setValue={setSearchValue}
