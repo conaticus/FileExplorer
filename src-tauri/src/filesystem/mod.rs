@@ -1,11 +1,12 @@
-use serde::{Deserialize, Serialize};
+use serde_repr::{Serialize_repr, Deserialize_repr};
 
 pub mod explorer;
 pub mod cache;
 pub mod volume;
 mod fs_utils;
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize_repr, Deserialize_repr, PartialEq)]
+#[repr(u8)]
 pub enum FileType{
     Directory,
     File

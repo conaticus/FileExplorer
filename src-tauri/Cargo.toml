@@ -28,6 +28,7 @@ zstd = "0.12.3"
 lazy_static = "1.4.0"
 open = "5.0.0"
 thiserror = "1.0.40"
+serde_repr = "0.1.14"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
