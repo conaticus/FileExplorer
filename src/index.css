@@ -4,14 +4,20 @@
 
 html {
   @apply h-full;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 body {
   @apply m-0 p-0 box-border text-white bg-background min-h-full;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 #root {
   height: 100vh;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 h3 {
@@ -24,4 +30,8 @@ h2 {
 
 progress[value] {
   background-color: blue;
+}
+
+.navbar {
+  height: 7.5%;
 }

@@ -25,6 +25,10 @@ export default function DirectoryEntity({ idx, name, path, type, onDoubleClick }
     const dispatch = useAppDispatch();
     const selectedContentIdx = useAppSelector(selectCurrentSelectedContentIdx);
 
+    if (document.getElementById("path-viewer")?.getAttribute("value") == path) {
+        dispatch(selectContentIdx(idx));
+    }
+
     function handleContextMenu(e: MouseEvent<HTMLButtonElement>) {
         e.preventDefault();
 
@@ -36,8 +40,10 @@ export default function DirectoryEntity({ idx, name, path, type, onDoubleClick }
         }))
     }
 
+
+
     return (
-        <div title={name} className="overflow-ellipsis whitespace-nowrap overflow-hidden">
+        <div title={name} className="overflow-ellipsis whitespace-nowrap overflow-hidden" id={`${selectedContentIdx === idx ? "selected" : name}`}>
             <button
                 id={DIRECTORY_ENTITY_ID}
                 onContextMenu={handleContextMenu}

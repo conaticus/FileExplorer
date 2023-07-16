@@ -7,7 +7,7 @@ use notify::{RecursiveMode, Watcher};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{copy, File};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::{fs, thread};
@@ -15,6 +15,7 @@ use sysinfo::{Disk, DiskExt, System, SystemExt};
 use tauri::State;
 use tokio::task::block_in_place;
 use walkdir::WalkDir;
+use std::error::Error;
 
 #[derive(Serialize)]
 pub struct Volume {
@@ -134,8 +135,6 @@ pub async fn get_volumes(state_mux: State<'_, StateSafe>) -> Result<Vec<Volume>,
         .map(|disk| Volume::from(disk))
         .collect::<Vec<Volume>>();
 
-    println!("RUNNING THREAD");
-
     let state_mux_thread = Arc::clone(&state_mux);
     thread::spawn({
         move || {
@@ -161,9 +160,7 @@ pub async fn get_volumes(state_mux: State<'_, StateSafe>) -> Result<Vec<Volume>,
         }
     });
 
-
-    println!("FINISHED THREAD");
-
     Ok(volumes)
 }
+
 

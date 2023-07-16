@@ -3,7 +3,7 @@ import {invoke} from "@tauri-apps/api/tauri";
 import {DirectoryContent, Volume} from "./types";
 import {openDirectory} from "./ipc";
 import VolumeList from "./components/MainBody/Volumes/VolumeList";
-import FolderNavigation from "./components/TopBar/FolderNavigation";
+import { TopNavBar } from "./components/TopBar/TopNavBar";
 import {DirectoryContents} from "./components/MainBody/DirectoryContents";
 import useNavigation from "./hooks/useNavigation";
 import SearchBar from "./components/TopBar/SearchBar";
@@ -94,7 +94,14 @@ function App() {
 
   const [handleMainContextMenu, handleCloseContextMenu] = useContextMenu(dispatch, pathHistory[historyPlace]);
 
-  return (
+  return <>
+    <TopNavBar
+            onBackArrowClick={onBackArrowClick}
+            canGoBackward={canGoBackward()}
+            onForwardArrowClick={onForwardArrowClick}
+            canGoForward={canGoForward()}
+            path={pathHistory[historyPlace]}
+        />
     <div className="h-full" onClick={(e) => {
       handleCloseContextMenu(e);
 
@@ -107,12 +114,7 @@ function App() {
       <ContextMenus />
 
       <div className="p-4">
-        <FolderNavigation
-            onBackArrowClick={onBackArrowClick}
-            canGoBackward={canGoBackward()}
-            onForwardArrowClick={onForwardArrowClick}
-            canGoForward={canGoForward()}
-        />
+
 
         <div className="pb-5">
           <SearchBar
@@ -130,6 +132,7 @@ function App() {
                       searchResults.length === 0 ? directoryContents : searchResults
                     }
                     onDirectoryClick={onDirectoryClick}
+                    path={pathHistory[historyPlace]}
                 />
             )}
           </div>
@@ -137,7 +140,7 @@ function App() {
 
       </div>
     </div>
-  );
+  </>;
 }
 
 export default App;
