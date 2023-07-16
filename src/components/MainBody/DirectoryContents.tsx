@@ -1,6 +1,6 @@
 import DirectoryEntity from "./DirectoryEntity";
 import {DirectoryContent, DirectoryContentType} from "../../types";
-import {openFile, paste} from "../../ipc";
+import {openFile, paste, getType} from "../../ipc";
 import {useEffect, useRef} from "react";
 import { copyFile, stat } from "fs";
 import { clipboard } from "@tauri-apps/api";
@@ -13,6 +13,7 @@ interface Props {
     content: DirectoryContent[];
     onDirectoryClick: (filePath: string) => any;
     path: string;
+    onPathChange: (path: string) => any;
 }
 
 export function DirectoryContents({content, onDirectoryClick, path}: Props) {
@@ -22,8 +23,21 @@ export function DirectoryContents({content, onDirectoryClick, path}: Props) {
         await openFile(path).catch(err => alert(err));
     }
 
+    useEffect(() => {
+        getType(path).then(type => {
+            if (type === "File") {
+                // remove the last part of the path
+                const newPath = path.split("/").slice(0, -1).join("/");
+                document.getElementById("path-viewer")?.setAttribute("title", newPath);
+            } else {
+                document.getElementById("path-viewer")?.setAttribute("title", path);
+            }
+        })
+    }, [path])
+
     function useKey(key: string, cb: Function){
         const callback = useRef(cb);
+
 
         useEffect(() => {
             callback.current = cb;
@@ -94,6 +108,7 @@ export function DirectoryContents({content, onDirectoryClick, path}: Props) {
         }
 
     })
+
 
 
     return <>

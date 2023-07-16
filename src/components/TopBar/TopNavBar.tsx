@@ -1,7 +1,7 @@
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faArrowLeft, faArrowRight} from "@fortawesome/free-solid-svg-icons";
 import { openDirectory, openFile, getType } from "../../ipc";
-import { useState } from "react";
+import {useEffect, useState} from "react";
 import { useAppDispatch } from "../../state/hooks";
 import {
     selectContentIdx,
@@ -21,11 +21,14 @@ export function TopNavBar({ onBackArrowClick, canGoBackward, onForwardArrowClick
     const [currentPath, setCurrentPath] = useState(path);
     const dispatch = useAppDispatch();
 
+    useEffect(() => {
+        setCurrentPath(path);
+    }, [path]);
+
     async function onSubmit(e: React.FormEvent<HTMLInputElement>) {
         e.preventDefault();
         const newPath = currentPath;
         dispatch(unselectDirectoryContents());
-        console.log("New path: " + newPath);
         if (await getType(newPath) == "Directory") {
             const contents = await openDirectory(newPath);
             dispatch(updateDirectoryContents(contents));
@@ -35,6 +38,7 @@ export function TopNavBar({ onBackArrowClick, canGoBackward, onForwardArrowClick
             dispatch(updateDirectoryContents(contents));
         }
     }
+
 
 
     return <div className="mb-5 w-full navbar">

@@ -67,9 +67,7 @@ function App() {
     if (volumes.length > 0) {
       return;
     }
-    console.log("START SEARCH");
     const newVolumes = await invoke<Volume[]>("get_volumes");
-    console.log("ENDED SEARCH");
     setVolumes(newVolumes);
   }
 
