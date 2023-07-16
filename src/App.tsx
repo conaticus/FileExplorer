@@ -16,6 +16,7 @@ import {
   updateDirectoryContents
 } from "./state/slices/currentDirectorySlice";
 import {DIRECTORY_ENTITY_ID} from "./components/MainBody/DirectoryEntity";
+import {Console} from "inspector";
 
 function App() {
   const [volumes, setVolumes] = useState<Volume[]>([]);
@@ -66,8 +67,9 @@ function App() {
     if (volumes.length > 0) {
       return;
     }
-
+    console.log("START SEARCH");
     const newVolumes = await invoke<Volume[]>("get_volumes");
+    console.log("ENDED SEARCH");
     setVolumes(newVolumes);
   }
 

@@ -25,3 +25,7 @@ export async function deleteFile(path: string): Promise<void> {
    return invoke("delete_file", { path });
 }
 
+export async function copyFile(source: string, destination: string): Promise<void> {
+   return invoke("copy_file", { source, destination });
+}
+

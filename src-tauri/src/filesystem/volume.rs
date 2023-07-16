@@ -120,35 +120,50 @@ pub enum DirectoryChild {
 /// Gets list of volumes and returns them.
 /// If there is a cache stored on volume it is loaded.
 /// If there is no cache stored on volume, one is created as well as stored in memory.
+
 #[tauri::command]
 pub async fn get_volumes(state_mux: State<'_, StateSafe>) -> Result<Vec<Volume>, ()> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
-    let mut cache_exists = fs::metadata(&CACHE_FILE_PATH[..]).is_ok();
-    if cache_exists {
-        cache_exists = load_system_cache(&state_mux);
-    } else {
-        File::create(&CACHE_FILE_PATH[..]).unwrap();
-    }
+
 
     let volumes = sys
         .disks()
         .iter()
-        .map(|disk| {
-            let volume = Volume::from(disk);
+        .map(|disk| Volume::from(disk))
+        .collect::<Vec<Volume>>();
 
-            if !cache_exists {
-                volume.create_cache(&state_mux);
+    println!("RUNNING THREAD");
+
+    let state_mux_thread = Arc::clone(&state_mux);
+    thread::spawn({
+        move || {
+            let mux_clone = state_mux_thread.clone();
+
+            let mut cache_exists = fs::metadata(&CACHE_FILE_PATH[..]).is_ok();
+            if cache_exists {
+                cache_exists = load_system_cache(&mux_clone);
+            } else {
+                File::create(&CACHE_FILE_PATH[..]).unwrap();
             }
 
-            volume.watch_changes(&state_mux);
-            volume
-        })
-        .collect();
+            if !cache_exists {
+                for disk in sys.disks().iter() {
+                    let volume = Volume::from(disk);
+                    volume.create_cache(&mux_clone);
+                    volume.watch_changes(&mux_clone);
+                }
+                save_system_cache(&mux_clone);
+                run_cache_interval(&mux_clone);
+            }
+            // The lock is released automatically when state_mux_thread goes out of scope
+        }
+    });
 
-    save_system_cache(&state_mux);
-    run_cache_interval(&state_mux);
+
+    println!("FINISHED THREAD");
 
     Ok(volumes)
 }
+
