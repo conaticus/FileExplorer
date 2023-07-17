@@ -25,3 +25,7 @@ h2 {
 progress[value] {
   background-color: blue;
 }
+
+.navbar {
+  height: 7.5%;
+}

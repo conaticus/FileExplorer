@@ -7,6 +7,7 @@ mod errors;
 
 use filesystem::explorer::{open_file, open_directory, create_file, create_directory, rename_file, delete_file};
 use filesystem::volume::get_volumes;
+use filesystem::features::{paste, get_file_type};
 use search::search_directory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -40,7 +41,9 @@ async fn main() {
             create_file,
             create_directory,
             rename_file,
-            delete_file
+            delete_file,
+            paste,
+            get_file_type
         ])
         .manage(Arc::new(Mutex::new(AppState::default())))
         .run(tauri::generate_context!())

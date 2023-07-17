@@ -25,3 +25,12 @@ export async function deleteFile(path: string): Promise<void> {
    return invoke("delete_file", { path });
 }
 
+export async function paste(source: string, destination: string): Promise<string> {
+   return invoke<string>("paste", { source, destination });
+}
+
+export async function getType(path: string): Promise<string> {
+   return invoke<string>("get_file_type", { path });
+}
+
+

@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+
 pub fn get_mount_point(path: String) -> Option<String> {
     let path = Path::new(&path);
     let root = path.components().next()?;
@@ -7,6 +8,9 @@ pub fn get_mount_point(path: String) -> Option<String> {
 
     let mut mount_point_path = PathBuf::new();
     mount_point_path.push(&mount_point);
-    mount_point_path.push("\\");
+    mount_point_path.push("");
+    println!("mount_point_path: {:?}", mount_point_path);
     Some(mount_point_path.to_string_lossy().into_owned())
 }
+
+
