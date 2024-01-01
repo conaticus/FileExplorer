@@ -127,6 +127,10 @@ pub async fn search_directory(
     let end_time = Instant::now();
     println!("Elapsed time: {:?}", end_time - start_time);
 
+    if fuzzy_scores.is_empty() {
+        println!("No results")
+    }
+
     // Sort by best match first.
     let mut tuples: Vec<(usize, _)> = fuzzy_scores.iter().enumerate().collect();
     tuples.sort_by(|a, b| b.1.cmp(a.1));
