@@ -1,7 +1,7 @@
 use crate::filesystem::cache::{
     load_system_cache, run_cache_interval, save_system_cache, FsEventHandler, CACHE_FILE_PATH,
 };
-use crate::filesystem::{bytes_to_gb, DIRECTORY, FILE};
+use crate::filesystem::{bytes_to_gb, FileType};
 use crate::{CachedPath, StateSafe};
 use notify::{RecursiveMode, Watcher};
 use rayon::prelude::*;
@@ -73,11 +73,10 @@ impl Volume {
 
                 let walkdir_filetype = entry.file_type();
                 let file_type = if walkdir_filetype.is_dir() {
-                    DIRECTORY
+                    FileType::Directory
                 } else {
-                    FILE
-                }
-                .to_string();
+                    FileType::File
+                };
 
                 let cache_guard = &mut system_cache.lock().unwrap();
                 cache_guard
