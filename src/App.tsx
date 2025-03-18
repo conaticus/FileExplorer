@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react";
-import {invoke} from "@tauri-apps/api/tauri";
+import {invoke} from "@tauri-apps/api/core";
 import {DirectoryContent, Volume} from "./types";
 import {openDirectory} from "./ipc";
 import VolumeList from "./components/MainBody/Volumes/VolumeList";

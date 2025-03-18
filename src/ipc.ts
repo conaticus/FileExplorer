@@ -1,5 +1,5 @@
 import {DirectoryContent} from "./types";
-import {invoke} from "@tauri-apps/api/tauri";
+import {invoke} from "@tauri-apps/api/core";
 
 export async function openDirectory(path: string): Promise<DirectoryContent[]> {
    return invoke("open_directory", { path });

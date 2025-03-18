@@ -1,15 +1,15 @@
-use std::fs;
-use std::fs::read_dir;
-use std::ops::Deref;
-use std::path::{Path, PathBuf};
-use notify::event::CreateKind;
-use tauri::State;
 use crate::errors::Error;
 use crate::filesystem::cache::FsEventHandler;
 use crate::filesystem::fs_utils;
 use crate::filesystem::fs_utils::get_mount_point;
 use crate::filesystem::volume::DirectoryChild;
 use crate::StateSafe;
+use notify::event::CreateKind;
+use std::fs;
+use std::fs::read_dir;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
+use tauri::State;
 
 /// Opens a file at the given path. Returns a string if there was an error.
 // NOTE(conaticus): I tried handling the errors nicely here but Tauri was mega cringe and wouldn't let me nest results in async functions, so used string error messages instead.
@@ -28,7 +28,8 @@ pub async fn open_file(path: String) -> Result<(), Error> {
         return Ok(());
     }
 
-    let err_msg = String::from_utf8(output.stderr).unwrap_or(String::from("Failed to open file and deserialize stderr."));
+    let err_msg = String::from_utf8(output.stderr)
+        .unwrap_or(String::from("Failed to open file and deserialize stderr."));
     Err(Error::Custom(err_msg))
 }
 
@@ -56,7 +57,6 @@ pub async fn open_directory(path: String) -> Result<Vec<DirectoryChild>, ()> {
         .collect())
 }
 
-
 #[tauri::command]
 pub async fn create_file(state_mux: State<'_, StateSafe>, path: String) -> Result<(), Error> {
     let mount_point_str = get_mount_point(path.clone()).unwrap_or_default();
@@ -66,9 +66,7 @@ pub async fn create_file(state_mux: State<'_, StateSafe>, path: String) -> Resul
 
     let res = fs::File::create(path);
     match res {
-        Ok(_) => {
-            Ok(())
-        },
+        Ok(_) => Ok(()),
         Err(err) => Err(Error::Custom(err.to_string())),
     }
 }
@@ -82,26 +80,27 @@ pub async fn create_directory(state_mux: State<'_, StateSafe>, path: String) -> 
 
     let res = fs::create_dir(path);
     match res {
-        Ok(_) => {
-            Ok(())
-        },
+        Ok(_) => Ok(()),
         Err(err) => Err(Error::Custom(err.to_string())),
     }
 }
 
 #[tauri::command]
-pub async fn rename_file(state_mux: State<'_, StateSafe>, old_path: String, new_path: String) -> Result<(), Error> {
+pub async fn rename_file(
+    state_mux: State<'_, StateSafe>,
+    old_path: String,
+    new_path: String,
+) -> Result<(), Error> {
     let mount_point_str = get_mount_point(old_path.clone()).unwrap_or_default();
 
-    let mut fs_event_manager = FsEventHandler::new(state_mux.deref().clone(), mount_point_str.into());
+    let mut fs_event_manager =
+        FsEventHandler::new(state_mux.deref().clone(), mount_point_str.into());
     fs_event_manager.handle_rename_from(Path::new(&old_path));
     fs_event_manager.handle_rename_to(Path::new(&new_path));
 
     let res = fs::rename(old_path, new_path);
     match res {
-        Ok(_) => {
-            Ok(())
-        },
+        Ok(_) => Ok(()),
         Err(err) => Err(Error::Custom(err.to_string())),
     }
 }
@@ -115,9 +114,7 @@ pub async fn delete_file(state_mux: State<'_, StateSafe>, path: String) -> Resul
 
     let res = fs::remove_file(path);
     match res {
-        Ok(_) => {
-            Ok(())
-        },
+        Ok(_) => Ok(()),
         Err(err) => Err(Error::Custom(err.to_string())),
     }
 }

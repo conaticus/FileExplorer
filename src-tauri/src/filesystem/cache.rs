@@ -54,13 +54,15 @@ impl FsEventHandler {
             CreateKind::Folder => DIRECTORY,
             _ => return, // Other options are weird lol
         }
-            .to_string();
+        .to_string();
 
         let file_path = path.to_string_lossy().to_string();
-        current_volume.entry(filename).or_insert_with(|| vec![CachedPath {
-            file_path,
-            file_type,
-        }]);
+        current_volume.entry(filename).or_insert_with(|| {
+            vec![CachedPath {
+                file_path,
+                file_type,
+            }]
+        });
     }
 
     pub fn handle_delete(&self, path: &Path) {
@@ -100,10 +102,12 @@ impl FsEventHandler {
         let file_type = if new_path.is_dir() { DIRECTORY } else { FILE };
 
         let path_string = new_path.to_string_lossy().to_string();
-        current_volume.entry(filename).or_insert_with(|| vec![CachedPath {
-            file_path: path_string,
-            file_type: String::from(file_type),
-        }]);
+        current_volume.entry(filename).or_insert_with(|| {
+            vec![CachedPath {
+                file_path: path_string,
+                file_type: String::from(file_type),
+            }]
+        });
     }
 
     pub fn handle_event(&mut self, event: Event) {
@@ -163,7 +167,7 @@ fn save_to_cache(state: &mut MutexGuard<AppState>) {
         &zstd::encode_all(serialized_cache.as_bytes(), 0)
             .expect("Failed to compress cache contents.")[..],
     )
-        .unwrap();
+    .unwrap();
 }
 
 /// Reads and decodes the cache file and stores it in memory for quick access.

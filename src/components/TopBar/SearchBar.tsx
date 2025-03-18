@@ -1,6 +1,6 @@
 import {Dispatch, SetStateAction, useEffect, useState} from "react";
 import { DirectoryContent } from "../../types";
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import SearchFilter from "./SearchFilter";
 import Input, { InputSize } from "../../ui/Input";
 

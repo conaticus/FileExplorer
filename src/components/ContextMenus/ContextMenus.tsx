@@ -3,7 +3,7 @@ import ContextMenu from "./ContextMenu";
 import {useAppDispatch, useAppSelector} from "../../state/hooks";
 import InputModal from "../InputModal";
 import {useState} from "react";
-import {confirm} from "@tauri-apps/api/dialog";
+import {confirm} from "@tauri-apps/plugin-dialog";
 import {
     DirectoryEntityContextPayload,
     GeneralContextPayload
