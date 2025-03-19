@@ -1,6 +1,7 @@
 [workspace]
 members = [
-    "src-tauri",      # Tauri application
+    "src-tauri",        # Tauri application
+    "rs-config-lib"     # Library for all the configuration
 ]
 
 resolver = "2"  # Ensures dependencies work correctly in Rust 2021
