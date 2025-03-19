@@ -1,4 +1,4 @@
-FROM rust:latest AS builder
+FROM rust:latest
 
 RUN apt-get update && apt-get install -y \
     libwebkit2gtk-4.1-dev \
