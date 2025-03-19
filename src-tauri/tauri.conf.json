@@ -2,7 +2,6 @@
   "build": {
     "beforeDevCommand": "yarn dev",
     "beforeBuildCommand": "yarn build",
-    "frontendDist": "../dist",
     "devUrl": "http://localhost:1420"
   },
   "bundle": {
