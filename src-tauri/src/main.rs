@@ -5,7 +5,7 @@ mod errors;
 mod filesystem;
 mod search;
 
-use filesystem::explorer::{
+use filesystem::file_operations::{
     create_directory, create_file, delete_file, open_directory, open_file, rename_file,
 };
 use filesystem::volume::get_volumes;

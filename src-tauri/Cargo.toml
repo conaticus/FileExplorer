@@ -9,19 +9,11 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "file_explorer_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
 tauri = { version = "2", features = [] }  # Removed "log" feature
 tauri-plugin-opener = "2"
-tauri-plugin-log = "2"      # Add this
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 sysinfo = "0.29.2"
 walkdir = "2.3.3"
 fuzzy-matcher = "*"
@@ -32,11 +24,12 @@ tokio = { version = "1.28.2", features = ["full"] }
 serde_bencode = "0.2.3"
 zstd = "0.12.3"
 lazy_static = "1.4.0"
-open = "5.0.0"
+open = "5.3.2"
 thiserror = "1.0.40"
 tauri-plugin-shell = "2.0.0-rc"
 tauri-plugin-dialog = "2.0.0-rc"
 log = "0.4"
+regex = "1.11.1"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }  # Removed "log" feature
