@@ -117,8 +117,8 @@ pub enum DirectoryChild {
     Directory(String, String),
 }
 
-/*
-/// Gets list of volumes and returns them.
+
+/*/// Gets list of volumes and returns them.
 /// If there is a cache stored on volume it is loaded.
 /// If there is no cache stored on volume, one is created as well as stored in memory.
 #[tauri::command]
@@ -152,5 +152,4 @@ pub async fn get_volumes(state_mux: State<'_, StateSafe>) -> Result<Vec<Volume>,
     run_cache_interval(&state_mux);
 
     Ok(volumes)
-}
-*/
+}*/

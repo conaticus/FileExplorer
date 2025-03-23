@@ -3,6 +3,7 @@ mod fs_utils;
 pub mod volume;
 pub mod file_operations;
 pub mod file_system_operations;
+pub mod fs_entry_options;
 
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";

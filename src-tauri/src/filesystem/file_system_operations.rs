@@ -1,4 +1,6 @@
 use sysinfo::{Disks};
+use tauri::command;
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct VolumeInformation {
@@ -12,6 +14,8 @@ pub struct VolumeInformation {
     total_read_bytes: u64,
 }
 
+
+#[command]
 pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
     let mut volume_information_vec: Vec<VolumeInformation> = Vec::new();
     let disks = Disks::new_with_refreshed_list();

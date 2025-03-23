@@ -12,6 +12,7 @@ use search::search_directory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use tauri::ipc::Invoke;
 
 #[derive(Serialize, Deserialize)]
 pub struct CachedPath {
@@ -30,12 +31,9 @@ pub struct AppState {
 
 pub type StateSafe = Arc<Mutex<AppState>>;
 
-#[tokio::main]
-async fn main() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![
+
+fn all_commands() -> fn(Invoke) -> bool {
+    tauri::generate_handler![
             open_directory,
             search_directory,
             open_file,
@@ -43,8 +41,19 @@ async fn main() {
             create_directory,
             rename_file,
             delete_file
-        ])
+    ]
+}
+
+#[tokio::main]
+async fn main() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
+        .invoke_handler(all_commands())
         .manage(Arc::new(Mutex::new(AppState::default())))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+
+
