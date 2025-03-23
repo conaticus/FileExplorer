@@ -14,7 +14,7 @@ edition = "2021"
 tauri = { version = "2", features = [] }  # Removed "log" feature
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
-sysinfo = "0.29.2"
+sysinfo = "0.33.1"
 walkdir = "2.3.3"
 fuzzy-matcher = "*"
 rayon = "1.7.0"

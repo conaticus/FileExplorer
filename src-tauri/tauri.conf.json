@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "file_explorer",
+  "productName": "file-explorer",
   "version": "0.1.0",
-  "identifier": "com.file_explorer.app",
+  "identifier": "com.fileexplorer.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "file_explorer",
+        "title": "File Explorer",
         "width": 800,
         "height": 600
       }

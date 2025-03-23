@@ -11,7 +11,7 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::{fs, thread};
-use sysinfo::{Disk, DiskExt, System, SystemExt};
+use sysinfo::{Disk, System};
 use tauri::State;
 use tokio::task::block_in_place;
 use walkdir::WalkDir;
@@ -117,6 +117,7 @@ pub enum DirectoryChild {
     Directory(String, String),
 }
 
+/*
 /// Gets list of volumes and returns them.
 /// If there is a cache stored on volume it is loaded.
 /// If there is no cache stored on volume, one is created as well as stored in memory.
@@ -152,3 +153,4 @@ pub async fn get_volumes(state_mux: State<'_, StateSafe>) -> Result<Vec<Volume>,
 
     Ok(volumes)
 }
+*/

@@ -8,7 +8,6 @@ mod search;
 use filesystem::file_operations::{
     create_directory, create_file, delete_file, open_directory, open_file, rename_file,
 };
-use filesystem::volume::get_volumes;
 use search::search_directory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -37,7 +36,6 @@ async fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
-            get_volumes,
             open_directory,
             search_directory,
             open_file,
