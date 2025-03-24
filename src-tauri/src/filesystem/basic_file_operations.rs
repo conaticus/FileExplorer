@@ -75,7 +75,7 @@ mod tests {
         result
     }
     
-    mod test_create_directories {
+    mod test_create_files {
         use crate::filesystem::basic_file_operations::create_file;
         use crate::filesystem::basic_file_operations::tests::exec_with_dir_setup;
 
