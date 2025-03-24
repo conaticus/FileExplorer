@@ -1,5 +1,5 @@
 [package]
-name = "file_explorer"
+name = "src-tauri"
 version = "0.1.0"
 description = "File Explorer"
 authors = ["Conaticus", "ProtogenDelta", ]
@@ -11,6 +11,7 @@ edition = "2021"
 
 
 [dependencies]
+# Replace "0.1" with the correct version of the `explorer` crate
 tauri = { version = "2", features = [] }  # Removed "log" feature
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
@@ -29,8 +30,10 @@ thiserror = "1.0.40"
 tauri-plugin-shell = "2.0.0-rc"
 tauri-plugin-dialog = "2.0.0-rc"
 log = "0.4"
+env_logger = "0.11.7"
 regex = "1.11.1"
 serde_json = "1.0.140"
+
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }  # Removed "log" feature

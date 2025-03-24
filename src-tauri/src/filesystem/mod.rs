@@ -4,6 +4,7 @@ pub mod volume;
 pub mod file_operations;
 pub mod file_system_operations;
 pub mod fs_entry_options;
+pub mod basic_file_operations;
 
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";

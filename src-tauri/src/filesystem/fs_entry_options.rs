@@ -79,11 +79,13 @@ fn test_that_shit() {
     // Add subdirectory to the main directory
     dir1.add_entry(FsEntry::Directory(subdir));
 
+    //TODO: Implement logging
+    
     // Print out the directory structure
-    println!("{:?}", dir1);
+    //println!("{:?}", dir1);
 
     // Print the total size_in_byte of the directory
-    println!("Total size_in_byte of 'dir1': {}", dir1.entries.values().map(|e| e.size()).sum::<u32>());
+    //println!("Total size_in_byte of 'dir1': {}", dir1.entries.values().map(|e| e.size()).sum::<u32>());
 }
 
 #[test]
