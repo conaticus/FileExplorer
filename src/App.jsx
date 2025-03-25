@@ -2,9 +2,11 @@ import React from 'react';
 import ThemeProvider from './providers/ThemeProvider';
 import AppStateProvider from './providers/AppStateProvider';
 import FileSystemProvider from './providers/FileSystemProvider';
+import SettingsProvider from './providers/SettingsProvider';
 import MainLayout from './layouts/MainLayout';
+import './styles/modern.css';
 
-// Definiere ein sehr einfaches Fallback für Fehlerfälle
+// Simple fallback for error cases
 function ErrorFallback() {
     return (
         <div style={{
@@ -19,8 +21,8 @@ function ErrorFallback() {
             boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
         }}>
             <h1 style={{ color: '#d32f2f' }}>Fast File Explorer</h1>
-            <p>Die Anwendung konnte nicht richtig geladen werden. Versuchen Sie, die Seite neu zu laden.</p>
-            <p>Falls das Problem weiterhin besteht, überprüfen Sie die Konsole (F12) auf Fehlermeldungen.</p>
+            <p>The application could not be loaded properly. Try refreshing the page.</p>
+            <p>If the problem persists, check the console (F12) for error messages.</p>
             <button
                 onClick={() => window.location.reload()}
                 style={{
@@ -33,13 +35,13 @@ function ErrorFallback() {
                     marginTop: '15px'
                 }}
             >
-                Seite neu laden
+                Reload Page
             </button>
         </div>
     );
 }
 
-// Minimal App-Komponente
+// App component with error boundary
 class App extends React.Component {
     constructor(props) {
         super(props);
@@ -52,22 +54,24 @@ class App extends React.Component {
     }
 
     componentDidCatch(error, errorInfo) {
-        console.error("Fehler in der Anwendung:", error, errorInfo);
+        console.error("Application error:", error, errorInfo);
     }
 
     render() {
-        // Im Fehlerfall das Fallback anzeigen
+        // Show fallback in case of error
         if (this.state.hasError) {
             return <ErrorFallback />;
         }
 
-        // Normale Anwendung rendern
+        // Render normal application
         return (
             <div className="app-container" style={{ width: '100%', height: '100vh' }}>
                 <ThemeProvider>
                     <AppStateProvider>
                         <FileSystemProvider>
-                            <MainLayout />
+                            <SettingsProvider>
+                                <MainLayout />
+                            </SettingsProvider>
                         </FileSystemProvider>
                     </AppStateProvider>
                 </ThemeProvider>

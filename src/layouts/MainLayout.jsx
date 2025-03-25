@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAppState } from '../providers/AppStateProvider';
 import { useFileSystem } from '../providers/FileSystemProvider';
 import { useTheme } from '../providers/ThemeProvider';
+import { useSettings } from '../providers/SettingsProvider';
 
-// Komponenten importieren
+// Import Components
 import SideBar from '../components/panels/SideBar';
 import DetailPanel from '../components/panels/DetailPanel';
 import TerminalPanel from '../components/panels/TerminalPanel';
@@ -13,16 +14,27 @@ import NavButtons from '../components/navigation/NavButtons';
 import GlobalSearch from '../components/search/GlobalSearch';
 import FileView from '../components/file-view/FileView';
 import FileContextMenu from '../components/context-menu/FileContextMenu';
+import { SettingsButton } from '../components/settings/Settings';
+
+// Import modern glass background
+import bgImage from '../assets/themes/background.svg';
 
 const MainLayout = () => {
     const { state, actions } = useAppState();
     const { isLoading, error } = useFileSystem();
-    const { colors, themeSettings } = useTheme();
+    const { colors, themeSettings, activeTheme } = useTheme();
+    const { openSettings } = useSettings();
 
     const [items, setItems] = useState([]);
     const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
     const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
     const [contextMenuTargetItem, setContextMenuTargetItem] = useState(null);
+    const [showBgImage, setShowBgImage] = useState(activeTheme.includes('Glass'));
+
+    // Update the background image based on theme
+    useEffect(() => {
+        setShowBgImage(activeTheme.includes('Glass') || themeSettings.enableGlassEffect);
+    }, [activeTheme, themeSettings.enableGlassEffect]);
 
     // Set a default path if none is set
     useEffect(() => {
@@ -31,26 +43,32 @@ const MainLayout = () => {
         }
     }, [state.currentPath, actions]);
 
-    // Lade Dateien und Ordner beim ersten Rendern und bei Änderung des Pfads
+    // Load files and folders on first render and when path changes
     useEffect(() => {
         const loadItems = async () => {
             if (!state.currentPath) return;
 
             actions.setLoading(true);
             try {
-                // [Backend Integration] - Verzeichnisinhalt vom Backend abrufen
-                // /* BACKEND_INTEGRATION: Verzeichnisinhalt laden */
+                // [Backend Integration] - Fetch directory contents from backend
+                // /* BACKEND_INTEGRATION: Load directory contents */
 
-                // Beispieldaten für die Anzeige
+                // Example data for display
                 const mockItems = [
-                    { name: 'Bilder', path: `${state.currentPath}\\Bilder`, type: 'directory', modified: '2023-05-03T10:30:00Z' },
-                    { name: 'Ordner1', path: `${state.currentPath}\\Ordner1`, type: 'directory', modified: '2023-01-05T11:20:00Z' },
-                    { name: 'Ordner2', path: `${state.currentPath}\\Ordner2`, type: 'directory', modified: '2023-12-02T16:40:00Z' },
+                    { name: 'Pictures', path: `${state.currentPath}\\Pictures`, type: 'directory', modified: '2023-05-03T10:30:00Z' },
+                    { name: 'Folder1', path: `${state.currentPath}\\Folder1`, type: 'directory', modified: '2023-01-05T11:20:00Z' },
+                    { name: 'Folder2', path: `${state.currentPath}\\Folder2`, type: 'directory', modified: '2023-12-02T16:40:00Z' },
                     { name: 'config.json', path: `${state.currentPath}\\config.json`, type: 'file', size: '4 KB', modified: '2023-02-04T09:30:00Z' },
-                    { name: 'Dokument1.docx', path: `${state.currentPath}\\Dokument1.docx`, type: 'file', size: '25 KB', modified: '2023-01-15T10:30:00Z' },
-                    { name: 'Präsentation.pptx', path: `${state.currentPath}\\Präsentation.pptx`, type: 'file', size: '2.3 MB', modified: '2023-10-03T09:15:00Z' },
-                    { name: 'Tabelle.xlsx', path: `${state.currentPath}\\Tabelle.xlsx`, type: 'file', size: '156 KB', modified: '2023-02-20T14:45:00Z' },
+                    { name: 'Document1.docx', path: `${state.currentPath}\\Document1.docx`, type: 'file', size: '25 KB', modified: '2023-01-15T10:30:00Z' },
+                    { name: 'Presentation.pptx', path: `${state.currentPath}\\Presentation.pptx`, type: 'file', size: '2.3 MB', modified: '2023-10-03T09:15:00Z' },
+                    { name: 'Spreadsheet.xlsx', path: `${state.currentPath}\\Spreadsheet.xlsx`, type: 'file', size: '156 KB', modified: '2023-02-20T14:45:00Z' },
                     { name: 'test.txt', path: `${state.currentPath}\\test.txt`, type: 'file', size: '2 KB', modified: '2023-04-01T08:00:00Z' },
+                    { name: 'image.png', path: `${state.currentPath}\\image.png`, type: 'file', size: '1.5 MB', modified: '2023-08-12T13:45:00Z' },
+                    { name: 'video.mp4', path: `${state.currentPath}\\video.mp4`, type: 'file', size: '24.8 MB', modified: '2023-11-20T16:22:00Z' },
+                    { name: 'audio.mp3', path: `${state.currentPath}\\audio.mp3`, type: 'file', size: '3.4 MB', modified: '2023-07-08T09:15:00Z' },
+                    { name: 'archive.zip', path: `${state.currentPath}\\archive.zip`, type: 'file', size: '15.2 MB', modified: '2023-09-17T14:30:00Z' },
+                    { name: 'script.js', path: `${state.currentPath}\\script.js`, type: 'file', size: '12 KB', modified: '2023-10-05T11:20:00Z' },
+                    { name: 'styles.css', path: `${state.currentPath}\\styles.css`, type: 'file', size: '8 KB', modified: '2023-10-05T11:25:00Z' },
                 ];
 
                 setItems(mockItems);
@@ -65,14 +83,14 @@ const MainLayout = () => {
         loadItems();
     }, [state.currentPath, actions]);
 
-    // Sortiere die Elemente
+    // Sort the items
     const sortedItems = [...items].sort((a, b) => {
-        // Sortiere Ordner vor Dateien
+        // Sort folders before files
         if (a.type !== b.type) {
             return a.type === 'directory' ? -1 : 1;
         }
 
-        // Sortiere nach dem ausgewählten Sortiermerkmal
+        // Sort by the selected sort attribute
         switch (state.sortBy) {
             case 'name':
                 return state.sortDirection === 'asc'
@@ -85,14 +103,14 @@ const MainLayout = () => {
                     : new Date(b.modified) - new Date(a.modified);
 
             case 'size':
-                // Nur für Dateien relevant
+                // Only relevant for files
                 if (a.type === 'directory' && b.type === 'directory') {
                     return state.sortDirection === 'asc'
                         ? a.name.localeCompare(b.name)
                         : b.name.localeCompare(a.name);
                 }
 
-                // Größe parsen (entfernen von "KB", "MB", etc.)
+                // Parse size (remove "KB", "MB", etc.)
                 const getSizeInBytes = (sizeStr) => {
                     if (!sizeStr) return 0;
                     const num = parseFloat(sizeStr);
@@ -107,7 +125,7 @@ const MainLayout = () => {
                     : getSizeInBytes(b.size) - getSizeInBytes(a.size);
 
             case 'type':
-                // Dateierweiterung extrahieren
+                // Extract file extension
                 const getExtension = (filename) => {
                     if (!filename || !filename.includes('.')) return '';
                     return filename.split('.').pop().toLowerCase();
@@ -122,7 +140,7 @@ const MainLayout = () => {
         }
     });
 
-    // Öffne das Kontextmenü
+    // Open context menu
     const handleContextMenu = (e, item) => {
         e.preventDefault();
         setContextMenuPosition({ x: e.clientX, y: e.clientY });
@@ -130,55 +148,55 @@ const MainLayout = () => {
         setIsContextMenuOpen(true);
     };
 
-    // Schließe das Kontextmenü
+    // Close context menu
     const closeContextMenu = () => {
         setIsContextMenuOpen(false);
     };
 
-    // Klick auf eine Datei oder einen Ordner
+    // Handle click on a file or folder
     const handleItemClick = (item, isDoubleClick = false) => {
-        // Wenn es ein Verzeichnis ist und ein Doppelklick erfolgt, öffne das Verzeichnis
+        // If it's a directory and double-clicked, open the directory
         if (item.type === 'directory' && isDoubleClick) {
             actions.setCurrentPath(item.path);
         }
-        // Wenn es eine Datei ist und ein Doppelklick erfolgt, öffne die Datei
+        // If it's a file and double-clicked, open the file
         else if (item.type === 'file' && isDoubleClick) {
-            // [Backend Integration] - Datei mit Standardanwendung öffnen
-            // /* BACKEND_INTEGRATION: Datei öffnen */
+            // [Backend Integration] - Open file with default application
+            // /* BACKEND_INTEGRATION: Open file */
             console.log(`Opening file: ${item.path}`);
         }
-        // Bei einfachem Klick wähle das Element aus
+        // On single click select the item
         else {
-            // Prüfe, ob Strg-Taste gedrückt ist (für Mehrfachauswahl)
-            const isCtrlPressed = false; // TODO: Implementiere Abfrage für Strg-Taste
+            // Check if Ctrl key is pressed (for multiple selection)
+            const isCtrlPressed = false; // TODO: Implement Ctrl key check
 
             if (isCtrlPressed) {
-                // Füge das Element zur Auswahl hinzu oder entferne es, wenn es bereits ausgewählt ist
+                // Add the item to selection or remove it if already selected
                 if (state.selectedItems.includes(item.path)) {
                     actions.removeSelectedItem(item.path);
                 } else {
                     actions.addSelectedItem(item.path);
                 }
             } else {
-                // Setze die Auswahl auf dieses Element
+                // Set selection to this item
                 actions.setSelectedItems([item.path]);
             }
         }
     };
 
-    // Aktualisieren bei Änderungen des Sortiermerkmals oder der Sortierrichtung
+    // Update when sort attribute or direction changes
     const handleSortChange = (sortBy) => {
         if (state.sortBy === sortBy) {
-            // Ändere die Sortierrichtung, wenn das gleiche Merkmal erneut ausgewählt wird
+            // Change sort direction if the same attribute is selected again
             actions.setSortDirection(state.sortDirection === 'asc' ? 'desc' : 'asc');
         } else {
-            // Setze das neue Sortiermerkmal und die Standardrichtung (aufsteigend)
+            // Set the new sort attribute and default direction (ascending)
             actions.setSortBy(sortBy);
             actions.setSortDirection('asc');
         }
     };
 
-    // Mock data for sidebar (mit abhängigkeiten im dependency array)
+    // Mock data for sidebar (with dependencies in the dependency array)
     useEffect(() => {
         if (actions.addRecent && actions.addFavorite) {
             actions.addRecent('C:\\Users\\User\\Documents');
@@ -191,29 +209,46 @@ const MainLayout = () => {
 
     return (
         <div className="explorer-layout">
-            {/* Obere Navigationsleiste */}
-            <div className="explorer-header">
-                <NavButtons
-                    canGoBack={state.historyIndex > 0}
-                    canGoForward={state.historyIndex < state.history.length - 1}
-                    onGoBack={actions.goBack}
-                    onGoForward={actions.goForward}
-                />
-                <LocationBar
-                    currentPath={state.currentPath}
-                    onPathChange={actions.setCurrentPath}
-                />
-                <GlobalSearch
-                    isSearchActive={state.isSearchActive}
-                    searchQuery={state.searchQuery}
-                    onSearch={actions.search}
-                    onClearSearch={actions.clearSearch}
-                />
+            {/* Background image for glass effect (conditionally rendered) */}
+            {showBgImage && (
+                <div
+                    className="bg-pattern"
+                    style={{
+                        backgroundImage: `url(${bgImage})`,
+                        opacity: themeSettings.enableGlassEffect ? 0.05 : 0
+                    }}
+                ></div>
+            )}
+
+            {/* Main navigation bar */}
+            <div className={`explorer-header ${themeSettings.enableGlassEffect ? 'glass-effect' : ''}`}>
+                <div className="explorer-header-left">
+                    <NavButtons
+                        canGoBack={state.historyIndex > 0}
+                        canGoForward={state.historyIndex < state.history.length - 1}
+                        onGoBack={actions.goBack}
+                        onGoForward={actions.goForward}
+                    />
+                    <LocationBar
+                        currentPath={state.currentPath}
+                        onPathChange={actions.setCurrentPath}
+                    />
+                </div>
+
+                <div className="explorer-header-right">
+                    <GlobalSearch
+                        isSearchActive={state.isSearchActive}
+                        searchQuery={state.searchQuery}
+                        onSearch={actions.search}
+                        onClearSearch={actions.clearSearch}
+                    />
+                    <SettingsButton onClick={openSettings} />
+                </div>
             </div>
 
-            {/* Hauptbereich */}
+            {/* Main content area */}
             <div className="main-container">
-                {/* Seitenleiste */}
+                {/* Sidebar */}
                 <SideBar
                     isOpen={state.isSidebarOpen}
                     favorites={state.favorites}
@@ -222,9 +257,10 @@ const MainLayout = () => {
                     onNavigate={actions.setCurrentPath}
                     onAddFavorite={actions.addFavorite}
                     onRemoveFavorite={actions.removeFavorite}
+                    enableGlassEffect={themeSettings.enableGlassEffect}
                 />
 
-                {/* Hauptinhalt */}
+                {/* Main content */}
                 <div className="content-area">
                     <FileView
                         items={sortedItems}
@@ -237,32 +273,36 @@ const MainLayout = () => {
                         sortDirection={state.sortDirection}
                         isLoading={isLoading}
                         error={error}
+                        enableGlassEffect={themeSettings.enableGlassEffect}
                     />
                 </div>
 
-                {/* Detailansicht (rechts) */}
+                {/* Detail panel (right) */}
                 <DetailPanel
                     isOpen={state.isDetailPanelOpen}
                     selectedItems={state.selectedItems}
                     onClose={() => actions.toggleDetailPanel(false)}
+                    enableGlassEffect={themeSettings.enableGlassEffect}
                 />
             </div>
 
-            {/* Terminal (unten) */}
+            {/* Terminal (bottom) */}
             <TerminalPanel
                 isOpen={state.isTerminalPanelOpen}
                 currentPath={state.currentPath}
                 onClose={() => actions.toggleTerminalPanel(false)}
+                enableGlassEffect={themeSettings.enableGlassEffect}
             />
 
-            {/* Statusleiste */}
+            {/* Status bar */}
             <StatusBar
                 selectedItems={state.selectedItems}
                 currentPath={state.currentPath}
                 isLoading={isLoading}
+                enableGlassEffect={themeSettings.enableGlassEffect}
             />
 
-            {/* Kontextmenü */}
+            {/* Context menu */}
             {isContextMenuOpen && (
                 <FileContextMenu
                     position={contextMenuPosition}

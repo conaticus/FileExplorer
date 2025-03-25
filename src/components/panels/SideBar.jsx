@@ -1,5 +1,83 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFileSystem } from '../../providers/FileSystemProvider';
+import { useTheme } from '../../providers/ThemeProvider';
+
+// Icon Components
+const QuickAccessIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M5 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5z" />
+        <path d="M9 5v14" />
+    </svg>
+);
+
+const ThisPCIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="2" y="3" width="20" height="14" rx="2" />
+        <path d="M8 21h8" />
+        <path d="M12 17v4" />
+        <path d="M7 10h10" />
+    </svg>
+);
+
+const FavoritesIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
+    </svg>
+);
+
+const TemplatesIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+        <polyline points="14 2 14 8 20 8" />
+        <path d="M8 13h8" />
+        <path d="M8 17h8" />
+        <path d="M8 9h2" />
+    </svg>
+);
+
+const NetworkIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="2" y="2" width="20" height="8" rx="2" />
+        <rect x="2" y="14" width="20" height="8" rx="2" />
+        <path d="M6 10v4" />
+        <path d="M12 10v4" />
+        <path d="M18 10v4" />
+    </svg>
+);
+
+const ClockIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+    </svg>
+);
+
+const FolderIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+);
+
+const DriveIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M22 12H2" />
+        <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+        <path d="M6 16h.01" />
+        <path d="M10 16h.01" />
+    </svg>
+);
+
+const AddIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 5v14M5 12h14" />
+    </svg>
+);
+
+const CloseIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+);
 
 const SideBar = ({
                      isOpen,
@@ -8,22 +86,26 @@ const SideBar = ({
                      onToggle,
                      onNavigate,
                      onAddFavorite,
-                     onRemoveFavorite
+                     onRemoveFavorite,
+                     enableGlassEffect = false
                  }) => {
     const { rootFolders, dataSources, addDataSource } = useFileSystem();
+    const { themeSettings } = useTheme();
+
     const [activeTab, setActiveTab] = useState('quickAccess');
     const [isAddingSource, setIsAddingSource] = useState(false);
     const [newSourcePath, setNewSourcePath] = useState('');
 
-    // Tabs für die Seitenleiste
+    // Available tabs
     const tabs = [
-        { id: 'quickAccess', label: 'Schnellzugriff', icon: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 5h6' },
-        { id: 'thisPC', label: 'Dieser PC', icon: 'M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25M8 16h.01' },
-        { id: 'favorites', label: 'Favoriten', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14 2 9.27 8.91 8.26 12 2z' },
-        { id: 'templates', label: 'Templates', icon: 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z M3 6l18 0 M16 10a4 4 0 0 1-8 0' },
+        { id: 'quickAccess', label: 'Quick Access', icon: <QuickAccessIcon /> },
+        { id: 'thisPC', label: 'This PC', icon: <ThisPCIcon /> },
+        { id: 'favorites', label: 'Favorites', icon: <FavoritesIcon /> },
+        { id: 'templates', label: 'Templates', icon: <TemplatesIcon /> },
+        { id: 'network', label: 'Network', icon: <NetworkIcon /> },
     ];
 
-    // Neuen Pfad hinzufügen
+    // Add a new path
     const handleAddSource = () => {
         if (newSourcePath) {
             addDataSource(newSourcePath);
@@ -32,20 +114,16 @@ const SideBar = ({
         }
     };
 
-    // Formatiere einen Pfad für die Anzeige
+    // Format a path for display
     const formatDisplayPath = (path) => {
         if (!path) return '';
-
-        // Entferne Pfadtrenner vom Ende
         const trimmedPath = path.replace(/[/\\]$/, '');
-
-        // Extrahiere den letzten Teil des Pfads
         const parts = trimmedPath.split(/[/\\]/);
         return parts[parts.length - 1] || path;
     };
 
     return (
-        <div className={`sidebar ${isOpen ? '' : 'collapsed'}`}>
+        <div className={`sidebar ${!isOpen ? 'collapsed' : ''} ${enableGlassEffect ? 'glass-effect' : ''}`}>
             {/* Tabs */}
             <div className="sidebar-tabs">
                 {tabs.map(tab => (
@@ -55,29 +133,17 @@ const SideBar = ({
                         onClick={() => setActiveTab(tab.id)}
                         title={tab.label}
                     >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            width="20"
-                            height="20"
-                        >
-                            <path d={tab.icon} />
-                        </svg>
+                        {tab.icon}
                         <span className="sidebar-tab-label">{tab.label}</span>
                     </button>
                 ))}
             </div>
 
-            {/* Tab-Inhalt */}
+            {/* Tab content */}
             <div className="sidebar-content">
                 {activeTab === 'quickAccess' && (
                     <div className="sidebar-section">
-                        <h3 className="sidebar-section-title">SCHNELLZUGRIFF</h3>
+                        <h3 className="sidebar-section-title">QUICK ACCESS</h3>
                         <ul className="sidebar-list">
                             {rootFolders.map(folder => (
                                 <li key={folder.path} className="sidebar-list-item">
@@ -86,19 +152,7 @@ const SideBar = ({
                                         onClick={() => onNavigate(folder.path)}
                                     >
                                         <div className="sidebar-item-icon">
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                width="18"
-                                                height="18"
-                                            >
-                                                <path d="M10 3H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-8l-2-2z" />
-                                            </svg>
+                                            <FolderIcon />
                                         </div>
                                         <span className="sidebar-item-label">{folder.name}</span>
                                     </button>
@@ -106,42 +160,38 @@ const SideBar = ({
                             ))}
                         </ul>
 
-                        <h3 className="sidebar-section-title">ZULETZT BESUCHT</h3>
+                        <h3 className="sidebar-section-title">
+              <span className="title-with-icon">
+                <ClockIcon /> RECENT
+              </span>
+                        </h3>
                         <ul className="sidebar-list">
-                            {recentPaths.map(path => (
-                                <li key={path} className="sidebar-list-item">
-                                    <button
-                                        className="sidebar-item-button"
-                                        onClick={() => onNavigate(path)}
-                                    >
-                                        <div className="sidebar-item-icon">
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                width="18"
-                                                height="18"
-                                            >
-                                                <path d="M12 8v4l3 3M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z" />
-                                            </svg>
-                                        </div>
-                                        <span className="sidebar-item-label text-truncate" title={path}>
-                      {formatDisplayPath(path)}
-                    </span>
-                                    </button>
-                                </li>
-                            ))}
+                            {recentPaths.length > 0 ? (
+                                recentPaths.map(path => (
+                                    <li key={path} className="sidebar-list-item">
+                                        <button
+                                            className="sidebar-item-button"
+                                            onClick={() => onNavigate(path)}
+                                        >
+                                            <div className="sidebar-item-icon">
+                                                <FolderIcon />
+                                            </div>
+                                            <span className="sidebar-item-label text-truncate" title={path}>
+                        {formatDisplayPath(path)}
+                      </span>
+                                        </button>
+                                    </li>
+                                ))
+                            ) : (
+                                <li className="sidebar-empty-state">No recent folders</li>
+                            )}
                         </ul>
                     </div>
                 )}
 
                 {activeTab === 'thisPC' && (
                     <div className="sidebar-section">
-                        <h3 className="sidebar-section-title">DATENTRÄGER</h3>
+                        <h3 className="sidebar-section-title">DRIVES</h3>
                         <ul className="sidebar-list">
                             {dataSources.map(source => (
                                 <li key={source.path} className="sidebar-list-item">
@@ -150,19 +200,7 @@ const SideBar = ({
                                         onClick={() => onNavigate(source.path)}
                                     >
                                         <div className="sidebar-item-icon">
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                width="18"
-                                                height="18"
-                                            >
-                                                <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18" />
-                                            </svg>
+                                            <DriveIcon />
                                         </div>
                                         <span className="sidebar-item-label">{source.name}</span>
                                     </button>
@@ -177,7 +215,7 @@ const SideBar = ({
                                                 ></div>
                                             </div>
                                             <span className="storage-info">
-                        {source.freeSpace} frei von {source.totalSpace}
+                        {source.freeSpace} free of {source.totalSpace}
                       </span>
                                         </div>
                                     )}
@@ -185,7 +223,7 @@ const SideBar = ({
                             ))}
                         </ul>
 
-                        {/* Quelle hinzufügen */}
+                        {/* Add Source */}
                         {isAddingSource ? (
                             <div className="add-source-form">
                                 <input
@@ -193,20 +231,21 @@ const SideBar = ({
                                     className="add-source-input"
                                     value={newSourcePath}
                                     onChange={(e) => setNewSourcePath(e.target.value)}
-                                    placeholder="Pfad eingeben..."
+                                    placeholder="Enter path..."
+                                    autoFocus
                                 />
                                 <div className="add-source-buttons">
                                     <button
                                         className="add-source-button-cancel"
                                         onClick={() => setIsAddingSource(false)}
                                     >
-                                        Abbrechen
+                                        <CloseIcon /> Cancel
                                     </button>
                                     <button
                                         className="add-source-button-add"
                                         onClick={handleAddSource}
                                     >
-                                        Hinzufügen
+                                        <AddIcon /> Add
                                     </button>
                                 </div>
                             </div>
@@ -215,20 +254,8 @@ const SideBar = ({
                                 className="add-source-button"
                                 onClick={() => setIsAddingSource(true)}
                             >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    width="16"
-                                    height="16"
-                                >
-                                    <path d="M12 5v14M5 12h14" />
-                                </svg>
-                                <span>Quelle hinzufügen</span>
+                                <AddIcon />
+                                <span>Add location</span>
                             </button>
                         )}
                     </div>
@@ -236,7 +263,11 @@ const SideBar = ({
 
                 {activeTab === 'favorites' && (
                     <div className="sidebar-section">
-                        <h3 className="sidebar-section-title">FAVORITEN</h3>
+                        <h3 className="sidebar-section-title">
+              <span className="title-with-icon">
+                <FavoritesIcon /> FAVORITES
+              </span>
+                        </h3>
                         {favorites.length > 0 ? (
                             <ul className="sidebar-list">
                                 {favorites.map(path => (
@@ -246,19 +277,7 @@ const SideBar = ({
                                             onClick={() => onNavigate(path)}
                                         >
                                             <div className="sidebar-item-icon">
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="2"
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    width="18"
-                                                    height="18"
-                                                >
-                                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14 2 9.27 8.91 8.26 12 2z" />
-                                                </svg>
+                                                <FolderIcon />
                                             </div>
                                             <span className="sidebar-item-label text-truncate" title={path}>
                         {formatDisplayPath(path)}
@@ -267,28 +286,19 @@ const SideBar = ({
                                         <button
                                             className="sidebar-item-action"
                                             onClick={() => onRemoveFavorite(path)}
-                                            title="Aus Favoriten entfernen"
+                                            title="Remove from favorites"
                                         >
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                width="14"
-                                                height="14"
-                                            >
-                                                <path d="M18 6L6 18M6 6l12 12" />
-                                            </svg>
+                                            <CloseIcon />
                                         </button>
                                     </li>
                                 ))}
                             </ul>
                         ) : (
                             <div className="sidebar-empty-state">
-                                <p>Keine Favoriten vorhanden.</p>
+                                <p>No favorites yet</p>
+                                <p className="empty-state-hint">
+                                    Right-click on a folder and select "Add to Favorites"
+                                </p>
                             </div>
                         )}
                     </div>
@@ -296,20 +306,35 @@ const SideBar = ({
 
                 {activeTab === 'templates' && (
                     <div className="sidebar-section">
-                        <h3 className="sidebar-section-title">TEMPLATES</h3>
-                        {/* [Backend Integration] - Templates vom Backend abrufen */}
-                        {/* BACKEND_INTEGRATION: Templates laden */}
-                            <div className="sidebar-empty-state">
-                            <p>Templates werden geladen...</p>
-                            <p className="sidebar-hint">
-                            Speichern Sie Ordner und Dateien als Templates, um sie später wiederzuverwenden.
+                        <h3 className="sidebar-section-title">
+              <span className="title-with-icon">
+                <TemplatesIcon /> TEMPLATES
+              </span>
+                        </h3>
+                        <div className="sidebar-empty-state">
+                            <p>No templates available</p>
+                            <p className="empty-state-hint">
+                                Save folders and files as templates to use them later
                             </p>
-                            </div>
-                            </div>
-                            )}
+                        </div>
                     </div>
+                )}
+
+                {activeTab === 'network' && (
+                    <div className="sidebar-section">
+                        <h3 className="sidebar-section-title">
+              <span className="title-with-icon">
+                <NetworkIcon /> NETWORK
+              </span>
+                        </h3>
+                        <div className="sidebar-empty-state">
+                            <p>Network view is not implemented yet</p>
+                        </div>
                     </div>
-                    );
-                };
+                )}
+            </div>
+        </div>
+    );
+};
 
 export default SideBar;

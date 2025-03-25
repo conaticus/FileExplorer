@@ -1,14 +1,15 @@
-/* Theme-Definitionen */
+/* Theme Definitions */
 :root {
     /* Base Colors */
     --color-primary: #0078d4;
     --color-primary-hover: #106ebe;
     --color-secondary: #2b88d8;
-    --color-surface: #f5f5f5;
-    --color-surface-alt: #e8e8e8;
+    --color-surface: #f5f5f7;
+    --color-surface-alt: #e8e8ec;
     --color-background: #ffffff;
     --color-text: #202020;
     --color-text-secondary: #505050;
+    --color-text-on-primary: #ffffff;
     --color-border: #e0e0e0;
     --color-divider: #d0d0d0;
     --color-hover: rgba(0, 120, 212, 0.1);
@@ -36,6 +37,15 @@
     --color-error: #d83b01;
     --color-info: #0078d4;
 
+    /* Glass Effect Variables */
+    --glass-bg-color: 255, 255, 255;
+    --glass-opacity: 0.75;
+    --glass-blur: 12px;
+    --glass-border-color: 255, 255, 255;
+    --glass-border-opacity: 0.4;
+    --glass-shadow-color: 0, 0, 0;
+    --glass-shadow-opacity: 0.1;
+
     /* Spacing */
     --spacing-xxs: 2px;
     --spacing-xs: 4px;
@@ -52,9 +62,10 @@
     /* Transitions */
     --transition-fast: 0.15s ease;
     --transition-normal: 0.3s ease;
+    --transition-slow: 0.5s ease;
 
     /* Fonts */
-    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
     Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     --font-size-xs: 12px;
     --font-size-sm: 14px;
@@ -102,13 +113,14 @@
 /* Dark Theme */
 html[data-theme="dark"] {
     --color-background: #1e1e1e;
-    --color-surface: #252525;
+    --color-surface: #252526;
     --color-surface-alt: #333333;
     --color-primary: #3a96dd;
     --color-primary-hover: #2a7ab9;
     --color-secondary: #60cdff;
     --color-text: #e0e0e0;
     --color-text-secondary: #a0a0a0;
+    --color-text-on-primary: #ffffff;
     --color-border: #444444;
     --color-divider: #555555;
     --color-hover: rgba(58, 150, 221, 0.15);
@@ -135,6 +147,345 @@ html[data-theme="dark"] {
     --color-warning: #ffc107;
     --color-error: #f44336;
     --color-info: #2196f3;
+
+    /* Glass Effect Variables */
+    --glass-bg-color: 30, 30, 30;
+    --glass-opacity: 0.75;
+    --glass-blur: 12px;
+    --glass-border-color: 255, 255, 255;
+    --glass-border-opacity: 0.1;
+    --glass-shadow-color: 0, 0, 0;
+    --glass-shadow-opacity: 0.3;
+}
+
+/* Midnight Theme */
+html[data-theme="midnight"] {
+    --color-background: #0d1117;
+    --color-surface: #161b22;
+    --color-surface-alt: #21262d;
+    --color-primary: #58a6ff;
+    --color-primary-hover: #79b8ff;
+    --color-secondary: #79b8ff;
+    --color-text: #c9d1d9;
+    --color-text-secondary: #8b949e;
+    --color-text-on-primary: #ffffff;
+    --color-border: #30363d;
+    --color-divider: #30363d;
+    --color-hover: rgba(88, 166, 255, 0.1);
+    --color-selected: rgba(88, 166, 255, 0.2);
+    --color-shadow: rgba(0, 0, 0, 0.4);
+    --color-shadow-dark: rgba(0, 0, 0, 0.6);
+
+    /* File Type Colors */
+    --color-folder: #ffd54f;
+    --color-document: #4a88cf;
+    --color-spreadsheet: #4caf50;
+    --color-presentation: #ff7043;
+    --color-image: #ffb74d;
+    --color-audio: #aed581;
+    --color-video: #f06292;
+    --color-archive: #a1887f;
+    --color-code: #4dd0e1;
+    --color-pdf: #ef5350;
+    --color-json: #66bb6a;
+    --color-text-file: #90a4ae;
+
+    /* Status Colors */
+    --color-success: #3fb950;
+    --color-warning: #f0883e;
+    --color-error: #f85149;
+    --color-info: #58a6ff;
+}
+
+/* Sunset Theme */
+html[data-theme="sunset"] {
+    --color-background: #2d1b2a;
+    --color-surface: #3b2438;
+    --color-surface-alt: #472a45;
+    --color-primary: #ff8f66;
+    --color-primary-hover: #ff7c4d;
+    --color-secondary: #fe5e78;
+    --color-text: #e8e0e8;
+    --color-text-secondary: #b9a6b7;
+    --color-text-on-primary: #2d1b2a;
+    --color-border: #5a384d;
+    --color-divider: #5a384d;
+    --color-hover: rgba(255, 143, 102, 0.15);
+    --color-selected: rgba(255, 143, 102, 0.25);
+    --color-shadow: rgba(0, 0, 0, 0.4);
+    --color-shadow-dark: rgba(0, 0, 0, 0.6);
+
+    /* File Type Colors */
+    --color-folder: #fed49a;
+    --color-document: #c79fff;
+    --color-spreadsheet: #7ed8a8;
+    --color-presentation: #fe5e78;
+    --color-image: #ff8f66;
+    --color-audio: #a4d9ff;
+    --color-video: #fe5e78;
+    --color-archive: #b8a89a;
+    --color-code: #7edeff;
+    --color-pdf: #fe5e78;
+    --color-json: #7ed8a8;
+    --color-text-file: #c5e1f0;
+
+    /* Status Colors */
+    --color-success: #7ed8a8;
+    --color-warning: #fed49a;
+    --color-error: #fe5e78;
+    --color-info: #a4d9ff;
+}
+
+/* Nord Theme */
+html[data-theme="nord"] {
+    --color-background: #2e3440;
+    --color-surface: #3b4252;
+    --color-surface-alt: #434c5e;
+    --color-primary: #88c0d0;
+    --color-primary-hover: #8fbcbb;
+    --color-secondary: #81a1c1;
+    --color-text: #eceff4;
+    --color-text-secondary: #d8dee9;
+    --color-text-on-primary: #2e3440;
+    --color-border: #4c566a;
+    --color-divider: #4c566a;
+    --color-hover: rgba(136, 192, 208, 0.15);
+    --color-selected: rgba(136, 192, 208, 0.25);
+    --color-shadow: rgba(0, 0, 0, 0.3);
+    --color-shadow-dark: rgba(0, 0, 0, 0.5);
+
+    /* File Type Colors */
+    --color-folder: #ebcb8b;
+    --color-document: #81a1c1;
+    --color-spreadsheet: #a3be8c;
+    --color-presentation: #bf616a;
+    --color-image: #ebcb8b;
+    --color-audio: #a3be8c;
+    --color-video: #bf616a;
+    --color-archive: #d08770;
+    --color-code: #88c0d0;
+    --color-pdf: #bf616a;
+    --color-json: #a3be8c;
+    --color-text-file: #d8dee9;
+
+    /* Status Colors */
+    --color-success: #a3be8c;
+    --color-warning: #ebcb8b;
+    --color-error: #bf616a;
+    --color-info: #81a1c1;
+}
+
+/* Forest Theme */
+html[data-theme="forest"] {
+    --color-background: #1b2921;
+    --color-surface: #243329;
+    --color-surface-alt: #2d3f36;
+    --color-primary: #7cc082;
+    --color-primary-hover: #8fd297;
+    --color-secondary: #5ba989;
+    --color-text: #e0ebe0;
+    --color-text-secondary: #a7c0b0;
+    --color-text-on-primary: #1b2921;
+    --color-border: #3a4940;
+    --color-divider: #3a4940;
+    --color-hover: rgba(124, 192, 130, 0.15);
+    --color-selected: rgba(124, 192, 130, 0.25);
+    --color-shadow: rgba(0, 0, 0, 0.3);
+    --color-shadow-dark: rgba(0, 0, 0, 0.5);
+
+    /* File Type Colors */
+    --color-folder: #d9c872;
+    --color-document: #7caac5;
+    --color-spreadsheet: #7cc082;
+    --color-presentation: #c57979;
+    --color-image: #d9c872;
+    --color-audio: #7cc082;
+    --color-video: #c57979;
+    --color-archive: #c59667;
+    --color-code: #7caac5;
+    --color-pdf: #c57979;
+    --color-json: #7cc082;
+    --color-text-file: #b4c5bf;
+
+    /* Status Colors */
+    --color-success: #7cc082;
+    --color-warning: #d9c872;
+    --color-error: #c57979;
+    --color-info: #7caac5;
+}
+
+/* Ocean Theme */
+html[data-theme="ocean"] {
+    --color-background: #0f2231;
+    --color-surface: #1a3040;
+    --color-surface-alt: #25404f;
+    --color-primary: #60c5fa;
+    --color-primary-hover: #83d3fb;
+    --color-secondary: #3dd9d6;
+    --color-text: #e4f4ff;
+    --color-text-secondary: #a9c7d7;
+    --color-text-on-primary: #0f2231;
+    --color-border: #2c4a5e;
+    --color-divider: #2c4a5e;
+    --color-hover: rgba(96, 197, 250, 0.15);
+    --color-selected: rgba(96, 197, 250, 0.25);
+    --color-shadow: rgba(0, 0, 0, 0.3);
+    --color-shadow-dark: rgba(0, 0, 0, 0.5);
+
+    /* File Type Colors */
+    --color-folder: #ffd580;
+    --color-document: #60c5fa;
+    --color-spreadsheet: #3dd9d6;
+    --color-presentation: #fa607a;
+    --color-image: #ffd580;
+    --color-audio: #3dd9d6;
+    --color-video: #fa607a;
+    --color-archive: #faa360;
+    --color-code: #60c5fa;
+    --color-pdf: #fa607a;
+    --color-json: #3dd9d6;
+    --color-text-file: #a9c7d7;
+
+    /* Status Colors */
+    --color-success: #3dd9d6;
+    --color-warning: #ffd580;
+    --color-error: #fa607a;
+    --color-info: #60c5fa;
+}
+
+/* Neon Theme */
+html[data-theme="neon"] {
+    --color-background: #030014;
+    --color-surface: #0c0628;
+    --color-surface-alt: #14093f;
+    --color-primary: #fa55d6;
+    --color-primary-hover: #fb83e1;
+    --color-secondary: #c676ff;
+    --color-text: #f0f0ff;
+    --color-text-secondary: #b0a2d5;
+    --color-text-on-primary: #030014;
+    --color-border: #2c0d75;
+    --color-divider: #2c0d75;
+    --color-hover: rgba(250, 85, 214, 0.2);
+    --color-selected: rgba(250, 85, 214, 0.3);
+    --color-shadow: rgba(250, 85, 214, 0.3);
+    --color-shadow-dark: rgba(250, 85, 214, 0.5);
+
+    /* File Type Colors */
+    --color-folder: #faea5d;
+    --color-document: #54ccff;
+    --color-spreadsheet: #00ff95;
+    --color-presentation: #ff5566;
+    --color-image: #faea5d;
+    --color-audio: #00ff95;
+    --color-video: #ff5566;
+    --color-archive: #ff8d42;
+    --color-code: #54ccff;
+    --color-pdf: #ff5566;
+    --color-json: #00ff95;
+    --color-text-file: #b0a2d5;
+
+    /* Status Colors */
+    --color-success: #00ff95;
+    --color-warning: #faea5d;
+    --color-error: #ff5566;
+    --color-info: #54ccff;
+}
+
+/* Light Glass Theme */
+html[data-theme="lightGlass"] {
+    --color-background: rgba(255, 255, 255, 0.85);
+    --color-surface: rgba(245, 245, 247, 0.8);
+    --color-surface-alt: rgba(232, 232, 236, 0.75);
+    --color-primary: #0078d4;
+    --color-primary-hover: #106ebe;
+    --color-secondary: #2b88d8;
+    --color-text: #202020;
+    --color-text-secondary: #505050;
+    --color-text-on-primary: #ffffff;
+    --color-border: rgba(224, 224, 224, 0.5);
+    --color-divider: rgba(208, 208, 208, 0.5);
+    --color-hover: rgba(0, 120, 212, 0.1);
+    --color-selected: rgba(0, 120, 212, 0.2);
+    --color-shadow: rgba(0, 0, 0, 0.1);
+    --color-shadow-dark: rgba(0, 0, 0, 0.2);
+
+    /* File Type Colors */
+    --color-folder: #ffc107;
+    --color-document: #2b579a;
+    --color-spreadsheet: #217346;
+    --color-presentation: #d24726;
+    --color-image: #ff9800;
+    --color-audio: #8bc34a;
+    --color-video: #e91e63;
+    --color-archive: #795548;
+    --color-code: #00bcd4;
+    --color-pdf: #f44336;
+    --color-json: #4caf50;
+    --color-text-file: #607d8b;
+
+    /* Status Colors */
+    --color-success: #107c10;
+    --color-warning: #ffb900;
+    --color-error: #d83b01;
+    --color-info: #0078d4;
+
+    /* Glass Effect Variables */
+    --glass-bg-color: 255, 255, 255;
+    --glass-opacity: 0.75;
+    --glass-blur: 12px;
+    --glass-border-color: 255, 255, 255;
+    --glass-border-opacity: 0.4;
+    --glass-shadow-color: 0, 0, 0;
+    --glass-shadow-opacity: 0.1;
+}
+
+/* Dark Glass Theme */
+html[data-theme="darkGlass"] {
+    --color-background: rgba(30, 30, 30, 0.75);
+    --color-surface: rgba(37, 37, 38, 0.75);
+    --color-surface-alt: rgba(51, 51, 51, 0.7);
+    --color-primary: #3a96dd;
+    --color-primary-hover: #2a7ab9;
+    --color-secondary: #60cdff;
+    --color-text: #e0e0e0;
+    --color-text-secondary: #a0a0a0;
+    --color-text-on-primary: #ffffff;
+    --color-border: rgba(68, 68, 68, 0.5);
+    --color-divider: rgba(85, 85, 85, 0.5);
+    --color-hover: rgba(58, 150, 221, 0.15);
+    --color-selected: rgba(58, 150, 221, 0.3);
+    --color-shadow: rgba(0, 0, 0, 0.3);
+    --color-shadow-dark: rgba(0, 0, 0, 0.5);
+
+    /* File Type Colors */
+    --color-folder: #ffd54f;
+    --color-document: #4a88cf;
+    --color-spreadsheet: #4caf50;
+    --color-presentation: #ff7043;
+    --color-image: #ffb74d;
+    --color-audio: #aed581;
+    --color-video: #f06292;
+    --color-archive: #a1887f;
+    --color-code: #4dd0e1;
+    --color-pdf: #ef5350;
+    --color-json: #66bb6a;
+    --color-text-file: #90a4ae;
+
+    /* Status Colors */
+    --color-success: #4caf50;
+    --color-warning: #ffc107;
+    --color-error: #f44336;
+    --color-info: #2196f3;
+
+    /* Glass Effect Variables */
+    --glass-bg-color: 30, 30, 30;
+    --glass-opacity: 0.75;
+    --glass-blur: 12px;
+    --glass-border-color: 255, 255, 255;
+    --glass-border-opacity: 0.1;
+    --glass-shadow-color: 0, 0, 0;
+    --glass-shadow-opacity: 0.3;
 }
 
 /* Font Size */
@@ -240,4 +591,338 @@ html[data-density="comfortable"] {
 
     --nav-bar-height: 56px;
     --status-bar-height: 28px;
+}
+
+/* Global Glass Effect Classes */
+.glass-effect {
+    background-color: rgba(var(--glass-bg-color), var(--glass-opacity)) !important;
+    backdrop-filter: blur(var(--glass-blur)) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+    border: 1px solid rgba(var(--glass-border-color), var(--glass-border-opacity)) !important;
+    box-shadow: 0 4px 15px rgba(var(--glass-shadow-color), var(--glass-shadow-opacity)) !important;
+}
+
+/* Apply glass effect to specific elements in glass themes */
+.glass-theme .explorer-header,
+.glass-theme .sidebar,
+.glass-theme .detail-panel,
+.glass-theme .status-bar,
+.glass-theme .modal-content,
+.glass-theme .dropdown-menu,
+.glass-theme .context-menu {
+    background-color: rgba(var(--glass-bg-color), var(--glass-opacity)) !important;
+    backdrop-filter: blur(var(--glass-blur)) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+    border: 1px solid rgba(var(--glass-border-color), var(--glass-border-opacity)) !important;
+}
+
+/* For glass themes - add subtle gradient backgrounds */
+.glass-theme .explorer-layout {
+    background: linear-gradient(135deg, rgba(var(--glass-bg-color), 0.4), rgba(var(--glass-bg-color), 0.2)) !important;
+}
+
+/* Animation classes */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideInUp {
+    from {
+        transform: translateY(10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes glow {
+    0% {
+        box-shadow: 0 0 5px rgba(var(--glass-shadow-color), 0.1);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(var(--color-primary), 0.4);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(var(--glass-shadow-color), 0.1);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease forwards;
+}
+
+.animate-slide-up {
+    animation: slideInUp 0.3s ease forwards;
+}
+
+.animate-scale-in {
+    animation: scaleIn 0.2s ease forwards;
+}
+
+.animate-glow {
+    animation: glow 2s infinite;
+}
+
+/* Disable animations when animations are turned off */
+.no-animations *,
+.no-animations {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+}
+
+/* New modern components and elements */
+
+/* Settings Button */
+.settings-trigger-button {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--border-radius-sm);
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.settings-trigger-button:hover {
+    background-color: var(--color-hover);
+    color: var(--color-text);
+}
+
+/* Modern scrollbar styles */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background-color: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: rgba(var(--glass-bg-color), 0.3);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(var(--glass-bg-color), 0.5);
+}
+
+/* Enhanced shadow effects for elements */
+.file-grid-item:hover,
+.dropdown-menu,
+.context-menu,
+.search-results-container,
+.modal-content {
+    box-shadow: 0 8px 32px rgba(var(--glass-shadow-color), var(--glass-shadow-opacity)),
+    0 0 0 1px rgba(var(--glass-border-color), var(--glass-border-opacity));
+}
+
+/* Modern card styling */
+.card {
+    background-color: var(--color-surface);
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-fast);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+/* Styling for buttons and interactive elements */
+.explorer-header button,
+.file-view-toolbar button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--border-radius-sm);
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.explorer-header button:hover,
+.file-view-toolbar button:hover {
+    background-color: var(--color-hover);
+}
+
+/* Modern focus styles */
+:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* Add subtle transitions for theme changes */
+body {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Enhanced styling for main components */
+.explorer-layout {
+    background-color: var(--color-background);
+}
+
+.main-container {
+    background-color: var(--color-background);
+}
+
+.content-area {
+    background-color: var(--color-background);
+}
+
+/* Add gradients to some UI elements for visual interest */
+.explorer-header {
+    background: linear-gradient(to right, var(--color-surface), var(--color-surface-alt));
+}
+
+/* Add subtle animation to file icons on hover */
+.file-icon svg {
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.file-grid-item:hover .file-icon svg,
+.file-list-item:hover .file-icon svg,
+.file-table-row:hover .file-icon svg {
+    transform: scale(1.1);
+}
+
+/* Improve file item styling */
+.file-grid-item,
+.file-list-item {
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.file-grid-item:hover,
+.file-list-item:hover {
+    transform: translateY(-2px);
+}
+
+.file-grid-item.selected,
+.file-list-item.selected,
+.file-table-row.selected {
+    background-color: var(--color-selected);
+    border-left: 3px solid var(--color-primary);
+}
+
+/* Modernize buttons and inputs */
+input[type="text"],
+input[type="search"],
+select {
+    background-color: rgba(var(--glass-bg-color), 0.5);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--border-radius-sm);
+    padding: 0.5rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="search"]:focus,
+select:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.2);
+}
+
+button.primary {
+    background-color: var(--color-primary);
+    color: var(--color-text-on-primary);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+button.primary:hover {
+    background-color: var(--color-primary-hover);
+    transform: translateY(-1px);
+}
+
+/* Make the search bar more modern */
+.search-form {
+    max-width: 100%;
+}
+
+.search-input-container {
+    display: flex;
+    align-items: center;
+    border-radius: var(--border-radius-md);
+    background-color: rgba(var(--glass-bg-color), 0.5);
+    padding: 0 var(--spacing-sm);
+    transition: all 0.2s ease;
+}
+
+.search-input-container:focus-within {
+    box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.4);
+}
+
+.search-input {
+    background: transparent;
+    padding: var(--spacing-sm) 0;
+}
+
+/* Make modal transitions smooth */
+.modal-backdrop {
+    animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+    animation: scaleIn 0.3s ease;
+}
+
+/* Better styling for the location bar */
+.location-bar {
+    border-radius: var(--border-radius-md);
+    background-color: rgba(var(--glass-bg-color), 0.5);
+    transition: all 0.2s ease;
+}
+
+.location-bar:focus-within {
+    box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.4);
+}
+
+/* Breadcrumb styling */
+.breadcrumb-item {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.breadcrumb-item:hover {
+    background-color: var(--color-hover);
+    color: var(--color-primary);
+}
+
+/* Context menu styling */
+.context-menu {
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-xs);
+    animation: scaleIn 0.2s ease;
+}
+
+.context-menu-item {
+    border-radius: var(--border-radius-sm);
+    margin: var(--spacing-xxs) 0;
+    transition: background-color 0.2s ease;
 }
