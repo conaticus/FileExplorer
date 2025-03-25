@@ -1,0 +1,243 @@
+/* Theme-Definitionen */
+:root {
+    /* Base Colors */
+    --color-primary: #0078d4;
+    --color-primary-hover: #106ebe;
+    --color-secondary: #2b88d8;
+    --color-surface: #f5f5f5;
+    --color-surface-alt: #e8e8e8;
+    --color-background: #ffffff;
+    --color-text: #202020;
+    --color-text-secondary: #505050;
+    --color-border: #e0e0e0;
+    --color-divider: #d0d0d0;
+    --color-hover: rgba(0, 120, 212, 0.1);
+    --color-selected: rgba(0, 120, 212, 0.2);
+    --color-shadow: rgba(0, 0, 0, 0.1);
+    --color-shadow-dark: rgba(0, 0, 0, 0.2);
+
+    /* File Type Colors */
+    --color-folder: #ffc107;
+    --color-document: #2b579a;
+    --color-spreadsheet: #217346;
+    --color-presentation: #d24726;
+    --color-image: #ff9800;
+    --color-audio: #8bc34a;
+    --color-video: #e91e63;
+    --color-archive: #795548;
+    --color-code: #00bcd4;
+    --color-pdf: #f44336;
+    --color-json: #4caf50;
+    --color-text-file: #607d8b;
+
+    /* Status Colors */
+    --color-success: #107c10;
+    --color-warning: #ffb900;
+    --color-error: #d83b01;
+    --color-info: #0078d4;
+
+    /* Spacing */
+    --spacing-xxs: 2px;
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+
+    /* Border Radius */
+    --border-radius-sm: 4px;
+    --border-radius-md: 6px;
+    --border-radius-lg: 8px;
+
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.3s ease;
+
+    /* Fonts */
+    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    --font-size-xs: 12px;
+    --font-size-sm: 14px;
+    --font-size-md: 16px;
+    --font-size-lg: 18px;
+    --font-size-xl: 20px;
+
+    /* Z-indices */
+    --z-index-dropdown: 100;
+    --z-index-modal: 1000;
+    --z-index-tooltip: 2000;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px var(--color-shadow);
+    --shadow-md: 0 2px 4px var(--color-shadow);
+    --shadow-lg: 0 4px 8px var(--color-shadow-dark);
+    --shadow-xl: 0 8px 16px var(--color-shadow-dark);
+
+    /* Icon Sizes */
+    --icon-size-xs: 16px;
+    --icon-size-sm: 20px;
+    --icon-size-md: 24px;
+    --icon-size-lg: 32px;
+    --icon-size-xl: 48px;
+
+    /* Sidebar Width */
+    --sidebar-width: 250px;
+    --sidebar-collapsed-width: 0;
+
+    /* Detail Panel Width */
+    --detail-panel-width: 300px;
+    --detail-panel-collapsed-width: 0;
+
+    /* Terminal Panel Height */
+    --terminal-panel-height: 300px;
+    --terminal-panel-collapsed-height: 0;
+
+    /* Navigation Bar Height */
+    --nav-bar-height: 48px;
+
+    /* Status Bar Height */
+    --status-bar-height: 24px;
+}
+
+/* Dark Theme */
+html[data-theme="dark"] {
+    --color-background: #1e1e1e;
+    --color-surface: #252525;
+    --color-surface-alt: #333333;
+    --color-primary: #3a96dd;
+    --color-primary-hover: #2a7ab9;
+    --color-secondary: #60cdff;
+    --color-text: #e0e0e0;
+    --color-text-secondary: #a0a0a0;
+    --color-border: #444444;
+    --color-divider: #555555;
+    --color-hover: rgba(58, 150, 221, 0.15);
+    --color-selected: rgba(58, 150, 221, 0.3);
+    --color-shadow: rgba(0, 0, 0, 0.3);
+    --color-shadow-dark: rgba(0, 0, 0, 0.5);
+
+    /* File Type Colors - Dark Theme */
+    --color-folder: #ffd54f;
+    --color-document: #4a88cf;
+    --color-spreadsheet: #4caf50;
+    --color-presentation: #ff7043;
+    --color-image: #ffb74d;
+    --color-audio: #aed581;
+    --color-video: #f06292;
+    --color-archive: #a1887f;
+    --color-code: #4dd0e1;
+    --color-pdf: #ef5350;
+    --color-json: #66bb6a;
+    --color-text-file: #90a4ae;
+
+    /* Status Colors - Dark Theme */
+    --color-success: #4caf50;
+    --color-warning: #ffc107;
+    --color-error: #f44336;
+    --color-info: #2196f3;
+}
+
+/* Font Size */
+html[data-font-size="small"] {
+    --font-size-xs: 10px;
+    --font-size-sm: 12px;
+    --font-size-md: 14px;
+    --font-size-lg: 16px;
+    --font-size-xl: 18px;
+
+    --icon-size-xs: 14px;
+    --icon-size-sm: 18px;
+    --icon-size-md: 22px;
+    --icon-size-lg: 28px;
+    --icon-size-xl: 40px;
+}
+
+html[data-font-size="medium"] {
+    --font-size-xs: 12px;
+    --font-size-sm: 14px;
+    --font-size-md: 16px;
+    --font-size-lg: 18px;
+    --font-size-xl: 20px;
+
+    --icon-size-xs: 16px;
+    --icon-size-sm: 20px;
+    --icon-size-md: 24px;
+    --icon-size-lg: 32px;
+    --icon-size-xl: 48px;
+}
+
+html[data-font-size="large"] {
+    --font-size-xs: 14px;
+    --font-size-sm: 16px;
+    --font-size-md: 18px;
+    --font-size-lg: 20px;
+    --font-size-xl: 22px;
+
+    --icon-size-xs: 18px;
+    --icon-size-sm: 22px;
+    --icon-size-md: 28px;
+    --icon-size-lg: 36px;
+    --icon-size-xl: 56px;
+}
+
+/* Icon Size */
+html[data-icon-size="small"] {
+    --icon-size-xs: 14px;
+    --icon-size-sm: 18px;
+    --icon-size-md: 22px;
+    --icon-size-lg: 28px;
+    --icon-size-xl: 40px;
+}
+
+html[data-icon-size="medium"] {
+    --icon-size-xs: 16px;
+    --icon-size-sm: 20px;
+    --icon-size-md: 24px;
+    --icon-size-lg: 32px;
+    --icon-size-xl: 48px;
+}
+
+html[data-icon-size="large"] {
+    --icon-size-xs: 18px;
+    --icon-size-sm: 22px;
+    --icon-size-md: 28px;
+    --icon-size-lg: 36px;
+    --icon-size-xl: 56px;
+}
+
+/* Density */
+html[data-density="compact"] {
+    --spacing-xxs: 1px;
+    --spacing-xs: 3px;
+    --spacing-sm: 6px;
+    --spacing-md: 12px;
+    --spacing-lg: 18px;
+    --spacing-xl: 24px;
+
+    --nav-bar-height: 40px;
+    --status-bar-height: 20px;
+}
+
+html[data-density="normal"] {
+    --spacing-xxs: 2px;
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+
+    --nav-bar-height: 48px;
+    --status-bar-height: 24px;
+}
+
+html[data-density="comfortable"] {
+    --spacing-xxs: 3px;
+    --spacing-xs: 6px;
+    --spacing-sm: 12px;
+    --spacing-md: 20px;
+    --spacing-lg: 30px;
+    --spacing-xl: 40px;
+
+    --nav-bar-height: 56px;
+    --status-bar-height: 28px;
+}
