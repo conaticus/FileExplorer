@@ -4,6 +4,8 @@
 mod errors;
 mod filesystem;
 mod search;
+mod state;
+pub mod constants;
 
 use filesystem::file_operations::{
     create_directory, create_file, delete_file, open_directory, open_file, rename_file,
