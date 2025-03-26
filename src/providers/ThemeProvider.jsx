@@ -564,7 +564,7 @@ export const ThemeProvider = ({ children }) => {
     // Get current theme colors
     const colors = themePalettes[processedTheme] || themePalettes[activeTheme] || themePalettes.light;
 
-    // Context value
+    // Static context value - Important fix to prevent unnecessary re-rendering
     const contextValue = {
         theme,
         themes,

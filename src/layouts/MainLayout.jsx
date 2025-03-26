@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAppState } from '../providers/AppStateProvider';
 import { useFileSystem } from '../providers/FileSystemProvider';
 import { useTheme } from '../providers/ThemeProvider';
@@ -29,116 +29,123 @@ const MainLayout = () => {
     const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
     const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
     const [contextMenuTargetItem, setContextMenuTargetItem] = useState(null);
-    const [showBgImage, setShowBgImage] = useState(activeTheme.includes('Glass'));
 
-    // Update the background image based on theme
-    useEffect(() => {
-        setShowBgImage(activeTheme.includes('Glass') || themeSettings.enableGlassEffect);
-    }, [activeTheme, themeSettings.enableGlassEffect]);
+    // Compute directly instead of using state and useEffect
+    const showBgImage = activeTheme.includes('Glass') || themeSettings.enableGlassEffect;
 
-    // Set a default path if none is set
+    // Set a default path if none is set - Only run once on mount
     useEffect(() => {
         if (!state.currentPath) {
             actions.setCurrentPath('C:\\Users\\User\\Documents');
         }
-    }, [state.currentPath, actions]);
 
-    // Load files and folders on first render and when path changes
-    useEffect(() => {
-        const loadItems = async () => {
-            if (!state.currentPath) return;
-
-            actions.setLoading(true);
-            try {
-                // [Backend Integration] - Fetch directory contents from backend
-                // /* BACKEND_INTEGRATION: Load directory contents */
-
-                // Example data for display
-                const mockItems = [
-                    { name: 'Pictures', path: `${state.currentPath}\\Pictures`, type: 'directory', modified: '2023-05-03T10:30:00Z' },
-                    { name: 'Folder1', path: `${state.currentPath}\\Folder1`, type: 'directory', modified: '2023-01-05T11:20:00Z' },
-                    { name: 'Folder2', path: `${state.currentPath}\\Folder2`, type: 'directory', modified: '2023-12-02T16:40:00Z' },
-                    { name: 'config.json', path: `${state.currentPath}\\config.json`, type: 'file', size: '4 KB', modified: '2023-02-04T09:30:00Z' },
-                    { name: 'Document1.docx', path: `${state.currentPath}\\Document1.docx`, type: 'file', size: '25 KB', modified: '2023-01-15T10:30:00Z' },
-                    { name: 'Presentation.pptx', path: `${state.currentPath}\\Presentation.pptx`, type: 'file', size: '2.3 MB', modified: '2023-10-03T09:15:00Z' },
-                    { name: 'Spreadsheet.xlsx', path: `${state.currentPath}\\Spreadsheet.xlsx`, type: 'file', size: '156 KB', modified: '2023-02-20T14:45:00Z' },
-                    { name: 'test.txt', path: `${state.currentPath}\\test.txt`, type: 'file', size: '2 KB', modified: '2023-04-01T08:00:00Z' },
-                    { name: 'image.png', path: `${state.currentPath}\\image.png`, type: 'file', size: '1.5 MB', modified: '2023-08-12T13:45:00Z' },
-                    { name: 'video.mp4', path: `${state.currentPath}\\video.mp4`, type: 'file', size: '24.8 MB', modified: '2023-11-20T16:22:00Z' },
-                    { name: 'audio.mp3', path: `${state.currentPath}\\audio.mp3`, type: 'file', size: '3.4 MB', modified: '2023-07-08T09:15:00Z' },
-                    { name: 'archive.zip', path: `${state.currentPath}\\archive.zip`, type: 'file', size: '15.2 MB', modified: '2023-09-17T14:30:00Z' },
-                    { name: 'script.js', path: `${state.currentPath}\\script.js`, type: 'file', size: '12 KB', modified: '2023-10-05T11:20:00Z' },
-                    { name: 'styles.css', path: `${state.currentPath}\\styles.css`, type: 'file', size: '8 KB', modified: '2023-10-05T11:25:00Z' },
-                ];
-
-                setItems(mockItems);
-            } catch (error) {
-                console.error('Error loading directory contents:', error);
-                actions.setError(error.message);
-            } finally {
-                actions.setLoading(false);
-            }
-        };
-
-        loadItems();
-    }, [state.currentPath, actions]);
-
-    // Sort the items
-    const sortedItems = [...items].sort((a, b) => {
-        // Sort folders before files
-        if (a.type !== b.type) {
-            return a.type === 'directory' ? -1 : 1;
+        // The following is mock data for the sidebar - also only run once
+        if (actions.addRecent && actions.addFavorite) {
+            actions.addRecent('C:\\Users\\User\\Documents');
+            actions.addRecent('C:\\Users\\User\\Pictures');
+            actions.addRecent('C:\\Users\\User\\Desktop');
+            actions.addFavorite('C:\\Users\\User\\Documents');
+            actions.addFavorite('C:\\Users\\User\\Pictures');
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Empty dependency array so it only runs once
 
-        // Sort by the selected sort attribute
-        switch (state.sortBy) {
-            case 'name':
-                return state.sortDirection === 'asc'
-                    ? a.name.localeCompare(b.name)
-                    : b.name.localeCompare(a.name);
+    // Memoize the load items function to avoid recreating it on every render
+    const loadItems = useCallback(async () => {
+        if (!state.currentPath) return;
 
-            case 'date':
-                return state.sortDirection === 'asc'
-                    ? new Date(a.modified) - new Date(b.modified)
-                    : new Date(b.modified) - new Date(a.modified);
+        actions.setLoading(true);
+        try {
+            // Example data for display
+            const mockItems = [
+                { name: 'Pictures', path: `${state.currentPath}\\Pictures`, type: 'directory', modified: '2023-05-03T10:30:00Z' },
+                { name: 'Folder1', path: `${state.currentPath}\\Folder1`, type: 'directory', modified: '2023-01-05T11:20:00Z' },
+                { name: 'Folder2', path: `${state.currentPath}\\Folder2`, type: 'directory', modified: '2023-12-02T16:40:00Z' },
+                { name: 'config.json', path: `${state.currentPath}\\config.json`, type: 'file', size: '4 KB', modified: '2023-02-04T09:30:00Z' },
+                { name: 'Document1.docx', path: `${state.currentPath}\\Document1.docx`, type: 'file', size: '25 KB', modified: '2023-01-15T10:30:00Z' },
+                { name: 'Presentation.pptx', path: `${state.currentPath}\\Presentation.pptx`, type: 'file', size: '2.3 MB', modified: '2023-10-03T09:15:00Z' },
+                { name: 'Spreadsheet.xlsx', path: `${state.currentPath}\\Spreadsheet.xlsx`, type: 'file', size: '156 KB', modified: '2023-02-20T14:45:00Z' },
+                { name: 'test.txt', path: `${state.currentPath}\\test.txt`, type: 'file', size: '2 KB', modified: '2023-04-01T08:00:00Z' },
+                { name: 'image.png', path: `${state.currentPath}\\image.png`, type: 'file', size: '1.5 MB', modified: '2023-08-12T13:45:00Z' },
+                { name: 'video.mp4', path: `${state.currentPath}\\video.mp4`, type: 'file', size: '24.8 MB', modified: '2023-11-20T16:22:00Z' },
+                { name: 'audio.mp3', path: `${state.currentPath}\\audio.mp3`, type: 'file', size: '3.4 MB', modified: '2023-07-08T09:15:00Z' },
+                { name: 'archive.zip', path: `${state.currentPath}\\archive.zip`, type: 'file', size: '15.2 MB', modified: '2023-09-17T14:30:00Z' },
+                { name: 'script.js', path: `${state.currentPath}\\script.js`, type: 'file', size: '12 KB', modified: '2023-10-05T11:20:00Z' },
+                { name: 'styles.css', path: `${state.currentPath}\\styles.css`, type: 'file', size: '8 KB', modified: '2023-10-05T11:25:00Z' },
+            ];
 
-            case 'size':
-                // Only relevant for files
-                if (a.type === 'directory' && b.type === 'directory') {
+            setItems(mockItems);
+        } catch (error) {
+            console.error('Error loading directory contents:', error);
+            actions.setError(error.message);
+        } finally {
+            actions.setLoading(false);
+        }
+    }, [state.currentPath, actions]);
+
+    // Load files and folders when path changes
+    useEffect(() => {
+        loadItems();
+    }, [loadItems]); // Only depend on the memoized function
+
+    // Sort the items - memoize this calculation to avoid recomputing on every render
+    const sortedItems = React.useMemo(() => {
+        return [...items].sort((a, b) => {
+            // Sort folders before files
+            if (a.type !== b.type) {
+                return a.type === 'directory' ? -1 : 1;
+            }
+
+            // Sort by the selected sort attribute
+            switch (state.sortBy) {
+                case 'name':
                     return state.sortDirection === 'asc'
                         ? a.name.localeCompare(b.name)
                         : b.name.localeCompare(a.name);
-                }
 
-                // Parse size (remove "KB", "MB", etc.)
-                const getSizeInBytes = (sizeStr) => {
-                    if (!sizeStr) return 0;
-                    const num = parseFloat(sizeStr);
-                    if (sizeStr.includes('KB')) return num * 1024;
-                    if (sizeStr.includes('MB')) return num * 1024 * 1024;
-                    if (sizeStr.includes('GB')) return num * 1024 * 1024 * 1024;
-                    return num;
-                };
+                case 'date':
+                    return state.sortDirection === 'asc'
+                        ? new Date(a.modified) - new Date(b.modified)
+                        : new Date(b.modified) - new Date(a.modified);
 
-                return state.sortDirection === 'asc'
-                    ? getSizeInBytes(a.size) - getSizeInBytes(b.size)
-                    : getSizeInBytes(b.size) - getSizeInBytes(a.size);
+                case 'size':
+                    // Only relevant for files
+                    if (a.type === 'directory' && b.type === 'directory') {
+                        return state.sortDirection === 'asc'
+                            ? a.name.localeCompare(b.name)
+                            : b.name.localeCompare(a.name);
+                    }
 
-            case 'type':
-                // Extract file extension
-                const getExtension = (filename) => {
-                    if (!filename || !filename.includes('.')) return '';
-                    return filename.split('.').pop().toLowerCase();
-                };
+                    // Parse size (remove "KB", "MB", etc.)
+                    const getSizeInBytes = (sizeStr) => {
+                        if (!sizeStr) return 0;
+                        const num = parseFloat(sizeStr);
+                        if (sizeStr.includes('KB')) return num * 1024;
+                        if (sizeStr.includes('MB')) return num * 1024 * 1024;
+                        if (sizeStr.includes('GB')) return num * 1024 * 1024 * 1024;
+                        return num;
+                    };
 
-                return state.sortDirection === 'asc'
-                    ? getExtension(a.name).localeCompare(getExtension(b.name))
-                    : getExtension(b.name).localeCompare(getExtension(a.name));
+                    return state.sortDirection === 'asc'
+                        ? getSizeInBytes(a.size) - getSizeInBytes(b.size)
+                        : getSizeInBytes(b.size) - getSizeInBytes(a.size);
 
-            default:
-                return 0;
-        }
-    });
+                case 'type':
+                    // Extract file extension
+                    const getExtension = (filename) => {
+                        if (!filename || !filename.includes('.')) return '';
+                        return filename.split('.').pop().toLowerCase();
+                    };
+
+                    return state.sortDirection === 'asc'
+                        ? getExtension(a.name).localeCompare(getExtension(b.name))
+                        : getExtension(b.name).localeCompare(getExtension(a.name));
+
+                default:
+                    return 0;
+            }
+        });
+    }, [items, state.sortBy, state.sortDirection]);
 
     // Open context menu
     const handleContextMenu = (e, item) => {
@@ -161,8 +168,6 @@ const MainLayout = () => {
         }
         // If it's a file and double-clicked, open the file
         else if (item.type === 'file' && isDoubleClick) {
-            // [Backend Integration] - Open file with default application
-            // /* BACKEND_INTEGRATION: Open file */
             console.log(`Opening file: ${item.path}`);
         }
         // On single click select the item
@@ -195,17 +200,6 @@ const MainLayout = () => {
             actions.setSortDirection('asc');
         }
     };
-
-    // Mock data for sidebar (with dependencies in the dependency array)
-    useEffect(() => {
-        if (actions.addRecent && actions.addFavorite) {
-            actions.addRecent('C:\\Users\\User\\Documents');
-            actions.addRecent('C:\\Users\\User\\Pictures');
-            actions.addRecent('C:\\Users\\User\\Desktop');
-            actions.addFavorite('C:\\Users\\User\\Documents');
-            actions.addFavorite('C:\\Users\\User\\Pictures');
-        }
-    }, [actions]);
 
     return (
         <div className="explorer-layout">
