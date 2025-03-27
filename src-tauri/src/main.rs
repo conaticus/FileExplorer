@@ -48,12 +48,15 @@ fn all_commands() -> fn(Invoke) -> bool {
 
 #[tokio::main]
 async fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(all_commands())
-        .manage(Arc::new(Mutex::new(AppState::default())))
-        .run(tauri::generate_context!())
+        .invoke_handler(all_commands());
+
+    // State-Setup ausgelagert in eigene Funktion
+    let mut app = state::setup_app_state(app);
+
+    app.run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 

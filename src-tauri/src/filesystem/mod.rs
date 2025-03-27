@@ -1,10 +1,11 @@
-pub mod cache;
-mod fs_utils;
-pub mod volume;
-pub mod file_operations;
-pub mod file_system_operations;
-pub mod fs_entry_options;
 pub mod basic_file_operations;
+pub mod cache;
+pub mod file_operations;
+pub mod fs_entry_options;
+mod fs_utils;
+pub mod infos;
+pub mod volume;
+pub mod volume_operations;
 
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";

@@ -1,21 +1,25 @@
 use crate::constants;
 use crate::AppState;
 use serde::{Deserialize, Serialize};
-use serde_json::from_str;
+
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use crate::filesystem::infos::volume_information::VolumeInformation;
+use crate::filesystem::volume_operations;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MetaData {
     abs_file_path_buf: PathBuf,
+    all_volumes_with_information: Vec<VolumeInformation>,
 }
 impl Default for MetaData {
     fn default() -> Self {
         MetaData {
             abs_file_path_buf: constants::META_DATA_CONFIG_ABS_PATH.to_path_buf(),
+            all_volumes_with_information: volume_operations::get_system_volumes_information(),
         }
     }
 }
@@ -39,11 +43,9 @@ impl MetaDataState {
             opened_file
                 .read_to_string(&mut content)
                 .expect("Could not read user config file to string");
-            serde_json::from_str::<MetaData>(&content).expect("Could not deserialize user config");
+            return serde_json::from_str::<MetaData>(&content).expect("Could not deserialize user config");
         }
-        
         Self::write_defaults(user_config_file_path)
-        
     }
 
     fn write_defaults(file_path: &PathBuf) -> MetaData {

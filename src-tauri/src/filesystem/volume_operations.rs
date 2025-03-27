@@ -1,18 +1,8 @@
 use sysinfo::{Disks};
 use tauri::command;
+use crate::filesystem::infos::volume_information::VolumeInformation;
 
 #[allow(dead_code)]
-#[derive(Debug)]
-pub struct VolumeInformation {
-    volume_name: String,
-    mount_point: String,
-    file_system: String,
-    size: u64,
-    available_space: u64,
-    is_removable: bool,
-    total_written_bytes: u64,
-    total_read_bytes: u64,
-}
 
 
 #[command]
