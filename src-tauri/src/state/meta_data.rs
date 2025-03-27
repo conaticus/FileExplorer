@@ -28,27 +28,17 @@ pub struct MetaDataState(pub Arc<Mutex<MetaData>>);
 impl MetaDataState {
     pub fn new() -> Self {
         Self(Arc::new(Mutex::new(
-            Self::load_from_file_if_exists_or_default(),
+            Self::load_and_store_meta_data(),
         )))
     }
 
-    fn load_from_file_if_exists_or_default() -> MetaData {
+    fn load_and_store_meta_data() -> MetaData {
         let user_config_file_path = &*crate::constants::META_DATA_CONFIG_ABS_PATH;
-        let exists = constants::META_DATA_CONFIG_ABS_PATH.clone().exists();
-
-        if exists {
-            let mut opened_file =
-                File::open(&user_config_file_path).expect("Could not open user config file");
-            let mut content = String::new();
-            opened_file
-                .read_to_string(&mut content)
-                .expect("Could not read user config file to string");
-            return serde_json::from_str::<MetaData>(&content).expect("Could not deserialize user config");
-        }
-        Self::write_defaults(user_config_file_path)
+        
+        Self::write_meta_data_to_file(user_config_file_path)
     }
 
-    fn write_defaults(file_path: &PathBuf) -> MetaData {
+    fn write_meta_data_to_file(file_path: &PathBuf) -> MetaData {
         let defaults = MetaData::default();
         let serialized = serde_json::to_string_pretty(&defaults).unwrap();
 
