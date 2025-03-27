@@ -1,16 +1,17 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
+mod commands;
+pub mod constants;
 mod errors;
 mod filesystem;
 mod search;
 mod state;
-pub mod constants;
-mod commands;
 
 use filesystem::file_operations::{
     create_directory, create_file, delete_file, open_directory, open_file, rename_file,
 };
+
+use crate::commands::meta_data_commands::get_meta_data;
 use search::search_directory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -34,16 +35,16 @@ pub struct AppState {
 
 pub type StateSafe = Arc<Mutex<AppState>>;
 
-
 fn all_commands() -> fn(Invoke) -> bool {
     tauri::generate_handler![
-            open_directory,
-            search_directory,
-            open_file,
-            create_file,
-            create_directory,
-            rename_file,
-            delete_file
+        get_meta_data,
+        open_directory,
+        search_directory,
+        open_file,
+        create_file,
+        create_directory,
+        rename_file,
+        delete_file
     ]
 }
 
@@ -55,11 +56,8 @@ async fn main() {
         .invoke_handler(all_commands());
 
     // State-Setup ausgelagert in eigene Funktion
-    let mut app = state::setup_app_state(app);
+    let app = state::setup_app_state(app);
 
     app.run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
-
-

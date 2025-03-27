@@ -1,4 +1,4 @@
-mod meta_data;
+pub mod meta_data;
 use meta_data::MetaDataState;
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, State, App, Builder, Wry};
