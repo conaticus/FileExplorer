@@ -6,6 +6,8 @@ mod fs_utils;
 pub mod infos;
 pub mod volume;
 pub mod volume_operations;
+mod fs_dir_loader;
+pub mod models;
 
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";
