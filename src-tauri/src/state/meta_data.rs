@@ -12,12 +12,14 @@ use crate::filesystem::volume_operations;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MetaData {
+    version: String,
     abs_file_path_buf: PathBuf,
     all_volumes_with_information: Vec<VolumeInformation>,
 }
 impl Default for MetaData {
     fn default() -> Self {
         MetaData {
+            version: constants::VERSION.to_owned(),
             abs_file_path_buf: constants::META_DATA_CONFIG_ABS_PATH.to_path_buf(),
             all_volumes_with_information: volume_operations::get_system_volumes_information(),
         }

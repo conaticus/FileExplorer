@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 use lazy_static::lazy::Lazy;
 
+pub static VERSION: &str = "0.1.0";
+
 pub static CONFIG_PATH: LazyLock<PathBuf> = LazyLock::new(||{
     env::current_dir().expect("Could not determine current path").join("config")
 });
