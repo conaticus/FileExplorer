@@ -1,51 +1,83 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import React from 'react';
+import ThemeProvider from './providers/ThemeProvider';
+import AppStateProvider from './providers/AppStateProvider';
+import FileSystemProvider from './providers/FileSystemProvider';
+import SettingsProvider from './providers/SettingsProvider';
+import MainLayout from './layouts/MainLayout';
+import './styles/modern.css';
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+// Simple fallback for error cases
+function ErrorFallback() {
+    return (
+        <div style={{
+            padding: '20px',
+            color: '#333',
+            backgroundColor: '#f8f8f8',
+            fontFamily: 'system-ui, sans-serif',
+            maxWidth: '800px',
+            margin: '40px auto',
+            border: '1px solid #ddd',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+            <h1 style={{ color: '#d32f2f' }}>Fast File Explorer</h1>
+            <p>The application could not be loaded properly. Try refreshing the page.</p>
+            <p>If the problem persists, check the console (F12) for error messages.</p>
+            <button
+                onClick={() => window.location.reload()}
+                style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#0078d4',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    marginTop: '15px'
+                }}
+            >
+                Reload Page
+            </button>
+        </div>
+    );
+}
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+// App component with error boundary
+class App extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+    }
 
-  return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    // Error Boundary
+    static getDerivedStateFromError(error) {
+        return { hasError: true };
+    }
 
-      <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+    componentDidCatch(error, errorInfo) {
+        console.error("Application error:", error, errorInfo);
+    }
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
-  );
+    render() {
+        // Show fallback in case of error
+        if (this.state.hasError) {
+            return <ErrorFallback />;
+        }
+
+        // Render normal application
+        return (
+            <div className="app-container" style={{ width: '100%', height: '100vh' }}>
+                <ThemeProvider>
+                    <AppStateProvider>
+                        <FileSystemProvider>
+                            <SettingsProvider>
+                                <MainLayout />
+                            </SettingsProvider>
+                        </FileSystemProvider>
+                    </AppStateProvider>
+                </ThemeProvider>
+            </div>
+        );
+    }
 }
 
 export default App;
