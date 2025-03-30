@@ -123,7 +123,7 @@ fn count_subfiles_and_directories(path: &str) -> (usize, usize) {
 
 #[cfg(test)]
 mod tests {
-    use crate::commands::fs_dir_loader::get_entries_for_directory;
+    use crate::commands::fs_dir_loader_commands::get_entries_for_directory;
     use std::env;
 
     #[test]
