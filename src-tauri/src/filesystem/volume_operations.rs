@@ -1,9 +1,6 @@
 use sysinfo::{Disks};
 use tauri::command;
-use crate::filesystem::infos::volume_information::VolumeInformation;
-
-#[allow(dead_code)]
-
+use crate::filesystem::models::VolumeInformation;
 
 #[command]
 pub fn get_system_volumes_information() -> Vec<VolumeInformation> {

@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use crate::filesystem::infos::volume_information::VolumeInformation;
+use crate::filesystem::models::VolumeInformation;
 use crate::filesystem::volume_operations;
 
 #[derive(Debug, Deserialize, Serialize)]
