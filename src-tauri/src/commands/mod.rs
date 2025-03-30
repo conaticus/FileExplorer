@@ -1,3 +1,3 @@
 pub mod meta_data_commands;
 mod fs_dir_loader_commands;
-mod selected_file_for_action_commands;
+mod selected_path_for_action_commands;
