@@ -3,7 +3,6 @@ pub mod cache;
 pub mod file_operations;
 pub mod fs_entry_options;
 mod fs_utils;
-pub mod infos;
 pub mod volume;
 pub mod volume_operations;
 mod fs_dir_loader;
