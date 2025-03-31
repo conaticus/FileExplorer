@@ -199,7 +199,7 @@ mod tests {
     use log::info;
 
     #[test]
-    fn execute() {
+    fn execute_dir_loader() {
         env_logger::init();
         //directory of execution
         let directory = env::current_dir().unwrap().to_str().unwrap().to_string();
