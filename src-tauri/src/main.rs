@@ -7,8 +7,9 @@ mod filesystem;
 mod search;
 mod state;
 
-use filesystem::file_operations::{
-    create_directory, create_file, delete_file, open_directory, open_file, rename_file,
+
+use commands::file_operations::{
+    create_directory, create_file, open_directory, open_file, rename_file,
 };
 
 use crate::commands::meta_data_commands::get_meta_data;
@@ -37,14 +38,6 @@ pub type StateSafe = Arc<Mutex<AppState>>;
 
 fn all_commands() -> fn(Invoke) -> bool {
     tauri::generate_handler![
-        get_meta_data,
-        open_directory,
-        search_directory,
-        open_file,
-        create_file,
-        create_directory,
-        rename_file,
-        delete_file
     ]
 }
 

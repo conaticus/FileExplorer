@@ -10,6 +10,7 @@ use std::ops::Deref;
 use std::path::{Path};
 use tauri::State;
 
+
 /// Opens a file at the given path. Returns a string if there was an error.
 // NOTE(conaticus): I tried handling the errors nicely here but Tauri was mega cringe and wouldn't let me nest results in async functions, so used string error messages instead.
 #[tauri::command]
@@ -104,16 +105,29 @@ pub async fn rename_file(
     }
 }
 
+
+/// Deletes a file at the given path. Returns a string if there was an error.
+/// This function moves the file to the trash instead of deleting it permanently.
+/// 
+/// # Arguments
+/// * `path` - A string slice that holds the path to the file to be deleted.
+/// 
+/// # Returns
+/// - `Ok(())` if the file was successfully deleted.
+/// - `Err(String)` if there was an error during the deletion process.
+/// 
+/// # Example
+/// ```rust
+/// let result = delete_file("/path/to/file.txt").await;
+/// match result {
+///   Ok(_) => println!("File deleted successfully!"),
+///   Err(err) => println!("Error deleting file: {}", err),
+/// }
+/// ```
 #[tauri::command]
-pub async fn delete_file(state_mux: State<'_, StateSafe>, path: String) -> Result<(), Error> {
-    let mount_point_str = get_mount_point(path.clone()).unwrap_or_default();
-
-    let fs_event_manager = FsEventHandler::new(state_mux.deref().clone(), mount_point_str.into());
-    fs_event_manager.handle_delete(Path::new(&path));
-
-    let res = fs::remove_file(path);
-    match res {
+pub async fn move_file_to_trash(path: &str) -> Result<(), String> {
+    match trash::delete(path) {
         Ok(_) => Ok(()),
-        Err(err) => Err(Error::Custom(err.to_string())),
+        Err(err) => Err(format!("Failed to delete (move to trash)file: {}", err)),
     }
 }

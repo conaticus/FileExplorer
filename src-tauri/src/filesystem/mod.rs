@@ -1,8 +1,7 @@
 pub mod basic_file_operations;
 pub mod cache;
-pub mod file_operations;
 pub mod fs_entry_options;
-mod fs_utils;
+pub(crate) mod fs_utils;
 pub mod volume;
 pub mod volume_operations;
 pub mod models;
