@@ -3,11 +3,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::Permissions;
-use std::panic::resume_unwind;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
+use std::time::SystemTime;
 use tauri::command;
-use tauri::utils::acl::Permission;
 use walkdir::WalkDir;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
@@ -16,18 +15,17 @@ pub struct Entries {
     files: Vec<models::File>,
 }
 
-
 /// This function retrieves the entries (files and directories) for a given directory.
 /// It returns a struct containing the entries, including their metadata such as name, path, access rights, size, and timestamps.
-/// Parameters are 
+/// Parameters are
 /// - `directory`: The path of the directory to retrieve entries from. Example: "/home/user/documents". or "C:\\Users\\user\\Documents" or C:/Users/user/Documents/subdir"
 /// Returns a struct containing the entries, including their metadata such as name, path, access rights, size, and timestamps.
 /// # Example
-/// 
+///
 /// ```rust
 /// use crate::commands::fs_dir_loader_commands::get_entries_for_directory;
 /// use std::env;
-/// 
+///
 /// fn main() {
 ///   let directory = env::current_dir().unwrap().to_str().unwrap().to_string();
 ///   let entries = get_entries_for_directory(directory);
@@ -71,8 +69,14 @@ fn get_entries_for_directory(directory: String) -> Entries {
                 name: entry.file_name().to_str().unwrap().to_string(),
                 path: path.to_str().unwrap().to_string(),
                 is_symlink: path.is_symlink(),
-                access_rights_as_string: get_access_permission_string(metadata.permissions(), false),
-                access_rights_as_number: get_access_permission_number(metadata.permissions(), false),
+                access_rights_as_string: get_access_permission_string(
+                    metadata.permissions(),
+                    false,
+                ),
+                access_rights_as_number: get_access_permission_number(
+                    metadata.permissions(),
+                    false,
+                ),
                 size_in_bytes: metadata.len(),
                 created: format_system_time(metadata.created().unwrap()),
                 last_modified: format_system_time(metadata.modified().unwrap()),
@@ -86,16 +90,39 @@ fn get_entries_for_directory(directory: String) -> Entries {
     result
 }
 
+/// This function retrieves the access permissions of a file or directory.
+/// It returns the permissions as a number.
+/// It takes into account the platform (Windows or Unix) and formats the permissions accordingly.
+///
+/// # Parameters
+/// - `permissions`: The permissions of the file or directory.
+/// - `is_directory`: A boolean indicating whether the entry is a directory or not.
+///
+/// # Returns
+/// A u32 representing the access permissions.
+///
+/// # Example
+/// ```rust
+/// use crate::commands::fs_dir_loader_commands::get_access_permission_number;
+/// use std::fs::Permissions;
+/// use std::os::unix::fs::PermissionsExt;
+///
+/// fn main() {
+///  let permissions = Permissions::from_mode(0o755);
+///  let is_directory = true;
+///  let permission_number = get_access_permission_number(permissions, is_directory);
+///  println!("Access permissions number: {}", permission_number);
+/// }
 fn get_access_permission_number(permissions: Permissions, is_directory: bool) -> u32 {
     #[cfg(windows)]
     {
         // Unix-like Oktale für Windows-Berechtigungen
         if permissions.readonly() {
-            return 0o444;  // r--r--r--
+            return 0o444; // r--r--r--
         } else if is_directory {
-            return 0o755;  // rwxr-xr-x
+            return 0o755; // rwxr-xr-x
         } else {
-            return 0o666;  // rw-rw-rw-
+            return 0o666; // rw-rw-rw-
         }
     }
     #[cfg(unix)]
@@ -105,6 +132,29 @@ fn get_access_permission_number(permissions: Permissions, is_directory: bool) ->
     }
 }
 
+/// This function converts the access permissions of a file or directory into a human-readable string.
+/// It takes into account the platform (Windows or Unix) and formats the permissions accordingly.
+///
+/// # Parameters
+/// - `permissions`: The permissions of the file or directory.
+/// - `is_directory`: A boolean indicating whether the entry is a directory or not.
+///
+/// # Returns
+/// A string representing the access permissions in a human-readable format.
+///
+/// # Example
+/// ```rust
+/// use crate::commands::fs_dir_loader_commands::get_access_permission_string;
+/// use std::fs::Permissions;
+/// use std::os::unix::fs::PermissionsExt;
+///
+/// fn main() {
+///   let permissions = Permissions::from_mode(0o755);
+///   let is_directory = true;
+///   let permission_string = get_access_permission_string(permissions, is_directory);
+///   println!("Access permissions: {}", permission_string);
+/// }
+/// ```
 fn get_access_permission_string(permissions: Permissions, is_directory: bool) -> String {
     #[cfg(windows)]
     {
@@ -112,11 +162,33 @@ fn get_access_permission_string(permissions: Permissions, is_directory: bool) ->
     }
     #[cfg(unix)]
     {
-        let mode = permissions.mode();
-        access_rights_to_string_unix(mode)
+        access_rights_to_string_unix(permissions)
     }
 }
 
+/// This function converts the access permissions of a file or directory into a human-readable string.
+/// It takes into account the platform (Windows or Unix) and formats the permissions accordingly.
+///
+/// # Parameters
+/// - `permissions`: The permissions of the file or directory.
+/// - `is_directory`: A boolean indicating whether the entry is a directory or not.
+///
+/// # Returns
+/// A string representing the access permissions in a human-readable format.
+///
+/// # Example
+/// ```rust
+/// use crate::commands::fs_dir_loader_commands::get_access_permission_string;
+/// use std::fs::Permissions;
+/// use std::os::unix::fs::PermissionsExt;
+///
+/// fn main() {
+///  let permissions = Permissions::from_mode(0o755);
+///  let is_directory = true;
+///  let permission_string = get_access_permission_string(permissions, is_directory);
+/// println!("Access permissions: {}", permission_string);
+/// }
+/// ```
 fn access_permission_string_windows(permission: Permissions, is_directory: bool) -> String {
     // Standardmäßig Leserechte für alle
     let mut result = String::from("r--r--r--");
@@ -134,6 +206,29 @@ fn access_permission_string_windows(permission: Permissions, is_directory: bool)
     result
 }
 
+/// This function converts the access permissions of a file or directory into a human-readable string.
+/// It takes into account the platform (Windows or Unix) and formats the permissions accordingly.
+///
+/// # Parameters
+/// - `permissions`: The permissions of the file or directory.
+/// - `is_directory`: A boolean indicating whether the entry is a directory or not.
+///
+/// # Returns
+/// A string representing the access permissions in a human-readable format.
+///
+/// # Example
+/// ```rust
+/// use crate::commands::fs_dir_loader_commands::get_access_permission_string;
+/// use std::fs::Permissions;
+/// use std::os::unix::fs::PermissionsExt;
+///
+/// fn main() {
+///  let permissions = Permissions::from_mode(0o755);
+///  let is_directory = true;
+///  let permission_string = get_access_permission_string(permissions, is_directory);
+///  println!("Access permissions: {}", permission_string);
+/// }
+/// ```
 #[cfg(unix)]
 fn access_rights_to_string_unix(permissions: Permissions) -> String {
     let mut result = String::new();
@@ -153,15 +248,53 @@ fn access_rights_to_string_unix(permissions: Permissions) -> String {
     result.push(if mode & 0o004 != 0 { 'r' } else { '-' });
     result.push(if mode & 0o002 != 0 { 'w' } else { '-' });
     result.push(if mode & 0o001 != 0 { 'x' } else { '-' });
-    
+
     result
 }
 
+/// This function formats a SystemTime object into a human-readable string.
+/// It converts the SystemTime into a DateTime<Utc> object and then formats it into a string.
+///
+/// # Parameters
+/// - `system_time`: The SystemTime object to be formatted.
+///
+/// # Returns
+/// A string representing the formatted date and time.
+///
+/// # Example
+/// ```rust
+/// use crate::commands::fs_dir_loader_commands::format_system_time;
+/// use std::time::SystemTime;
+///
+/// fn main() {
+///  let system_time = SystemTime::now();
+///  let formatted_time = format_system_time(system_time);
+///  println!("Formatted time: {}", formatted_time);
+/// }
 fn format_system_time(system_time: SystemTime) -> String {
     let datetime: DateTime<Utc> = system_time.into();
     datetime.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
+/// This function calculates the size of a directory in bytes.
+/// It uses the WalkDir crate to recursively walk through the directory and sum up the sizes of all files.
+///
+/// # Parameters
+/// - `path`: The path of the directory to calculate the size for.
+///
+/// # Returns
+/// The total size of the directory in bytes.
+///
+/// # Example
+/// ```rust
+/// use crate::commands::fs_dir_loader_commands::get_directory_size_in_bytes;
+/// use std::fs;
+///
+/// fn main() {
+///  let path = "/path/to/directory";
+///  let size = get_directory_size_in_bytes(path);
+///  println!("Directory size: {} bytes", size);
+/// }
 fn get_directory_size_in_bytes(path: &str) -> u64 {
     WalkDir::new(path)
         .into_iter()
@@ -175,7 +308,25 @@ fn get_directory_size_in_bytes(path: &str) -> u64 {
         .sum()
 }
 
-//The first is the number of files and the second is the number of directories
+/// This function counts the number of files and directories in a given path.
+/// It uses the WalkDir crate to recursively walk through the directory and count the entries.
+///
+/// # Parameters
+/// - `path`: The path of the directory to count the entries for.
+///
+/// # Returns
+/// A tuple containing the number of files and directories. Where the first is the number of files and the second is the number of directories.
+///
+/// # Example
+/// ```rust
+/// use crate::commands::fs_dir_loader_commands::count_subfiles_and_directories;
+/// use std::env;
+///
+/// fn main() {
+///  let path = env::current_dir().unwrap().to_str().unwrap().to_string();
+///  let (file_count, dir_count) = count_subfiles_and_directories(&path);
+///  println!("Files: {}, Directories: {}", file_count, dir_count);
+/// }
 fn count_subfiles_and_directories(path: &str) -> (usize, usize) {
     let mut file_count = 0;
     let mut dir_count = 0;
@@ -193,10 +344,8 @@ fn count_subfiles_and_directories(path: &str) -> (usize, usize) {
 
 #[cfg(test)]
 mod tests {
-    use crate::commands::fs_dir_loader_commands::{get_entries_for_directory, Entries};
+    use crate::commands::fs_dir_loader_commands::get_entries_for_directory;
     use std::env;
-    use std::path::PathBuf;
-    use log::info;
 
     #[test]
     fn execute_dir_loader() {
@@ -206,9 +355,9 @@ mod tests {
         println!("Execution in directory: {}", directory);
         let entries = get_entries_for_directory(directory);
         println!("{}", serde_json::to_string(&entries).unwrap());
-        
+
         //let string = serde_json::to_string(&entries).unwrap();
-        
+
         //println!("directory-path: {}", serde_json::from_str::<Entries>(&string).unwrap().directories[0].path);
     }
 }
