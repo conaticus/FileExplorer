@@ -131,3 +131,40 @@ pub async fn move_file_to_trash(path: &str) -> Result<(), String> {
         Err(err) => Err(format!("Failed to delete (move to trash)file: {}", err)),
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn move_file_to_trash_test() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("move_to_trash_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before deletion");
+
+        eprintln!("Test file exists: {:?}", test_path);
+        
+        // Move the file to the trash
+        let result = move_file_to_trash(test_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to move file to trash: {:?}", result);
+
+        // Verify that the file no longer exists at the original path
+        assert!(!test_path.exists(), "File should no longer exist at the original path");
+
+        // No manual cleanup needed, as the temporary directory is automatically deleted
+    }
+}
