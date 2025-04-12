@@ -96,10 +96,10 @@ pub async fn create_file(folder_path_abs: &str, filename: &str) -> Result<(), St
     // Check if the folder path exists and is valid
     let path = Path::new(folder_path_abs);
     if !path.exists() {
-        return Err(format!("Verzeichnis existiert nicht: {}", folder_path_abs));
+        return Err(format!("Directory does not exist: {}", folder_path_abs));
     }
     if !path.is_dir() {
-        return Err(format!("Pfad ist kein Verzeichnis: {}", folder_path_abs));
+        return Err(format!("Path is no directory: {}", folder_path_abs));
     }
 
     // Concatenate the folder path and filename
@@ -108,7 +108,7 @@ pub async fn create_file(folder_path_abs: &str, filename: &str) -> Result<(), St
     // Create the file
     match fs::File::create(&file_path) {
         Ok(_) => Ok(()),
-        Err(err) => Err(format!("Datei konnte nicht erstellt werden: {}", err)),
+        Err(err) => Err(format!("File could not be created: {}", err)),
     }
 }
 
