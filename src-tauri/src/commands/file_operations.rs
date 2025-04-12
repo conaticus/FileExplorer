@@ -34,7 +34,21 @@ use tauri::State;
 /// ```
 #[tauri::command]
 pub async fn open_file(path: &str) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(|err| "Failed to read file: ".to_string() + &err.to_string())
+    let path_obj = Path::new(path);
+    
+    // Check if path exists
+    if !path_obj.exists() {
+        return Err(format!("File does not exist: {}", path));
+    }
+    
+    // Check if path is a file
+    if !path_obj.is_file() {
+        return Err(format!("Path is not a file: {}", path));
+    }
+    
+    // Read the file
+    fs::read_to_string(path)
+        .map_err(|err| format!("Failed to read file: {}", err))
 }
 
 //TODO: impelemnt
@@ -81,26 +95,44 @@ pub async fn open_directory(path: String) -> Result<Vec<DirectoryChild>, ()> {
 /// }
 /// ```
 #[tauri::command]
-pub async fn create_file(file_path_abs: &str) -> Result<(), String> {
-    //write a simple function, which gets an abs filepath and creates a file at this path 
-    match fs::File::create(&file_path_abs) {
+pub async fn create_file(folder_path_abs: &str, filename: &str) -> Result<(), String> {
+    // Check if the folder path exists and is valid
+    let path = Path::new(folder_path_abs);
+    if !path.exists() {
+        return Err(format!("Verzeichnis existiert nicht: {}", folder_path_abs));
+    }
+    if !path.is_dir() {
+        return Err(format!("Pfad ist kein Verzeichnis: {}", folder_path_abs));
+    }
+    
+    // Concatenate the folder path and filename
+    let file_path = path.join(filename);
+    
+    // Create the file
+    match fs::File::create(&file_path) {
         Ok(_) => Ok(()),
-        Err(err) => Err(format!("Failed to create file: {}", err)),
+        Err(err) => Err(format!("Datei konnte nicht erstellt werden: {}", err)),
     }
 }
 
-//TODO: impelemnt
 #[tauri::command]
-pub async fn create_directory(state_mux: State<'_, StateSafe>, path: String) -> Result<(), Error> {
-    let mount_point_str = get_mount_point(path.clone()).unwrap_or_default();
-
-    let fs_event_manager = FsEventHandler::new(state_mux.deref().clone(), mount_point_str.into());
-    fs_event_manager.handle_create(CreateKind::Folder, Path::new(&path));
-
-    let res = fs::create_dir(path);
-    match res {
+pub async fn create_directory(path: &str, name: &str) -> Result<(), Error> {
+    // Check if the folder path exists and is valid
+    let parent_path = Path::new(path);
+    if !parent_path.exists() {
+        return Err(Error::Custom(format!("Parent directory does not exist: {}", path)));
+    }
+    if !parent_path.is_dir() {
+        return Err(Error::Custom(format!("Path is not a directory: {}", path)));
+    }
+    
+    // Concatenate the parent path and new directory name
+    let dir_path = parent_path.join(name);
+    
+    // Create the directory
+    match fs::create_dir(&dir_path) {
         Ok(_) => Ok(()),
-        Err(err) => Err(Error::Custom(err.to_string())),
+        Err(err) => Err(Error::Io(err)),
     }
 }
 
