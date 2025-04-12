@@ -8,7 +8,7 @@ mod search;
 mod state;
 
 
-use commands::file_operations::{
+use commands::file_system_operation_commands::{
     create_directory, create_file, open_directory, open_file, rename_file,
 };
 

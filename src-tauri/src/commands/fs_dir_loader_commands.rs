@@ -1,4 +1,5 @@
 use crate::filesystem::models;
+use crate::filesystem::models::Entries;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -9,11 +10,7 @@ use std::time::SystemTime;
 use tauri::command;
 use walkdir::WalkDir;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
-pub struct Entries {
-    directories: Vec<models::Directory>,
-    files: Vec<models::File>,
-}
+
 
 /// This function retrieves the entries (files and directories) for a given directory.
 /// It returns a struct containing the entries, including their metadata such as name, path, access rights, size, and timestamps.
