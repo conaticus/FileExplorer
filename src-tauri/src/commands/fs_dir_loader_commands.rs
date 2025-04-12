@@ -10,6 +10,8 @@ use std::time::SystemTime;
 use tauri::command;
 use walkdir::WalkDir;
 
+//TODO maybe redundant to file_system_operation_commands
+
 
 
 /// This function retrieves the entries (files and directories) for a given directory.
