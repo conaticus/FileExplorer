@@ -8,6 +8,7 @@ use std::fs::read_dir;
 use std::ops::Deref;
 use std::path::Path;
 use tauri::State;
+use crate::filesystem::models::{Entries, File};
 
 /// Opens a file at the given path and returns its contents as a string.
 /// Should only be used for text files.
@@ -49,28 +50,47 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 }
 
 //TODO: impelemnt
-/// Searches and returns the files in a given directory. This is not recursive.
 #[tauri::command]
-pub async fn open_directory(path: String) -> Result<Vec<DirectoryChild>, ()> {
-    let Ok(directory) = read_dir(path) else {
-        return Ok(Vec::new());
-    };
+pub async fn open_directory(path: String) -> Result<Entries, String> {
+    let path_obj = Path::new(&path);
 
-    Ok(directory
-        .map(|entry| {
-            let entry = entry.unwrap();
+    // Check if path exists
+    if !path_obj.exists() {
+        return Err(format!("Directory does not exist: {}", path));
+    }
 
-            let file_name = entry.file_name().to_string_lossy().to_string();
-            let entry_is_file = entry.file_type().unwrap().is_file();
-            let entry = entry.path().to_string_lossy().to_string();
+    // Check if path is a directory
+    if !path_obj.is_dir() {
+        return Err(format!("Path is not a directory: {}", path));
+    }
 
-            if entry_is_file {
-                return DirectoryChild::File(file_name, entry);
-            }
+    let mut directories = Vec::new();
+    let mut files = Vec::new();
 
-            DirectoryChild::Directory(file_name, entry)
-        })
-        .collect())
+    for entry in read_dir(path_obj).map_err(|err| format!("Failed to read directory: {}", err))? {
+        let entry = entry.map_err(|err| format!("Failed to read entry: {}", err))?;
+        let file_type = entry.file_type().map_err(|err| format!("Failed to get file type: {}", err))?;
+        let path_of_entry = entry.path();
+        
+        if file_type.is_dir() {
+            directories.push(File{
+                name: entry.file_name().to_str().unwrap().to_string(),
+                path: entry.path().to_str().unwrap().to_string(),
+                is_symlink: path_of_entry.is_symlink(),
+                access_rights_as_string: "".to_string(),
+                access_rights_as_number: 0,
+                size_in_bytes: 0,
+                created: "".to_string(),
+                last_modified: "".to_string(),
+                accessed: "".to_string(),
+            });
+        } else if file_type.is_file() {
+            files.push(DirectoryChild::new(entry.path()));
+        }
+    }
+
+    Ok(Entries { directories, files })
+
 }
 
 /// Creates a file at the given absolute path. Returns a string if there was an error.
