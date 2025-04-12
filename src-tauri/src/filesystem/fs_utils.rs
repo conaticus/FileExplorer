@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-pub fn get_mount_point(path: String) -> Option<String> {
+pub fn _get_mount_point(path: String) -> Option<String> {
     let path = Path::new(&path);
     let root = path.components().next()?;
     let mount_point = root.as_os_str().to_string_lossy().into_owned();

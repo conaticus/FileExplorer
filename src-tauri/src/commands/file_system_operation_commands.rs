@@ -1,16 +1,11 @@
-use crate::errors::Error;
-use crate::filesystem::cache::FsEventHandler;
-use crate::filesystem::fs_utils::get_mount_point;
-use crate::filesystem::volume::DirectoryChild;
-use crate::StateSafe;
-use std::fs;
-use std::fs::{metadata, read_dir};
-use std::ops::Deref;
-use std::path::Path;
-use tauri::State;
-use crate::filesystem::fs_entry_options::Directory;
 use crate::filesystem::models;
-use crate::filesystem::models::{count_subfiles_and_directories, format_system_time, get_access_permission_number, get_access_permission_string, get_directory_size_in_bytes, Entries, File};
+use crate::filesystem::models::{
+    count_subfiles_and_subdirectories, format_system_time, get_access_permission_number,
+    get_access_permission_string, get_directory_size_in_bytes, Entries,
+};
+use std::fs;
+use std::fs::read_dir;
+use std::path::Path;
 
 /// Opens a file at the given path and returns its contents as a string.
 /// Should only be used for text files.
@@ -51,15 +46,15 @@ pub async fn open_file(path: &str) -> Result<String, String> {
     fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))
 }
 
-/// Opens a directory at the given path and returns its contents as a vector of `Directory` and `File` objects.
-/// 
+/// Opens a directory at the given path and returns its contents as a json string.
+///
 /// # Arguments
 /// - `path` - A string slice that holds the path to the directory to be opened.
-/// 
+///
 /// # Returns
 /// - `Ok(Entries)` - If the directory was successfully opened and read.
 /// - `Err(String)` - If there was an error during the opening or reading process.
-/// 
+///
 /// # Example
 /// ```rust
 /// let result = open_directory("/path/to/directory").await;
@@ -76,7 +71,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 /// }
 /// ```
 #[tauri::command]
-pub async fn open_directory(path: String) -> Result<Entries, String> {
+pub async fn open_directory(path: String) -> Result<String, String> {
     let path_obj = Path::new(&path);
 
     // Check if path exists
@@ -94,19 +89,24 @@ pub async fn open_directory(path: String) -> Result<Entries, String> {
 
     for entry in read_dir(path_obj).map_err(|err| format!("Failed to read directory: {}", err))? {
         let entry = entry.map_err(|err| format!("Failed to read entry: {}", err))?;
-        let file_type = entry.file_type().map_err(|err| format!("Failed to get file type: {}", err))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|err| format!("Failed to get file type: {}", err))?;
         let path_of_entry = entry.path();
-        let metadata = entry.metadata().map_err(|err| format!("Failed to get metadata: {}", err))?;
-        
-        let (subfile_count, subdir_count) = count_subfiles_and_directories(path_of_entry.to_str().unwrap());
-        
+        let metadata = entry
+            .metadata()
+            .map_err(|err| format!("Failed to get metadata: {}", err))?;
+
+        let (subfile_count, subdir_count) =
+            count_subfiles_and_subdirectories(path_of_entry.to_str().unwrap());
+
         if file_type.is_dir() {
-            directories.push(models::Directory{
+            directories.push(models::Directory {
                 name: entry.file_name().to_str().unwrap().to_string(),
                 path: path_of_entry.to_str().unwrap().to_string(),
                 is_symlink: path_of_entry.is_symlink(),
                 access_rights_as_string: get_access_permission_string(metadata.permissions(), true),
-                access_rights_as_number: get_access_permission_number(metadata.permissions(), true),
+                access_rights_as_number: get_access_permission_number(metadata.permissions()),
                 size_in_bytes: get_directory_size_in_bytes(path_of_entry.to_str().unwrap()),
                 sub_file_count: subfile_count,
                 sub_dir_count: subdir_count,
@@ -115,12 +115,15 @@ pub async fn open_directory(path: String) -> Result<Entries, String> {
                 accessed: format_system_time(metadata.accessed().unwrap()),
             });
         } else if file_type.is_file() {
-            files.push(models::File{
+            files.push(models::File {
                 name: entry.file_name().to_str().unwrap().to_string(),
                 path: path_of_entry.to_str().unwrap().to_string(),
                 is_symlink: path_of_entry.is_symlink(),
-                access_rights_as_string: get_access_permission_string(metadata.permissions(), false),
-                access_rights_as_number: get_access_permission_number(metadata.permissions(), false),
+                access_rights_as_string: get_access_permission_string(
+                    metadata.permissions(),
+                    false,
+                ),
+                access_rights_as_number: get_access_permission_number(metadata.permissions()),
                 size_in_bytes: metadata.len(),
                 created: format_system_time(metadata.created().unwrap()),
                 last_modified: format_system_time(metadata.modified().unwrap()),
@@ -129,8 +132,12 @@ pub async fn open_directory(path: String) -> Result<Entries, String> {
         }
     }
 
-    Ok(Entries { directories, files })
+    let entries = Entries { directories, files };
 
+    // Convert the Entries struct to a JSON string
+    let json = serde_json::to_string(&entries)
+        .map_err(|err| format!("Failed to serialize entries: {}", err))?;
+    Ok(json)
 }
 
 /// Creates a file at the given absolute path. Returns a string if there was an error.
@@ -152,7 +159,7 @@ pub async fn open_directory(path: String) -> Result<Entries, String> {
 /// }
 /// ```
 #[tauri::command]
-pub async fn create_file(folder_path_abs: &str, filename: &str) -> Result<(), String> {
+pub async fn create_file(folder_path_abs: &str, file_name: &str) -> Result<(), String> {
     // Check if the folder path exists and is valid
     let path = Path::new(folder_path_abs);
     if !path.exists() {
@@ -163,7 +170,7 @@ pub async fn create_file(folder_path_abs: &str, filename: &str) -> Result<(), St
     }
 
     // Concatenate the folder path and filename
-    let file_path = path.join(filename);
+    let file_path = path.join(file_name);
 
     // Create the file
     match fs::File::create(&file_path) {
@@ -172,49 +179,80 @@ pub async fn create_file(folder_path_abs: &str, filename: &str) -> Result<(), St
     }
 }
 
+/// Creates a directory at the given absolute path. Returns a string if there was an error.
+/// This function does not create any parent directories.
+/// 
+/// # Arguments
+/// - `folder_path_abs` - A string slice that holds the absolute path to the directory to be created.
+/// 
+/// # Returns
+/// - `Ok(())` if the directory was successfully created.
+/// - `Err(String)` if there was an error during the creation process.
+/// 
+/// # Example
+/// ```rust
+/// let result = create_directory("/path/to/directory", "new_folder").await;
+/// match result {
+///     Ok(_) => println!("Directory created successfully!"),
+///     Err(err) => println!("Error creating directory: {}", err),
+/// }
+/// ```
 #[tauri::command]
-pub async fn create_directory(path: &str, name: &str) -> Result<(), Error> {
+pub async fn create_directory(folder_path_abs: &str, folder_name: &str) -> Result<(), String> {
     // Check if the folder path exists and is valid
-    let parent_path = Path::new(path);
+    let parent_path = Path::new(folder_path_abs);
     if !parent_path.exists() {
-        return Err(Error::Custom(format!(
-            "Parent directory does not exist: {}",
-            path
-        )));
+        return Err(format!("Parent directory does not exist: {}", folder_path_abs));
     }
     if !parent_path.is_dir() {
-        return Err(Error::Custom(format!("Path is not a directory: {}", path)));
+        return Err(format!("Path is not a directory: {}", folder_path_abs));
     }
 
     // Concatenate the parent path and new directory name
-    let dir_path = parent_path.join(name);
+    let dir_path = parent_path.join(folder_name);
 
     // Create the directory
     match fs::create_dir(&dir_path) {
         Ok(_) => Ok(()),
-        Err(err) => Err(Error::Io(err)),
+        Err(err) => Err(format!("Failed to create directory: {}", err)),
     }
 }
 
-//TODO: impelemnt
+/// Renames a file or directory at the given path.
+///
+/// # Arguments
+/// - `path` - The current path of the file or directory
+/// - `new_path` - The new path for the file or directory
+///
+/// # Returns
+/// - `Ok(())` if the rename operation was successful
+/// - `Err(Error)` if there was an error during the operation
+///
+/// # Example
+/// ```rust
+/// let result = rename_file("/path/to/old_file.txt", "/path/to/new_file.txt").await;
+/// match result {
+///     Ok(_) => println!("File renamed successfully!"),
+///     Err(err) => println!("Error renaming file: {}", err),
+/// }
+/// ```
 #[tauri::command]
-pub async fn rename_file(
-    state_mux: State<'_, StateSafe>,
-    old_path: String,
-    new_path: String,
-) -> Result<(), Error> {
-    let mount_point_str = get_mount_point(old_path.clone()).unwrap_or_default();
+pub async fn rename(old_path: &str, new_path: &str) -> Result<(), String> {
+    let old_path_obj = Path::new(old_path);
+    let new_path_obj = Path::new(new_path);
 
-    let mut fs_event_manager =
-        FsEventHandler::new(state_mux.deref().clone(), mount_point_str.into());
-    fs_event_manager.handle_rename_from(Path::new(&old_path));
-    fs_event_manager.handle_rename_to(Path::new(&new_path));
-
-    let res = fs::rename(old_path, new_path);
-    match res {
-        Ok(_) => Ok(()),
-        Err(err) => Err(Error::Custom(err.to_string())),
+    // Check if the old path exists
+    if !old_path_obj.exists() {
+        return Err(format!("File does not exist: {}", old_path));
     }
+
+    // Check if the new path is valid
+    if new_path_obj.exists() {
+        return Err(format!("New path already exists: {}", new_path));
+    }
+
+    // Rename the file or directory
+    fs::rename(old_path, new_path).map_err(|err| format!("Failed to rename: {}", err))
 }
 
 /// Deletes a file at the given path. Returns a string if there was an error.
@@ -236,10 +274,10 @@ pub async fn rename_file(
 /// }
 /// ```
 #[tauri::command]
-pub async fn move_file_to_trash(path: &str) -> Result<(), String> {
+pub async fn move_to_trash(path: &str) -> Result<(), String> {
     match trash::delete(path) {
         Ok(_) => Ok(()),
-        Err(err) => Err(format!("Failed to delete (move to trash)file: {}", err)),
+        Err(err) => Err(format!("Failed to move file or directory to trash: {}", err)),
     }
 }
 
@@ -300,7 +338,7 @@ mod tests {
         eprintln!("Test file exists: {:?}", test_path);
 
         // Move the file to the trash
-        let result = move_file_to_trash(test_path.to_str().unwrap()).await;
+        let result = move_to_trash(test_path.to_str().unwrap()).await;
 
         // Verify that the operation was successful
         assert!(result.is_ok(), "Failed to move file to trash: {:?}", result);
@@ -332,5 +370,182 @@ mod tests {
 
         // Verify that the file exists at the specified pat´ßp0
         assert!(test_path.exists(), "File should exist after creation");
+    }
+    
+    #[tokio::test]
+    async fn create_directory_test() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test directory path in the temporary directory
+        let test_path = temp_dir.path().join("create_directory_test");
+
+        // Call the function to create the directory
+        let result = create_directory(temp_dir.path().to_str().unwrap(), "create_directory_test").await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to create directory: {:?}", result);
+
+        // Verify that the directory exists at the specified path
+        assert!(test_path.exists(), "Directory should exist after creation");
+    }
+
+    #[tokio::test]
+    async fn open_directory_test() {
+        use std::io::Write;
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+        println!("Temporary directory created: {:?}", temp_dir.path());
+
+        // Create a subdirectory
+        let sub_dir_path = temp_dir.path().join("subdir");
+        fs::create_dir(&sub_dir_path).expect("Failed to create subdirectory");
+        println!("Temporary subdirectory created: {:?}", sub_dir_path);
+
+        // Create files in the root directory
+        let file1_path = temp_dir.path().join("file1.txt");
+        let mut file1 = fs::File::create(&file1_path).expect("Failed to create file1");
+        writeln!(file1, "File 1 content").expect("Failed to write to file1");
+        println!("File 1 created: {:?}", file1_path);
+
+        let file2_path = temp_dir.path().join("file2.txt");
+        let mut file2 = fs::File::create(&file2_path).expect("Failed to create file2");
+        writeln!(file2, "File 2 content").expect("Failed to write to file2");
+        println!("File 2 created: {:?}", file2_path);
+
+        // Create files in the subdirectory
+        let sub_file1_path = sub_dir_path.join("sub_file1.txt");
+        let mut sub_file1 = fs::File::create(&sub_file1_path).expect("Failed to create sub_file1");
+        writeln!(sub_file1, "Sub File 1 content").expect("Failed to write to sub_file1");
+        println!("Sub File 1 created: {:?}", sub_file1_path);
+
+        let sub_file2_path = sub_dir_path.join("sub_file2.txt");
+        let mut sub_file2 = fs::File::create(&sub_file2_path).expect("Failed to create sub_file2");
+        writeln!(sub_file2, "Sub File 2 content").expect("Failed to write to sub_file2");
+        println!("Sub File 2 created: {:?}", sub_file2_path);
+
+        // Call the open_directory function
+        let result = open_directory(temp_dir.path().to_str().unwrap().to_string()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to open directory: {:?}", result);
+
+        let entries = result.unwrap();
+        let entries: Entries = serde_json::from_str(&entries).expect("Failed to parse JSON");
+
+        // Verify directories
+        assert_eq!(entries.directories.len(), 1, "Expected 1 subdirectory");
+        assert_eq!(
+            entries.directories[0].name, "subdir",
+            "Subdirectory name does not match"
+        );
+
+        // Verify files in the root directory
+        assert_eq!(
+            entries.files.len(),
+            2,
+            "Expected 2 files in the root directory"
+        );
+        let file_names: Vec<String> = entries.files.iter().map(|f| f.name.clone()).collect();
+        assert!(
+            file_names.contains(&"file1.txt".to_string()),
+            "file1.txt not found"
+        );
+        assert!(
+            file_names.contains(&"file2.txt".to_string()),
+            "file2.txt not found"
+        );
+
+        // Verify subdirectory contents
+        let subdir_result = open_directory(sub_dir_path.to_str().unwrap().to_string()).await;
+        assert!(
+            subdir_result.is_ok(),
+            "Failed to open subdirectory: {:?}",
+            subdir_result
+        );
+
+        let subdir_entries = subdir_result.unwrap();
+        let subdir_entries: Entries =
+            serde_json::from_str(&subdir_entries).expect("Failed to parse JSON");
+        assert_eq!(
+            subdir_entries.files.len(),
+            2,
+            "Expected 2 files in the subdirectory"
+        );
+        let sub_file_names: Vec<String> = subdir_entries
+            .files
+            .iter()
+            .map(|f| f.name.clone())
+            .collect();
+        assert!(
+            sub_file_names.contains(&"sub_file1.txt".to_string()),
+            "sub_file1.txt not found"
+        );
+        assert!(
+            sub_file_names.contains(&"sub_file2.txt".to_string()),
+            "sub_file2.txt not found"
+        );
+    }
+    
+    #[tokio::test]
+    async fn rename_file_test() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("rename_file_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before renaming");
+
+        // Rename the file
+        let new_name = "renamed_file.txt";
+        let new_path = temp_dir.path().join(new_name);
+        let result = rename(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to rename file: {:?}", result);
+
+        // Verify that the file exists at the new path
+        assert!(new_path.exists(), "File should exist at the new path");
+    }
+    
+    #[tokio::test]
+    async fn rename_directory_test(){
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test directory in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("rename_directory_test");
+
+        // Create the test directory
+        fs::create_dir(&test_path).unwrap();
+
+        // Ensure the directory exists
+        assert!(test_path.exists(), "Test directory should exist before renaming");
+
+        // Rename the directory
+        let new_name = "renamed_directory";
+        let new_path = temp_dir.path().join(new_name);
+        let result = rename(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to rename directory: {:?}", result);
+
+        // Verify that the directory exists at the new path
+        assert!(new_path.exists(), "Directory should exist at the new path");
     }
 }

@@ -1,18 +1,17 @@
+use crate::filesystem::models;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::time::SystemTime;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
-use crate::filesystem::models;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Entries {
     pub(crate) directories: Vec<models::Directory>,
     pub(crate) files: Vec<models::File>,
 }
-
 
 /// This function retrieves the access permissions of a file or directory.
 /// It returns the permissions as a number.
@@ -37,10 +36,10 @@ pub struct Entries {
 ///  let permission_number = get_access_permission_number(permissions, is_directory);
 ///  println!("Access permissions number: {}", permission_number);
 /// }
-pub fn get_access_permission_number(permissions: Permissions, is_directory: bool) -> u32 {
+pub fn get_access_permission_number(permissions: Permissions) -> u32 {
     #[cfg(windows)]
     {
-        // Unix-like Oktale für Windows-Berechtigungen
+        // Unix-like octal for Windows-permissions
         if permissions.readonly() {
             return 0o444; // r--r--r--
         } else if is_directory {
@@ -55,6 +54,7 @@ pub fn get_access_permission_number(permissions: Permissions, is_directory: bool
         mode
     }
 }
+
 
 /// This function converts the access permissions of a file or directory into a human-readable string.
 /// It takes into account the platform (Windows or Unix) and formats the permissions accordingly.
@@ -79,6 +79,7 @@ pub fn get_access_permission_number(permissions: Permissions, is_directory: bool
 ///   println!("Access permissions: {}", permission_string);
 /// }
 /// ```
+#[allow(unused_variables)]
 pub fn get_access_permission_string(permissions: Permissions, is_directory: bool) -> String {
     #[cfg(windows)]
     {
@@ -113,6 +114,7 @@ pub fn get_access_permission_string(permissions: Permissions, is_directory: bool
 /// println!("Access permissions: {}", permission_string);
 /// }
 /// ```
+#[allow(dead_code)]
 pub fn access_permission_string_windows(permission: Permissions, is_directory: bool) -> String {
     // Standardmäßig Leserechte für alle
     let mut result = String::from("r--r--r--");
@@ -251,7 +253,7 @@ pub fn get_directory_size_in_bytes(path: &str) -> u64 {
 ///  let (file_count, dir_count) = count_subfiles_and_directories(&path);
 ///  println!("Files: {}, Directories: {}", file_count, dir_count);
 /// }
-pub fn count_subfiles_and_directories(path: &str) -> (usize, usize) {
+pub fn count_subfiles_and_subdirectories(path: &str) -> (usize, usize) {
     let mut file_count = 0;
     let mut dir_count = 0;
 

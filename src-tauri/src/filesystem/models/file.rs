@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub struct File{
+pub struct File {
     pub name: String,
     pub path: String,
     pub is_symlink: bool,
