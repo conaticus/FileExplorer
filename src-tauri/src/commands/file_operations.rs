@@ -189,7 +189,7 @@ pub async fn move_file_to_trash(path: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    
     #[tokio::test]
     async fn move_file_to_trash_test() {
         use tempfile::tempdir;
@@ -232,12 +232,41 @@ mod tests {
         let test_path = temp_dir.path().join("create_file_test.txt");
 
         // Call the function to create the file
-        let result = create_file(test_path.to_str().unwrap()).await;
+        let result = create_file(temp_dir.path().to_str().unwrap(), "create_file_test.txt").await;
 
         // Verify that the operation was successful
         assert!(result.is_ok(), "Failed to create file: {:?}", result);
 
-        // Verify that the file exists at the specified path
+        // Verify that the file exists at the specified pat´ßp0
         assert!(test_path.exists(), "File should exist after creation");
+    }
+
+    #[tokio::test]
+    async fn open_file_test() {
+        use tempfile::tempdir;
+        use std::io::Write;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_file_test.txt");
+
+        // Write some content to the test file
+        let mut test_file = fs::File::create(&test_path).expect("Failed to create test file");
+        writeln!(test_file, "Hello, world!").expect("Failed to write to test file");
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before reading");
+
+        // Open the file and read its contents
+        let result = open_file(test_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to open file: {:?}", result);
+
+        // Verify the file contents
+        assert_eq!(result.unwrap(), "Hello, world!\n", "File contents do not match expected value");
     }
 }
