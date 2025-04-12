@@ -31,11 +31,12 @@ use walkdir::WalkDir;
 /// ```
 #[command]
 fn get_entries_for_directory(directory: String) -> Entries {
+    //TODO adequate error handling
     let directory = PathBuf::from(directory);
-    let mut result = Entries {
-        directories: Vec::new(),
-        files: Vec::new(),
-    };
+
+    let mut directories = Vec::new();
+    let mut files = Vec::new();
+    
 
     let entries = fs::read_dir(directory).unwrap();
 
@@ -59,7 +60,7 @@ fn get_entries_for_directory(directory: String) -> Entries {
                 accessed: format_system_time(metadata.accessed().unwrap()),
             };
 
-            result.directories.push(dir_struct);
+            directories.push(dir_struct);
         } else {
             let path = entry.path();
             let file_struct = models::File {
@@ -80,11 +81,14 @@ fn get_entries_for_directory(directory: String) -> Entries {
                 accessed: format_system_time(metadata.accessed().unwrap()),
             };
 
-            result.files.push(file_struct);
+            files.push(file_struct);
         }
     }
-
-    result
+     
+    Entries {
+        directories,
+        files,
+    }
 }
 
 

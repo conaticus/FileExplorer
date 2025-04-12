@@ -4,11 +4,13 @@ use crate::filesystem::fs_utils::get_mount_point;
 use crate::filesystem::volume::DirectoryChild;
 use crate::StateSafe;
 use std::fs;
-use std::fs::read_dir;
+use std::fs::{metadata, read_dir};
 use std::ops::Deref;
 use std::path::Path;
 use tauri::State;
-use crate::filesystem::models::{Entries, File};
+use crate::filesystem::fs_entry_options::Directory;
+use crate::filesystem::models;
+use crate::filesystem::models::{count_subfiles_and_directories, format_system_time, get_access_permission_number, get_access_permission_string, get_directory_size_in_bytes, Entries, File};
 
 /// Opens a file at the given path and returns its contents as a string.
 /// Should only be used for text files.
@@ -71,21 +73,36 @@ pub async fn open_directory(path: String) -> Result<Entries, String> {
         let entry = entry.map_err(|err| format!("Failed to read entry: {}", err))?;
         let file_type = entry.file_type().map_err(|err| format!("Failed to get file type: {}", err))?;
         let path_of_entry = entry.path();
+        let metadata = entry.metadata().map_err(|err| format!("Failed to get metadata: {}", err))?;
+        
+        let (subfile_count, subdir_count) = count_subfiles_and_directories(path_of_entry.to_str().unwrap());
         
         if file_type.is_dir() {
-            directories.push(File{
+            directories.push(models::Directory{
                 name: entry.file_name().to_str().unwrap().to_string(),
-                path: entry.path().to_str().unwrap().to_string(),
+                path: path_of_entry.to_str().unwrap().to_string(),
                 is_symlink: path_of_entry.is_symlink(),
-                access_rights_as_string: "".to_string(),
-                access_rights_as_number: 0,
-                size_in_bytes: 0,
-                created: "".to_string(),
-                last_modified: "".to_string(),
-                accessed: "".to_string(),
+                access_rights_as_string: get_access_permission_string(metadata.permissions(), true),
+                access_rights_as_number: get_access_permission_number(metadata.permissions(), true),
+                size_in_bytes: get_directory_size_in_bytes(path_of_entry.to_str().unwrap()),
+                sub_file_count: subfile_count,
+                sub_dir_count: subdir_count,
+                created: format_system_time(metadata.created().unwrap()),
+                last_modified: format_system_time(metadata.modified().unwrap()),
+                accessed: format_system_time(metadata.accessed().unwrap()),
             });
         } else if file_type.is_file() {
-            files.push(DirectoryChild::new(entry.path()));
+            files.push(models::File{
+                name: entry.file_name().to_str().unwrap().to_string(),
+                path: path_of_entry.to_str().unwrap().to_string(),
+                is_symlink: path_of_entry.is_symlink(),
+                access_rights_as_string: get_access_permission_string(metadata.permissions(), false),
+                access_rights_as_number: get_access_permission_number(metadata.permissions(), false),
+                size_in_bytes: metadata.len(),
+                created: format_system_time(metadata.created().unwrap()),
+                last_modified: format_system_time(metadata.modified().unwrap()),
+                accessed: format_system_time(metadata.accessed().unwrap()),
+            });
         }
     }
 
