@@ -11,6 +11,7 @@ use std::path::{Path};
 use tauri::State;
 
 
+//TODO: impelemnt
 /// Opens a file at the given path. Returns a string if there was an error.
 // NOTE(conaticus): I tried handling the errors nicely here but Tauri was mega cringe and wouldn't let me nest results in async functions, so used string error messages instead.
 #[tauri::command]
@@ -33,6 +34,7 @@ pub async fn open_file(path: String) -> Result<(), Error> {
     Err(Error::Custom(err_msg))
 }
 
+//TODO: impelemnt
 /// Searches and returns the files in a given directory. This is not recursive.
 #[tauri::command]
 pub async fn open_directory(path: String) -> Result<Vec<DirectoryChild>, ()> {
@@ -57,20 +59,34 @@ pub async fn open_directory(path: String) -> Result<Vec<DirectoryChild>, ()> {
         .collect())
 }
 
+/// Creates a file at the given absolute path. Returns a string if there was an error.
+/// This function does not create any parent directories.
+/// 
+/// # Arguments
+/// - `file_path_abs` - A string slice that holds the absolute path to the file to be created.
+/// 
+/// # Returns
+/// - `Ok(())` if the file was successfully created.
+/// - `Err(String)` if there was an error during the creation process.
+/// 
+/// # Example
+/// ```rust
+/// let result = create_file("/path/to/file.txt").await;
+/// match result {
+///     Ok(_) => println!("File created successfully!"),
+///     Err(err) => println!("Error creating file: {}", err),
+/// }
+/// ```
 #[tauri::command]
-pub async fn create_file(state_mux: State<'_, StateSafe>, path: String) -> Result<(), Error> {
-    let mount_point_str = get_mount_point(path.clone()).unwrap_or_default();
-
-    let fs_event_manager = FsEventHandler::new(state_mux.deref().clone(), mount_point_str.into());
-    fs_event_manager.handle_create(CreateKind::File, Path::new(&path));
-
-    let res = fs::File::create(path);
-    match res {
+pub async fn create_file(file_path_abs: &str) -> Result<(), String> {
+    //write a simple function, which gets an abs filepath and creates a file at this path 
+    match fs::File::create(&file_path_abs) {
         Ok(_) => Ok(()),
-        Err(err) => Err(Error::Custom(err.to_string())),
+        Err(err) => Err(format!("Failed to create file: {}", err)),
     }
 }
 
+//TODO: impelemnt
 #[tauri::command]
 pub async fn create_directory(state_mux: State<'_, StateSafe>, path: String) -> Result<(), Error> {
     let mount_point_str = get_mount_point(path.clone()).unwrap_or_default();
@@ -85,6 +101,7 @@ pub async fn create_directory(state_mux: State<'_, StateSafe>, path: String) -> 
     }
 }
 
+//TODO: impelemnt
 #[tauri::command]
 pub async fn rename_file(
     state_mux: State<'_, StateSafe>,
@@ -110,7 +127,7 @@ pub async fn rename_file(
 /// This function moves the file to the trash instead of deleting it permanently.
 /// 
 /// # Arguments
-/// * `path` - A string slice that holds the path to the file to be deleted.
+/// - `path` - A string slice that holds the path to the file to be deleted.
 /// 
 /// # Returns
 /// - `Ok(())` if the file was successfully deleted.
@@ -131,6 +148,7 @@ pub async fn move_file_to_trash(path: &str) -> Result<(), String> {
         Err(err) => Err(format!("Failed to delete (move to trash)file: {}", err)),
     }
 }
+
 
 
 #[cfg(test)]
@@ -166,5 +184,25 @@ mod tests {
         assert!(!test_path.exists(), "File should no longer exist at the original path");
 
         // No manual cleanup needed, as the temporary directory is automatically deleted
+    }
+    
+    #[tokio::test]
+    async fn create_file_test() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file path in the temporary directory
+        let test_path = temp_dir.path().join("create_file_test.txt");
+
+        // Call the function to create the file
+        let result = create_file(test_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to create file: {:?}", result);
+
+        // Verify that the file exists at the specified path
+        assert!(test_path.exists(), "File should exist after creation");
     }
 }
