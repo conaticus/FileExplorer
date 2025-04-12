@@ -51,7 +51,30 @@ pub async fn open_file(path: &str) -> Result<String, String> {
     fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))
 }
 
-//TODO: impelemnt
+/// Opens a directory at the given path and returns its contents as a vector of `Directory` and `File` objects.
+/// 
+/// # Arguments
+/// - `path` - A string slice that holds the path to the directory to be opened.
+/// 
+/// # Returns
+/// - `Ok(Entries)` - If the directory was successfully opened and read.
+/// - `Err(String)` - If there was an error during the opening or reading process.
+/// 
+/// # Example
+/// ```rust
+/// let result = open_directory("/path/to/directory").await;
+/// match result {
+///    Ok(entries) => {
+///       for dir in entries.directories {
+///          println!("Directory: {}", dir.name);
+///       }
+///      for file in entries.files {
+///         println!("File: {}", file.name);
+///      }
+///   },
+///   Err(err) => println!("Error opening directory: {}", err),
+/// }
+/// ```
 #[tauri::command]
 pub async fn open_directory(path: String) -> Result<Entries, String> {
     let path_obj = Path::new(&path);
