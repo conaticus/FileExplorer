@@ -12,6 +12,7 @@ use tauri::State;
 
 
 /// Opens a file at the given path and returns its contents as a string.
+/// Should only be used for text files.
 ///
 /// # Arguments
 ///
