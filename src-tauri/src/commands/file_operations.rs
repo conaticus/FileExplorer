@@ -11,27 +11,29 @@ use std::path::{Path};
 use tauri::State;
 
 
-//TODO: impelemnt
-/// Opens a file at the given path. Returns a string if there was an error.
-// NOTE(conaticus): I tried handling the errors nicely here but Tauri was mega cringe and wouldn't let me nest results in async functions, so used string error messages instead.
+/// Opens a file at the given path and returns its contents as a string.
+///
+/// # Arguments
+///
+/// * `path` - A string slice that holds the path to the file to be opened.
+///
+/// # Returns
+///
+/// * `Ok(String)` - If the file was successfully opened and read.
+/// * `Err(String)` - If there was an error during the opening or reading process.
+///
+/// # Example
+///
+/// ```rust
+/// let result = open_file("/path/to/file.txt").await;
+/// match result {
+///     Ok(contents) => println!("File contents: {}", contents),
+///     Err(err) => println!("Error opening file: {}", err),
+/// }
+/// ```
 #[tauri::command]
-pub async fn open_file(path: String) -> Result<(), Error> {
-    let output_res = open::commands(path)[0].output();
-    let output = match output_res {
-        Ok(output) => output,
-        Err(err) => {
-            let err_msg = format!("Failed to get open command output: {}", err);
-            return Err(Error::Custom(err_msg));
-        }
-    };
-
-    if output.status.success() {
-        return Ok(());
-    }
-
-    let err_msg = String::from_utf8(output.stderr)
-        .unwrap_or(String::from("Failed to open file and deserialize stderr."));
-    Err(Error::Custom(err_msg))
+pub async fn open_file(path: &str) -> Result<String, String> {
+    fs::read_to_string(&path).map_err(|err| "Failed to read file: ".to_string() + &err.to_string())
 }
 
 //TODO: impelemnt
