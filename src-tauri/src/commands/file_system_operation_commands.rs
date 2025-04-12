@@ -51,7 +51,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
     fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))
 }
 
-/// Opens a directory at the given path and returns its contents as a vector of `Directory` and `File` objects.
+/// Opens a directory at the given path and returns its contents as a json string.
 /// 
 /// # Arguments
 /// - `path` - A string slice that holds the path to the directory to be opened.
@@ -76,7 +76,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 /// }
 /// ```
 #[tauri::command]
-pub async fn open_directory(path: String) -> Result<Entries, String> {
+pub async fn open_directory(path: String) -> Result<String, String> {
     let path_obj = Path::new(&path);
 
     // Check if path exists
@@ -129,8 +129,14 @@ pub async fn open_directory(path: String) -> Result<Entries, String> {
         }
     }
 
-    Ok(Entries { directories, files })
-
+    let entries = Entries {
+        directories,
+        files,
+    };
+    
+    // Convert the Entries struct to a JSON string
+   let json = serde_json::to_string(&entries).map_err(|err| format!("Failed to serialize entries: {}", err))?;
+    Ok(json)
 }
 
 /// Creates a file at the given absolute path. Returns a string if there was an error.
@@ -332,5 +338,77 @@ mod tests {
 
         // Verify that the file exists at the specified pat´ßp0
         assert!(test_path.exists(), "File should exist after creation");
+    }
+
+    #[tokio::test]
+    async fn open_directory_test() {
+        use tempfile::tempdir;
+        use std::io::Write;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+        println!("Temporary directory created: {:?}", temp_dir.path());
+        
+        // Create a subdirectory
+        let sub_dir_path = temp_dir.path().join("subdir");
+        fs::create_dir(&sub_dir_path).expect("Failed to create subdirectory");
+        println!("Temporary subdirectory created: {:?}", sub_dir_path);
+        
+        // Create files in the root directory
+        let file1_path = temp_dir.path().join("file1.txt");
+        let mut file1 = fs::File::create(&file1_path).expect("Failed to create file1");
+        writeln!(file1, "File 1 content").expect("Failed to write to file1");
+        println!("File 1 created: {:?}", file1_path);
+        
+        
+        let file2_path = temp_dir.path().join("file2.txt");
+        let mut file2 = fs::File::create(&file2_path).expect("Failed to create file2");
+        writeln!(file2, "File 2 content").expect("Failed to write to file2");
+        println!("File 2 created: {:?}", file2_path);
+        
+        // Create files in the subdirectory
+        let sub_file1_path = sub_dir_path.join("sub_file1.txt");
+        let mut sub_file1 = fs::File::create(&sub_file1_path).expect("Failed to create sub_file1");
+        writeln!(sub_file1, "Sub File 1 content").expect("Failed to write to sub_file1");
+        println!("Sub File 1 created: {:?}", sub_file1_path);
+        
+        
+        let sub_file2_path = sub_dir_path.join("sub_file2.txt");
+        let mut sub_file2 = fs::File::create(&sub_file2_path).expect("Failed to create sub_file2");
+        writeln!(sub_file2, "Sub File 2 content").expect("Failed to write to sub_file2");
+        println!("Sub File 2 created: {:?}", sub_file2_path);
+        
+        // Call the open_directory function
+        let result = open_directory(temp_dir.path().to_str().unwrap().to_string()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to open directory: {:?}", result);
+
+        let entries = result.unwrap();
+        let entries: Entries = serde_json::from_str(&entries).expect("Failed to parse JSON");
+
+        // Verify directories
+        assert_eq!(entries.directories.len(), 1, "Expected 1 subdirectory");
+        assert_eq!(
+            entries.directories[0].name, "subdir",
+            "Subdirectory name does not match"
+        );
+
+        // Verify files in the root directory
+        assert_eq!(entries.files.len(), 2, "Expected 2 files in the root directory");
+        let file_names: Vec<String> = entries.files.iter().map(|f| f.name.clone()).collect();
+        assert!(file_names.contains(&"file1.txt".to_string()), "file1.txt not found");
+        assert!(file_names.contains(&"file2.txt".to_string()), "file2.txt not found");
+
+        // Verify subdirectory contents
+        let subdir_result = open_directory(sub_dir_path.to_str().unwrap().to_string()).await;
+        assert!(subdir_result.is_ok(), "Failed to open subdirectory: {:?}", subdir_result);
+
+        let subdir_entries = subdir_result.unwrap();
+        let subdir_entries: Entries = serde_json::from_str(&subdir_entries).expect("Failed to parse JSON");
+        assert_eq!(subdir_entries.files.len(), 2, "Expected 2 files in the subdirectory");
+        let sub_file_names: Vec<String> = subdir_entries.files.iter().map(|f| f.name.clone()).collect();
+        assert!(sub_file_names.contains(&"sub_file1.txt".to_string()), "sub_file1.txt not found");
+        assert!(sub_file_names.contains(&"sub_file2.txt".to_string()), "sub_file2.txt not found");
     }
 }
