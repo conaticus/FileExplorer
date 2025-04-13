@@ -5,7 +5,7 @@ use crate::filesystem::models::VolumeInformation;
 use crate::commands::volume_operations_commands;
 use std::fs::File;
 use std::io;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -82,6 +82,7 @@ impl MetaDataState {
     // For testing - read metadata from file
     #[cfg(test)]
     pub fn read_meta_data_from_file(path: &PathBuf) -> io::Result<MetaData> {
+        use std::io::Read;
         let mut file = File::open(path)?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
@@ -93,9 +94,8 @@ impl MetaDataState {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    use std::path::Path;
 
-    //test the default values of the meta data
+    //test the default values of the metadata
     #[test]
     fn test_default_meta_data() {
         let meta_data = MetaData::default();
@@ -111,7 +111,7 @@ mod tests {
         let test_path = temp_dir.path().join("meta_data.json");
         
         // Create a new MetaDataState with our test path
-        let meta_data_state = MetaDataState::new_with_path(test_path.clone());
+        let _meta_data_state = MetaDataState::new_with_path(test_path.clone());
         
         // Verify the file was created
         assert!(test_path.exists(), "Metadata file should exist after creation");

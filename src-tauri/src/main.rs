@@ -15,8 +15,8 @@ fn all_commands() -> fn(Invoke) -> bool {
         file_system_operation_commands::open_directory,
         file_system_operation_commands::create_file,
         file_system_operation_commands::create_directory,
-        file_system_operation_commands::rename_file,
-        file_system_operation_commands::move_file_to_trash,
+        file_system_operation_commands::rename,
+        file_system_operation_commands::move_to_trash,
 
         // Metadata commands
         meta_data_commands::get_meta_data_as_json,

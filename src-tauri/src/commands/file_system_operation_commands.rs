@@ -159,7 +159,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
 /// }
 /// ```
 #[tauri::command]
-pub async fn create_file(folder_path_abs: &str, filename: &str) -> Result<(), String> {
+pub async fn create_file(folder_path_abs: &str, file_name: &str) -> Result<(), String> {
     // Check if the folder path exists and is valid
     let path = Path::new(folder_path_abs);
     if !path.exists() {
@@ -170,7 +170,7 @@ pub async fn create_file(folder_path_abs: &str, filename: &str) -> Result<(), St
     }
 
     // Concatenate the folder path and filename
-    let file_path = path.join(filename);
+    let file_path = path.join(file_name);
 
     // Create the file
     match fs::File::create(&file_path) {
@@ -179,19 +179,37 @@ pub async fn create_file(folder_path_abs: &str, filename: &str) -> Result<(), St
     }
 }
 
+/// Creates a directory at the given absolute path. Returns a string if there was an error.
+/// This function does not create any parent directories.
+/// 
+/// # Arguments
+/// - `folder_path_abs` - A string slice that holds the absolute path to the directory to be created.
+/// 
+/// # Returns
+/// - `Ok(())` if the directory was successfully created.
+/// - `Err(String)` if there was an error during the creation process.
+/// 
+/// # Example
+/// ```rust
+/// let result = create_directory("/path/to/directory", "new_folder").await;
+/// match result {
+///     Ok(_) => println!("Directory created successfully!"),
+///     Err(err) => println!("Error creating directory: {}", err),
+/// }
+/// ```
 #[tauri::command]
-pub async fn create_directory(path: &str, name: &str) -> Result<(), String> {
+pub async fn create_directory(folder_path_abs: &str, folder_name: &str) -> Result<(), String> {
     // Check if the folder path exists and is valid
-    let parent_path = Path::new(path);
+    let parent_path = Path::new(folder_path_abs);
     if !parent_path.exists() {
-        return Err(format!("Parent directory does not exist: {}", path));
+        return Err(format!("Parent directory does not exist: {}", folder_path_abs));
     }
     if !parent_path.is_dir() {
-        return Err(format!("Path is not a directory: {}", path));
+        return Err(format!("Path is not a directory: {}", folder_path_abs));
     }
 
     // Concatenate the parent path and new directory name
-    let dir_path = parent_path.join(name);
+    let dir_path = parent_path.join(folder_name);
 
     // Create the directory
     match fs::create_dir(&dir_path) {
@@ -203,7 +221,7 @@ pub async fn create_directory(path: &str, name: &str) -> Result<(), String> {
 /// Renames a file or directory at the given path.
 ///
 /// # Arguments
-/// - `old_path` - The current path of the file or directory
+/// - `path` - The current path of the file or directory
 /// - `new_path` - The new path for the file or directory
 ///
 /// # Returns
@@ -219,29 +237,22 @@ pub async fn create_directory(path: &str, name: &str) -> Result<(), String> {
 /// }
 /// ```
 #[tauri::command]
-pub async fn rename_file(old_path: &str, new_path: &str) -> Result<(), String> {
-    // Check if the old path exists
+pub async fn rename(old_path: &str, new_path: &str) -> Result<(), String> {
     let old_path_obj = Path::new(old_path);
+    let new_path_obj = Path::new(new_path);
+
+    // Check if the old path exists
     if !old_path_obj.exists() {
         return Err(format!("File does not exist: {}", old_path));
     }
 
-    // Check if the new path's parent directory exists
-    let new_path_obj = Path::new(new_path);
-    if let Some(parent) = new_path_obj.parent() {
-        if !parent.exists() {
-            return Err(format!(
-                "Parent directory of destination path does not exist: {}",
-                parent.display()
-            ));
-        }
+    // Check if the new path is valid
+    if new_path_obj.exists() {
+        return Err(format!("New path already exists: {}", new_path));
     }
 
-    // Perform the rename operation
-    match fs::rename(old_path, new_path) {
-        Ok(_) => Ok(()),
-        Err(err) => Err(format!("File could not be renamed: {}", err)),
-    }
+    // Rename the file or directory
+    fs::rename(old_path, new_path).map_err(|err| format!("Failed to rename: {}", err))
 }
 
 /// Deletes a file at the given path. Returns a string if there was an error.
@@ -263,10 +274,10 @@ pub async fn rename_file(old_path: &str, new_path: &str) -> Result<(), String> {
 /// }
 /// ```
 #[tauri::command]
-pub async fn move_file_to_trash(path: &str) -> Result<(), String> {
+pub async fn move_to_trash(path: &str) -> Result<(), String> {
     match trash::delete(path) {
         Ok(_) => Ok(()),
-        Err(err) => Err(format!("Failed to delete (move to trash)file: {}", err)),
+        Err(err) => Err(format!("Failed to move file or directory to trash: {}", err)),
     }
 }
 
@@ -327,7 +338,7 @@ mod tests {
         eprintln!("Test file exists: {:?}", test_path);
 
         // Move the file to the trash
-        let result = move_file_to_trash(test_path.to_str().unwrap()).await;
+        let result = move_to_trash(test_path.to_str().unwrap()).await;
 
         // Verify that the operation was successful
         assert!(result.is_ok(), "Failed to move file to trash: {:?}", result);
@@ -359,6 +370,26 @@ mod tests {
 
         // Verify that the file exists at the specified pat´ßp0
         assert!(test_path.exists(), "File should exist after creation");
+    }
+    
+    #[tokio::test]
+    async fn create_directory_test() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test directory path in the temporary directory
+        let test_path = temp_dir.path().join("create_directory_test");
+
+        // Call the function to create the directory
+        let result = create_directory(temp_dir.path().to_str().unwrap(), "create_directory_test").await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to create directory: {:?}", result);
+
+        // Verify that the directory exists at the specified path
+        assert!(test_path.exists(), "Directory should exist after creation");
     }
 
     #[tokio::test]
@@ -458,5 +489,63 @@ mod tests {
             sub_file_names.contains(&"sub_file2.txt".to_string()),
             "sub_file2.txt not found"
         );
+    }
+    
+    #[tokio::test]
+    async fn rename_file_test() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("rename_file_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before renaming");
+
+        // Rename the file
+        let new_name = "renamed_file.txt";
+        let new_path = temp_dir.path().join(new_name);
+        let result = rename(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to rename file: {:?}", result);
+
+        // Verify that the file exists at the new path
+        assert!(new_path.exists(), "File should exist at the new path");
+    }
+    
+    #[tokio::test]
+    async fn rename_directory_test(){
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test directory in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("rename_directory_test");
+
+        // Create the test directory
+        fs::create_dir(&test_path).unwrap();
+
+        // Ensure the directory exists
+        assert!(test_path.exists(), "Test directory should exist before renaming");
+
+        // Rename the directory
+        let new_name = "renamed_directory";
+        let new_path = temp_dir.path().join(new_name);
+        let result = rename(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to rename directory: {:?}", result);
+
+        // Verify that the directory exists at the new path
+        assert!(new_path.exists(), "Directory should exist at the new path");
     }
 }
