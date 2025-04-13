@@ -5,28 +5,26 @@ pub mod constants;
 mod filesystem;
 mod state;
 
-use serde::{Deserialize, Serialize};
 use tauri::ipc::Invoke;
-use crate::commands::file_system_operation_commands::{create_directory, create_file, move_file_to_trash, open_directory, open_file, rename_file};
-use crate::commands::meta_data_commands::get_meta_data;
-
-#[derive(Serialize, Deserialize)]
-pub struct CachedPath {
-    #[serde(rename = "p")]
-    file_path: String,
-    #[serde(rename = "t")]
-    file_type: String,
-}
+use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands};
 
 fn all_commands() -> fn(Invoke) -> bool {
     tauri::generate_handler![
-        open_file,
-        open_directory,
-        create_file,
-        create_directory,
-        rename_file,
-        move_file_to_trash,
-        get_meta_data,
+        // Filesystem commands
+        file_system_operation_commands::open_file,
+        file_system_operation_commands::open_directory,
+        file_system_operation_commands::create_file,
+        file_system_operation_commands::create_directory,
+        file_system_operation_commands::rename_file,
+        file_system_operation_commands::move_file_to_trash,
+
+        // Metadata commands
+        meta_data_commands::get_meta_data_as_json,
+        meta_data_commands::update_meta_data,
+
+        // Volume commands
+        volume_operations_commands::get_system_volumes_information_as_json,
+        volume_operations_commands::get_system_volumes_information,
     ]
 }
 

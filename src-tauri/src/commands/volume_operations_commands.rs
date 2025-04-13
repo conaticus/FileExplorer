@@ -1,8 +1,14 @@
 use crate::filesystem::models::VolumeInformation;
 use sysinfo::Disks;
 
+#[tauri::command]
+pub fn get_system_volumes_information_as_json() -> String {
+    let volume_information_vec = get_system_volumes_information();
+    serde_json::to_string(&volume_information_vec).unwrap()
+}
+
 /// Gets information about all system volumes/disks
-/// 
+///
 /// This function can be called both from Rust code and from the frontend via Tauri
 #[tauri::command]
 pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
@@ -31,12 +37,12 @@ pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_get_volumes() {
         let volumes = get_system_volumes_information();
         assert!(!volumes.is_empty(), "Should return at least one volume");
-        
+
         for volume in &volumes {
             println!("{:?}", volume);
         }
