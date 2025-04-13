@@ -1,10 +1,7 @@
 use crate::filesystem::models;
 use crate::filesystem::models::*;
-use serde::{Deserialize, Serialize};
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use tauri::command;
 
 //TODO maybe redundant to file_system_operation_commands
 
@@ -25,7 +22,7 @@ use tauri::command;
 ///   println!("{}", serde_json::to_string(&entries).unwrap());
 /// }
 /// ```
-#[command]
+#[tauri::command]
 fn get_entries_for_directory(directory: String) -> Entries {
     //TODO adequate error handling
     let directory = PathBuf::from(directory);

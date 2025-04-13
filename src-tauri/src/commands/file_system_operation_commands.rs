@@ -5,7 +5,6 @@ use crate::filesystem::models::{
 };
 use std::fs;
 use std::fs::read_dir;
-use std::ops::Deref;
 use std::path::Path;
 
 /// Opens a file at the given path and returns its contents as a string.
