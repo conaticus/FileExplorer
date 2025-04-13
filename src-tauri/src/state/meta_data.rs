@@ -2,13 +2,13 @@ use crate::constants;
 use serde::{Deserialize, Serialize};
 
 use crate::filesystem::models::VolumeInformation;
-use crate::filesystem::volume_operations;
+use crate::commands::volume_operations_commands;
 use std::fs::File;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MetaData {
     version: String,
     abs_file_path_buf: PathBuf,
@@ -19,7 +19,7 @@ impl Default for MetaData {
         MetaData {
             version: constants::VERSION.to_owned(),
             abs_file_path_buf: constants::META_DATA_CONFIG_ABS_PATH.to_path_buf(),
-            all_volumes_with_information: volume_operations::get_system_volumes_information(),
+            all_volumes_with_information: volume_operations_commands::get_system_volumes_information(),
         }
     }
 }
@@ -27,30 +27,41 @@ impl Default for MetaData {
 pub struct MetaDataState(pub Arc<Mutex<MetaData>>);
 impl MetaDataState {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(Self::load_and_store_meta_data())))
+        Self(Arc::new(Mutex::new(Self::write_default_meta_data_to_file_and_save_in_state())))
     }
 
-    fn load_and_store_meta_data() -> MetaData {
-        let user_config_file_path = &*crate::constants::META_DATA_CONFIG_ABS_PATH;
-
-        Self::write_meta_data_to_file(user_config_file_path)
+    /// Updates the volume information in the metadata
+    pub fn refresh_volumes(&self) -> io::Result<()> {
+        let mut meta_data = self.0.lock().unwrap();
+        meta_data.all_volumes_with_information = volume_operations_commands::get_system_volumes_information();
+        self.write_meta_data_to_file(&meta_data)
     }
 
-    fn write_meta_data_to_file(file_path: &PathBuf) -> MetaData {
-        let defaults = MetaData::default();
-        let serialized = serde_json::to_string_pretty(&defaults).unwrap();
+    /// Writes the current metadata to file
+    fn write_meta_data_to_file(&self, meta_data: &MetaData) -> io::Result<()> {
+        let user_config_file_path = &*constants::META_DATA_CONFIG_ABS_PATH;
+        let serialized = serde_json::to_string_pretty(&meta_data)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-        //makes sure the parent dire exists
-        if let Some(parent) = file_path.parent() {
-            std::fs::create_dir_all(parent)
-                .expect("Could not create parent directories for config file");
+        // Makes sure the parent directory exists
+        if let Some(parent) = user_config_file_path.parent() {
+            std::fs::create_dir_all(parent)?;
         }
 
-        //write to the file
-        let mut file = File::create(file_path).expect("Could not create file");
-        file.write_all(serialized.as_bytes())
-            .expect("Could not write to file");
+        // Write to the file
+        let mut file = File::create(user_config_file_path)?;
+        file.write_all(serialized.as_bytes())?;
+        Ok(())
+    }
 
+    fn write_default_meta_data_to_file_and_save_in_state() -> MetaData {
+        let defaults = MetaData::default();
+        let meta_data_state = Self(Arc::new(Mutex::new(defaults.clone())));
+        
+        if let Err(e) = meta_data_state.write_meta_data_to_file(&defaults) {
+            eprintln!("Error writing metadata to file: {}", e);
+        }
+        
         defaults
     }
 }
