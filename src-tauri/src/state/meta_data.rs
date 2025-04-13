@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::filesystem::models::VolumeInformation;
 use crate::filesystem::volume_operations;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -61,6 +61,6 @@ mod tests {
 
     #[test]
     fn test_meta_data_creation_and_leave_files() {
-        let meta_data_state = MetaDataState::new();
+        let _meta_data_state = MetaDataState::new();
     }
 }

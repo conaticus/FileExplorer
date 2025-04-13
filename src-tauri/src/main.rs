@@ -3,13 +3,12 @@
 mod commands;
 pub mod constants;
 mod filesystem;
-mod search;
 mod state;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use tauri::ipc::Invoke;
+use crate::commands::file_system_operation_commands::{create_directory, create_file, move_file_to_trash, open_directory, open_file, rename_file};
+use crate::commands::meta_data_commands::get_meta_data;
 
 #[derive(Serialize, Deserialize)]
 pub struct CachedPath {
@@ -19,17 +18,16 @@ pub struct CachedPath {
     file_type: String,
 }
 
-pub type VolumeCache = HashMap<String, Vec<CachedPath>>;
-
-#[derive(Default)]
-pub struct AppState {
-    system_cache: HashMap<String, VolumeCache>,
-}
-
-pub type StateSafe = Arc<Mutex<AppState>>;
-
 fn all_commands() -> fn(Invoke) -> bool {
-    tauri::generate_handler![]
+    tauri::generate_handler![
+        open_file,
+        open_directory,
+        create_file,
+        create_directory,
+        rename_file,
+        move_file_to_trash,
+        get_meta_data,
+    ]
 }
 
 #[tokio::main]

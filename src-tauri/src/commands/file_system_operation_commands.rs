@@ -1,6 +1,6 @@
 use crate::filesystem::models;
 use crate::filesystem::models::{
-    count_subfiles_and_directories, format_system_time, get_access_permission_number,
+    count_subfiles_and_subdirectories, format_system_time, get_access_permission_number,
     get_access_permission_string, get_directory_size_in_bytes, Entries,
 };
 use std::fs;
@@ -98,7 +98,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
             .map_err(|err| format!("Failed to get metadata: {}", err))?;
 
         let (subfile_count, subdir_count) =
-            count_subfiles_and_directories(path_of_entry.to_str().unwrap());
+            count_subfiles_and_subdirectories(path_of_entry.to_str().unwrap());
 
         if file_type.is_dir() {
             directories.push(models::Directory {
@@ -106,7 +106,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
                 path: path_of_entry.to_str().unwrap().to_string(),
                 is_symlink: path_of_entry.is_symlink(),
                 access_rights_as_string: get_access_permission_string(metadata.permissions(), true),
-                access_rights_as_number: get_access_permission_number(metadata.permissions(), true),
+                access_rights_as_number: get_access_permission_number(metadata.permissions()),
                 size_in_bytes: get_directory_size_in_bytes(path_of_entry.to_str().unwrap()),
                 sub_file_count: subfile_count,
                 sub_dir_count: subdir_count,
@@ -123,10 +123,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
                     metadata.permissions(),
                     false,
                 ),
-                access_rights_as_number: get_access_permission_number(
-                    metadata.permissions(),
-                    false,
-                ),
+                access_rights_as_number: get_access_permission_number(metadata.permissions()),
                 size_in_bytes: metadata.len(),
                 created: format_system_time(metadata.created().unwrap()),
                 last_modified: format_system_time(metadata.modified().unwrap()),
