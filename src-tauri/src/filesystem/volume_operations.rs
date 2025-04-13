@@ -1,6 +1,6 @@
-use sysinfo::{Disks};
-use tauri::command;
 use crate::filesystem::models::VolumeInformation;
+use sysinfo::Disks;
+use tauri::command;
 
 #[command]
 pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
@@ -9,9 +9,13 @@ pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
 
     for disk in &disks {
         volume_information_vec.push(VolumeInformation {
-            volume_name: disk.name().to_string_lossy().into_owned(),  // Convert OsStr to String
+            volume_name: disk.name().to_string_lossy().into_owned(), // Convert OsStr to String
             mount_point: disk.mount_point().to_string_lossy().into_owned(), // Convert mount point
-            file_system: disk.file_system().to_str().expect("Error during parsing the given string from file_system").to_owned(), // Convert file system
+            file_system: disk
+                .file_system()
+                .to_str()
+                .expect("Error during parsing the given string from file_system")
+                .to_owned(), // Convert file system
             size: disk.total_space(),
             available_space: disk.available_space(),
             is_removable: disk.is_removable(),

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct File {
@@ -40,7 +39,7 @@ impl Directory {
 #[derive(Debug, Clone)]
 pub enum FsEntry {
     File(File),
-    Directory(Directory)
+    Directory(Directory),
 }
 
 impl FsEntry {
@@ -74,13 +73,17 @@ fn test_that_shit() {
     dir1.add_entry(FsEntry::File(file2.clone()));
 
     // Add file to subdirectory
-    subdir.add_entry(FsEntry::File(File::new("file3.txt", 50, "{\"author\": \"user3\"}")));
+    subdir.add_entry(FsEntry::File(File::new(
+        "file3.txt",
+        50,
+        "{\"author\": \"user3\"}",
+    )));
 
     // Add subdirectory to the main directory
     dir1.add_entry(FsEntry::Directory(subdir));
 
     //TODO: Implement logging
-    
+
     // Print out the directory structure
     //println!("{:?}", dir1);
 
@@ -89,11 +92,11 @@ fn test_that_shit() {
 }
 
 #[test]
-fn entry_option_file_creation_test(){
+fn entry_option_file_creation_test() {
     let file1 = File::new("file1.txt", 100, "{}");
     let file2 = File::new("file2.txt", 200, "{}");
-    
+
     let mut root_dir = Directory::new("root_dir");
-    
+
     root_dir.add_entry(FsEntry::File(file1.clone()));
 }

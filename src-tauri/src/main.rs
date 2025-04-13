@@ -2,18 +2,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod commands;
 pub mod constants;
-mod errors;
 mod filesystem;
 mod search;
 mod state;
 
-
-use commands::file_system_operation_commands::{
-    create_directory, create_file, open_directory, open_file, rename_file,
-};
-
-use crate::commands::meta_data_commands::get_meta_data;
-use search::search_directory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -37,8 +29,7 @@ pub struct AppState {
 pub type StateSafe = Arc<Mutex<AppState>>;
 
 fn all_commands() -> fn(Invoke) -> bool {
-    tauri::generate_handler![
-    ]
+    tauri::generate_handler![]
 }
 
 #[tokio::main]

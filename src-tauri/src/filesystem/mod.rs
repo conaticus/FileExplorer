@@ -2,9 +2,9 @@ pub mod basic_file_operations;
 pub mod cache;
 pub mod fs_entry_options;
 pub(crate) mod fs_utils;
+pub mod models;
 pub mod volume;
 pub mod volume_operations;
-pub mod models;
 
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";

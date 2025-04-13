@@ -1,18 +1,17 @@
+use crate::filesystem::models;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::time::SystemTime;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
-use crate::filesystem::models;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Entries {
     pub(crate) directories: Vec<models::Directory>,
     pub(crate) files: Vec<models::File>,
 }
-
 
 /// This function retrieves the access permissions of a file or directory.
 /// It returns the permissions as a number.

@@ -1,16 +1,12 @@
-use crate::errors::Error;
-use crate::filesystem::cache::FsEventHandler;
-use crate::filesystem::fs_utils::get_mount_point;
-use crate::filesystem::volume::DirectoryChild;
-use crate::StateSafe;
+use crate::filesystem::models;
+use crate::filesystem::models::{
+    count_subfiles_and_directories, format_system_time, get_access_permission_number,
+    get_access_permission_string, get_directory_size_in_bytes, Entries,
+};
 use std::fs;
-use std::fs::{metadata, read_dir};
+use std::fs::read_dir;
 use std::ops::Deref;
 use std::path::Path;
-use tauri::State;
-use crate::filesystem::fs_entry_options::Directory;
-use crate::filesystem::models;
-use crate::filesystem::models::{count_subfiles_and_directories, format_system_time, get_access_permission_number, get_access_permission_string, get_directory_size_in_bytes, Entries, File};
 
 /// Opens a file at the given path and returns its contents as a string.
 /// Should only be used for text files.
@@ -52,14 +48,14 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 }
 
 /// Opens a directory at the given path and returns its contents as a json string.
-/// 
+///
 /// # Arguments
 /// - `path` - A string slice that holds the path to the directory to be opened.
-/// 
+///
 /// # Returns
 /// - `Ok(Entries)` - If the directory was successfully opened and read.
 /// - `Err(String)` - If there was an error during the opening or reading process.
-/// 
+///
 /// # Example
 /// ```rust
 /// let result = open_directory("/path/to/directory").await;
@@ -94,14 +90,19 @@ pub async fn open_directory(path: String) -> Result<String, String> {
 
     for entry in read_dir(path_obj).map_err(|err| format!("Failed to read directory: {}", err))? {
         let entry = entry.map_err(|err| format!("Failed to read entry: {}", err))?;
-        let file_type = entry.file_type().map_err(|err| format!("Failed to get file type: {}", err))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|err| format!("Failed to get file type: {}", err))?;
         let path_of_entry = entry.path();
-        let metadata = entry.metadata().map_err(|err| format!("Failed to get metadata: {}", err))?;
-        
-        let (subfile_count, subdir_count) = count_subfiles_and_directories(path_of_entry.to_str().unwrap());
-        
+        let metadata = entry
+            .metadata()
+            .map_err(|err| format!("Failed to get metadata: {}", err))?;
+
+        let (subfile_count, subdir_count) =
+            count_subfiles_and_directories(path_of_entry.to_str().unwrap());
+
         if file_type.is_dir() {
-            directories.push(models::Directory{
+            directories.push(models::Directory {
                 name: entry.file_name().to_str().unwrap().to_string(),
                 path: path_of_entry.to_str().unwrap().to_string(),
                 is_symlink: path_of_entry.is_symlink(),
@@ -115,12 +116,18 @@ pub async fn open_directory(path: String) -> Result<String, String> {
                 accessed: format_system_time(metadata.accessed().unwrap()),
             });
         } else if file_type.is_file() {
-            files.push(models::File{
+            files.push(models::File {
                 name: entry.file_name().to_str().unwrap().to_string(),
                 path: path_of_entry.to_str().unwrap().to_string(),
                 is_symlink: path_of_entry.is_symlink(),
-                access_rights_as_string: get_access_permission_string(metadata.permissions(), false),
-                access_rights_as_number: get_access_permission_number(metadata.permissions(), false),
+                access_rights_as_string: get_access_permission_string(
+                    metadata.permissions(),
+                    false,
+                ),
+                access_rights_as_number: get_access_permission_number(
+                    metadata.permissions(),
+                    false,
+                ),
                 size_in_bytes: metadata.len(),
                 created: format_system_time(metadata.created().unwrap()),
                 last_modified: format_system_time(metadata.modified().unwrap()),
@@ -129,13 +136,11 @@ pub async fn open_directory(path: String) -> Result<String, String> {
         }
     }
 
-    let entries = Entries {
-        directories,
-        files,
-    };
-    
+    let entries = Entries { directories, files };
+
     // Convert the Entries struct to a JSON string
-   let json = serde_json::to_string(&entries).map_err(|err| format!("Failed to serialize entries: {}", err))?;
+    let json = serde_json::to_string(&entries)
+        .map_err(|err| format!("Failed to serialize entries: {}", err))?;
     Ok(json)
 }
 
@@ -179,17 +184,14 @@ pub async fn create_file(folder_path_abs: &str, filename: &str) -> Result<(), St
 }
 
 #[tauri::command]
-pub async fn create_directory(path: &str, name: &str) -> Result<(), Error> {
+pub async fn create_directory(path: &str, name: &str) -> Result<(), String> {
     // Check if the folder path exists and is valid
     let parent_path = Path::new(path);
     if !parent_path.exists() {
-        return Err(Error::Custom(format!(
-            "Parent directory does not exist: {}",
-            path
-        )));
+        return Err(format!("Parent directory does not exist: {}", path));
     }
     if !parent_path.is_dir() {
-        return Err(Error::Custom(format!("Path is not a directory: {}", path)));
+        return Err(format!("Path is not a directory: {}", path));
     }
 
     // Concatenate the parent path and new directory name
@@ -198,28 +200,51 @@ pub async fn create_directory(path: &str, name: &str) -> Result<(), Error> {
     // Create the directory
     match fs::create_dir(&dir_path) {
         Ok(_) => Ok(()),
-        Err(err) => Err(Error::Io(err)),
+        Err(err) => Err(format!("Failed to create directory: {}", err)),
     }
 }
 
-//TODO: impelemnt
+/// Renames a file or directory at the given path.
+///
+/// # Arguments
+/// - `old_path` - The current path of the file or directory
+/// - `new_path` - The new path for the file or directory
+///
+/// # Returns
+/// - `Ok(())` if the rename operation was successful
+/// - `Err(Error)` if there was an error during the operation
+///
+/// # Example
+/// ```rust
+/// let result = rename_file("/path/to/old_file.txt", "/path/to/new_file.txt").await;
+/// match result {
+///     Ok(_) => println!("File renamed successfully!"),
+///     Err(err) => println!("Error renaming file: {}", err),
+/// }
+/// ```
 #[tauri::command]
-pub async fn rename_file(
-    state_mux: State<'_, StateSafe>,
-    old_path: String,
-    new_path: String,
-) -> Result<(), Error> {
-    let mount_point_str = get_mount_point(old_path.clone()).unwrap_or_default();
+pub async fn rename_file(old_path: &str, new_path: &str) -> Result<(), String> {
+    // Check if the old path exists
+    let old_path_obj = Path::new(old_path);
+    if !old_path_obj.exists() {
+        return Err(format!("File does not exist: {}", old_path));
+    }
 
-    let mut fs_event_manager =
-        FsEventHandler::new(state_mux.deref().clone(), mount_point_str.into());
-    fs_event_manager.handle_rename_from(Path::new(&old_path));
-    fs_event_manager.handle_rename_to(Path::new(&new_path));
+    // Check if the new path's parent directory exists
+    let new_path_obj = Path::new(new_path);
+    if let Some(parent) = new_path_obj.parent() {
+        if !parent.exists() {
+            return Err(format!(
+                "Parent directory of destination path does not exist: {}",
+                parent.display()
+            ));
+        }
+    }
 
-    let res = fs::rename(old_path, new_path);
-    match res {
+    // Perform the rename operation
+    match fs::rename(old_path, new_path) {
         Ok(_) => Ok(()),
-        Err(err) => Err(Error::Custom(err.to_string())),
+        Err(err) => Err(format!("File could not be renamed: {}", err)),
     }
 }
 
@@ -342,42 +367,40 @@ mod tests {
 
     #[tokio::test]
     async fn open_directory_test() {
-        use tempfile::tempdir;
         use std::io::Write;
+        use tempfile::tempdir;
 
         // Create a temporary directory (automatically deleted when out of scope)
         let temp_dir = tempdir().expect("Failed to create temporary directory");
         println!("Temporary directory created: {:?}", temp_dir.path());
-        
+
         // Create a subdirectory
         let sub_dir_path = temp_dir.path().join("subdir");
         fs::create_dir(&sub_dir_path).expect("Failed to create subdirectory");
         println!("Temporary subdirectory created: {:?}", sub_dir_path);
-        
+
         // Create files in the root directory
         let file1_path = temp_dir.path().join("file1.txt");
         let mut file1 = fs::File::create(&file1_path).expect("Failed to create file1");
         writeln!(file1, "File 1 content").expect("Failed to write to file1");
         println!("File 1 created: {:?}", file1_path);
-        
-        
+
         let file2_path = temp_dir.path().join("file2.txt");
         let mut file2 = fs::File::create(&file2_path).expect("Failed to create file2");
         writeln!(file2, "File 2 content").expect("Failed to write to file2");
         println!("File 2 created: {:?}", file2_path);
-        
+
         // Create files in the subdirectory
         let sub_file1_path = sub_dir_path.join("sub_file1.txt");
         let mut sub_file1 = fs::File::create(&sub_file1_path).expect("Failed to create sub_file1");
         writeln!(sub_file1, "Sub File 1 content").expect("Failed to write to sub_file1");
         println!("Sub File 1 created: {:?}", sub_file1_path);
-        
-        
+
         let sub_file2_path = sub_dir_path.join("sub_file2.txt");
         let mut sub_file2 = fs::File::create(&sub_file2_path).expect("Failed to create sub_file2");
         writeln!(sub_file2, "Sub File 2 content").expect("Failed to write to sub_file2");
         println!("Sub File 2 created: {:?}", sub_file2_path);
-        
+
         // Call the open_directory function
         let result = open_directory(temp_dir.path().to_str().unwrap().to_string()).await;
 
@@ -395,20 +418,49 @@ mod tests {
         );
 
         // Verify files in the root directory
-        assert_eq!(entries.files.len(), 2, "Expected 2 files in the root directory");
+        assert_eq!(
+            entries.files.len(),
+            2,
+            "Expected 2 files in the root directory"
+        );
         let file_names: Vec<String> = entries.files.iter().map(|f| f.name.clone()).collect();
-        assert!(file_names.contains(&"file1.txt".to_string()), "file1.txt not found");
-        assert!(file_names.contains(&"file2.txt".to_string()), "file2.txt not found");
+        assert!(
+            file_names.contains(&"file1.txt".to_string()),
+            "file1.txt not found"
+        );
+        assert!(
+            file_names.contains(&"file2.txt".to_string()),
+            "file2.txt not found"
+        );
 
         // Verify subdirectory contents
         let subdir_result = open_directory(sub_dir_path.to_str().unwrap().to_string()).await;
-        assert!(subdir_result.is_ok(), "Failed to open subdirectory: {:?}", subdir_result);
+        assert!(
+            subdir_result.is_ok(),
+            "Failed to open subdirectory: {:?}",
+            subdir_result
+        );
 
         let subdir_entries = subdir_result.unwrap();
-        let subdir_entries: Entries = serde_json::from_str(&subdir_entries).expect("Failed to parse JSON");
-        assert_eq!(subdir_entries.files.len(), 2, "Expected 2 files in the subdirectory");
-        let sub_file_names: Vec<String> = subdir_entries.files.iter().map(|f| f.name.clone()).collect();
-        assert!(sub_file_names.contains(&"sub_file1.txt".to_string()), "sub_file1.txt not found");
-        assert!(sub_file_names.contains(&"sub_file2.txt".to_string()), "sub_file2.txt not found");
+        let subdir_entries: Entries =
+            serde_json::from_str(&subdir_entries).expect("Failed to parse JSON");
+        assert_eq!(
+            subdir_entries.files.len(),
+            2,
+            "Expected 2 files in the subdirectory"
+        );
+        let sub_file_names: Vec<String> = subdir_entries
+            .files
+            .iter()
+            .map(|f| f.name.clone())
+            .collect();
+        assert!(
+            sub_file_names.contains(&"sub_file1.txt".to_string()),
+            "sub_file1.txt not found"
+        );
+        assert!(
+            sub_file_names.contains(&"sub_file2.txt".to_string()),
+            "sub_file2.txt not found"
+        );
     }
 }

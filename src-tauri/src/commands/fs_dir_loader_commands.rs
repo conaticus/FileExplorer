@@ -1,18 +1,12 @@
 use crate::filesystem::models;
 use crate::filesystem::models::*;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use std::time::SystemTime;
 use tauri::command;
-use walkdir::WalkDir;
 
 //TODO maybe redundant to file_system_operation_commands
-
-
 
 /// This function retrieves the entries (files and directories) for a given directory.
 /// It returns a struct containing the entries, including their metadata such as name, path, access rights, size, and timestamps.
@@ -38,7 +32,6 @@ fn get_entries_for_directory(directory: String) -> Entries {
 
     let mut directories = Vec::new();
     let mut files = Vec::new();
-    
 
     let entries = fs::read_dir(directory).unwrap();
 
@@ -86,14 +79,9 @@ fn get_entries_for_directory(directory: String) -> Entries {
             files.push(file_struct);
         }
     }
-     
-    Entries {
-        directories,
-        files,
-    }
+
+    Entries { directories, files }
 }
-
-
 
 #[cfg(test)]
 mod tests {

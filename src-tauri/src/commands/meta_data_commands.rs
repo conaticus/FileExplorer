@@ -1,7 +1,6 @@
-use std::sync::{Arc, Mutex};
-use log::Metadata;
-use tauri::{command, State};
 use crate::state::meta_data::MetaDataState;
+use std::sync::{Arc, Mutex};
+use tauri::{command, State};
 
 #[command]
 pub fn get_meta_data(state: State<Arc<Mutex<MetaDataState>>>) -> String {

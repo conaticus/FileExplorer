@@ -1,18 +1,14 @@
-use crate::filesystem::cache::{
-    load_system_cache, run_cache_interval, save_system_cache, FsEventHandler, CACHE_FILE_PATH,
-};
+use crate::filesystem::cache::FsEventHandler;
 use crate::filesystem::{bytes_to_gb, DIRECTORY, FILE};
 use crate::{CachedPath, StateSafe};
 use notify::{RecursiveMode, Watcher};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::File;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::{fs, thread};
-use sysinfo::{Disk, System};
-use tauri::State;
+use std::thread;
+use sysinfo::Disk;
 use tokio::task::block_in_place;
 use walkdir::WalkDir;
 
@@ -116,7 +112,6 @@ pub enum DirectoryChild {
     File(String, String), // Name of file, path to file
     Directory(String, String),
 }
-
 
 /*/// Gets list of volumes and returns them.
 /// If there is a cache stored on volume it is loaded.

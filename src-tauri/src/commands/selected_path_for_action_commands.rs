@@ -1,6 +1,6 @@
+use crate::state::SelectedPathForAction;
 use std::sync::Mutex;
 use tauri::{command, State};
-use crate::state::SelectedPathForAction;
 #[command]
 fn set_selected_path_for_action(state: State<Mutex<SelectedPathForAction>>, path: String) {
     let mut selected_file = state.lock().unwrap();
