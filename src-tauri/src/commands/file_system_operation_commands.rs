@@ -281,17 +281,17 @@ pub async fn move_to_trash(path: &str) -> Result<(), String> {
     }
 }
 
-
 /// Copies a file or directory from the source path to the destination path.
 /// This function does not create any parent directories.
 /// It will overwrite the destination if it already exists.
+/// If the source is a directory, it will recursively copy all files and subdirectories.
 /// 
 /// # Arguments
 /// - `source_path` - A string slice that holds the path to the source file or directory.
 /// - `destination_path` - A string slice that holds the path to the destination.
 /// 
 /// # Returns
-/// - `Ok(u64)` - The size of the copied file in bytes.
+/// - `Ok(u64)` - The total size of copied files in bytes.
 /// - `Err(String)` - If there was an error during the copy process.
 /// 
 /// # Example
@@ -314,11 +314,44 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
         return Err(format!("Destination path already exists: {}", destination_path));
     }
     
-    // Copy the file or directory
-    let x = fs::copy(source_path, destination_path).map_err(|err| format!("Failed to copy file: {}", err));
-    match x {
-        Ok(size) => Ok(size),
-        Err(err) => Err(format!("Failed to copy file: {}", err)),
+    if Path::new(source_path).is_dir() {
+        // If the source is a directory, recursively copy it
+        let mut total_size = 0;
+        
+        // Create the destination directory
+        fs::create_dir_all(destination_path)
+            .map_err(|err| format!("Failed to create destination directory: {}", err))?;
+        
+        // Read all entries in the source directory
+        for entry in fs::read_dir(source_path)
+            .map_err(|err| format!("Failed to read source directory: {}", err))? {
+            
+            let entry = entry.map_err(|err| format!("Failed to read directory entry: {}", err))?;
+            let entry_path = entry.path();
+            let file_name = entry.file_name();
+            let dest_path = Path::new(destination_path).join(file_name);
+            
+            if entry_path.is_file() {
+                // Copy file
+                let size = fs::copy(&entry_path, &dest_path)
+                    .map_err(|err| format!("Failed to copy file '{}': {}", entry_path.display(), err))?;
+                total_size += size;
+            } else if entry_path.is_dir() {
+                // Recursively copy subdirectory
+                let sub_size = Box::pin(copy_file_or_dir(
+                    entry_path.to_str().unwrap(),
+                    dest_path.to_str().unwrap()
+                )).await?;
+                total_size += sub_size;
+            }
+        }
+        
+        Ok(total_size)
+    } else {
+        // Copy a single file
+        let size = fs::copy(source_path, destination_path)
+            .map_err(|err| format!("Failed to copy file: {}", err))?;
+        Ok(size)
     }
 }
 
@@ -624,33 +657,63 @@ mod tests {
     
     #[tokio::test]
     async fn copy_directory_test() {
+        use std::io::Write;
         use tempfile::tempdir;
 
         // Create a temporary directory (automatically deleted when out of scope)
         let temp_dir = tempdir().expect("Failed to create temporary directory");
 
         // Create a test directory in the temporary directory
-        let mut test_path = temp_dir.path().to_path_buf();
-        test_path.push("copy_directory_test");
-
-        // Create the test directory
+        let test_path = temp_dir.path().join("copy_directory_test");
         fs::create_dir(&test_path).unwrap();
 
-        // Ensure the directory exists
+        // Create a file in the test directory
+        let file_in_dir_path = test_path.join("file_in_dir.txt");
+        let mut file_in_dir = fs::File::create(&file_in_dir_path).expect("Failed to create file in directory");
+        writeln!(file_in_dir, "Content of file in directory").expect("Failed to write to file");
+
+        // Create a subdirectory
+        let subdir_path = test_path.join("subdir");
+        fs::create_dir(&subdir_path).unwrap();
+
+        // Create a file in the subdirectory
+        let file_in_subdir_path = subdir_path.join("file_in_subdir.txt");
+        let mut file_in_subdir = fs::File::create(&file_in_subdir_path).expect("Failed to create file in subdirectory");
+        writeln!(file_in_subdir, "Content of file in subdirectory").expect("Failed to write to file");
+
+        // Ensure the directory structure exists
         assert!(test_path.exists(), "Test directory should exist before copying");
+        assert!(file_in_dir_path.exists(), "File in directory should exist before copying");
+        assert!(subdir_path.exists(), "Subdirectory should exist before copying");
+        assert!(file_in_subdir_path.exists(), "File in subdirectory should exist before copying");
 
         // Copy the directory
-        let new_name = "copied_directory";
-        let new_path = temp_dir.path().join(new_name);
-        let result = copy_file_or_dir(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
+        let copied_dir_name = "copied_directory";
+        let copied_dir_path = temp_dir.path().join(copied_dir_name);
+        let result = copy_file_or_dir(test_path.to_str().unwrap(), copied_dir_path.to_str().unwrap()).await;
 
         // Verify that the operation was successful
         assert!(result.is_ok(), "Failed to copy directory: {:?}", result);
 
-        // Verify that the copied directory exists at the new path
-        assert!(new_path.exists(), "Copied directory should exist at the new path");
+        // Verify that the copied directory exists
+        assert!(copied_dir_path.exists(), "Copied directory should exist");
+
+        // Verify that the file in the copied directory exists
+        let copied_file_in_dir_path = copied_dir_path.join("file_in_dir.txt");
+        assert!(copied_file_in_dir_path.exists(), "Copied file in directory should exist");
+
+        // Verify that the subdirectory in the copied directory exists
+        let copied_subdir_path = copied_dir_path.join("subdir");
+        assert!(copied_subdir_path.exists(), "Copied subdirectory should exist");
+
+        // Verify that the file in the copied subdirectory exists
+        let copied_file_in_subdir_path = copied_subdir_path.join("file_in_subdir.txt");
+        assert!(copied_file_in_subdir_path.exists(), "Copied file in subdirectory should exist");
         
-        // Verify the old directory still exists
+        // Verify the original directory structure still exists
         assert!(test_path.exists(), "Original directory should still exist");
+        assert!(file_in_dir_path.exists(), "Original file in directory should still exist");
+        assert!(subdir_path.exists(), "Original subdirectory should still exist");
+        assert!(file_in_subdir_path.exists(), "Original file in subdirectory should still exist");
     }
 }
