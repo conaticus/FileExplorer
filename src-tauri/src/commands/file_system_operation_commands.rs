@@ -281,6 +281,47 @@ pub async fn move_to_trash(path: &str) -> Result<(), String> {
     }
 }
 
+
+/// Copies a file or directory from the source path to the destination path.
+/// This function does not create any parent directories.
+/// It will overwrite the destination if it already exists.
+/// 
+/// # Arguments
+/// - `source_path` - A string slice that holds the path to the source file or directory.
+/// - `destination_path` - A string slice that holds the path to the destination.
+/// 
+/// # Returns
+/// - `Ok(u64)` - The size of the copied file in bytes.
+/// - `Err(String)` - If there was an error during the copy process.
+/// 
+/// # Example
+/// ```rust
+/// let result = copy_file_or_dir("/path/to/source.txt", "/path/to/destination.txt").await;
+/// match result {
+///     Ok(size) => println!("File copied successfully! Size: {} bytes", size),
+///     Err(err) => println!("Error copying file: {}", err),
+/// }
+/// ```
+#[tauri::command]
+pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Result<u64, String> {
+    // Check if the source path exists
+    if !Path::new(source_path).exists() {
+        return Err(format!("Source path does not exist: {}", source_path));
+    }
+
+    // Check if the destination path is valid
+    if Path::new(destination_path).exists() {
+        return Err(format!("Destination path already exists: {}", destination_path));
+    }
+    
+    // Copy the file or directory
+    let x = fs::copy(source_path, destination_path).map_err(|err| format!("Failed to copy file: {}", err));
+    match x {
+        Ok(size) => Ok(size),
+        Err(err) => Err(format!("Failed to copy file: {}", err)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -547,5 +588,69 @@ mod tests {
 
         // Verify that the directory exists at the new path
         assert!(new_path.exists(), "Directory should exist at the new path");
+    }
+    
+    #[tokio::test]
+    async fn copy_file_test() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("copy_file_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before copying");
+
+        // Copy the file
+        let new_name = "copied_file.txt";
+        let new_path = temp_dir.path().join(new_name);
+        let result = copy_file_or_dir(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to copy file: {:?}", result);
+
+        // Verify that the copied file exists at the new path
+        assert!(new_path.exists(), "Copied file should exist at the new path");
+        
+        // Verify the old file still exists
+        assert!(test_path.exists(), "Original file should still exist");
+    }
+    
+    #[tokio::test]
+    async fn copy_directory_test() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test directory in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("copy_directory_test");
+
+        // Create the test directory
+        fs::create_dir(&test_path).unwrap();
+
+        // Ensure the directory exists
+        assert!(test_path.exists(), "Test directory should exist before copying");
+
+        // Copy the directory
+        let new_name = "copied_directory";
+        let new_path = temp_dir.path().join(new_name);
+        let result = copy_file_or_dir(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to copy directory: {:?}", result);
+
+        // Verify that the copied directory exists at the new path
+        assert!(new_path.exists(), "Copied directory should exist at the new path");
+        
+        // Verify the old directory still exists
+        assert!(test_path.exists(), "Original directory should still exist");
     }
 }
