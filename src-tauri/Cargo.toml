@@ -12,8 +12,8 @@ edition = "2021"
 
 [dependencies]
 # Replace "0.1" with the correct version of the `explorer` crate
-tauri = { version = "2", features = [] }  # Removed "log" feature
-tauri-plugin-opener = "2"
+tauri = { version = "2.4", features = [] }  # Removed "log" feature
+tauri-plugin-opener = "2.2"
 serde = { version = "1", features = ["derive"] }
 sysinfo = "0.33.1"
 walkdir = "2.3.3"
@@ -38,7 +38,7 @@ trash = "5.2.2"
 tempfile = "3.19.1"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }  # Removed "log" feature
+tauri-build = { version = "2.1", features = [] }  # Removed "log" feature
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

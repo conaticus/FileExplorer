@@ -7,17 +7,19 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "prepare": "yarn install && cd src-tauri && yarn install"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "yarn": "^1.22.22"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2",
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.3",
-    "@tauri-apps/cli": "^2"
+    "vite": "^6.0.3"
   }
 }
