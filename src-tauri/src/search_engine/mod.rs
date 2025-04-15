@@ -295,4 +295,75 @@ mod tests {
                 term, search_results.len(), search_duration);
         }
     }
+    
+    #[test]
+    fn sequential_vs_parallel_search_comparison_test() {
+        // First index the home directory in parallel
+        println!("Starting parallel indexing of home directory...");
+        let start_time = std::time::Instant::now();
+        let entries = start_indexing_home_dir();
+        let indexing_duration = start_time.elapsed();
+        
+        println!("Parallel indexing completed in {:?}, found {} entries", 
+            indexing_duration, entries.len());
+        assert!(!entries.is_empty(), "Home directory should contain at least some entries");
+        
+        // Define a variety of search keywords with different specificity
+        let search_keywords = [
+            "doc", "pdf", "image", "config", 
+            "rust", "src", "test", "data",
+            "e", "a", "2023", "backup"
+        ];
+        
+        println!("\n{:<10} | {:<15} | {:<15} | {:<15} | {:<10}", 
+            "Keyword", "Sequential Time", "Parallel Time", "Speed Improvement", "Match Count");
+        println!("{:-<75}", "");
+        
+        // For each keyword, compare sequential vs parallel search
+        for keyword in search_keywords {
+            // Sequential search
+            let seq_start = std::time::Instant::now();
+            let seq_results = search_by_filename(keyword, entries.clone());
+            let seq_duration = seq_start.elapsed();
+            
+            // Parallel search
+            let par_start = std::time::Instant::now();
+            let par_results = search_by_filename_parallel(keyword, entries.clone());
+            let par_duration = par_start.elapsed();
+            
+            // Calculate improvement ratio
+            let improvement = if par_duration.as_micros() > 0 {
+                seq_duration.as_micros() as f64 / par_duration.as_micros() as f64
+            } else {
+                f64::INFINITY
+            };
+            
+            // Verify result counts match
+            assert_eq!(
+                seq_results.len(), 
+                par_results.len(), 
+                "Sequential and parallel search should return the same number of results"
+            );
+            
+            // Print results in table format
+            println!("{:<10} | {:>15?} | {:>15?} | {:>15.2}x | {:>10}", 
+                keyword, seq_duration, par_duration, improvement, seq_results.len());
+            
+            // For detailed debugging (commented out in normal use)
+            /*if !seq_results.is_empty() { 
+                 println!("First few results for '{}': {:?}", 
+                          keyword, &seq_results.iter().take(3).collect::<Vec<_>>());
+            }*/
+        }
+        
+        // Save detailed results to a file for the most interesting keyword
+        let detailed_keyword = search_keywords[0]; // First keyword
+        let detailed_results = search_by_filename_parallel(detailed_keyword, entries);
+        if !detailed_results.is_empty() {
+            let json_result = serde_json::to_string_pretty(&detailed_results).unwrap();
+            let path = PathBuf::from(format!("search_results_{}.json", detailed_keyword));
+            std::fs::write(&path, json_result).expect("Unable to write file");
+            println!("\nDetailed search results for '{}' saved to {:?}", detailed_keyword, path);
+        }
+    }
 }
