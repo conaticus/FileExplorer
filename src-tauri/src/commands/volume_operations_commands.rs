@@ -42,6 +42,11 @@ mod tests {
     fn test_get_volumes() {
         let volumes = get_system_volumes_information();
         assert!(!volumes.is_empty(), "Should return at least one volume");
+        
+        let volumes_as_json = get_system_volumes_information_as_json();
+        
+        //printing the JSON string for debugging
+        println!("Volumes as JSON: {}", volumes_as_json);
 
         for volume in &volumes {
             println!("{:?}", volume);
