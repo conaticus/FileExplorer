@@ -6,6 +6,13 @@ use crate::filesystem::models::{
 use std::fs;
 use std::fs::read_dir;
 use std::path::Path;
+use std::sync::Mutex;
+use once_cell::sync::Lazy;
+
+pub static PATH_FOR_ACTION: Lazy<Mutex<Option<String>>> = Lazy::new(|| {
+    Mutex::new(None)
+});
+
 
 /// Opens a file at the given path and returns its contents as a string.
 /// Should only be used for text files.
