@@ -31,7 +31,7 @@ impl Directory_SE {
     ///
     /// # Returns
     /// * `Result<Directory>` - The created Directory or an error
-    pub fn from_dir_entry(entry: DirEntry) -> Result<Self> {
+    pub fn from_dir_entry(entry: &DirEntry) -> Result<Self> {
         let path_of_entry = entry.path();
         let metadata = entry.metadata()?;
         let mut sub_entries = Vec::new();
@@ -45,7 +45,7 @@ impl Directory_SE {
                     if let Ok(sub_metadata) = sub_entry.metadata() {
                         if sub_metadata.is_file() {
                             // Handle files
-                            match File_SE::from_dir_entry(sub_entry) {
+                            match File_SE::from_dir_entry(&sub_entry) {
                                 Ok(file) => {
                                     sub_entries.push(Entry::FILE(file));
                                     sub_file_count += 1;
@@ -54,7 +54,7 @@ impl Directory_SE {
                             }
                         } else if sub_metadata.is_dir() {
                             // For directories, process recursively
-                            match Directory_SE::from_dir_entry(sub_entry) {
+                            match Directory_SE::from_dir_entry(&sub_entry) {
                                 Ok(dir) => {
                                     sub_entries.push(Entry::DIRECTORY(dir));
                                     sub_dir_count += 1;

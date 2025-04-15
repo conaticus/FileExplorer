@@ -24,7 +24,7 @@ impl File_SE {
     ///
     /// # Returns
     /// * `Result<File>` - The created File or an error
-    pub fn from_dir_entry(entry: DirEntry) -> std::io::Result<Self> {
+    pub fn from_dir_entry(entry: &DirEntry) -> std::io::Result<Self> {
         let path_of_entry = entry.path();
         let metadata = entry.metadata()?;
 
