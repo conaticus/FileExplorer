@@ -4,6 +4,8 @@ mod commands;
 pub mod constants;
 mod filesystem;
 mod state;
+mod search_engine;
+pub mod models;
 
 use tauri::ipc::Invoke;
 use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands};

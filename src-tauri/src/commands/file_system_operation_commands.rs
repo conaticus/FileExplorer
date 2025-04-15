@@ -1,5 +1,5 @@
-use crate::filesystem::models;
-use crate::filesystem::models::{
+use crate::models;
+use crate::models::{
     count_subfiles_and_subdirectories, format_system_time, get_access_permission_number,
     get_access_permission_string, get_directory_size_in_bytes, Entries,
 };
