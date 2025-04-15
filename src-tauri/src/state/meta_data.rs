@@ -1,8 +1,8 @@
 use crate::constants;
 use serde::{Deserialize, Serialize};
 
-use crate::filesystem::models::VolumeInformation;
 use crate::commands::volume_operations_commands;
+use crate::filesystem::models::VolumeInformation;
 use std::fs::File;
 use std::io;
 use std::io::Write;
@@ -16,11 +16,13 @@ pub struct MetaData {
     all_volumes_with_information: Vec<VolumeInformation>,
 }
 impl Default for MetaData {
+    //Generates the default based on the constants given in the constants module
     fn default() -> Self {
         MetaData {
             version: constants::VERSION.to_owned(),
             abs_file_path_buf: constants::META_DATA_CONFIG_ABS_PATH.to_path_buf(),
-            all_volumes_with_information: volume_operations_commands::get_system_volumes_information(),
+            all_volumes_with_information:
+                volume_operations_commands::get_system_volumes_information(),
         }
     }
 }
@@ -28,21 +30,21 @@ impl Default for MetaData {
 pub struct MetaDataState(pub Arc<Mutex<MetaData>>);
 impl MetaDataState {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(Self::write_default_meta_data_to_file_and_save_in_state())))
+        Self(Arc::new(Mutex::new(
+            Self::write_default_meta_data_to_file_and_save_in_state(),
+        )))
     }
 
-    // For testing - allows creating a MetaDataState with a custom path
-    #[cfg(test)]
-    pub fn new_with_path(path: PathBuf) -> Self {
-        let mut defaults = MetaData::default();
-        defaults.abs_file_path_buf = path;
-        Self(Arc::new(Mutex::new(Self::write_meta_data_to_file_and_save_in_state(defaults))))
+    fn write_default_meta_data_to_file_and_save_in_state() -> MetaData {
+        let defaults = MetaData::default();
+        Self::write_meta_data_to_file_and_save_in_state(defaults)
     }
 
     /// Updates the volume information in the metadata
     pub fn refresh_volumes(&self) -> io::Result<()> {
         let mut meta_data = self.0.lock().unwrap();
-        meta_data.all_volumes_with_information = volume_operations_commands::get_system_volumes_information();
+        meta_data.all_volumes_with_information =
+            volume_operations_commands::get_system_volumes_information();
         self.write_meta_data_to_file(&meta_data)
     }
 
@@ -63,22 +65,27 @@ impl MetaDataState {
         Ok(())
     }
 
-    fn write_default_meta_data_to_file_and_save_in_state() -> MetaData {
-        let defaults = MetaData::default();
-        Self::write_meta_data_to_file_and_save_in_state(defaults)
-    }
-    
     // Helper method to write metadata to a file
     fn write_meta_data_to_file_and_save_in_state(defaults: MetaData) -> MetaData {
         let meta_data_state = Self(Arc::new(Mutex::new(defaults.clone())));
-        
+
         if let Err(e) = meta_data_state.write_meta_data_to_file(&defaults) {
             eprintln!("Error writing metadata to file: {}", e);
         }
-        
+
         defaults
     }
-    
+
+    // For testing - allows creating a MetaDataState with a custom path
+    #[cfg(test)]
+    pub fn new_with_path(path: PathBuf) -> Self {
+        let mut defaults = MetaData::default();
+        defaults.abs_file_path_buf = path;
+        Self(Arc::new(Mutex::new(
+            Self::write_meta_data_to_file_and_save_in_state(defaults),
+        )))
+    }
+
     // For testing - read metadata from file
     #[cfg(test)]
     pub fn read_meta_data_from_file(path: &PathBuf) -> io::Result<MetaData> {
@@ -100,84 +107,96 @@ mod tests {
     fn test_default_meta_data() {
         let meta_data = MetaData::default();
         assert_eq!(meta_data.version, constants::VERSION);
-        assert_eq!(meta_data.abs_file_path_buf, constants::META_DATA_CONFIG_ABS_PATH.to_path_buf());
+        assert_eq!(
+            meta_data.abs_file_path_buf,
+            constants::META_DATA_CONFIG_ABS_PATH.to_path_buf()
+        );
         // Cannot test volume information directly as it depends on the system
     }
-    
+
     #[test]
     fn test_meta_data_state_creation() {
         // Create a temporary directory
         let temp_dir = tempdir().expect("Failed to create temporary directory");
         let test_path = temp_dir.path().join("meta_data.json");
-        
+
         // Create a new MetaDataState with our test path
         let _meta_data_state = MetaDataState::new_with_path(test_path.clone());
-        
+
         // Verify the file was created
-        assert!(test_path.exists(), "Metadata file should exist after creation");
-        
+        assert!(
+            test_path.exists(),
+            "Metadata file should exist after creation"
+        );
+
         // Read the file and verify its contents
         let read_result = MetaDataState::read_meta_data_from_file(&test_path);
         assert!(read_result.is_ok(), "Should be able to read metadata file");
-        
+
         let meta_data = read_result.unwrap();
         assert_eq!(meta_data.version, constants::VERSION);
         assert_eq!(meta_data.abs_file_path_buf, test_path);
     }
-    
+
     #[test]
     fn test_refresh_volumes() {
         // Create a temporary directory
         let temp_dir = tempdir().expect("Failed to create temporary directory");
         let test_path = temp_dir.path().join("meta_data.json");
-        
+
         // Create a new MetaDataState
         let meta_data_state = MetaDataState::new_with_path(test_path.clone());
-        
+
         // Get the initial volumes count
         let initial_volumes = {
             let meta_data = meta_data_state.0.lock().unwrap();
             meta_data.all_volumes_with_information.len()
         };
-        
+
         // Refresh volumes
         let refresh_result = meta_data_state.refresh_volumes();
         assert!(refresh_result.is_ok(), "Volume refresh should succeed");
-        
+
         // Verify the file still exists and can be read
-        assert!(test_path.exists(), "Metadata file should exist after refresh");
-        
+        assert!(
+            test_path.exists(),
+            "Metadata file should exist after refresh"
+        );
+
         // Get the volumes after refresh
         let refreshed_volumes = {
             let meta_data = meta_data_state.0.lock().unwrap();
             meta_data.all_volumes_with_information.len()
         };
-        
+
         // The number of volumes should be the same after refresh since we're on the same system
-        assert_eq!(initial_volumes, refreshed_volumes, "Volume count should remain the same after refresh");
+        assert_eq!(
+            initial_volumes, refreshed_volumes,
+            "Volume count should remain the same after refresh"
+        );
     }
-    
+
     #[test]
     fn test_write_meta_data_to_file() {
         // Create a temporary directory
         let temp_dir = tempdir().expect("Failed to create temporary directory");
         let test_path = temp_dir.path().join("meta_data.json");
-        
+
         // Create a custom metadata object
         let mut meta_data = MetaData::default();
         meta_data.abs_file_path_buf = test_path.clone();
         meta_data.version = "test-version".to_string();
-        
+
         // Create a MetaDataState and write the custom metadata
         // Construct a MetaDataState with the custom metadata (is the struct from above)
         let meta_data_state = MetaDataState(Arc::new(Mutex::new(meta_data.clone())));
         let write_result = meta_data_state.write_meta_data_to_file(&meta_data);
         assert!(write_result.is_ok(), "Writing metadata should succeed");
-        
+
         // Read back the file and verify contents
         let read_result = MetaDataState::read_meta_data_from_file(&test_path);
         assert!(read_result.is_ok(), "Should be able to read metadata file");
-        
+
         let read_meta_data = read_result.unwrap();
         assert_eq!(read_meta_data.version, "test-version");
         assert_eq!(read_meta_data.abs_file_path_buf, test_path);
