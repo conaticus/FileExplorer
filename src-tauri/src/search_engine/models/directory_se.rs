@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use crate::search_engine;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub struct Directory_SE {
+pub struct DirectorySe {
     pub name: String,
     pub path: String,
     pub is_symlink: bool,
@@ -21,9 +21,9 @@ use std::fs::{DirEntry, read_dir};
 use std::io::Result;
 use crate::models::{format_system_time, get_access_permission_number, get_access_permission_string};
 use crate::search_engine::Entry;
-use crate::search_engine::models::file_se::File_SE;
+use crate::search_engine::models::file_se::FileSe;
 
-impl Directory_SE {
+impl DirectorySe {
     /// Creates a new Directory struct from a DirEntry
     ///
     /// # Arguments
@@ -45,7 +45,7 @@ impl Directory_SE {
                     if let Ok(sub_metadata) = sub_entry.metadata() {
                         if sub_metadata.is_file() {
                             // Handle files
-                            match File_SE::from_dir_entry(&sub_entry) {
+                            match FileSe::from_dir_entry(&sub_entry) {
                                 Ok(file) => {
                                     sub_entries.push(Entry::FILE(file));
                                     sub_file_count += 1;
@@ -54,7 +54,7 @@ impl Directory_SE {
                             }
                         } else if sub_metadata.is_dir() {
                             // For directories, process recursively
-                            match Directory_SE::from_dir_entry(&sub_entry) {
+                            match DirectorySe::from_dir_entry(&sub_entry) {
                                 Ok(dir) => {
                                     sub_entries.push(Entry::DIRECTORY(dir));
                                     sub_dir_count += 1;
@@ -67,7 +67,7 @@ impl Directory_SE {
             }
         }
     
-        Ok(Directory_SE {
+        Ok(DirectorySe {
             name: entry.file_name().to_str().unwrap_or("").to_string(),
             path: path_of_entry.to_str().unwrap_or("").to_string(),
             is_symlink: path_of_entry.is_symlink(),

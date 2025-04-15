@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::models::{format_system_time, get_access_permission_number, get_access_permission_string};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub struct File_SE {
+pub struct FileSe {
     pub name: String,
     pub path: String,
     pub is_symlink: bool,
@@ -16,7 +16,7 @@ pub struct File_SE {
 }
 
 
-impl File_SE {
+impl FileSe {
     /// Creates a new File struct from a DirEntry
     ///
     /// # Arguments
@@ -28,7 +28,7 @@ impl File_SE {
         let path_of_entry = entry.path();
         let metadata = entry.metadata()?;
 
-        Ok(File_SE {
+        Ok(FileSe {
             name: entry.file_name().to_str().unwrap_or("").to_string(),
             path: path_of_entry.to_str().unwrap_or("").to_string(),
             is_symlink: path_of_entry.is_symlink(),

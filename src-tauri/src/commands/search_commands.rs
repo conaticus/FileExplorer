@@ -1,6 +1,6 @@
 //TODO
 #[tauri::command]
-pub async fn search_command(snipped: String) -> Result<String, String> {
+pub async fn _search_command(snipped: String) -> Result<String, String> {
     // Simulate a search operation
     if snipped.is_empty() {
         return Err("Search term cannot be empty".to_string());

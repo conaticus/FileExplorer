@@ -4,17 +4,16 @@ use std::path::PathBuf;
 use home::home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs::read_dir;
-use crate::models::{format_system_time, get_access_permission_number, get_access_permission_string, Directory, File};
-use models::file_se::File_SE;
-use crate::search_engine::models::directory_se::Directory_SE;
+use models::file_se::FileSe;
+use crate::search_engine::models::directory_se::DirectorySe;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub enum Entry {
-    FILE(File_SE),
-    DIRECTORY(Directory_SE),
+    FILE(FileSe),
+    DIRECTORY(DirectorySe),
 }
 
 pub fn start_indexing_home_dir() -> Vec<Entry> {
@@ -47,13 +46,13 @@ fn index_given_path(path: PathBuf) -> Vec<Entry> {
         
         if metadata.is_file() {
             // Process files
-            match File_SE::from_dir_entry(&entry) {
+            match FileSe::from_dir_entry(&entry) {
                 Ok(file) => result.push(Entry::FILE(file)),
                 Err(_) => continue,
             }
         } else if metadata.is_dir() {
             // Process directories
-            match Directory_SE::from_dir_entry(&entry) {
+            match DirectorySe::from_dir_entry(&entry) {
                 Ok(dir) => result.push(Entry::DIRECTORY(dir)),
                 Err(_) => continue,
             }
@@ -85,12 +84,12 @@ fn index_given_path_parallel(path: PathBuf) -> Vec<Entry> {
             };
             
             if metadata.is_file() {
-                match File_SE::from_dir_entry(entry.clone()) {
+                match FileSe::from_dir_entry(entry) {
                     Ok(file) => Some(Entry::FILE(file)),
                     Err(_) => None,
                 }
             } else if metadata.is_dir() {
-                match Directory_SE::from_dir_entry(entry.clone()) {
+                match DirectorySe::from_dir_entry(entry) {
                     Ok(dir) => Some(Entry::DIRECTORY(dir)),
                     Err(_) => None,
                 }
