@@ -5,6 +5,9 @@ pub use file::File;
 mod volume;
 pub use volume::VolumeInformation;
 mod directory_entries_helper;
+pub(crate) mod logging_state;
+pub(crate) mod download_location;
+
 pub use directory_entries_helper::Entries;
 pub use directory_entries_helper::{
     count_subfiles_and_subdirectories, format_system_time, get_access_permission_number,
