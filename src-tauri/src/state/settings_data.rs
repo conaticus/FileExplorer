@@ -41,7 +41,6 @@ impl SettingsState {
     pub fn new() -> Self {
         Self(Arc::new(Mutex::new(Self::write_default_settings_to_file_and_save_in_state())))
     }
-
     pub fn update_setting_field(
         &self,
         key: &str,
@@ -49,67 +48,34 @@ impl SettingsState {
     ) -> Result<Settings, io::Error> {
         let mut settings = self.0.lock().unwrap();
 
-        match key {
-            "darkmode" => {
-                settings.darkmode = value.as_bool().ok_or_else(|| io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Expected a boolean for 'darkmode'",
-                ))?;
-            }
-            "custom_themes" => {
-                settings.custom_themes = serde_json::from_value::<Vec<String>>(value)
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-            }
-            "default_theme" => {
-                settings.default_theme = value.as_str().ok_or_else(|| io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Expected a string for 'default_theme'",
-                ))?.to_string();
-            }
-            "default_themes_path" => {
-                settings.default_themes_path = PathBuf::from(
-                    value.as_str().ok_or_else(|| io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Expected a string for 'default_themes_path'",
-                    ))?,
-                );
-            }
-            "default_folder_path_on_opening" => {
-                settings.default_folder_path_on_opening = PathBuf::from(
-                    value.as_str().ok_or_else(|| io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Expected a string for 'default_folder_path_on_opening'",
-                    ))?,
-                );
-            }
-            "default_checksum_hash" => {
-                settings.default_checksum_hash = value.as_str().ok_or_else(|| io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Expected a string for 'default_checksum_hash'",
-                ))?.to_string();
-            }
-            "logging_state" => {
-                settings.logging_state = serde_json::from_value::<LoggingState>(value)
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-            }
-            "abs_file_path_buf" => {
-                settings.abs_file_path_buf = PathBuf::from(
-                    value.as_str().ok_or_else(|| io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Expected a string for 'abs_file_path_buf'",
-                    ))?,
-                );
-            }
-            _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!("Unknown settings key: {}", key),
-                ));
-            }
+        // Convert current settings to a JSON map
+        let mut settings_map = serde_json::to_value(&*settings)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+        // Ensure it's an object
+        let map = settings_map
+            .as_object_mut()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "Settings is not a JSON object"))?;
+
+        // Update the field
+        if map.contains_key(key) {
+            map.insert(key.to_string(), value);
+        } else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Unknown settings field: {}", key),
+            ));
         }
 
-        self.write_settings_to_file(&settings)?;
-        Ok(settings.clone())
+        // Deserialize back to Settings
+        let new_settings: Settings = serde_json::from_value(Value::Object(map.clone()))
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        // Replace and persist
+        *settings = new_settings.clone();
+        self.write_settings_to_file(&new_settings)?;
+
+        Ok(new_settings)
     }
     // For testing - allows creating a SettingsState with a custom path
     #[cfg(test)]
