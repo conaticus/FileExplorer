@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
-
+use serde_json::{json, Value};
 use crate::constants;
 use crate::filesystem::models::LoggingState;
 
@@ -43,6 +43,75 @@ impl SettingsState {
         Self(Arc::new(Mutex::new(Self::write_default_settings_to_file_and_save_in_state())))
     }
 
+    pub fn update_setting_field(
+        &self,
+        key: &str,
+        value: Value,
+    ) -> Result<Settings, io::Error> {
+        let mut settings = self.0.lock().unwrap();
+
+        match key {
+            "darkmode" => {
+                settings.darkmode = value.as_bool().ok_or_else(|| io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Expected a boolean for 'darkmode'",
+                ))?;
+            }
+            "custom_themes" => {
+                settings.custom_themes = serde_json::from_value::<Vec<String>>(value)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            }
+            "default_theme" => {
+                settings.default_theme = value.as_str().ok_or_else(|| io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Expected a string for 'default_theme'",
+                ))?.to_string();
+            }
+            "default_themes_path" => {
+                settings.default_themes_path = PathBuf::from(
+                    value.as_str().ok_or_else(|| io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Expected a string for 'default_themes_path'",
+                    ))?,
+                );
+            }
+            "default_folder_path_on_opening" => {
+                settings.default_folder_path_on_opening = PathBuf::from(
+                    value.as_str().ok_or_else(|| io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Expected a string for 'default_folder_path_on_opening'",
+                    ))?,
+                );
+            }
+            "default_checksum_hash" => {
+                settings.default_checksum_hash = value.as_str().ok_or_else(|| io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Expected a string for 'default_checksum_hash'",
+                ))?.to_string();
+            }
+            "logging_state" => {
+                settings.logging_state = serde_json::from_value::<LoggingState>(value)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            }
+            "abs_file_path_buf" => {
+                settings.abs_file_path_buf = PathBuf::from(
+                    value.as_str().ok_or_else(|| io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Expected a string for 'abs_file_path_buf'",
+                    ))?,
+                );
+            }
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Unknown settings key: {}", key),
+                ));
+            }
+        }
+
+        self.write_settings_to_file(&settings)?;
+        Ok(settings.clone())
+    }
     // For testing - allows creating a SettingsState with a custom path
     #[cfg(test)]
     pub fn new_with_path(path: PathBuf) -> Self {
@@ -93,6 +162,85 @@ impl SettingsState {
         file.read_to_string(&mut contents)?;
         serde_json::from_str(&contents).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
+
+    #[cfg(test)]
+    fn test_update_darkmode_field() {
+        let state = Self::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
+
+        let result = state.update_setting_field("darkmode", json!(true));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().darkmode, true);
+    }
+
+    #[cfg(test)]
+    fn test_update_default_theme_field() {
+        let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
+
+        let result = state.update_setting_field("default_theme", json!("ocean"));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().default_theme, "ocean");
+    }
+
+    #[cfg(test)]
+    fn test_update_default_checksum_hash_field() {
+        let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
+
+        let result = state.update_setting_field("default_checksum_hash", json!("abc123"));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().default_checksum_hash, "abc123");
+    }
+
+    #[cfg(test)]
+    fn test_update_custom_themes_field() {
+        let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
+
+        let themes = vec!["dark".to_string(), "light".to_string()];
+        let result = state.update_setting_field("custom_themes", json!(themes.clone()));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().custom_themes, themes);
+    }
+
+    #[cfg(test)]
+    fn test_update_path_fields() {
+        let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
+
+        let path = "/some/path";
+        let result1 = state.update_setting_field("default_themes_path", json!(path));
+        let result2 = state.update_setting_field("default_folder_path_on_opening", json!(path));
+
+        assert!(result1.is_ok());
+        assert!(result2.is_ok());
+        assert_eq!(result1.unwrap().default_themes_path, PathBuf::from(path));
+        assert_eq!(result2.unwrap().default_folder_path_on_opening, PathBuf::from(path));
+    }
+
+    #[cfg(test)]
+    fn test_update_logging_state_field() {
+        let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
+
+        let result = state.update_setting_field("logging_state", json!("Minimal"));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().logging_state, LoggingState::Minimal);
+    }
+
+    #[cfg(test)]
+    fn test_invalid_key() {
+        let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
+
+        let result = state.update_setting_field("non_existing_key", json!("value"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unknown settings key"));
+    }
+
+    #[cfg(test)]
+    fn test_invalid_type_for_darkmode() {
+        let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
+
+        let result = state.update_setting_field("darkmode", json!("not_a_bool"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Expected a boolean"));
+    }
+
 }
 
 #[cfg(test)]
