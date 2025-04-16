@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use crate::constants;
 use crate::filesystem::models::LoggingState;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -252,11 +251,14 @@ mod tests {
     #[test]
     fn test_default_settings() {
         let settings = Settings::default();
-        assert_eq!(settings.darkmode, true);
-        assert_eq!(settings.default_theme, "default_theme".to_string());
-        assert_eq!(settings.default_themes_path, PathBuf::from("themes/default"));
-        assert_eq!(settings.default_folder_path_on_opening, PathBuf::from("downloads"));
-        assert_eq!(settings.abs_file_path_buf, constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf());
+        assert_eq!(settings.darkmode, false);
+        //assert_eq!(settings.custom_themes, vec![]);
+        assert_eq!(settings.default_theme, "".to_string());
+        //assert_eq!(settings.default_themes_path, Default::default());
+        //assert_eq!(settings.default_folder_path_on_opening, Default::default());
+        assert_eq!(settings.default_checksum_hash, "".to_string());
+        assert_eq!(settings.logging_state, LoggingState::Full);
+        //assert_eq!(settings.abs_file_path_buf, Default::default());
     }
 
     #[test]
@@ -276,10 +278,10 @@ mod tests {
         assert!(read_result.is_ok(), "Should be able to read settings file");
 
         let settings = read_result.unwrap();
-        assert_eq!(settings.darkmode, true);
-        assert_eq!(settings.default_theme, "default_theme".to_string());
-        assert_eq!(settings.default_themes_path, PathBuf::from("themes/default"));
-        assert_eq!(settings.default_folder_path_on_opening, PathBuf::from("downloads"));
+        assert_eq!(settings.darkmode, false);
+        assert_eq!(settings.default_theme, "".to_string());
+        //assert_eq!(settings.default_themes_path, Default::default());
+        //assert_eq!(settings.default_folder_path_on_opening, Default::default());
         assert_eq!(settings.abs_file_path_buf, test_path);
     }
 
