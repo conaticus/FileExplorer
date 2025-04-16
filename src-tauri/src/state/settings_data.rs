@@ -6,115 +6,36 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 
 use crate::constants;
-use crate::filesystem::models::logging_state;
-pub(crate) use crate::filesystem::models::download_location;
-
+use crate::filesystem::models::LoggingState;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
-    darkmode: bool,
-    custom_themes: Vec<String>,
-    default_theme: String,
-    default_themes_path: PathBuf,
-    default_folder_path_on_opening: PathBuf,
-    default_checksum_hash: String,
-    default_download_location: Vec<download_location::DefaultDownloadLocation>,
-    logging_state: logging_state::State,
-    abs_file_path_buf: PathBuf,
+    pub darkmode: bool,
+    pub custom_themes: Vec<String>,
+    pub default_theme: String,
+    pub default_themes_path: PathBuf,
+    pub default_folder_path_on_opening: PathBuf,
+    pub default_checksum_hash: String,
+    pub logging_state: LoggingState,
+    pub abs_file_path_buf: PathBuf,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            darkmode: true,
-            custom_themes: Vec::new(),
-            default_theme: String::from("default_theme"),
-            default_themes_path: PathBuf::from("themes/default"),
-            default_folder_path_on_opening: PathBuf::from("downloads"),
-            default_checksum_hash: String::new(),
-            default_download_location: Vec::new(),
-            logging_state: logging_state::State::Full,
-            abs_file_path_buf: constants::META_DATA_CONFIG_ABS_PATH.to_path_buf(),
+            darkmode: false,
+            custom_themes: vec![],
+            default_theme: "".to_string(),
+            default_themes_path: Default::default(),
+            default_folder_path_on_opening: Default::default(),
+            default_checksum_hash: "".to_string(),
+            logging_state: LoggingState::Full,
+            abs_file_path_buf: Default::default(),
         }
     }
 }
 
 pub struct SettingsState(pub Arc<Mutex<Settings>>);
-
-impl Settings {
-    pub fn darkmode(&self) -> bool {
-        self.darkmode
-    }
-
-    pub fn set_darkmode(&mut self, value: bool) {
-        self.darkmode = value;
-    }
-
-    pub fn custom_themes(&self) -> &Vec<String> {
-        &self.custom_themes
-    }
-
-    pub fn set_custom_themes(&mut self, value: Vec<String>) {
-        self.custom_themes = value;
-    }
-
-    pub fn default_theme(&self) -> &String {
-        &self.default_theme
-    }
-
-    pub fn set_default_theme(&mut self, value: String) {
-        self.default_theme = value;
-    }
-
-    pub fn default_themes_path(&self) -> &PathBuf {
-        &self.default_themes_path
-    }
-
-    pub fn set_default_themes_path(&mut self, value: PathBuf) {
-        self.default_themes_path = value;
-    }
-
-    pub fn default_folder_path_on_opening(&self) -> &PathBuf {
-        &self.default_folder_path_on_opening
-    }
-
-    pub fn set_default_folder_path_on_opening(&mut self, value: PathBuf) {
-        self.default_folder_path_on_opening = value;
-    }
-
-    pub fn default_checksum_hash(&self) -> &String {
-        &self.default_checksum_hash
-    }
-
-    pub fn set_default_checksum_hash(&mut self, value: String) {
-        self.default_checksum_hash = value;
-    }
-
-    pub fn default_download_location(&self) -> &Vec<download_location::DefaultDownloadLocation> {
-        &self.default_download_location
-    }
-
-    pub fn add_download_location(&mut self, new_location: download_location::DefaultDownloadLocation) {
-        self.default_download_location.push(new_location);
-    }
-
-    pub fn logging_state(&self) -> &logging_state::State {
-        &self.logging_state
-    }
-
-    pub fn set_logging_state(&mut self, value: logging_state::State) {
-        self.logging_state = value;
-    }
-
-    pub fn abs_file_path_buf(&self) -> &PathBuf {
-        &self.abs_file_path_buf
-    }
-
-    pub fn set_abs_file_path_buf(&mut self, value: PathBuf) {
-        self.abs_file_path_buf = value;
-    }
-
-}
 
 
 impl SettingsState {
@@ -223,7 +144,7 @@ mod tests {
         // Create a custom metadata object
         let mut settings = Settings::default();
         settings.abs_file_path_buf = test_path.clone();
-        settings.logging_state = logging_state::State::Partial;
+        settings.logging_state = LoggingState::Partial;
         settings.default_folder_path_on_opening = PathBuf::from("temp_dir");
 
         // Create a MetaDataState and write the custom metadata
