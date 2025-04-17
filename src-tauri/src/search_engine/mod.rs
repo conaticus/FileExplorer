@@ -341,25 +341,34 @@ pub fn generate_test_data() -> Result<PathBuf, std::io::Error> {
 mod tests {
     use super::*;
     
+    // Helper function to get the test data path and verify it exists
+    fn get_test_data_path() -> PathBuf {
+        let path = PathBuf::from("./test-data-for-search-engine");
+        if !path.exists() {
+            panic!("Test data directory does not exist: {:?}. Run the 'create_test_data' test first.", path);
+        }
+        path
+    }
+    
     #[test]
     fn start_indexing_home_dir_test() {
-        let entries = start_indexing_home_dir();
-        assert!(!entries.is_empty(), "Home directory should contain at least some entries");
-        
-        let result = start_indexing_home_dir();
+        let test_path = get_test_data_path();
+        let entries = index_given_path_parallel(test_path);
+        assert!(!entries.is_empty(), "Test directory should contain at least some entries");
         
         //write the result to a file as json 
-        let json_result = serde_json::to_string_pretty(&result).unwrap();
-        let path = PathBuf::from("home_dir_index.json");
+        let json_result = serde_json::to_string_pretty(&entries).unwrap();
+        let path = PathBuf::from("test_dir_index.json");
         std::fs::write(&path, json_result).expect("Unable to write file");
-        println!("Home directory indexed and saved to {:?}", path);
+        println!("Test directory indexed and saved to {:?}", path);
     }
     
     #[test]
     fn search_performance_test() {
-        // First get all entries from the home directory
-        let entries = start_indexing_home_dir();
-        assert!(!entries.is_empty(), "Home directory should contain at least some entries");
+        // Index the test directory instead of home
+        let test_path = get_test_data_path();
+        let entries = index_given_path_parallel(test_path);
+        assert!(!entries.is_empty(), "Test directory should contain at least some entries");
         
         // Measure the time it takes to search for files with 'e' - sequential
         let start_time = std::time::Instant::now();
@@ -389,16 +398,16 @@ mod tests {
     
     #[test]
     fn parallel_vs_sequential_indexing_test() {
-        let home_dir = home_dir().unwrap_or_default();
+        let test_path = get_test_data_path();
         
         // Test sequential indexing
         let start_time = std::time::Instant::now();
-        let seq_results = index_given_path(home_dir.clone());
+        let seq_results = index_given_path(test_path.clone());
         let seq_duration = start_time.elapsed();
         
         // Test parallel indexing
         let start_time = std::time::Instant::now();
-        let par_results = index_given_path_parallel(home_dir);
+        let par_results = index_given_path_parallel(test_path);
         let par_duration = start_time.elapsed();
         
         println!("Sequential indexing took: {:?}", seq_duration);
@@ -410,12 +419,13 @@ mod tests {
     #[test]
     fn combined_parallel_indexing_and_searching_test() {
         // Measure parallel indexing performance
+        let test_path = get_test_data_path();
         let start_time = std::time::Instant::now();
-        let entries = start_indexing_home_dir();
+        let entries = index_given_path_parallel(test_path);
         let indexing_duration = start_time.elapsed();
         
         // Ensure we have entries to search through
-        assert!(!entries.is_empty(), "Home directory should contain at least some entries");
+        assert!(!entries.is_empty(), "Test directory should contain at least some entries");
         println!("Parallel indexing took: {:?}", indexing_duration);
         
         // Common search terms to test
@@ -434,21 +444,20 @@ mod tests {
     
     #[test]
     fn sequential_vs_parallel_search_comparison_test() {
-        // First index the home directory in parallel
-        println!("Starting parallel indexing of home directory...");
+        // First index the test directory in parallel
+        println!("Starting parallel indexing of test directory...");
+        let test_path = get_test_data_path();
         let start_time = std::time::Instant::now();
-        let entries = start_indexing_home_dir();
+        let entries = index_given_path_parallel(test_path);
         let indexing_duration = start_time.elapsed();
         
         println!("Parallel indexing completed in {:?}, found {} entries", 
             indexing_duration, entries.len());
-        assert!(!entries.is_empty(), "Home directory should contain at least some entries");
+        assert!(!entries.is_empty(), "Test directory should contain at least some entries");
         
         // Define a variety of search keywords with different specificity
         let search_keywords = [
-            "doc", "pdf", "image", "config", 
-            "rust", "src", "test", "data",
-            "e", "a", "2023", "backup"
+            "de", "xe", "f"
         ];
         
         println!("\n{:<10} | {:<15} | {:<15} | {:<15} | {:<10}", 
@@ -465,7 +474,7 @@ mod tests {
             // Parallel search
             let par_start = std::time::Instant::now();
             let par_results = search_by_filename_parallel(keyword, entries.clone());
-            let par_duration = par_start.elapsed();
+            let par_duration = start_time.elapsed();
             
             // Calculate improvement ratio
             let improvement = if par_duration.as_micros() > 0 {
@@ -484,12 +493,6 @@ mod tests {
             // Print results in table format
             println!("{:<10} | {:>15?} | {:>15?} | {:>15.2}x | {:>10}", 
                 keyword, seq_duration, par_duration, improvement, seq_results.len());
-            
-            // For detailed debugging (commented out in normal use)
-            /*if !seq_results.is_empty() { 
-                 println!("First few results for '{}': {:?}", 
-                          keyword, &seq_results.iter().take(3).collect::<Vec<_>>());
-            }*/
         }
         
         // Save detailed results to a file for the most interesting keyword
@@ -535,7 +538,10 @@ mod tests {
     //just create the test data
     #[test]
     fn create_test_data() {
-        let _ = generate_test_data();
+        match generate_test_data() {
+            Ok(path) => println!("Test data created at: {:?}", path),
+            Err(e) => panic!("Failed to generate test data: {}", e)
+        }
     }
-
 }
+
