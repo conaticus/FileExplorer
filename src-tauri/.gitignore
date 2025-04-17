@@ -6,3 +6,4 @@
 # will have schema files for capabilities auto-completion
 /gen/schemas
 config
+test-data-for-search-engine
