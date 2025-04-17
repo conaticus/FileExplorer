@@ -26,6 +26,7 @@ trash = "5.2.2"
 tempfile = "3.19.1"
 home = "0.5.11"
 rayon = "1.10.0"
+rand = "0.7.3"
 
 [build-dependencies]
 tauri-build = { version = "2.1", features = [] }  # Removed "log" feature

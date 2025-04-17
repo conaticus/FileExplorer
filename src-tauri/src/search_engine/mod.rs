@@ -201,6 +201,142 @@ fn efficient_string_match(
     result
 }
 
+/// Generates a test data directory structure with random folder and file names.
+/// Creates 20 folders with 20 subfolders each up to a depth of 5, and 20 files in each folder.
+pub fn generate_test_data() -> Result<PathBuf, std::io::Error> {
+    use std::fs::{create_dir_all, File};
+    use rand::{thread_rng, Rng};
+    use std::time::Instant;
+    
+    // Constants for the directory structure
+    const FOLDERS_PER_LEVEL: usize = 20;
+    const FILES_PER_FOLDER: usize = 20;
+    const MAX_DEPTH: usize = 3;
+    
+    // Create the base test-data directory in user's home folder
+    let home = PathBuf::from(".");
+    let base_path = home.join("test-data-for-search-engine");
+    
+    // Remove the directory if it already exists
+    if base_path.exists() {
+        std::fs::remove_dir_all(&base_path)?;
+    }
+    
+    // Create the base directory
+    create_dir_all(&base_path)?;
+    println!("Creating test data at: {:?}", base_path);
+    
+    let start_time = Instant::now();
+    
+    // Function to generate random alphanumeric strings
+    let generate_random_name = || -> String {
+        const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let mut rng = thread_rng();
+        let name_length = rng.gen_range(5, 15); // Random length between 5 and 15
+        
+        (0..name_length)
+            .map(|_| {
+                let idx = rng.gen_range(0, CHARSET.len());
+                CHARSET[idx] as char
+            })
+            .collect()
+    };
+    
+    // Function to create file extensions
+    let generate_extension = || -> &str {
+        const EXTENSIONS: [&str; 20] = [
+            "txt", "pdf", "doc", "jpg", "png", "mp3", "mp4", "html", "css", "js",
+            "rs", "json", "xml", "md", "csv", "zip", "exe", "dll", "sh", "py"
+        ];
+        
+        let mut rng = thread_rng();
+        let idx = rng.gen_range(0, EXTENSIONS.len());
+        EXTENSIONS[idx]
+    };
+    
+    // Counter to track progress
+    let entry_count = Arc::new(Mutex::new(0usize));
+    
+    // Recursive function to create the folder structure
+    fn create_structure(
+        path: &PathBuf,
+        depth: usize,
+        max_depth: usize,
+        folders_per_level: usize,
+        files_per_folder: usize,
+        name_generator: &dyn Fn() -> String,
+        ext_generator: &dyn Fn() -> &'static str,
+        counter: &Arc<Mutex<usize>>,
+    ) -> Result<(), std::io::Error> {
+        // Create files in current folder
+        for _ in 0..files_per_folder {
+            let file_name = format!("{}.{}", name_generator(), ext_generator());
+            let file_path = path.join(file_name);
+            File::create(file_path)?;
+            
+            // Increment counter
+            if let Ok(mut count) = counter.lock() {
+                *count += 1;
+                if *count % 1000 == 0 {
+                    println!("Created {} entries so far...", *count);
+                }
+            }
+        }
+        
+        // Stop creating subfolders if we've reached max depth
+        if depth >= max_depth {
+            return Ok(());
+        }
+        
+        // Create subfolders and recurse
+        for _ in 0..folders_per_level {
+            let folder_name = name_generator();
+            let folder_path = path.join(folder_name);
+            create_dir_all(&folder_path)?;
+            
+            // Increment counter for folder
+            if let Ok(mut count) = counter.lock() {
+                *count += 1;
+            }
+            
+            // Recurse into subfolder
+            create_structure(
+                &folder_path,
+                depth + 1,
+                max_depth,
+                folders_per_level,
+                files_per_folder,
+                name_generator,
+                ext_generator,
+                counter,
+            )?;
+        }
+        
+        Ok(())
+    }
+    
+    // Start the recursive creation
+    create_structure(
+        &base_path,
+        0,
+        MAX_DEPTH,
+        FOLDERS_PER_LEVEL,
+        FILES_PER_FOLDER,
+        &generate_random_name,
+        &generate_extension,
+        &entry_count,
+    )?;
+    
+    let total_count = *entry_count.lock().unwrap();
+    let elapsed = start_time.elapsed();
+    
+    println!("Test data generation complete!");
+    println!("Created {} total entries in {:?}", total_count, elapsed);
+    println!("Path: {:?}", base_path);
+    
+    Ok(base_path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,4 +502,40 @@ mod tests {
             println!("\nDetailed search results for '{}' saved to {:?}", detailed_keyword, path);
         }
     }
+    
+    #[test]
+    fn test_generate_test_data() {
+        match generate_test_data() {
+            Ok(path) => {
+                assert!(path.exists(), "Test data directory should exist");
+                
+                // Test sequential vs parallel indexing of the test data
+                let start = std::time::Instant::now();
+                let seq_entries = index_given_path(path.clone());
+                let seq_duration = start.elapsed();
+                
+                let start = std::time::Instant::now();
+                let par_entries = index_given_path_parallel(path.clone());
+                let par_duration = start.elapsed();
+                
+                println!("Test data indexed:");
+                println!("  - Sequential: {} entries in {:?}", seq_entries.len(), seq_duration);
+                println!("  - Parallel: {} entries in {:?}", par_entries.len(), par_duration);
+                
+                assert!(!seq_entries.is_empty(), "Should have indexed some entries");
+                assert_eq!(seq_entries.len(), par_entries.len(), 
+                           "Sequential and parallel indexing should find the same number of entries");
+            },
+            Err(e) => {
+                panic!("Failed to generate test data: {}", e);
+            }
+        }
+    }
+
+    //just create the test data
+    #[test]
+    fn create_test_data() {
+        let _ = generate_test_data();
+    }
+
 }
