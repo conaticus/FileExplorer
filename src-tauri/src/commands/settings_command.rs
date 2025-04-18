@@ -25,10 +25,23 @@ pub fn update_settings_field(
 
 #[tauri::command]
 pub fn get_setting_field(
-    settings_state: tauri::State<'_, SettingsState>,
+    settings_state: State<'_, SettingsState>,
     key: String,
-) -> Result<serde_json::Value, String> {
+) -> Result<Value, String> {
     settings_state
         .get_setting_field(&key)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_multiple_settings_command(
+    state: State<Arc<Mutex<SettingsState>>>,
+    updates: serde_json::Map<String, serde_json::Value>,
+) -> Result<String, String> {
+    let settings_state = state.lock().unwrap();
+
+    settings_state
+        .update_multiple_settings(&updates)
+        .and_then(|updated| serde_json::to_string(&updated).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)))
         .map_err(|e| e.to_string())
 }

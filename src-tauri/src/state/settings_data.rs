@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io;
-use std::io::Write;
+use std::io::{Error, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
@@ -42,6 +42,21 @@ impl SettingsState {
     pub fn new() -> Self {
         Self(Arc::new(Mutex::new(Self::write_default_settings_to_file_and_save_in_state())))
     }
+
+    pub fn settings_to_json_map(settings: &Settings) -> Result<serde_json::Map<String, Value>, Error> {
+        let settings_value = serde_json::to_value(settings)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+        settings_value.as_object()
+            .cloned()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "Settings is not a JSON object"))
+    }
+
+    pub fn json_map_to_settings(map: serde_json::Map<String, Value>) -> Result<Settings, io::Error> {
+        serde_json::from_value(Value::Object(map))
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+
     pub fn update_setting_field(
         &self,
         key: &str,
@@ -49,55 +64,64 @@ impl SettingsState {
     ) -> Result<Settings, io::Error> {
         let mut settings = self.0.lock().unwrap();
 
-        // Convert current settings to a JSON map
-        let mut settings_map = serde_json::to_value(&*settings)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-
-        // Ensure it's an object
-        let map = settings_map
-            .as_object_mut()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "Settings is not a JSON object"))?;
+        let mut settings_map = Self::settings_to_json_map(&settings)?;
 
         // Update the field
-        if map.contains_key(key) {
-            map.insert(key.to_string(), value);
+        if settings_map.contains_key(key) {
+            settings_map.insert(key.to_string(), value);
         } else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!("Unknown settings field: {}", key),
+            return Err(Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Unknown settings key: {}", key),
             ));
         }
 
-        // Deserialize back to Settings
-        let new_settings: Settings = serde_json::from_value(Value::Object(map.clone()))
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        let updated_settings = Self::json_map_to_settings(settings_map)?;
+        *settings = updated_settings.clone();
+        self.write_settings_to_file(&updated_settings)?;
 
-        // Replace and persist
-        *settings = new_settings.clone();
-        self.write_settings_to_file(&new_settings)?;
-
-        Ok(new_settings)
+        Ok(updated_settings)
     }
 
     pub fn get_setting_field(
         &self,
         key: &str
-    ) -> Result<Value, io::Error> {
+    ) -> Result<Value, Error> {
         let settings = self.0.lock().unwrap();
         let settings_value = serde_json::to_value(&*settings)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(|e| Error::new(io::ErrorKind::Other, e))?;
 
         if let Some(obj) = settings_value.as_object() {
             obj.get(key)
                 .cloned()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, format!("Unknown settings key: {}", key)))
+                .ok_or_else(|| Error::new(io::ErrorKind::InvalidInput, format!("Unknown settings key: {}", key)))
         } else {
-            Err(io::Error::new(
+            Err(Error::new(
                 io::ErrorKind::InvalidData,
                 "Failed to serialize settings to object",
             ))
         }
     }
+
+    pub fn update_multiple_settings(
+        &self,
+        updates: &serde_json::Map<String, Value>,
+    ) -> Result<Settings, io::Error> {
+        let mut last_updated_settings = None;
+
+        for (key, value) in updates {
+            // We reuse the existing function here
+            let updated = self.update_setting_field(key, value.clone())?;
+            last_updated_settings = Some(updated);
+        }
+
+        // Return the last successful update
+        last_updated_settings.ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "No settings were provided")
+        })
+    }
+
+
     // For testing - allows creating a SettingsState with a custom path
     #[cfg(test)]
     pub fn new_with_path(path: PathBuf) -> Self {
@@ -154,6 +178,7 @@ impl SettingsState {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+    use serde_json::{Map, Value};
 
     //test the default values of the settings
     #[test]
@@ -166,7 +191,7 @@ mod tests {
         //assert_eq!(settings.default_folder_path_on_opening, Default::default());
         assert_eq!(settings.default_checksum_hash, "".to_string());
         assert_eq!(settings.logging_state, LoggingState::Full);
-        //assert_eq!(settings.abs_file_path_buf, Default::default());
+        assert_eq!(settings.abs_file_path_buf, constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf());
     }
 
     #[test]
@@ -285,7 +310,7 @@ mod tests {
 
         let result = state.update_setting_field("non_existing_key", json!("value"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unknown settings field"));
+        assert!(result.unwrap_err().to_string().contains("Unknown settings key"));
     }
 
     #[test]
@@ -334,5 +359,74 @@ mod tests {
         let result = settings_state.get_setting_field("custom_themes");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), json!(["dark", "light"]));
+    }
+
+    #[test]
+    fn test_update_multiple_valid_fields() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let settings_state = SettingsState::new_with_path(temp_file.path().to_path_buf());
+
+        let mut updates: Map<String, Value> = Map::new();
+        updates.insert("darkmode".into(), Value::Bool(true));
+        updates.insert("default_theme".into(), Value::String("gruvbox".into()));
+
+        let result = settings_state.update_multiple_settings(&updates);
+        assert!(result.is_ok());
+
+        let updated = result.unwrap();
+        assert_eq!(updated.darkmode, true);
+        assert_eq!(updated.default_theme, "gruvbox");
+    }
+
+    #[test]
+    fn test_update_with_invalid_key() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let settings_state = SettingsState::new_with_path(temp_file.path().to_path_buf());
+
+        let mut updates: Map<String, Value> = Map::new();
+        updates.insert("non_existing_field".into(), Value::String("value".into()));
+
+        let result = settings_state.update_multiple_settings(&updates);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unknown settings key: non_existing_field"));
+    }
+
+    #[test]
+    fn test_update_with_mixed_valid_and_invalid_keys() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let settings_state = SettingsState::new_with_path(temp_file.path().to_path_buf());
+
+        let mut updates: Map<String, Value> = Map::new();
+        updates.insert("darkmode".into(), Value::Bool(false));
+        updates.insert("unknown".into(), Value::String("oops".into()));
+
+        let result = settings_state.update_multiple_settings(&updates);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unknown settings key: unknown"));
+    }
+
+    #[test]
+    fn test_update_with_empty_updates_map() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let settings_state = SettingsState::new_with_path(temp_file.path().to_path_buf());
+
+        let updates: Map<String, Value> = Map::new();
+
+        let result = settings_state.update_multiple_settings(&updates);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "No settings were provided");
+    }
+
+    #[test]
+    fn test_update_with_invalid_value_type() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let settings_state = SettingsState::new_with_path(temp_file.path().to_path_buf());
+
+        let mut updates: Map<String, Value> = Map::new();
+        updates.insert("darkmode".into(), Value::String("not_a_bool".into())); // darkmode expects bool
+
+        let result = settings_state.update_multiple_settings(&updates);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid type: string"));
     }
 }
