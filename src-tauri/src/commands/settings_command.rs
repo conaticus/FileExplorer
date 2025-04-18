@@ -25,9 +25,10 @@ pub fn update_settings_field(
 
 #[tauri::command]
 pub fn get_setting_field(
-    settings_state: State<'_, SettingsState>,
+    state: State<Arc<Mutex<SettingsState>>>,
     key: String,
 ) -> Result<Value, String> {
+    let settings_state = state.lock().unwrap();
     settings_state
         .get_setting_field(&key)
         .map_err(|e| e.to_string())
