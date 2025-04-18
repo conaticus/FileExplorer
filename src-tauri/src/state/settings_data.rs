@@ -175,7 +175,7 @@ impl SettingsState {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_settings {
     use super::*;
     use tempfile::tempdir;
     use serde_json::{Map, Value};
