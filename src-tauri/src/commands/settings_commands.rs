@@ -4,6 +4,42 @@ use std::sync::{Arc, Mutex};
 use serde_json::{to_string, Value};
 use tauri::State;
 
+pub fn get_settings_as_json_impl(settings: Arc<Mutex<SettingsState>>) -> String {
+    let settings_inner = settings.lock().unwrap().0.clone();
+    to_string(&settings_inner).unwrap()
+}
+
+pub fn get_setting_field_impl(
+    settings: Arc<Mutex<SettingsState>>,
+    key: String,
+) -> Result<Value, String> {
+    let guard = settings.lock().unwrap();
+    guard.get_setting_field(&key).map_err(|e| e.to_string())
+}
+
+pub fn update_settings_field_impl(
+    settings: Arc<Mutex<SettingsState>>,
+    key: String,
+    value: Value,
+) -> Result<String, String> {
+    let guard = settings.lock().unwrap();
+    guard
+        .update_setting_field(&key, value)
+        .and_then(|updated| to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
+        .map_err(|e| e.to_string())
+}
+
+pub fn update_multiple_settings_impl(
+    settings: Arc<Mutex<SettingsState>>,
+    updates: serde_json::Map<String, Value>,
+) -> Result<String, String> {
+    let guard = settings.lock().unwrap();
+    guard
+        .update_multiple_settings(&updates)
+        .and_then(|updated| to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
+        .map_err(|e| e.to_string())
+}
+
 /// Retrieves the current application settings as a JSON string.
 ///
 /// This command provides access to the entire settings state, serialized to a JSON string.
@@ -24,10 +60,40 @@ use tauri::State;
 /// ```
 #[tauri::command]
 pub fn get_settings_as_json(state: State<Arc<Mutex<SettingsState>>>) -> String {
-    let settings_state = state.lock().unwrap().0.clone();
-    to_string(&settings_state).unwrap().to_string()
+    get_settings_as_json_impl(state.inner().clone())
 }
 
+
+/// Retrieves the value of a specific setting field.
+///
+/// This command allows accessing a single setting value identified by its key.
+///
+/// # Arguments
+///
+/// * `state` - A Tauri state containing a thread-safe reference to the application's settings.
+/// * `key` - A string representing the setting key to retrieve.
+///
+/// # Returns
+///
+/// * `Ok(Value)` - The value of the requested setting if found.
+/// * `Err(String)` - An error message if the setting key doesn't exist or another error occurred.
+///
+/// # Example
+///
+/// ```rust
+/// let result = get_setting_field(state, "theme".to_string());
+/// match result {
+///     Ok(value) => println!("Theme setting: {}", value),
+///     Err(err) => println!("Failed to get setting: {}", err),
+/// }
+/// ```
+#[tauri::command]
+pub fn get_setting_field(
+    state: State<Arc<Mutex<SettingsState>>>,
+    key: String,
+) -> Result<Value, String> {
+    get_setting_field_impl(state.inner().clone(), key)
+}
 
 /// Updates a specific setting field with a new value.
 ///
@@ -59,45 +125,7 @@ pub fn update_settings_field(
     key: String,
     value: Value,
 ) -> Result<String, String> {
-    let settings_state = state.lock().unwrap();
-    settings_state
-        .update_setting_field(&key, value)
-        .and_then(|updated| to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
-        .map_err(|e| e.to_string())
-}
-
-/// Retrieves the value of a specific setting field.
-///
-/// This command allows accessing a single setting value identified by its key.
-///
-/// # Arguments
-///
-/// * `state` - A Tauri state containing a thread-safe reference to the application's settings.
-/// * `key` - A string representing the setting key to retrieve.
-///
-/// # Returns
-///
-/// * `Ok(Value)` - The value of the requested setting if found.
-/// * `Err(String)` - An error message if the setting key doesn't exist or another error occurred.
-///
-/// # Example
-///
-/// ```rust
-/// let result = get_setting_field(state, "theme".to_string());
-/// match result {
-///     Ok(value) => println!("Theme setting: {}", value),
-///     Err(err) => println!("Failed to get setting: {}", err),
-/// }
-/// ```
-#[tauri::command]
-pub fn get_setting_field(
-    state: State<Arc<Mutex<SettingsState>>>,
-    key: String,
-) -> Result<Value, String> {
-    let settings_state = state.lock().unwrap();
-    settings_state
-        .get_setting_field(&key)
-        .map_err(|e| e.to_string())
+    update_settings_field_impl(state.inner().clone(), key, value)
 }
 
 /// Updates multiple settings fields at once.
@@ -132,10 +160,88 @@ pub fn update_multiple_settings_command(
     state: State<Arc<Mutex<SettingsState>>>,
     updates: serde_json::Map<String, serde_json::Value>,
 ) -> Result<String, String> {
-    let settings_state = state.lock().unwrap();
+    update_multiple_settings_impl(state.inner().clone(), updates)
+}
 
-    settings_state
-        .update_multiple_settings(&updates)
-        .and_then(|updated| serde_json::to_string(&updated).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)))
-        .map_err(|e| e.to_string())
+#[cfg(test)]
+mod tests_settings_commands {
+    use super::*;
+    use serde_json::json;
+
+    // Testing: Helper function to create a test SettingsState
+    fn create_test_settings_state() -> Arc<Mutex<SettingsState>> {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_path_buf();
+
+        // Create a settings state with a temporary file path
+        Arc::new(Mutex::new(SettingsState::new_with_path(path)))
+    }
+
+    #[test]
+    fn test_get_settings_as_json_contains_default() {
+        let state = create_test_settings_state();
+        let json = get_settings_as_json_impl(state);
+        assert!(json.contains("\"darkmode\":false"));
+        assert!(json.contains("\"logging_state\":\"Full\""));
+    }
+
+    #[test]
+    fn test_get_setting_field_existing_key() {
+        let state = create_test_settings_state();
+        let value = get_setting_field_impl(state.clone(), "darkmode".to_string()).unwrap();
+        assert_eq!(value, json!(false));
+    }
+
+    #[test]
+    fn test_get_setting_field_invalid_key() {
+        let state = create_test_settings_state();
+        let result = get_setting_field_impl(state.clone(), "invalid_key".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_update_settings_field_success() {
+        let state = create_test_settings_state();
+        let result = update_settings_field_impl(state.clone(), "darkmode".to_string(), json!(true));
+        assert!(result.is_ok());
+
+        let updated = get_setting_field_impl(state.clone(), "darkmode".to_string()).unwrap();
+        assert_eq!(updated, json!(true));
+    }
+
+    #[test]
+    fn test_update_settings_field_invalid_key() {
+        let state = create_test_settings_state();
+        let result = update_settings_field_impl(state.clone(), "nonexistent".to_string(), json!(123));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_update_multiple_settings_success() {
+        let state = create_test_settings_state();
+
+        let mut updates = serde_json::Map::new();
+        updates.insert("darkmode".to_string(), json!(true));
+        updates.insert("default_theme".to_string(), json!("solarized"));
+
+        let result = update_multiple_settings_impl(state.clone(), updates);
+        assert!(result.is_ok());
+
+        let darkmode = get_setting_field_impl(state.clone(), "darkmode".to_string()).unwrap();
+        let theme = get_setting_field_impl(state.clone(), "default_theme".to_string()).unwrap();
+
+        assert_eq!(darkmode, json!(true));
+        assert_eq!(theme, json!("solarized"));
+    }
+
+    #[test]
+    fn test_update_multiple_settings_with_invalid_key() {
+        let state = create_test_settings_state();
+
+        let mut updates = serde_json::Map::new();
+        updates.insert("nonexistent".to_string(), json!("oops"));
+
+        let result = update_multiple_settings_impl(state.clone(), updates);
+        assert!(result.is_err());
+    }
 }
