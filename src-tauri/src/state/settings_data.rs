@@ -43,6 +43,27 @@ impl SettingsState {
         Self(Arc::new(Mutex::new(Self::write_default_settings_to_file_and_save_in_state())))
     }
 
+    /// Converts a Settings struct to a JSON map representation.
+    ///
+    /// This function serializes the settings object into a serde_json Map structure
+    /// for easier manipulation of individual fields.
+    ///
+    /// # Arguments
+    ///
+    /// * `settings` - A reference to the Settings struct to be converted.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Map<String, Value>)` - A map of setting keys to their values if successful.
+    /// * `Err(Error)` - If serialization fails or the result is not a JSON object.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let settings = Settings::default();
+    /// let map = settings_to_json_map(&settings)?;
+    /// println!("Settings map: {:?}", map);
+    /// ```
     pub fn settings_to_json_map(settings: &Settings) -> Result<serde_json::Map<String, Value>, Error> {
         let settings_value = serde_json::to_value(settings)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
@@ -52,11 +73,55 @@ impl SettingsState {
             .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "Settings is not a JSON object"))
     }
 
+    /// Converts a JSON map back to a Settings struct.
+    ///
+    /// This function deserializes a map of settings values into a Settings struct.
+    ///
+    /// # Arguments
+    ///
+    /// * `map` - A serde_json Map containing setting keys and their values.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Settings)` - The deserialized Settings struct if successful.
+    /// * `Err(io::Error)` - If deserialization fails.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let mut map = serde_json::Map::new();
+    /// map.insert("theme".to_string(), json!("dark"));
+    ///
+    /// let settings = json_map_to_settings(map)?;
+    /// println!("Converted settings: {:?}", settings);
+    /// ```
     pub fn json_map_to_settings(map: serde_json::Map<String, Value>) -> Result<Settings, io::Error> {
         serde_json::from_value(Value::Object(map))
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
+    /// Updates a single setting field with a new value.
+    ///
+    /// This method updates a specific setting identified by its key, validates that the
+    /// key exists, and writes the updated settings to file.
+    ///
+    /// # Arguments
+    ///
+    /// * `&self` - Reference to the settings state.
+    /// * `key` - A string slice identifying the setting to update.
+    /// * `value` - The new value to assign to the setting.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Settings)` - The updated Settings struct if successful.
+    /// * `Err(io::Error)` - If the key doesn't exist or there's an error saving the settings.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let result = settings_state.update_setting_field("theme", json!("dark"))?;
+    /// println!("Updated settings: {:?}", result);
+    /// ```
     pub fn update_setting_field(
         &self,
         key: &str,
@@ -83,6 +148,26 @@ impl SettingsState {
         Ok(updated_settings)
     }
 
+    /// Retrieves the value of a specific setting field.
+    ///
+    /// This method gets the value of a setting identified by its key.
+    ///
+    /// # Arguments
+    ///
+    /// * `&self` - Reference to the settings state.
+    /// * `key` - A string slice identifying the setting to retrieve.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Value)` - The value of the requested setting if found.
+    /// * `Err(Error)` - If the key doesn't exist or there's an error accessing the settings.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let theme = settings_state.get_setting_field("theme")?;
+    /// println!("Current theme: {}", theme);
+    /// ```
     pub fn get_setting_field(
         &self,
         key: &str
@@ -103,6 +188,31 @@ impl SettingsState {
         }
     }
 
+    /// Updates multiple settings fields at once.
+    ///
+    /// This method applies a batch of updates to the settings in a single operation,
+    /// writing the updated settings to file.
+    ///
+    /// # Arguments
+    ///
+    /// * `&self` - Reference to the settings state.
+    /// * `updates` - A map of setting keys to their new values.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Settings)` - The final updated Settings struct if successful.
+    /// * `Err(io::Error)` - If any key doesn't exist, no updates were provided, or there's an error saving the settings.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let mut updates = serde_json::Map::new();
+    /// updates.insert("theme".to_string(), json!("dark"));
+    /// updates.insert("notifications".to_string(), json!(true));
+    ///
+    /// let result = settings_state.update_multiple_settings(&updates)?;
+    /// println!("Updated settings: {:?}", result);
+    /// ```
     pub fn update_multiple_settings(
         &self,
         updates: &serde_json::Map<String, Value>,
@@ -122,6 +232,22 @@ impl SettingsState {
     }
 
 
+    /// Creates a new SettingsState with a custom path for testing purposes.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The file path where settings will be stored.
+    ///
+    /// # Returns
+    ///
+    /// A new SettingsState instance configured with the specified path.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let test_path = PathBuf::from("test_settings.json");
+    /// let settings_state = SettingsState::new_with_path(test_path);
+    /// ```
     // For testing - allows creating a SettingsState with a custom path
     #[cfg(test)]
     pub fn new_with_path(path: PathBuf) -> Self {
@@ -130,7 +256,26 @@ impl SettingsState {
         Self(Arc::new(Mutex::new(Self::write_settings_to_file_and_save_in_state(defaults))))
     }
 
-    /// Writes the current settings to file
+    /// Writes the current settings to the configured file path.
+    ///
+    /// This method serializes the settings to JSON and saves them to disk.
+    ///
+    /// # Arguments
+    ///
+    /// * `&self` - Reference to the settings state.
+    /// * `settings` - A reference to the Settings struct to be saved.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the settings were successfully written to file.
+    /// * `Err(io::Error)` - If there was an error creating directories, opening the file, or writing to it.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let settings = Settings::default();
+    /// settings_state.write_settings_to_file(&settings)?;
+    /// ```
     fn write_settings_to_file(&self, settings: &Settings) -> io::Result<()> {
         let user_config_file_path = &settings.abs_file_path_buf;
         let serialized = serde_json::to_string_pretty(&settings)
@@ -147,12 +292,43 @@ impl SettingsState {
         Ok(())
     }
 
+    /// Creates a default settings instance and writes it to file.
+    ///
+    /// This method initializes a new Settings with default values and saves it to disk.
+    ///
+    /// # Returns
+    ///
+    /// The created Settings instance with default values.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let default_settings = SettingsState::write_default_settings_to_file_and_save_in_state();
+    /// ```
     fn write_default_settings_to_file_and_save_in_state() -> Settings {
         let defaults = Settings::default();
         Self::write_settings_to_file_and_save_in_state(defaults)
     }
 
-    // Helper method to write settings to a file
+    /// Helper method to write settings to a file and return the settings instance.
+    ///
+    /// This method creates a settings state with the provided defaults, writes them to file,
+    /// and returns the settings instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `defaults` - The Settings instance to be written to file.
+    ///
+    /// # Returns
+    ///
+    /// The provided Settings instance.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let settings = Settings::default();
+    /// let saved_settings = SettingsState::write_settings_to_file_and_save_in_state(settings);
+    /// ```
     fn write_settings_to_file_and_save_in_state(defaults: Settings) -> Settings {
         let settings_state = Self(Arc::new(Mutex::new(defaults.clone())));
 
@@ -163,7 +339,26 @@ impl SettingsState {
         defaults
     }
 
-    // For testing - read settings from file
+    /// Reads settings from a file path for testing purposes.
+    ///
+    /// This method loads and deserializes Settings from a JSON file.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The file path from which to read the settings.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Settings)` - The deserialized Settings struct if successful.
+    /// * `Err(io::Error)` - If there was an error reading or parsing the file.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let test_path = PathBuf::from("test_settings.json");
+    /// let settings = SettingsState::read_settings_from_file(&test_path)?;
+    /// println!("Read settings: {:?}", settings);
+    /// ```
     #[cfg(test)]
     pub fn read_settings_from_file(path: &PathBuf) -> io::Result<Settings> {
         use std::io::Read;
@@ -180,7 +375,10 @@ mod tests_settings {
     use tempfile::tempdir;
     use serde_json::{Map, Value};
 
-    //test the default values of the settings
+    /// Tests that the default settings have the expected initial values.
+    ///
+    /// Verifies that a newly created Settings instance has the correct
+    /// default values for all properties.
     #[test]
     fn test_default_settings() {
         let settings = Settings::default();
@@ -194,6 +392,13 @@ mod tests_settings {
         assert_eq!(settings.abs_file_path_buf, constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf());
     }
 
+    /// Tests the creation of a new SettingsState with a custom path.
+    ///
+    /// Verifies that:
+    /// 1. The settings file is created at the specified path
+    /// 2. The file can be read back
+    /// 3. The read settings have the expected default values
+    /// 4. The path in the settings matches the custom path
     #[test]
     fn test_settings_state_creation() {
         // Create a temporary directory
@@ -218,6 +423,12 @@ mod tests_settings {
         assert_eq!(settings.abs_file_path_buf, test_path);
     }
 
+    /// Tests writing custom settings to a file.
+    ///
+    /// Verifies that:
+    /// 1. Modified settings can be written to disk successfully
+    /// 2. The written settings can be read back correctly
+    /// 3. The read settings match the original modified values
     #[test]
     fn test_write_settings_to_file() {
         // Create a temporary directory
@@ -244,6 +455,11 @@ mod tests_settings {
         assert_eq!(read_settings.default_folder_path_on_opening, PathBuf::from("temp_dir"));
     }
 
+    /// Tests updating the darkmode setting field.
+    ///
+    /// Verifies that:
+    /// 1. The darkmode field can be updated to true
+    /// 2. The returned settings object reflects the updated value
     #[test]
     fn test_update_darkmode_field() {
         let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
@@ -253,6 +469,11 @@ mod tests_settings {
         assert_eq!(result.unwrap().darkmode, true);
     }
 
+    /// Tests updating the default_theme setting field.
+    ///
+    /// Verifies that:
+    /// 1. The default_theme field can be updated to a new string value
+    /// 2. The returned settings object reflects the updated value
     #[test]
     fn test_update_default_theme_field() {
         let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
@@ -262,6 +483,11 @@ mod tests_settings {
         assert_eq!(result.unwrap().default_theme, "ocean");
     }
 
+    /// Tests updating the default_checksum_hash setting field.
+    ///
+    /// Verifies that:
+    /// 1. The default_checksum_hash field can be updated to a new string value
+    /// 2. The returned settings object reflects the updated value
     #[test]
     fn test_update_default_checksum_hash_field() {
         let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
@@ -271,6 +497,11 @@ mod tests_settings {
         assert_eq!(result.unwrap().default_checksum_hash, "abc123");
     }
 
+    /// Tests updating the custom_themes setting field.
+    ///
+    /// Verifies that:
+    /// 1. The custom_themes field can be updated to an array of strings
+    /// 2. The returned settings object reflects the updated values
     #[test]
     fn test_update_custom_themes_field() {
         let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
@@ -281,6 +512,12 @@ mod tests_settings {
         assert_eq!(result.unwrap().custom_themes, themes);
     }
 
+    /// Tests updating path-type settings fields.
+    ///
+    /// Verifies that:
+    /// 1. The default_themes_path field can be updated with a path string
+    /// 2. The default_folder_path_on_opening field can be updated with a path string
+    /// 3. Both fields are properly converted to PathBuf values
     #[test]
     fn test_update_path_fields() {
         let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
@@ -295,6 +532,11 @@ mod tests_settings {
         assert_eq!(result2.unwrap().default_folder_path_on_opening, PathBuf::from(path));
     }
 
+    /// Tests updating the logging_state setting field.
+    ///
+    /// Verifies that:
+    /// 1. The logging_state field can be updated to a different enum value
+    /// 2. The returned settings object reflects the updated enum value
     #[test]
     fn test_update_logging_state_field() {
         let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
@@ -304,6 +546,11 @@ mod tests_settings {
         assert_eq!(result.unwrap().logging_state, LoggingState::Minimal);
     }
 
+    /// Tests error handling when attempting to update a non-existent key.
+    ///
+    /// Verifies that:
+    /// 1. Attempting to update a non-existent key results in an error
+    /// 2. The error message contains "Unknown settings key"
     #[test]
     fn test_invalid_key() {
         let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
@@ -313,6 +560,11 @@ mod tests_settings {
         assert!(result.unwrap_err().to_string().contains("Unknown settings key"));
     }
 
+    /// Tests type validation when updating the darkmode field.
+    ///
+    /// Verifies that:
+    /// 1. Attempting to update the darkmode field with a non-boolean value results in an error
+    /// 2. The error message indicates the type mismatch
     #[test]
     fn test_invalid_type_for_darkmode() {
         let state = SettingsState::new_with_path(tempfile::NamedTempFile::new().unwrap().path().to_path_buf());
@@ -323,6 +575,11 @@ mod tests_settings {
         assert!(err.contains("expected a boolean") || err.contains("invalid type"));
     }
 
+    /// Tests retrieving an existing setting field.
+    ///
+    /// Verifies that:
+    /// 1. A previously set field can be retrieved successfully
+    /// 2. The retrieved value matches what was set
     #[test]
     fn test_get_existing_field() {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
@@ -337,6 +594,11 @@ mod tests_settings {
         assert_eq!(result.unwrap(), json!(true));
     }
 
+    /// Tests error handling when retrieving a non-existent key.
+    ///
+    /// Verifies that:
+    /// 1. Attempting to get a non-existent key results in an error
+    /// 2. The error message contains "Unknown settings key"
     #[test]
     fn test_get_invalid_key() {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
@@ -347,6 +609,11 @@ mod tests_settings {
         assert!(result.unwrap_err().to_string().contains("Unknown settings key"));
     }
 
+    /// Tests retrieving a complex field (array type).
+    ///
+    /// Verifies that:
+    /// 1. A complex field (array of strings) can be retrieved successfully
+    /// 2. The retrieved value matches what was set
     #[test]
     fn test_get_complex_field() {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
@@ -361,6 +628,11 @@ mod tests_settings {
         assert_eq!(result.unwrap(), json!(["dark", "light"]));
     }
 
+    /// Tests updating multiple valid settings fields at once.
+    ///
+    /// Verifies that:
+    /// 1. Multiple fields can be updated in a single operation
+    /// 2. All updated fields have the expected values in the returned settings
     #[test]
     fn test_update_multiple_valid_fields() {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
@@ -378,6 +650,11 @@ mod tests_settings {
         assert_eq!(updated.default_theme, "gruvbox");
     }
 
+    /// Tests error handling when updating with an invalid key.
+    ///
+    /// Verifies that:
+    /// 1. Attempting to update multiple settings with a non-existent key results in an error
+    /// 2. The error message identifies the specific invalid key
     #[test]
     fn test_update_with_invalid_key() {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
@@ -391,6 +668,13 @@ mod tests_settings {
         assert!(result.unwrap_err().to_string().contains("Unknown settings key: non_existing_field"));
     }
 
+    /// Tests error handling when updating with a mix of valid and invalid keys.
+    ///
+    /// Verifies that:
+    /// 1. When attempting to update multiple settings with both valid and invalid keys,
+    ///    the operation fails with an error
+    /// 2. No partial updates are applied (all-or-nothing behavior)
+    /// 3. The error message identifies the specific invalid key
     #[test]
     fn test_update_with_mixed_valid_and_invalid_keys() {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
@@ -405,6 +689,11 @@ mod tests_settings {
         assert!(result.unwrap_err().to_string().contains("Unknown settings key: unknown"));
     }
 
+    /// Tests error handling when updating with an empty updates map.
+    ///
+    /// Verifies that:
+    /// 1. Attempting to update with an empty map results in an error
+    /// 2. The error message indicates that no settings were provided
     #[test]
     fn test_update_with_empty_updates_map() {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
@@ -417,6 +706,11 @@ mod tests_settings {
         assert_eq!(result.unwrap_err().to_string(), "No settings were provided");
     }
 
+    /// Tests type validation when updating with an invalid value type.
+    ///
+    /// Verifies that:
+    /// 1. Attempting to update a field with a value of the wrong type results in an error
+    /// 2. The error message indicates the type mismatch
     #[test]
     fn test_update_with_invalid_value_type() {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
