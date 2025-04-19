@@ -18,6 +18,7 @@ fn all_commands() -> fn(Invoke) -> bool {
         file_system_operation_commands::rename,
         file_system_operation_commands::move_to_trash,
         file_system_operation_commands::copy_file_or_dir,
+        file_system_operation_commands::safe_delete_file_or_dir,
 
         // Metadata commands
         meta_data_commands::get_meta_data_as_json,
