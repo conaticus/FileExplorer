@@ -4,37 +4,37 @@ use std::sync::{Arc, Mutex};
 use serde_json::{to_string, Value};
 use tauri::State;
 
-pub fn get_settings_as_json_impl(settings: Arc<Mutex<SettingsState>>) -> String {
-    let settings_inner = settings.lock().unwrap().0.clone();
+pub fn get_settings_as_json_impl(state: Arc<Mutex<SettingsState>>) -> String {
+    let settings_inner = state.lock().unwrap().0.clone();
     to_string(&settings_inner).unwrap()
 }
 
 pub fn get_setting_field_impl(
-    settings: Arc<Mutex<SettingsState>>,
+    state: Arc<Mutex<SettingsState>>,
     key: String,
 ) -> Result<Value, String> {
-    let guard = settings.lock().unwrap();
-    guard.get_setting_field(&key).map_err(|e| e.to_string())
+    let settings_state = state.lock().unwrap();
+    settings_state.get_setting_field(&key).map_err(|e| e.to_string())
 }
 
 pub fn update_settings_field_impl(
-    settings: Arc<Mutex<SettingsState>>,
+    state: Arc<Mutex<SettingsState>>,
     key: String,
     value: Value,
 ) -> Result<String, String> {
-    let guard = settings.lock().unwrap();
-    guard
+    let settings_state = state.lock().unwrap();
+    settings_state
         .update_setting_field(&key, value)
         .and_then(|updated| to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
         .map_err(|e| e.to_string())
 }
 
 pub fn update_multiple_settings_impl(
-    settings: Arc<Mutex<SettingsState>>,
+    state: Arc<Mutex<SettingsState>>,
     updates: serde_json::Map<String, Value>,
 ) -> Result<String, String> {
-    let guard = settings.lock().unwrap();
-    guard
+    let settings_state = state.lock().unwrap();
+    settings_state
         .update_multiple_settings(&updates)
         .and_then(|updated| to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
         .map_err(|e| e.to_string())
