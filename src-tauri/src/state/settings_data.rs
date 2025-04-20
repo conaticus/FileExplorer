@@ -20,6 +20,7 @@ pub struct Settings {
     pub abs_file_path_buf: PathBuf,
 }
 
+//TODO implement the default settings -> talk to Lauritz for further more information
 impl Default for Settings {
     fn default() -> Self {
         Settings {
