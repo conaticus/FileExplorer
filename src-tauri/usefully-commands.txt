@@ -1,0 +1,2 @@
+includes the feature in the compiled binary and only tests create_test_data
+$ cargo test --features "generate-test-data" -- create_test_data --nocapture

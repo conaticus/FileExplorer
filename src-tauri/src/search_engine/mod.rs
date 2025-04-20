@@ -228,18 +228,17 @@ pub fn generate_test_data() -> Result<PathBuf, std::io::Error> {
     
     let start_time = Instant::now();
     
-    // Function to generate random alphanumeric strings
+    // Function to generate random strings based on a predefined set
     let generate_random_name = || -> String {
-        const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        let mut rng = thread_rng();
-        let name_length = rng.gen_range(5, 15); // Random length between 5 and 15
+        let charset: Vec<&str> = "banana, apple, orange, grape, watermelon, kiwi, mango, peach, cherry, \
+        strawberry, blueberry, raspberry, blackberry, lemon, lime, coconut, papaya, pineapple, tangerine, \
+        car, truck, motorcycle, bicycle, bus, train, airplane, helicopter, boat, ship, submarine, scooter, van, \
+        ambulance, taxi, firetruck, tractor, yacht, jetski, speedboat, racecar".split(",").collect::<Vec<_>>();
         
-        (0..name_length)
-            .map(|_| {
-                let idx = rng.gen_range(0, CHARSET.len());
-                CHARSET[idx] as char
-            })
-            .collect()
+        let mut rng = thread_rng();
+        
+        let idx = rng.gen_range(0, charset.len());
+        return charset[idx].to_string();
     };
     
     // Function to create file extensions
@@ -537,6 +536,7 @@ mod tests {
 
     //just create the test data
     #[test]
+    #[cfg(feature = "generate-test-data")]
     fn create_test_data() {
         match generate_test_data() {
             Ok(path) => println!("Test data created at: {:?}", path),
