@@ -4,7 +4,7 @@ use std::io::{Error, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use crate::constants;
 use crate::filesystem::models::LoggingState;
 
@@ -373,7 +373,7 @@ impl SettingsState {
 mod tests_settings {
     use super::*;
     use tempfile::tempdir;
-    use serde_json::{Map, Value};
+    use serde_json::{json, Map, Value};
 
     /// Tests that the default settings have the expected initial values.
     ///
