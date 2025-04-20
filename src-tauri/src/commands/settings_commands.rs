@@ -1,7 +1,7 @@
-use std::io;
 use crate::state::SettingsState;
-use std::sync::{Arc, Mutex};
 use serde_json::{to_string, Value};
+use std::io;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 pub fn get_settings_as_json_impl(state: Arc<Mutex<SettingsState>>) -> String {
@@ -14,7 +14,9 @@ pub fn get_setting_field_impl(
     key: String,
 ) -> Result<Value, String> {
     let settings_state = state.lock().unwrap();
-    settings_state.get_setting_field(&key).map_err(|e| e.to_string())
+    settings_state
+        .get_setting_field(&key)
+        .map_err(|e| e.to_string())
 }
 
 pub fn update_settings_field_impl(
@@ -25,7 +27,9 @@ pub fn update_settings_field_impl(
     let settings_state = state.lock().unwrap();
     settings_state
         .update_setting_field(&key, value)
-        .and_then(|updated| to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
+        .and_then(|updated| {
+            to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        })
         .map_err(|e| e.to_string())
 }
 
@@ -36,7 +40,9 @@ pub fn update_multiple_settings_impl(
     let settings_state = state.lock().unwrap();
     settings_state
         .update_multiple_settings(&updates)
-        .and_then(|updated| to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
+        .and_then(|updated| {
+            to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        })
         .map_err(|e| e.to_string())
 }
 
@@ -62,7 +68,6 @@ pub fn update_multiple_settings_impl(
 pub fn get_settings_as_json(state: State<Arc<Mutex<SettingsState>>>) -> String {
     get_settings_as_json_impl(state.inner().clone())
 }
-
 
 /// Retrieves the value of a specific setting field.
 ///
@@ -212,7 +217,8 @@ mod tests_settings_commands {
     #[test]
     fn test_update_settings_field_invalid_key() {
         let state = create_test_settings_state();
-        let result = update_settings_field_impl(state.clone(), "nonexistent".to_string(), json!(123));
+        let result =
+            update_settings_field_impl(state.clone(), "nonexistent".to_string(), json!(123));
         assert!(result.is_err());
     }
 
