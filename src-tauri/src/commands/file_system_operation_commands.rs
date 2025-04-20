@@ -360,6 +360,70 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
     }
 }
 
+// checks whether path is system relevant
+#[cfg(target_os = "windows")]
+fn is_protected_path(path: &str) -> bool {
+    let protected_paths = [
+        "C:\\Windows",
+        "C:\\Program Files",
+        "C:\\Program Files (x86)",
+        "C:\\__PROTECTED_TEST_PATH__",
+    ];
+
+    for protected_path in protected_paths.iter() {
+        if path.starts_with(protected_path) {
+            return true;
+        }
+    }
+
+    false
+}
+
+#[cfg(target_os = "linux")]
+fn is_protected_path(path: &str) -> bool {
+    let protected_paths = [
+        "/etc",
+        "/bin",
+        "/sys",
+        "/usr",
+        "/__protected_test_path__",
+    ];
+
+    for protected_path in protected_paths.iter() {
+        if path.starts_with(protected_path) {
+            return true;
+        }
+    }
+
+    false
+}
+
+#[cfg(target_os = "macos")]
+fn is_protected_path(path: &str) -> bool {
+    let protected_paths = [
+        "/System",
+        "/Applications",
+        "/usr",
+        "/bin",
+        "/Library",
+        "/__protected_test_path__",
+    ];
+
+    for protected_path in protected_paths.iter() {
+        if path.starts_with(protected_path) {
+            return true;
+        }
+    }
+
+    false
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+fn is_protected_path(path: &str) -> bool {
+    // For other OSes, treat all paths as unprotected by default
+    false
+}
+
 /// Securely deletes a file or directory by overwriting its contents multiple times and then removing it.
 /// This function allows you to securely delete a file or a directory and its contents by overwriting
 /// the data with ones, zeros, and random data. It supports both files and directories.
@@ -383,6 +447,9 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
 /// ```
 #[tauri::command]
 pub async fn safe_delete_file_or_dir(path: &str, passes: Option<u64>) -> Result<(), String> {
+    if is_protected_path(&path) {
+        return Err(format!("Refusing to delete system-protected path: {}", path));
+    }
     // TODO: Maybe add option to choose between methods for safe delete (e.g. zero-fill, one-fill, random-fill) currently used a method of first writing zeros then ones and then random stuff but idk tho
     let path = path.to_string();
     task::spawn_blocking(move || {
@@ -992,5 +1059,40 @@ mod tests_file_system_operation_commands {
         assert!(!level2_dir.exists(), "level2 directory should no longer exist after deletion");
         assert!(!level3_dir.exists(), "level3 directory should no longer exist after deletion");
         assert!(!file_in_level3.exists(), "file_in_level3.txt should no longer exist after deletion");
+    }
+
+    // Test for secure deletion of a directory that is system relevant (same name)
+    #[tokio::test]
+    async fn secure_delete_sys_relevant_path_test() {
+        #[cfg(target_os = "windows")]
+        let test_path = "C:\\__PROTECTED_TEST_PATH__\\file.txt";
+
+        #[cfg(target_os = "linux")]
+        let test_path = "/__protected_test_path__/file.txt";
+
+        let test_dir = Path::new(test_path).parent().unwrap();
+
+        fs::create_dir_all(test_dir).unwrap_or_else(|_| ());
+        fs::write(test_path, b"test").unwrap_or_else(|_| ());
+
+        let result = safe_delete_file_or_dir(test_path, Some(1)).await;
+
+        // Clean up after the test (since the protected check should prevent deletion)
+        if result.is_ok() {
+            let _ = fs::remove_file(test_path);
+            let _ = fs::remove_dir_all(test_dir);
+        }
+
+        // Check that deletion was denied due to protection logic
+        match result {
+            Err(err) => {
+                // Ensure the error message contains the expected protection warning
+                assert!(err.contains("Refusing to delete system-protected path"), "Expected protection error, got: {}", err);
+            }
+            Ok(_) => {
+                // This case should never happen because the path is protected
+                panic!("Expected error for protected path, but deletion succeeded");
+            }
+        }
     }
 }
