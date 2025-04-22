@@ -40,9 +40,18 @@ pub struct SettingsState(pub Arc<Mutex<Settings>>);
 
 impl SettingsState {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(
-            Self::write_default_settings_to_file_and_save_in_state(),
-        )))
+        let path = Settings::default().abs_file_path_buf.to_path_buf();
+
+        let settings = if path.exists() {
+            match Self::read_settings_from_file(&path.clone()) {
+                Ok(s) => s,
+                Err(_) =>  Self::write_default_settings_to_file_and_save_in_state()
+            }
+        } else {
+                Self::write_default_settings_to_file_and_save_in_state()
+        };
+        Self(Arc::new(Mutex::new(settings)))
+
     }
 
     /// Converts a Settings struct to a JSON map representation.
@@ -465,6 +474,33 @@ mod tests_settings {
         //assert_eq!(settings.default_themes_path, Default::default());
         //assert_eq!(settings.default_folder_path_on_opening, Default::default());
         assert_eq!(settings.abs_file_path_buf, test_path);
+    }
+
+    #[test]
+    fn test_init_settings_json_exists() {
+        // Create a temporary directory
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+        let test_path = temp_dir.path().join("settings.json");
+
+        // Step 1: Create the first SettingsState and update some values
+        let settings_state = SettingsState::new_with_path(test_path.clone());
+
+        let mut updates = Map::new();
+        updates.insert("darkmode".to_string(), json!(true));
+        updates.insert("default_theme".to_string(), json!("solarized"));
+
+        let result = settings_state.update_multiple_settings(&updates);
+        assert!(result.is_ok(), "Settings update should succeed");
+
+        // Step 2: Drop the first state and reinitialize from file
+        drop(settings_state);
+
+        let loaded = SettingsState::read_settings_from_file(&test_path);
+        assert!(loaded.is_ok(), "Should load settings from file after reload");
+
+        let loaded_settings = loaded.unwrap();
+        assert_eq!(loaded_settings.darkmode, true);
+        assert_eq!(loaded_settings.default_theme, "solarized");
     }
 
     /// Tests writing custom settings to a file.
