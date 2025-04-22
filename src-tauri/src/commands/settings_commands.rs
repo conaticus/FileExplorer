@@ -46,6 +46,16 @@ pub fn update_multiple_settings_impl(
         .map_err(|e| e.to_string())
 }
 
+pub fn reset_settings_impl(state: Arc<Mutex<SettingsState>>) -> Result<String, String> {
+    let settings_state = state.lock().unwrap();
+    settings_state
+        .reset_settings()
+        .and_then(|updated| {
+            to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        })
+        .map_err(|e| e.to_string())
+}
+
 /// Retrieves the current application settings as a JSON string.
 ///
 /// This command provides access to the entire settings state, serialized to a JSON string.
@@ -168,6 +178,35 @@ pub fn update_multiple_settings_command(
     update_multiple_settings_impl(state.inner().clone(), updates)
 }
 
+/// Resets the current settings file and resets settings to their default values.
+///
+/// reinitializes the in-memory settings state to default values by reusing the default state logic.
+///
+/// # Arguments
+///
+/// * `settings_state` - A Tauri state containing a thread-safe reference to the application's settings.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the settings file was successfully deleted and the state reset.
+/// * `Err(String)` - An error message if deletion or reset fails.
+///
+/// # Example
+///
+/// ```rust
+/// let result = reset_settings(state);
+/// match result {
+///     Ok(_) => println!("Settings were reset to default."),
+///     Err(err) => println!("Failed to reset settings: {}", err),
+/// }
+/// ```
+#[tauri::command]
+pub fn reset_settings_command(
+    state: State<Arc<Mutex<SettingsState>>>
+) -> Result<String, String>{
+    reset_settings_impl(state.inner().clone())
+}
+
 #[cfg(test)]
 mod tests_settings_commands {
     use super::*;
@@ -249,5 +288,17 @@ mod tests_settings_commands {
 
         let result = update_multiple_settings_impl(state.clone(), updates);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reset_settings_command_success() {
+        let state = create_test_settings_state();
+        let updated_data = update_settings_field_impl(state.clone(), "darkmode".to_string(), json!(true));
+
+        let result = reset_settings_impl(state.clone());
+        assert!(result.is_ok());
+
+        let darkmode = get_setting_field_impl(state.clone(), "darkmode".to_string()).unwrap();
+        assert_eq!(darkmode, json!(false));
     }
 }

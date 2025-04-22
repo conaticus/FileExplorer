@@ -32,6 +32,7 @@ fn all_commands() -> fn(Invoke) -> bool {
         settings_commands::update_settings_field,
         settings_commands::get_setting_field,
         settings_commands::update_multiple_settings_command,
+        settings_commands::reset_settings_command,
     ]
 }
 

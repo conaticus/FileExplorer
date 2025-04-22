@@ -5,6 +5,7 @@
 - [Get a Specific Setting](#get_setting_field-endpoint)
 - [Update a Setting Field](#update_settings_field-endpoint)
 - [Update Multiple Settings](#update_multiple_settings_command-endpoint)
+- [Delete Settings](#reset_settings-endpoint)
 
 # `get_settings_as_json` endpoint
 
@@ -110,6 +111,28 @@ const updateMultipleSettings = async () => {
         console.log("Updated settings:", JSON.parse(updatedSettings));
     } catch (error) {
         console.error("Error updating settings:", error);
+    }
+};
+```
+
+# `reset_settings` endpoint
+
+---
+## Parameters
+- `None`
+
+## Returns
+- Ok(()): If the settings file was successfully reset.
+- Err(String): An error message if the reset failed.
+
+## Example call
+```typescript jsx
+const resetSettings = async () => {
+    try {
+        await invoke("reset_settings");
+        console.log("Settings reset to default.");
+    } catch (error) {
+        console.error("Failed to reset settings:", error);
     }
 };
 ```

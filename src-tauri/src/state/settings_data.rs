@@ -235,6 +235,39 @@ impl SettingsState {
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "No settings were provided"))
     }
 
+    /// resets the settings file, effectively removing all saved settings.
+    ///
+    /// This method deletes the settings file from the disk, meaning the application will
+    /// lose all settings
+    ///
+    /// # Arguments
+    ///
+    /// * `&self` - Reference to the settings state.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the settings file was successfully deleted.
+    /// * `Err(io::Error)` - If there was an error during the deletion process.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let result = settings_state.delete_settings();
+    /// match result {
+    ///     Ok(_) => println!("Settings file has been deleted."),
+    ///     Err(e) => eprintln!("Failed to delete settings: {}", e),
+    /// }
+    /// ```
+    pub fn reset_settings(&self) -> Result<Settings, io::Error> {
+        let mut settings = self.0.lock().unwrap();
+
+        let default_settings = Settings::default();
+        *settings = default_settings.clone();
+        self.write_settings_to_file(&default_settings)?;
+
+        Ok(default_settings)
+    }
+
     /// Creates a new SettingsState with a custom path for testing purposes.
     ///
     /// # Arguments
