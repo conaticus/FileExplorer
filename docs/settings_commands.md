@@ -5,7 +5,7 @@
 - [Get a Specific Setting](#get_setting_field-endpoint)
 - [Update a Setting Field](#update_settings_field-endpoint)
 - [Update Multiple Settings](#update_multiple_settings_command-endpoint)
-- [Delete Settings](#reset_settings-endpoint)
+- [Reset Settings](#reset_settings-endpoint)
 
 # `get_settings_as_json` endpoint
 
