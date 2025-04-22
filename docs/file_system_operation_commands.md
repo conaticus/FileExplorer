@@ -7,6 +7,8 @@
 - [Create a Directory](#create_directory-endpoint)
 - [Rename a Dir or File](#rename-endpoint)
 - [Move a Dir or File to trash](#move_to_trash-endpoint)
+- [Zip a Dir or File](#zip-endpoint)
+- [Unzip a Dir or File](#unzip-endpoint)
 
 
 # `open_file` endpoint
@@ -116,3 +118,84 @@ useEffect(() => {
 ## Returns
 - Ok(): No content is returned. The function will move the file or directory to the trash.
 - Err(String) - An error message if the file or directory cannot be moved to the trash or other errors occur.
+
+# `zip` endpoint
+
+---
+## Parameters
+- `source_path(s)`: An array of paths to files and/or directories to be zipped. Each path should be a string representing the absolute path.
+- `destination_path`: An optional destination path for the zip file. Required when zipping multiple files/directories. When not provided for a single source, creates a zip with the same name as the source.
+
+## Returns
+- Ok(): No content is returned. The function will create a zip file at the specified or default location.
+- Err(String) - An error message if the zip operation fails.
+
+## Description
+Creates a zip archive from one or more files/directories. For a single source with no destination specified, creates a zip file at the same location with the same name. When zipping multiple sources or when specifying a destination, creates the zip at the specified location. All directory contents including subdirectories are included in the zip.
+
+## Example call
+```typescript jsx
+useEffect(() => {
+    const zipFiles = async () => {
+        try {
+            // Single file with auto destination
+            await invoke("zip", { 
+                source_paths: ["/path/to/file"],
+                destination_path: null 
+            });
+            
+            // Multiple files with specified destination
+            await invoke("zip", { 
+                source_paths: ["/path/to/file1", "/path/to/dir1"],
+                destination_path: "/path/to/archive.zip"
+            });
+        } catch (error) {
+            console.error("Error creating zip:", error);
+        }
+    };
+
+    zipFiles();
+}, []);
+```
+
+# `unzip` endpoint
+
+---
+## Parameters
+- `zip_path(s)`: An array of paths to zip files to be extracted. Each path should be a string representing the absolute path.
+- `destination_path`: An optional destination directory for extraction. Required when extracting multiple zips. When not provided for a single zip, extracts to a directory with the same name as the zip file (without .zip extension).
+
+## Returns
+- Ok(): No content is returned. The function will extract all zip files to the specified or default location.
+- Err(String) - An error message if any extraction fails.
+
+## Description
+Extracts one or more zip files. For a single zip without a specified destination, creates a directory with the same name as the zip file (without .zip extension) and extracts contents there. When extracting multiple zips or specifying a destination, creates subdirectories for each zip under the destination path using the zip filenames. Preserves the internal directory structure of the zip files.
+
+## Example call
+```typescript jsx
+useEffect(() => {
+    const unzip = async () => {
+        try {
+            // Single zip with auto destination
+            await invoke("unzip", { 
+                zip_paths: ["/path/to/archive.zip"],
+                destination_path: null
+            });
+            
+            // Multiple zips with specified destination
+            await invoke("unzip", { 
+                zip_paths: [
+                    "/path/to/archive1.zip",
+                    "/path/to/archive2.zip"
+                ],
+                destination_path: "/path/to/extract"
+            });
+        } catch (error) {
+            console.error("Error extracting zips:", error);
+        }
+    };
+
+    unzip();
+}, []);
+```
