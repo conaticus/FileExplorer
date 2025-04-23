@@ -7,6 +7,7 @@ use std::io;
 use std::io::{Error, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use crate::commands::hash_commands::ChecksumMethod;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
@@ -15,7 +16,7 @@ pub struct Settings {
     pub default_theme: String,
     pub default_themes_path: PathBuf,
     pub default_folder_path_on_opening: PathBuf,
-    pub default_checksum_hash: String,
+    pub default_checksum_hash: ChecksumMethod, // either "MD5" or "SHA256"
     pub logging_state: LoggingState,
     pub abs_file_path_buf: PathBuf,
 }
@@ -29,7 +30,7 @@ impl Default for Settings {
             default_theme: "".to_string(),
             default_themes_path: Default::default(),
             default_folder_path_on_opening: Default::default(),
-            default_checksum_hash: "".to_string(),
+            default_checksum_hash: ChecksumMethod::SHA256,
             logging_state: LoggingState::Full,
             abs_file_path_buf: constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf(),
         }
