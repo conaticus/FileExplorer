@@ -293,7 +293,8 @@ mod tests_settings_commands {
     #[test]
     fn test_reset_settings_command_success() {
         let state = create_test_settings_state();
-        let updated_data = update_settings_field_impl(state.clone(), "darkmode".to_string(), json!(true));
+        // Prefix unused variable with underscore
+        let _updated_data = update_settings_field_impl(state.clone(), "darkmode".to_string(), json!(true));
 
         let result = reset_settings_impl(state.clone());
         assert!(result.is_ok());
@@ -302,3 +303,4 @@ mod tests_settings_commands {
         assert_eq!(darkmode, json!(false));
     }
 }
+

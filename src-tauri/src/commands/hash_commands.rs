@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::sync::Arc;
 use std::str::FromStr;
 use serde::{Deserialize, Serialize};
@@ -9,6 +10,7 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use std::path::Path;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
+use tauri::State;
 
 use crate::state::SettingsState;
 
@@ -55,7 +57,7 @@ impl ToString for HashError {
     }
 }
 
-async fn get_checksum_method(state: tauri::State<'_, Arc<Mutex<SettingsState>>>) -> Result<ChecksumMethod, HashError> {
+async fn get_checksum_method(state: State<'_, Arc<Mutex<SettingsState>>>) -> Result<ChecksumMethod, HashError> {
     let settings_state = state.lock().await;
     let inner_settings = settings_state.0.lock().map_err(|_| HashError::SettingsLockError)?;
     Ok(inner_settings.default_checksum_hash.clone())
@@ -115,10 +117,93 @@ async fn read_file(path: &Path) -> Result<Vec<u8>, HashError> {
     Ok(buffer)
 }
 
+// Add new trait for clipboard operations
+trait ClipboardOperations {
+    fn set_contents(&mut self, content: String) -> Result<(), HashError>;
+}
+
+struct RealClipboard;
+
+impl ClipboardOperations for RealClipboard {
+    fn set_contents(&mut self, content: String) -> Result<(), HashError> {
+        ClipboardContext::new()
+            .map_err(|_| HashError::ClipboardError)?
+            .set_contents(content)
+            .map_err(|_| HashError::ClipboardError)
+    }
+}
+
+#[cfg(test)]
+struct MockClipboard {
+    last_copied: Arc<tokio::sync::Mutex<Option<String>>>,
+}
+
+#[cfg(test)]
+impl MockClipboard {
+    fn new() -> Self {
+        MockClipboard {
+            last_copied: Arc::new(tokio::sync::Mutex::new(None)),
+        }
+    }
+}
+
+#[cfg(test)]
+impl ClipboardOperations for MockClipboard {
+    fn set_contents(&mut self, content: String) -> Result<(), HashError> {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let mut last_copied = self.last_copied.lock().await;
+                *last_copied = Some(content);
+                Ok(())
+            })
+        })
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static MOCK_CLIPBOARD: RefCell<Option<MockClipboard>> = RefCell::new(None);
+}
+
+// Replace the old clipboard function with a new one using the trait
+fn copy_to_clipboard(hash: &str) -> Result<(), HashError> {
+    #[cfg(test)] {
+        if MOCK_CLIPBOARD.with(|c| c.borrow().is_some()) {
+            return MOCK_CLIPBOARD.with(|c| {
+                if let Some(ref mut clipboard) = *c.borrow_mut() {
+                    clipboard.set_contents(hash.to_string())
+                } else {
+                    Ok(())
+                }
+            });
+        }
+    }
+
+    RealClipboard.set_contents(hash.to_string())
+}
+
+// Update test helpers
+#[cfg(test)]
+pub fn init_mock_clipboard() -> Arc<tokio::sync::Mutex<Option<String>>> {
+    let clipboard = MockClipboard::new();
+    let last_copied = clipboard.last_copied.clone();
+    MOCK_CLIPBOARD.with(|c| {
+        *c.borrow_mut() = Some(clipboard);
+    });
+    last_copied
+}
+
+#[cfg(test)]
+pub fn cleanup_mock_clipboard() {
+    MOCK_CLIPBOARD.with(|c| {
+        *c.borrow_mut() = None;
+    });
+}
+
 #[tauri::command]
 pub async fn gen_hash_and_copy_to_clipboard(
     path: String,
-    state: tauri::State<'_, Arc<Mutex<SettingsState>>>
+    state: State<'_, Arc<Mutex<SettingsState>>>
 ) -> Result<String, String> {
     let checksum_method = get_checksum_method(state).await.map_err(|e| e.to_string())?;
     let data = read_file(Path::new(&path))
@@ -128,11 +213,8 @@ pub async fn gen_hash_and_copy_to_clipboard(
         .await
         .map_err(|e| e.to_string())?;
 
-    // Copy hash to clipboard
-    let mut ctx = ClipboardContext::new()
-        .map_err(|_| HashError::ClipboardError.to_string())?;
-    ctx.set_contents(hash.clone())
-        .map_err(|_| HashError::ClipboardError.to_string())?;
+    // Use the new clipboard function
+    copy_to_clipboard(&hash).map_err(|e| e.to_string())?;
 
     Ok(hash)
 }
@@ -141,7 +223,7 @@ pub async fn gen_hash_and_copy_to_clipboard(
 pub async fn gen_hash_and_save_to_file(
     source_path: String,
     output_path: String,
-    state: tauri::State<'_, Arc<Mutex<SettingsState>>>
+    state: State<'_, Arc<Mutex<SettingsState>>>
 ) -> Result<String, String> {
     let checksum_method = get_checksum_method(state).await.map_err(|e| e.to_string())?;
     let data = read_file(Path::new(&source_path))
@@ -162,7 +244,7 @@ pub async fn gen_hash_and_save_to_file(
 pub async fn compare_file_or_dir_with_hash(
     path: String,
     hash_to_compare: String,
-    state: tauri::State<'_, Arc<Mutex<SettingsState>>>
+    state: State<'_, Arc<Mutex<SettingsState>>>
 ) -> Result<bool, String> {
     let checksum_method = get_checksum_method(state).await.map_err(|e| e.to_string())?;
     let data = read_file(Path::new(&path))
@@ -183,26 +265,49 @@ mod tests_hash_commands {
     use std::sync::Arc;
     use serde_json::json;
     use tokio::sync::Mutex;
-    use crate::commands::settings_commands::update_settings_field_impl;
-    use crate::state::{Settings, SettingsState};
+    use crate::state::SettingsState;
 
-    fn create_test_settings_state() -> Arc<Mutex<SettingsState>> {
-        let temp_file = tempfile::NamedTempFile::new().unwrap();
-        let path = temp_file.path().to_path_buf();
-        Arc::new(Mutex::new(SettingsState::new_with_path(path)))
+    // Helper struct to mock Tauri's State with proper thread-safety bounds
+    struct MockState<T: Send + Sync + 'static>(Arc<T>);
+
+    impl<T: Send + Sync + 'static> std::ops::Deref for MockState<T> {
+        type Target = T;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
     }
 
-    async fn create_test_state(method: ChecksumMethod) -> Arc<Mutex<SettingsState>> {
+    impl<'r, T: Send + Sync + 'static> From<MockState<T>> for State<'r, T> {
+        fn from(mock: MockState<T>) -> Self {
+            unsafe { std::mem::transmute(mock) }
+        }
+    }
+
+    fn create_test_settings_state() -> MockState<Arc<Mutex<SettingsState>>> {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_path_buf();
+        MockState(Arc::new(Arc::new(Mutex::new(SettingsState::new_with_path(path)))))
+    }
+
+    async fn create_test_state(method: ChecksumMethod) -> MockState<Arc<Mutex<SettingsState>>> {
         let state = create_test_settings_state();
-        let state_clone = state.clone();
-        let state_guard = state.lock().await;
+        let state_guard = state.0.lock().await;
         state_guard.update_setting_field("default_checksum_hash", json!(method)).unwrap();
         drop(state_guard);
-        state_clone
+        state
+    }
+
+    fn setup_test() -> Arc<tokio::sync::Mutex<Option<String>>> {
+        init_mock_clipboard()
+    }
+
+    fn teardown_test() {
+        cleanup_mock_clipboard();
     }
 
     #[tokio::test]
     async fn test_hash_file_md5() {
+        let clipboard_contents = setup_test();
         let temp_dir = tempdir().expect("Failed to create temporary directory");
         let test_file_path = temp_dir.path().join("test_hash.txt");
         let test_content = b"Hello, world!";
@@ -210,19 +315,28 @@ mod tests_hash_commands {
         let mut file = std::fs::File::create(&test_file_path).expect("Failed to create test file");
         file.write_all(test_content).expect("Failed to write test content");
 
-        let state = create_test_state(ChecksumMethod::MD5).await;
+        let mock_state = create_test_state(ChecksumMethod::MD5).await;
+        let state: State<'_, Arc<Mutex<SettingsState>>> = mock_state.into();
 
         let result = gen_hash_and_copy_to_clipboard(
             test_file_path.to_str().unwrap().to_string(),
-            tauri::State::new(state)
+            state
         ).await;
 
         assert!(result.is_ok(), "Hash generation failed");
-        assert_eq!(result.unwrap(), "6cd3556deb0da54bca060b4c39479839");
+        let hash = result.unwrap();
+        assert_eq!(hash, "6cd3556deb0da54bca060b4c39479839");
+
+        // Verify clipboard contents using mock
+        let copied = clipboard_contents.lock().await.clone();
+        assert_eq!(copied.unwrap(), hash);
+
+        teardown_test();
     }
 
     #[tokio::test]
     async fn test_hash_file_sha256() {
+        let clipboard_contents = setup_test();
         let temp_dir = tempdir().expect("Failed to create temporary directory");
         let test_file_path = temp_dir.path().join("test_hash.txt");
         let test_content = b"Hello, world!";
@@ -230,15 +344,23 @@ mod tests_hash_commands {
         let mut file = std::fs::File::create(&test_file_path).expect("Failed to create test file");
         file.write_all(test_content).expect("Failed to write test content");
 
-        let state = create_test_state(ChecksumMethod::SHA256).await;
+        let mock_state = create_test_state(ChecksumMethod::SHA256).await;
+        let state: State<'_, Arc<Mutex<SettingsState>>> = mock_state.into();
 
         let result = gen_hash_and_copy_to_clipboard(
             test_file_path.to_str().unwrap().to_string(),
-            tauri::State::new(state)
+            state
         ).await;
 
         assert!(result.is_ok(), "Hash generation failed");
-        assert_eq!(result.unwrap(), "315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3");
+        let hash = result.unwrap();
+        assert_eq!(hash, "315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3");
+
+        // Verify clipboard contents using mock
+        let copied = clipboard_contents.lock().await.clone();
+        assert_eq!(copied.unwrap(), hash);
+
+        teardown_test();
     }
 
     #[tokio::test]
@@ -251,12 +373,13 @@ mod tests_hash_commands {
         let mut file = std::fs::File::create(&test_file_path).expect("Failed to create test file");
         file.write_all(test_content).expect("Failed to write test content");
 
-        let state = create_test_state(ChecksumMethod::SHA256).await;
+        let mock_state = create_test_state(ChecksumMethod::SHA256).await;
+        let state: State<'_, Arc<Mutex<SettingsState>>> = mock_state.into();
 
         let result = gen_hash_and_save_to_file(
             test_file_path.to_str().unwrap().to_string(),
             hash_file_path.to_str().unwrap().to_string(),
-            tauri::State::new(state)
+            state
         ).await;
 
         assert!(result.is_ok(), "Hash save failed");
@@ -275,7 +398,8 @@ mod tests_hash_commands {
         let mut file = std::fs::File::create(&test_file_path).expect("Failed to create test file");
         file.write_all(test_content).expect("Failed to write test content");
 
-        let state = create_test_state(ChecksumMethod::SHA256).await;
+        let mock_state = create_test_state(ChecksumMethod::SHA256).await;
+        let state: State<'_, Arc<Mutex<SettingsState>>> = mock_state.into();
 
         let correct_hash = "315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let wrong_hash = "wronghashvalue";
@@ -283,7 +407,7 @@ mod tests_hash_commands {
         let result_correct = compare_file_or_dir_with_hash(
             test_file_path.to_str().unwrap().to_string(),
             correct_hash.to_string(),
-            tauri::State::new(state.clone())
+            state.clone()
         ).await;
 
         assert!(result_correct.is_ok(), "Hash comparison failed");
@@ -292,7 +416,7 @@ mod tests_hash_commands {
         let result_wrong = compare_file_or_dir_with_hash(
             test_file_path.to_str().unwrap().to_string(),
             wrong_hash.to_string(),
-            tauri::State::new(state)
+            state
         ).await;
 
         assert!(result_wrong.is_ok(), "Hash comparison failed");
@@ -317,11 +441,12 @@ mod tests_hash_commands {
         ];
 
         for (method, expected_hash) in expected_hashes {
-            let state = create_test_state(method.clone()).await;
+            let mock_state = create_test_state(method.clone()).await;
+            let state: State<'_, Arc<Mutex<SettingsState>>> = mock_state.into();
 
             let result = gen_hash_and_copy_to_clipboard(
                 test_file_path.to_str().unwrap().to_string(),
-                tauri::State::new(state)
+                state
             ).await;
 
             assert!(result.is_ok(), "Hash generation failed for {:?}", method);
@@ -331,6 +456,7 @@ mod tests_hash_commands {
 
     #[tokio::test]
     async fn test_hash_file_md5_and_clipboard() {
+        let clipboard_contents = setup_test();
         let temp_dir = tempdir().expect("Failed to create temporary directory");
         let test_file_path = temp_dir.path().join("test_hash.txt");
         let test_content = b"Hello, world!";
@@ -338,25 +464,28 @@ mod tests_hash_commands {
         let mut file = std::fs::File::create(&test_file_path).expect("Failed to create test file");
         file.write_all(test_content).expect("Failed to write test content");
 
-        let state = create_test_state(ChecksumMethod::MD5).await;
+        let mock_state = create_test_state(ChecksumMethod::MD5).await;
+        let state: State<'_, Arc<Mutex<SettingsState>>> = mock_state.into();
 
         let result = gen_hash_and_copy_to_clipboard(
             test_file_path.to_str().unwrap().to_string(),
-            tauri::State::new(state)
+            state
         ).await;
 
         assert!(result.is_ok(), "Hash generation failed");
         let hash = result.unwrap();
         assert_eq!(hash, "6cd3556deb0da54bca060b4c39479839");
 
-        // Verify clipboard contents
-        let mut ctx = ClipboardContext::new().expect("Failed to create clipboard context");
-        let clipboard_content = ctx.get_contents().expect("Failed to get clipboard contents");
-        assert_eq!(clipboard_content, hash, "Clipboard content should match generated hash");
+        // Verify clipboard contents using mock
+        let copied = clipboard_contents.lock().await.clone();
+        assert_eq!(copied.unwrap(), hash);
+
+        teardown_test();
     }
 
     #[tokio::test]
     async fn test_hash_file_sha256_and_clipboard() {
+        let clipboard_contents = setup_test();
         let temp_dir = tempdir().expect("Failed to create temporary directory");
         let test_file_path = temp_dir.path().join("test_hash.txt");
         let test_content = b"Hello, world!";
@@ -364,20 +493,100 @@ mod tests_hash_commands {
         let mut file = std::fs::File::create(&test_file_path).expect("Failed to create test file");
         file.write_all(test_content).expect("Failed to write test content");
 
-        let state = create_test_state(ChecksumMethod::SHA256).await;
+        let mock_state = create_test_state(ChecksumMethod::SHA256).await;
+        let state: State<'_, Arc<Mutex<SettingsState>>> = mock_state.into();
 
         let result = gen_hash_and_copy_to_clipboard(
             test_file_path.to_str().unwrap().to_string(),
-            tauri::State::new(state)
+            state
         ).await;
 
         assert!(result.is_ok(), "Hash generation failed");
         let hash = result.unwrap();
         assert_eq!(hash, "315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3");
 
-        // Verify clipboard contents
-        let mut ctx = ClipboardContext::new().expect("Failed to create clipboard context");
-        let clipboard_content = ctx.get_contents().expect("Failed to get clipboard contents");
-        assert_eq!(clipboard_content, hash, "Clipboard content should match generated hash");
+        // Verify clipboard contents using mock
+        let copied = clipboard_contents.lock().await.clone();
+        assert_eq!(copied.unwrap(), hash);
+
+        teardown_test();
+    }
+
+    #[tokio::test]
+    async fn test_hash_directory() {
+        let clipboard_contents = setup_test();
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create multiple files in the directory
+        let files = vec![
+            ("file1.txt", Vec::from("Hello World")),
+            ("file2.txt", Vec::from("Testing")),
+            ("subdir/file3.txt", Vec::from("Nested file")),
+        ];
+
+        for (path, content) in files {
+            let file_path = temp_dir.path().join(path);
+            if let Some(parent) = file_path.parent() {
+                std::fs::create_dir_all(parent).expect("Failed to create directory");
+            }
+            let mut file = std::fs::File::create(file_path).expect("Failed to create test file");
+            file.write_all(&content).expect("Failed to write test content");
+        }
+
+        let mock_state = create_test_state(ChecksumMethod::SHA256).await;
+        let state: State<'_, Arc<Mutex<SettingsState>>> = mock_state.into();
+
+        // Test directory hash calculation
+        let result = gen_hash_and_copy_to_clipboard(
+            temp_dir.path().to_str().unwrap().to_string(),
+            state.clone()
+        ).await;
+
+        assert!(result.is_ok(), "Directory hash generation failed");
+        let hash = result.unwrap();
+
+        // Verify the hash by comparing it with itself
+        let compare_result = compare_file_or_dir_with_hash(
+            temp_dir.path().to_str().unwrap().to_string(),
+            hash.clone(),
+            state
+        ).await;
+
+        assert!(compare_result.is_ok(), "Hash comparison failed");
+        assert!(compare_result.unwrap(), "Hash should match");
+
+        // Verify clipboard contents using mock
+        let copied = clipboard_contents.lock().await.clone();
+        assert_eq!(copied.unwrap(), hash);
+
+        teardown_test();
+    }
+
+    #[tokio::test]
+    async fn test_clipboard_operations() {
+        let clipboard_contents = setup_test();
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+        let test_file_path = temp_dir.path().join("test_hash.txt");
+        let test_content = b"Hello, world!";
+
+        let mut file = std::fs::File::create(&test_file_path).expect("Failed to create test file");
+        file.write_all(test_content).expect("Failed to write test content");
+
+        let mock_state = create_test_state(ChecksumMethod::MD5).await;
+        let state: State<'_, Arc<Mutex<SettingsState>>> = mock_state.into();
+
+        let result = gen_hash_and_copy_to_clipboard(
+            test_file_path.to_str().unwrap().to_string(),
+            state.clone()
+        ).await;
+
+        assert!(result.is_ok());
+        let hash = result.unwrap();
+
+        // Verify clipboard contents using mock
+        let copied = clipboard_contents.lock().await.clone();
+        assert_eq!(copied.unwrap(), hash);
+
+        teardown_test();
     }
 }
