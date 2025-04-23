@@ -94,4 +94,3 @@ useEffect(() => {
 ## Notes
 - All hash operations use the default hash method configured in the application settings (MD5, SHA256, SHA384, SHA512, or CRC32).
 - Hash comparisons are case-insensitive.
-- For directories, the operation will return an error as hashing directories is not supported.
