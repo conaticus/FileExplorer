@@ -36,7 +36,7 @@ fn all_commands() -> fn(Invoke) -> bool {
 
         // Hash commands
         hash_commands::gen_hash_and_copy_to_clipboard,
-        hash_commands::gen_hash_and_safe_to_file,
+        hash_commands::gen_hash_and_save_to_file,
         hash_commands::compare_file_or_dir_with_hash,
 
     ]

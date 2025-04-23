@@ -44,15 +44,14 @@ impl SettingsState {
         let path = Settings::default().abs_file_path_buf.to_path_buf();
 
         let settings = if path.exists() {
-            match Self::read_settings_from_file(&path.clone()) {
+            match Self::read_settings_from_file(&path) {
                 Ok(s) => s,
-                Err(_) =>  Self::write_default_settings_to_file_and_save_in_state()
+                Err(_) => Self::write_default_settings_to_file_and_save_in_state()
             }
         } else {
-                Self::write_default_settings_to_file_and_save_in_state()
+            Self::write_default_settings_to_file_and_save_in_state()
         };
         Self(Arc::new(Mutex::new(settings)))
-
     }
 
     /// Converts a Settings struct to a JSON map representation.
@@ -407,7 +406,6 @@ impl SettingsState {
     /// let settings = SettingsState::read_settings_from_file(&test_path)?;
     /// println!("Read settings: {:?}", settings);
     /// ```
-    #[cfg(test)]
     pub fn read_settings_from_file(path: &PathBuf) -> io::Result<Settings> {
         use std::io::Read;
         let mut file = File::open(path)?;
@@ -435,7 +433,7 @@ mod tests_settings {
         assert_eq!(settings.default_theme, "".to_string());
         //assert_eq!(settings.default_themes_path, Default::default());
         //assert_eq!(settings.default_folder_path_on_opening, Default::default());
-        assert_eq!(settings.default_checksum_hash, "".to_string());
+        assert_eq!(settings.default_checksum_hash, ChecksumMethod::SHA256);
         assert_eq!(settings.logging_state, LoggingState::Full);
         assert_eq!(
             settings.abs_file_path_buf,
@@ -582,9 +580,9 @@ mod tests_settings {
             tempfile::NamedTempFile::new().unwrap().path().to_path_buf(),
         );
 
-        let result = state.update_setting_field("default_checksum_hash", json!("abc123"));
+        let result = state.update_setting_field("default_checksum_hash", json!("MD5"));
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().default_checksum_hash, "abc123");
+        assert_eq!(result.unwrap().default_checksum_hash, ChecksumMethod::MD5);
     }
 
     /// Tests updating the custom_themes setting field.
