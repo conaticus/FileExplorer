@@ -296,7 +296,7 @@ mod tests_logging {
         let log_content = fs::read_to_string(&logger.log_path).expect("Failed to read log file");
         assert!(log_content.contains("test_file.rs"), "Full logging should include file name");
         assert!(log_content.contains("test_function"), "Full logging should include function name");
-        assert!(log_content.contains("line 42"), "Full logging should include line number");
+        assert!(log_content.contains("line: 42"), "Full logging should include line number");
         assert!(log_content.contains("INFO"), "Full logging should include log level");
         assert!(log_content.contains("Full logging test"), "Full logging should include the message");
     }

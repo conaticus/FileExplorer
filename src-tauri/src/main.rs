@@ -7,6 +7,7 @@ mod state;
 mod logging;
 
 use tauri::ipc::Invoke;
+use log::info;
 use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands, hash_commands, settings_commands};
 
 fn all_commands() -> fn(Invoke) -> bool {
@@ -45,6 +46,7 @@ fn all_commands() -> fn(Invoke) -> bool {
 
 #[tokio::main]
 async fn main() {
+    log_info!("Starting application...");
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
