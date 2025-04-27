@@ -3,12 +3,10 @@ use crate::filesystem::models::{
     count_subfiles_and_subdirectories, format_system_time, get_access_permission_number,
     get_access_permission_string, get_directory_size_in_bytes, Entries,
 };
-use std::{fs};
+use std::fs;
 use std::fs::read_dir;
-use std::future::Future;
 use std::io::Write;
 use std::path::Path;
-use rand::Rng;
 use zip::ZipWriter;
 use zip::write::FileOptions;
 
