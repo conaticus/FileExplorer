@@ -66,3 +66,4 @@
 # Ignore custom path for files
 /src-tauri/config
 /config
+app.log
