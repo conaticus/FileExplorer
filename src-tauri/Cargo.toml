@@ -30,6 +30,8 @@ cli-clipboard = "0.4.0"
 crc32fast = "1.3.2"
 hex = "0.4.3"
 once_cell = "1.21.3"
+rand = "0.8.5"
+zip = "2.6.1"
 
 [build-dependencies]
 tauri-build = { version = "2.1", features = [] }  # Removed "log" feature

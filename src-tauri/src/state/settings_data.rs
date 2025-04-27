@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use crate::commands::hash_commands::ChecksumMethod;
 
+
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
     pub darkmode: bool,
