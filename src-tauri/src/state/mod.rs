@@ -1,5 +1,5 @@
 pub mod meta_data;
-mod settings_data;
+pub mod settings_data;
 pub use settings_data::*;
 
 use meta_data::MetaDataState;

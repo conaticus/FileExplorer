@@ -4,9 +4,11 @@ mod commands;
 pub mod constants;
 mod filesystem;
 mod state;
+mod logging;
 
 use tauri::ipc::Invoke;
-use crate::commands::{file_system_operation_commands, meta_data_commands, settings_commands, volume_operations_commands,};
+use log::info;
+use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands, hash_commands, settings_commands};
 
 fn all_commands() -> fn(Invoke) -> bool {
     tauri::generate_handler![
@@ -35,11 +37,18 @@ fn all_commands() -> fn(Invoke) -> bool {
         settings_commands::get_setting_field,
         settings_commands::update_multiple_settings_command,
         settings_commands::reset_settings_command,
+
+        // Hash commands
+        hash_commands::gen_hash_and_return_string,
+        hash_commands::gen_hash_and_save_to_file,
+        hash_commands::compare_file_or_dir_with_hash,
+
     ]
 }
 
 #[tokio::main]
 async fn main() {
+    log_info!("Starting application...");
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
