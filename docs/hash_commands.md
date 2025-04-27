@@ -1,18 +1,18 @@
 # Tauri Hash Commands Documentation
 
 ## Content
-- [Generate Hash and Copy to Clipboard](#gen_hash_and_copy_to_clipboard-endpoint)
+- [Generate Hash and Return String](#gen_hash_and_return_string-endpoint)
 - [Generate Hash and Save to File](#gen_hash_and_save_to_file-endpoint)
 - [Compare File with Hash](#compare_file_or_dir_with_hash-endpoint)
 
-# `gen_hash_and_copy_to_clipboard` endpoint
+# `gen_hash_and_return_string` endpoint
 
 ---
 ## Parameters
 - `path`: The path to the file to generate a hash for. This should be a string representing the absolute path to the file.
 
 ## Returns
-- Ok(String) - The generated hash value as a string. The hash will also be copied to the clipboard.
+- Ok(String) - The generated hash value as a string.
 - Err(String) - An error message if the hash cannot be generated or other errors occur.
 
 ## Example call
@@ -20,7 +20,7 @@
 useEffect(() => {
     const generateHash = async () => {
         try {
-            const hash = await invoke("gen_hash_and_copy_to_clipboard", { path: "/path/to/file" });
+            const hash = await invoke("gen_hash_and_return_string", { path: "/path/to/file" });
             console.log("Generated hash:", hash);
         } catch (error) {
             console.error("Error generating hash:", error);
@@ -94,3 +94,4 @@ useEffect(() => {
 ## Notes
 - All hash operations use the default hash method configured in the application settings (MD5, SHA256, SHA384, SHA512, or CRC32).
 - Hash comparisons are case-insensitive.
+- Impl copy to clipboard in frontend
