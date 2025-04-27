@@ -1,5 +1,5 @@
 use crate::constants;
-use crate::filesystem::models::LoggingState;
+use crate::models::LoggingState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::File;

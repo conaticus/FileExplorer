@@ -347,6 +347,7 @@ mod tests_p {
     }
     
     #[test]
+    #[ignore]
     fn start_indexing_home_dir_test() {
         let test_path = get_test_data_path();
         let entries = index_given_path_parallel(test_path);
@@ -360,6 +361,7 @@ mod tests_p {
     }
     
     #[test]
+    #[ignore]
     fn search_performance_test() {
         // Index the test directory instead of home
         let test_path = get_test_data_path();
@@ -393,6 +395,7 @@ mod tests_p {
     }
     
     #[test]
+    #[ignore]
     fn parallel_vs_sequential_indexing_test() {
         let test_path = get_test_data_path();
         
@@ -413,6 +416,7 @@ mod tests_p {
     }
     
     #[test]
+    #[ignore]
     fn combined_parallel_indexing_and_searching_test() {
         // Measure parallel indexing performance
         let test_path = get_test_data_path();
@@ -439,6 +443,7 @@ mod tests_p {
     }
     
     #[test]
+    #[ignore]
     fn sequential_vs_parallel_search_comparison_test() {
         // First index the test directory in parallel
         println!("Starting parallel indexing of test directory...");

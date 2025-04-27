@@ -53,9 +53,11 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 use crate::constants::{LOG_FILE_NAME, ERROR_LOG_FILE_NAME, MAX_FILE_SIZE};
-use crate::filesystem::models::LoggingState;
+use crate::models::LoggingState;
 use crate::state::SettingsState;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub enum LogLevel {
     Info,
     Warn,

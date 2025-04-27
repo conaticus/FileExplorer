@@ -32,7 +32,7 @@ impl File {
             path: path_of_entry.to_str().unwrap_or("").to_string(),
             is_symlink: path_of_entry.is_symlink(),
             access_rights_as_string: get_access_permission_string(metadata.permissions(), false),
-            access_rights_as_number: get_access_permission_number(metadata.permissions()),
+            access_rights_as_number: get_access_permission_number(metadata.permissions(), false),
             size_in_bytes: metadata.len(),
             created: format_system_time(metadata.created()?),
             last_modified: format_system_time(metadata.modified()?),

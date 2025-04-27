@@ -9,7 +9,7 @@ pub mod models;
 mod logging;
 
 use tauri::ipc::Invoke;
-use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands};
+use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands, settings_commands, hash_commands};
 
 fn all_commands() -> fn(Invoke) -> bool {
     tauri::generate_handler![

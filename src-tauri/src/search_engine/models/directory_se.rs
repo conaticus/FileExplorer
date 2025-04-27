@@ -72,7 +72,7 @@ impl DirectorySe {
             path: path_of_entry.to_str().unwrap_or("").to_string(),
             is_symlink: path_of_entry.is_symlink(),
             access_rights_as_string: get_access_permission_string(metadata.permissions(), false),
-            access_rights_as_number: get_access_permission_number(metadata.permissions()),
+            access_rights_as_number: get_access_permission_number(metadata.permissions(), false),
             size_in_bytes: metadata.len(),
             sub_file_count,
             sub_dir_count,
