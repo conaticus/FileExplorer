@@ -16,7 +16,6 @@
 # Tauri-specific ignores
 /src-tauri/target/
 /src-tauri/.tauri-build
-/src-tauri/tauri.conf.json
 /src-tauri/tauri.conf.json.bak
 /src-tauri/gen/
 
