@@ -5,9 +5,8 @@ use md5::{Digest as Md5Digest, Md5 as Md5Hasher};
 use sha2::{Sha256, Sha384, Sha512, Digest as Sha2Digest};
 use crc32fast::Hasher;
 use tokio::fs::File;
-use tokio::fs;
 use tokio::io::AsyncReadExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
 use tauri::State;
 use crate::state::SettingsState;
@@ -104,70 +103,19 @@ async fn calculate_hash(method: ChecksumMethod, data: &[u8]) -> Result<String, H
     Ok(result)
 }
 
-async fn get_files_in_dir(path: &Path) -> Result<Vec<PathBuf>, HashError> {
-    let mut files = Vec::new();
-    let mut dirs = vec![path.to_path_buf()];
-
-    while let Some(dir) = dirs.pop() {
-        let mut entries = fs::read_dir(&dir)
-            .await
-            .map_err(|_| HashError::FileOperationError)?;
-
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            let path = entry.path();
-            if path.is_dir() {
-                dirs.push(path);
-            } else {
-                files.push(path);
-            }
-        }
-    }
-
-    files.sort();
-    Ok(files)
-}
-
-fn combine_hashes(hashes: &[String]) -> String {
-    if hashes.len() == 1 {
-        return hashes[0].clone();
-    }
-
-    let combined = hashes.join("");
-    let mut hasher = Sha256::new();
-    hasher.update(combined.as_bytes());
-    format!("{:x}", hasher.finalize())
-}
-
 async fn read_file(path: &Path) -> Result<Vec<u8>, HashError> {
-    if path.is_dir() {
-        let files = get_files_in_dir(path).await?;
+    if !path.exists() && path.is_dir() {
+        return Err(HashError::FileOperationError);
 
-        if files.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let mut hashes = Vec::new();
-        for file_path in files {
-            let data = fs::read(&file_path)
-                .await
-                .map_err(|_| HashError::FileOperationError)?;
-            let mut hasher = Sha256::new();
-            hasher.update(&data);
-            hashes.push(format!("{:x}", hasher.finalize()));
-        }
-
-        let combined_hash = combine_hashes(&hashes);
-        Ok(combined_hash.into_bytes())
-    } else {
-        let mut file = File::open(path)
-            .await
-            .map_err(|_| HashError::FileOperationError)?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer)
-            .await
-            .map_err(|_| HashError::FileOperationError)?;
-        Ok(buffer)
     }
+    let mut file = File::open(path)
+        .await
+        .map_err(|_| HashError::FileOperationError)?;
+    let mut buffer = Vec::new();
+    file
+        .read_to_end(&mut buffer)
+        .await.map_err(|_| HashError::FileOperationError)?;
+    Ok(buffer)
 }
 
 // Simplified clipboard trait
@@ -509,69 +457,6 @@ mod tests_hash_commands {
                 let clipboard_value = clipboard_content.lock().unwrap();
                 assert_eq!(*clipboard_value, expected_hash, "Clipboard content mismatch for {:?}", method);
             }
-        })
-    }
-
-    #[test]
-    fn test_hash_directory() {
-        run_async_test(async {
-            let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-            let file1_path = temp_dir.path().join("file1.txt");
-            let file2_path = temp_dir.path().join("file2.txt");
-            let subdir_path = temp_dir.path().join("subdir");
-            let file3_path = subdir_path.join("file3.txt");
-
-            fs::create_dir_all(&subdir_path).await.expect("Failed to create subdirectory");
-            fs::write(&file1_path, b"content1").await.expect("Failed to write file1");
-            fs::write(&file2_path, b"content2").await.expect("Failed to write file2");
-            fs::write(&file3_path, b"content3").await.expect("Failed to write file3");
-
-            let mock_state = create_test_state(ChecksumMethod::SHA256);
-
-            let single_dir = tempdir().expect("Failed to create single file directory");
-            let single_file = single_dir.path().join("single.txt");
-            fs::write(&single_file, b"content").await.expect("Failed to write single file");
-
-            let single_result = gen_hash_and_copy_to_clipboard_impl(
-                single_dir.path().to_str().unwrap().to_string(),
-                mock_state.clone()
-            ).await;
-            assert!(single_result.is_ok());
-
-            let result = gen_hash_and_copy_to_clipboard_impl(
-                temp_dir.path().to_str().unwrap().to_string(),
-                mock_state
-            ).await;
-
-            assert!(result.is_ok());
-
-            let empty_dir = tempdir().expect("Failed to create empty directory");
-            let empty_result = gen_hash_and_copy_to_clipboard_impl(
-                empty_dir.path().to_str().unwrap().to_string(),
-                create_test_state(ChecksumMethod::SHA256)
-            ).await;
-
-            assert!(empty_result.is_ok());
-            assert_eq!(empty_result.unwrap(), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-        });
-    }
-
-    #[test]
-    fn test_hash_directory_no_files() {
-        run_async_test(async {
-            let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-            let mock_state = create_test_state(ChecksumMethod::SHA256);
-            let state: Arc<Mutex<SettingsState>> = mock_state.clone();
-
-            let result = gen_hash_and_copy_to_clipboard_impl(
-                temp_dir.path().to_str().unwrap().to_string(),
-                state.clone()
-            ).await;
-
-            assert!(result.is_ok(), "Directory hash generation should succeed");
-            assert_eq!(result.unwrap(), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         })
     }
 
