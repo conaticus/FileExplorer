@@ -6,7 +6,7 @@ mod filesystem;
 mod state;
 
 use tauri::ipc::Invoke;
-use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands};
+use crate::commands::{file_system_operation_commands, meta_data_commands, settings_commands, volume_operations_commands,};
 
 fn all_commands() -> fn(Invoke) -> bool {
     tauri::generate_handler![
@@ -26,6 +26,13 @@ fn all_commands() -> fn(Invoke) -> bool {
         // Volume commands
         volume_operations_commands::get_system_volumes_information_as_json,
         volume_operations_commands::get_system_volumes_information,
+
+        // Settings commands
+        settings_commands::get_settings_as_json,
+        settings_commands::update_settings_field,
+        settings_commands::get_setting_field,
+        settings_commands::update_multiple_settings_command,
+        settings_commands::reset_settings_command,
     ]
 }
 
