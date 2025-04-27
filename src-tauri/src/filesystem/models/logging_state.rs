@@ -4,5 +4,6 @@ use serde::{Deserialize, Serialize};
 pub enum LoggingState {
     Full,
     Partial,
-    Minimal
+    Minimal, 
+    OFF
 }

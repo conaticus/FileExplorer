@@ -1,7 +1,7 @@
-use std::io;
 use crate::state::SettingsState;
-use std::sync::{Arc, Mutex};
 use serde_json::{to_string, Value};
+use std::io;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 pub fn get_settings_as_json_impl(state: Arc<Mutex<SettingsState>>) -> String {
@@ -14,7 +14,9 @@ pub fn get_setting_field_impl(
     key: String,
 ) -> Result<Value, String> {
     let settings_state = state.lock().unwrap();
-    settings_state.get_setting_field(&key).map_err(|e| e.to_string())
+    settings_state
+        .get_setting_field(&key)
+        .map_err(|e| e.to_string())
 }
 
 pub fn update_settings_field_impl(
@@ -25,7 +27,9 @@ pub fn update_settings_field_impl(
     let settings_state = state.lock().unwrap();
     settings_state
         .update_setting_field(&key, value)
-        .and_then(|updated| to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
+        .and_then(|updated| {
+            to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        })
         .map_err(|e| e.to_string())
 }
 
@@ -36,7 +40,19 @@ pub fn update_multiple_settings_impl(
     let settings_state = state.lock().unwrap();
     settings_state
         .update_multiple_settings(&updates)
-        .and_then(|updated| to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
+        .and_then(|updated| {
+            to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        })
+        .map_err(|e| e.to_string())
+}
+
+pub fn reset_settings_impl(state: Arc<Mutex<SettingsState>>) -> Result<String, String> {
+    let settings_state = state.lock().unwrap();
+    settings_state
+        .reset_settings()
+        .and_then(|updated| {
+            to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        })
         .map_err(|e| e.to_string())
 }
 
@@ -62,7 +78,6 @@ pub fn update_multiple_settings_impl(
 pub fn get_settings_as_json(state: State<Arc<Mutex<SettingsState>>>) -> String {
     get_settings_as_json_impl(state.inner().clone())
 }
-
 
 /// Retrieves the value of a specific setting field.
 ///
@@ -163,6 +178,35 @@ pub fn update_multiple_settings_command(
     update_multiple_settings_impl(state.inner().clone(), updates)
 }
 
+/// Resets the current settings file and resets settings to their default values.
+///
+/// reinitializes the in-memory settings state to default values by reusing the default state logic.
+///
+/// # Arguments
+///
+/// * `settings_state` - A Tauri state containing a thread-safe reference to the application's settings.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the settings file was successfully deleted and the state reset.
+/// * `Err(String)` - An error message if deletion or reset fails.
+///
+/// # Example
+///
+/// ```rust
+/// let result = reset_settings(state);
+/// match result {
+///     Ok(_) => println!("Settings were reset to default."),
+///     Err(err) => println!("Failed to reset settings: {}", err),
+/// }
+/// ```
+#[tauri::command]
+pub fn reset_settings_command(
+    state: State<Arc<Mutex<SettingsState>>>
+) -> Result<String, String>{
+    reset_settings_impl(state.inner().clone())
+}
+
 #[cfg(test)]
 mod tests_settings_commands {
     use super::*;
@@ -212,7 +256,8 @@ mod tests_settings_commands {
     #[test]
     fn test_update_settings_field_invalid_key() {
         let state = create_test_settings_state();
-        let result = update_settings_field_impl(state.clone(), "nonexistent".to_string(), json!(123));
+        let result =
+            update_settings_field_impl(state.clone(), "nonexistent".to_string(), json!(123));
         assert!(result.is_err());
     }
 
@@ -243,5 +288,17 @@ mod tests_settings_commands {
 
         let result = update_multiple_settings_impl(state.clone(), updates);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reset_settings_command_success() {
+        let state = create_test_settings_state();
+        let updated_data = update_settings_field_impl(state.clone(), "darkmode".to_string(), json!(true));
+
+        let result = reset_settings_impl(state.clone());
+        assert!(result.is_ok());
+
+        let darkmode = get_setting_field_impl(state.clone(), "darkmode".to_string()).unwrap();
+        assert_eq!(darkmode, json!(false));
     }
 }
