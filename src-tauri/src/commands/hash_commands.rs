@@ -293,27 +293,6 @@ mod tests_hash_commands {
     use serde_json::json;
     use crate::state::SettingsState;
 
-    // Mock clipboard for testing
-    struct MockClipboard {
-        content: Arc<Mutex<String>>,
-    }
-
-    impl MockClipboard {
-        fn new() -> Self {
-            MockClipboard {
-                content: Arc::new(Mutex::new(String::new())),
-            }
-        }
-    }
-
-    impl ClipboardOperations for MockClipboard {
-        async fn set_contents(&mut self, content: String) -> Result<(), HashError> {
-            let mut guard = self.content.lock().unwrap();
-            *guard = content;
-            Ok(())
-        }
-    }
-
     // Test helper that uses mock clipboard
     async fn test_hash_with_mock_clipboard(
         file_path: &str,
