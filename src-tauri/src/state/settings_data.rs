@@ -7,10 +7,7 @@ use std::io;
 use std::io::{Error, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use crate::constants;
-use crate::filesystem::models::LoggingState;
+
 
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -411,7 +408,7 @@ impl SettingsState {
     /// let settings = SettingsState::read_settings_from_file(&test_path)?;
     /// println!("Read settings: {:?}", settings);
     /// ```
-    #[cfg(test)]
+
     pub fn read_settings_from_file(path: &PathBuf) -> io::Result<Settings> {
         use std::io::Read;
         let mut file = File::open(path)?;
@@ -426,7 +423,6 @@ mod tests_settings {
     use super::*;
     use serde_json::{json, Map, Value};
     use tempfile::tempdir;
-    use serde_json::{json, Map, Value};
 
     /// Tests that the default settings have the expected initial values.
     ///
