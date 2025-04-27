@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::Permissions;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::time::SystemTime;
 use walkdir::WalkDir;
@@ -36,13 +37,13 @@ pub struct Entries {
 ///  let permission_number = get_access_permission_number(permissions, is_directory);
 ///  println!("Access permissions number: {}", permission_number);
 /// }
-pub fn get_access_permission_number(permissions: Permissions) -> u32 {
+pub fn get_access_permission_number(permissions: Permissions, _is_directory: bool) -> u32 {
     #[cfg(windows)]
     {
         // Unix-like octal for Windows-permissions
         if permissions.readonly() {
             return 0o444; // r--r--r--
-        } else if is_directory {
+        } else if _is_directory {
             return 0o755; // rwxr-xr-x
         } else {
             return 0o666; // rw-rw-rw-

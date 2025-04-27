@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 pub struct MetaData {
     version: String,
     abs_file_path_buf: PathBuf,
+    abs_file_path_for_settings_json: PathBuf,
     all_volumes_with_information: Vec<VolumeInformation>,
 }
 impl Default for MetaData {
@@ -20,6 +21,7 @@ impl Default for MetaData {
         MetaData {
             version: constants::VERSION.to_owned(),
             abs_file_path_buf: constants::META_DATA_CONFIG_ABS_PATH.to_path_buf(),
+            abs_file_path_for_settings_json: constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf(),
             all_volumes_with_information: volume_operations_commands::get_system_volumes_information(),
         }
     }
@@ -123,6 +125,7 @@ mod tests {
         let meta_data = read_result.unwrap();
         assert_eq!(meta_data.version, constants::VERSION);
         assert_eq!(meta_data.abs_file_path_buf, test_path);
+        assert_eq!(meta_data.abs_file_path_for_settings_json, constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf());
     }
     
     #[test]
@@ -181,5 +184,6 @@ mod tests {
         let read_meta_data = read_result.unwrap();
         assert_eq!(read_meta_data.version, "test-version");
         assert_eq!(read_meta_data.abs_file_path_buf, test_path);
+        assert_eq!(meta_data.abs_file_path_for_settings_json, constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf());
     }
 }
