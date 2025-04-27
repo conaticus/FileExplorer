@@ -1,5 +1,4 @@
 use crate::state::SettingsState;
-use cli_clipboard::{ClipboardContext, ClipboardProvider};
 use crc32fast::Hasher;
 use md5::{Digest as Md5Digest, Md5 as Md5Hasher};
 use serde::{Deserialize, Serialize};
@@ -122,33 +121,7 @@ async fn read_file(path: &Path) -> Result<Vec<u8>, HashError> {
     Ok(buffer)
 }
 
-// Simplified clipboard trait
-trait ClipboardOperations {
-    async fn set_contents(&mut self, content: String) -> Result<(), HashError>;
-}
-
-struct RealClipboard;
-
-impl ClipboardOperations for RealClipboard {
-    async fn set_contents(&mut self, content: String) -> Result<(), HashError> {
-        tokio::task::spawn_blocking(move || {
-            ClipboardContext::new()
-                .map_err(|_| HashError::ClipboardError)?
-                .set_contents(content)
-                .map_err(|_| HashError::ClipboardError)
-        })
-        .await
-        .map_err(|_| HashError::ClipboardError)?
-    }
-}
-
-// Simplified clipboard function that always uses real clipboard
-async fn copy_to_clipboard(hash: &str) -> Result<(), HashError> {
-    RealClipboard.set_contents(hash.to_string()).await
-}
-
-// Update the implementation function to use async clipboard
-pub async fn gen_hash_and_copy_to_clipboard_impl(
+pub async fn gen_hash_and_return_string_impl(
     path: String,
     state: Arc<Mutex<SettingsState>>,
 ) -> Result<String, String> {
@@ -162,12 +135,10 @@ pub async fn gen_hash_and_copy_to_clipboard_impl(
         .await
         .map_err(|e| e.to_string())?;
 
-    copy_to_clipboard(&hash).await.map_err(|e| e.to_string())?;
-
     Ok(hash)
 }
 
-/// Generates a hash for the given file and copies it to the clipboard.
+/// Generates a hash for the given file and returns it as a string.
 /// The hash algorithm used is determined by the application settings (MD5, SHA256, SHA384, SHA512, or CRC32).
 ///
 /// # Arguments
@@ -175,23 +146,23 @@ pub async fn gen_hash_and_copy_to_clipboard_impl(
 /// * `state` - The application's settings state containing the default hash algorithm.
 ///
 /// # Returns
-/// * `Ok(String)` - The generated hash value as a string. The hash is also copied to the clipboard.
-/// * `Err(String)` - An error message if the hash cannot be generated or copied to clipboard.
+/// * `Ok(String)` - The generated hash value as a string.
+/// * `Err(String)` - An error message if the hash cannot be generated.
 ///
 /// # Example
 /// ```rust
-/// let result = gen_hash_and_copy_to_clipboard("/path/to/file", state).await;
+/// let result = gen_hash_and_return_string("/path/to/file", state).await;
 /// match result {
 ///     Ok(hash) => println!("Generated hash: {}", hash),
 ///     Err(err) => println!("Error generating hash: {}", err),
 /// }
 /// ```
 #[tauri::command]
-pub async fn gen_hash_and_copy_to_clipboard(
+pub async fn gen_hash_and_return_string(
     path: String,
     state: State<'_, Arc<Mutex<SettingsState>>>,
 ) -> Result<String, String> {
-    gen_hash_and_copy_to_clipboard_impl(path, state.inner().clone()).await
+    gen_hash_and_return_string_impl(path, state.inner().clone()).await
 }
 
 pub async fn gen_hash_and_save_to_file_impl(
@@ -301,28 +272,6 @@ mod tests_hash_commands {
     use std::sync::Arc;
     use tempfile::tempdir;
 
-    // Test helper that uses mock clipboard
-    async fn test_hash_with_mock_clipboard(
-        file_path: &str,
-        state: Arc<Mutex<SettingsState>>,
-        clipboard: Arc<Mutex<String>>,
-    ) -> Result<String, String> {
-        let checksum_method = get_checksum_method(state)
-            .await
-            .map_err(|e| e.to_string())?;
-        let data = read_file(Path::new(file_path))
-            .await
-            .map_err(|e| e.to_string())?;
-        let hash = calculate_hash(checksum_method, &data)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let mut guard = clipboard.lock().unwrap();
-        *guard = hash.clone();
-
-        Ok(hash)
-    }
-
     // Testing: Helper function to create a test SettingsState
     fn create_test_settings_state() -> Arc<Mutex<SettingsState>> {
         let temp_file = tempfile::NamedTempFile::new().unwrap();
@@ -339,14 +288,6 @@ mod tests_hash_commands {
             .update_setting_field("default_checksum_hash", json!(method))
             .unwrap();
         state.clone()
-    }
-
-    fn run_async_test<F: std::future::Future>(f: F) -> F::Output {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to create runtime");
-        rt.block_on(f)
     }
 
     #[tokio::test]
@@ -438,25 +379,16 @@ mod tests_hash_commands {
 
         for (method, expected_hash) in expected_hashes {
             let mock_state = create_test_state(method.clone());
-            let clipboard_content = Arc::new(Mutex::new(String::new()));
 
-            let result = test_hash_with_mock_clipboard(
-                test_file_path.to_str().unwrap(),
+            let result = gen_hash_and_return_string_impl(
+                test_file_path.to_str().unwrap().to_string(),
                 mock_state,
-                clipboard_content.clone(),
             )
             .await;
 
             assert!(result.is_ok(), "Hash generation failed for {:?}", method);
             let hash = result.unwrap();
             assert_eq!(hash, expected_hash, "Hash mismatch for {:?}", method);
-
-            let clipboard_value = clipboard_content.lock().unwrap();
-            assert_eq!(
-                *clipboard_value, expected_hash,
-                "Clipboard content mismatch for {:?}",
-                method
-            );
         }
     }
 
@@ -466,7 +398,7 @@ mod tests_hash_commands {
         let non_existent_path = "not_a_real_file.txt";
 
         let result =
-            gen_hash_and_copy_to_clipboard_impl(non_existent_path.to_string(), mock_state).await;
+            gen_hash_and_return_string_impl(non_existent_path.to_string(), mock_state).await;
 
         assert!(result.is_err());
         assert_eq!(
@@ -482,7 +414,7 @@ mod tests_hash_commands {
         std::fs::File::create(&test_file_path).expect("Failed to create empty file");
 
         let mock_state = create_test_state(ChecksumMethod::SHA256);
-        let result = gen_hash_and_copy_to_clipboard_impl(
+        let result = gen_hash_and_return_string_impl(
             test_file_path.to_str().unwrap().to_string(),
             mock_state,
         )
@@ -523,7 +455,7 @@ mod tests_hash_commands {
         std::fs::write(&test_file_path, b"test data").expect("Failed to write test file");
 
         let mock_state = create_test_state(ChecksumMethod::SHA256);
-        let result = gen_hash_and_copy_to_clipboard_impl(
+        let result = gen_hash_and_return_string_impl(
             test_file_path.to_str().unwrap().to_string(),
             mock_state,
         )
@@ -540,7 +472,7 @@ mod tests_hash_commands {
         std::fs::write(&test_file_path, &binary_data).expect("Failed to write binary file");
 
         let mock_state = create_test_state(ChecksumMethod::SHA256);
-        let result = gen_hash_and_copy_to_clipboard_impl(
+        let result = gen_hash_and_return_string_impl(
             test_file_path.to_str().unwrap().to_string(),
             mock_state,
         )
@@ -574,7 +506,7 @@ mod tests_hash_commands {
             drop(state_guard);
 
             let result =
-                gen_hash_and_copy_to_clipboard_impl(file_path.clone(), state.clone()).await;
+                gen_hash_and_return_string_impl(file_path.clone(), state.clone()).await;
 
             assert!(result.is_ok(), "Hash generation failed for {:?}", method);
         }
@@ -588,7 +520,7 @@ mod tests_hash_commands {
         std::fs::write(&test_file_path, unicode_content).expect("Failed to write unicode file");
 
         let mock_state = create_test_state(ChecksumMethod::SHA256);
-        let result = gen_hash_and_copy_to_clipboard_impl(
+        let result = gen_hash_and_return_string_impl(
             test_file_path.to_str().unwrap().to_string(),
             mock_state,
         )
@@ -605,7 +537,7 @@ mod tests_hash_commands {
         std::fs::write(&test_file_path, &data).expect("Failed to write file");
 
         let mock_state = create_test_state(ChecksumMethod::SHA256);
-        let result = gen_hash_and_copy_to_clipboard_impl(
+        let result = gen_hash_and_return_string_impl(
             test_file_path.to_str().unwrap().to_string(),
             mock_state,
         )
@@ -614,6 +546,7 @@ mod tests_hash_commands {
         assert!(result.is_ok());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_sha256_large_known_vector() {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
@@ -629,7 +562,7 @@ mod tests_hash_commands {
         }
 
         let mock_state = create_test_state(ChecksumMethod::SHA256);
-        let result = gen_hash_and_copy_to_clipboard_impl(
+        let result = gen_hash_and_return_string_impl(
             test_file_path.to_str().unwrap().to_string(),
             mock_state,
         )

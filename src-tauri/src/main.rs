@@ -35,7 +35,7 @@ fn all_commands() -> fn(Invoke) -> bool {
         settings_commands::reset_settings_command,
 
         // Hash commands
-        hash_commands::gen_hash_and_copy_to_clipboard,
+        hash_commands::gen_hash_and_return_string,
         hash_commands::gen_hash_and_save_to_file,
         hash_commands::compare_file_or_dir_with_hash,
 
