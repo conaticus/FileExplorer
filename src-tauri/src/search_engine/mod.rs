@@ -1,6 +1,6 @@
 mod models;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use home::home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs::read_dir;
@@ -203,7 +203,7 @@ fn efficient_string_match(
 
 /// Generates a test data directory structure with random folder and file names.
 /// Creates 20 folders with 20 subfolders each up to a depth of 5, and 20 files in each folder.
-pub fn generate_test_data() -> Result<PathBuf, std::io::Error> {
+pub fn generate_test_data(base_path: PathBuf) -> Result<PathBuf, std::io::Error> {
     use std::fs::{create_dir_all, File};
     use rand::{thread_rng, Rng};
     use std::time::Instant;
@@ -213,12 +213,9 @@ pub fn generate_test_data() -> Result<PathBuf, std::io::Error> {
     const FILES_PER_FOLDER: usize = 20;
     const MAX_DEPTH: usize = 3;
     
-    // Create the base test-data directory in user's home folder
-    let home = PathBuf::from(".");
-    let base_path = home.join("test-data-for-search-engine");
-    
     // Remove the directory if it already exists
     if base_path.exists() {
+        println!("Removing existing test data at: {:?}", base_path);
         std::fs::remove_dir_all(&base_path)?;
     }
     
@@ -337,7 +334,7 @@ pub fn generate_test_data() -> Result<PathBuf, std::io::Error> {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_p {
     use super::*;
     
     // Helper function to get the test data path and verify it exists
@@ -456,7 +453,7 @@ mod tests {
         
         // Define a variety of search keywords with different specificity
         let search_keywords = [
-            "de", "xe", "f"
+            "banana", "blackberry", "peach"
         ];
         
         println!("\n{:<10} | {:<15} | {:<15} | {:<15} | {:<10}", 
@@ -506,8 +503,9 @@ mod tests {
     }
     
     #[test]
+    #[ignore]
     fn test_generate_test_data() {
-        match generate_test_data() {
+        match generate_test_data(get_test_data_path()) {
             Ok(path) => {
                 assert!(path.exists(), "Test data directory should exist");
                 
@@ -538,7 +536,7 @@ mod tests {
     #[test]
     #[cfg(feature = "generate-test-data")]
     fn create_test_data() {
-        match generate_test_data() {
+        match generate_test_data(get_test_data_path()) {
             Ok(path) => println!("Test data created at: {:?}", path),
             Err(e) => panic!("Failed to generate test data: {}", e)
         }

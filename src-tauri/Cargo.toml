@@ -36,3 +36,6 @@ tauri-build = { version = "2.1", features = [] }  # Removed "log" feature
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
 generate-test-data = []
+long-tests = []
+full = ["long-tests"]
+full-without-generate-test-data = ["long-tests"]
