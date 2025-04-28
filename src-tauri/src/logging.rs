@@ -65,7 +65,7 @@ macro_rules! log_info {
             module_path!(),
             $msg,
             line!(),
-        );
+        )
     };
 }
 
@@ -78,7 +78,7 @@ macro_rules! log_warn {
             module_path!(),
             $msg,
             line!(),
-        );
+        )
     };
 }
 
@@ -91,7 +91,7 @@ macro_rules! log_error {
             module_path!(),
             $msg,
             line!(),
-        );
+        )
     };
 }
 
@@ -104,7 +104,7 @@ macro_rules! log_critical {
             module_path!(),
             $msg,
             line!(),
-        );
+        )
     };
 }
 
