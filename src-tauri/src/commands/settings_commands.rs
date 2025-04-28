@@ -209,7 +209,7 @@ pub fn reset_settings_command(
 
 #[cfg(test)]
 mod tests_settings_commands {
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use super::*;
     use serde_json::json;
 
