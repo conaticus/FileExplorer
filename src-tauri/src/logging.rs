@@ -193,8 +193,8 @@ macro_rules! log_info {
             file!(),
             module_path!(),
             $msg,
-            line!(),
-        );
+            line!()
+        )
     };
 }
 
@@ -206,8 +206,8 @@ macro_rules! log_warn {
             file!(),
             module_path!(),
             $msg,
-            line!(),
-        );
+            line!()
+        )
     };
 }
 
@@ -219,8 +219,8 @@ macro_rules! log_error {
             file!(),
             module_path!(),
             $msg,
-            line!(),
-        );
+            line!()
+        )
     };
 }
 
@@ -232,8 +232,8 @@ macro_rules! log_critical {
             file!(),
             module_path!(),
             $msg,
-            line!(),
-        );
+            line!()
+        )
     };
 }
 

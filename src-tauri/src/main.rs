@@ -45,7 +45,7 @@ fn all_commands() -> fn(Invoke) -> bool {
         hash_commands::compare_file_or_dir_with_hash,
 
         // Template commands
-        template_commands::get_template_paths,
+        template_commands::get_template_paths_as_json,
         template_commands::add_template,
         template_commands::use_template,
         template_commands::remove_template,

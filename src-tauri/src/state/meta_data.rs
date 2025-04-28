@@ -14,8 +14,8 @@ pub struct MetaData {
     version: String,
     abs_file_path_buf: PathBuf,
     abs_file_path_for_settings_json: PathBuf,
-    abs_folder_path_buf_for_templates: PathBuf,
-    template_paths: Vec<PathBuf>,
+    pub abs_folder_path_buf_for_templates: PathBuf,
+    pub template_paths: Vec<PathBuf>,
     all_volumes_with_information: Vec<VolumeInformation>,
 }
 impl Default for MetaData {
@@ -46,8 +46,8 @@ fn load_templates() -> Vec<PathBuf> {
         }).unwrap();
         vec![]
     }
-
 }
+
 pub struct MetaDataState(pub Arc<Mutex<MetaData>>);
 impl MetaDataState {
     pub fn new() -> Self {
@@ -69,8 +69,14 @@ impl MetaDataState {
         self.write_meta_data_to_file(&meta_data)
     }
 
+    pub fn update_template_paths(&self) -> io::Result<()> {
+        let mut meta_data = self.0.lock().unwrap();
+        meta_data.template_paths = load_templates();
+        self.write_meta_data_to_file(&meta_data)
+    }
+
     /// Writes the current metadata to file
-    fn write_meta_data_to_file(&self, meta_data: &MetaData) -> io::Result<()> {
+    pub fn write_meta_data_to_file(&self, meta_data: &MetaData) -> io::Result<()> {
         let user_config_file_path = &meta_data.abs_file_path_buf;
         let serialized = serde_json::to_string_pretty(&meta_data)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
