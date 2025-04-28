@@ -14,5 +14,5 @@ pub use directory_entries_helper::{
     get_access_permission_string, get_directory_size_in_bytes,
 };
 
-mod logging_state;
-pub use logging_state::LoggingState;
+mod logging_level;
+pub use logging_level::LoggingLevel;

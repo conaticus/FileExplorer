@@ -53,7 +53,7 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 use crate::constants::{LOG_FILE_NAME, ERROR_LOG_FILE_NAME, MAX_FILE_SIZE};
-use crate::models::LoggingState;
+use crate::models::LoggingLevel;
 use crate::state::SettingsState;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -65,10 +65,10 @@ pub enum LogLevel {
     Critical,
 }
 
-fn get_logging_state(state: Arc<Mutex<SettingsState>>) -> Result<LoggingState, String> {
+fn get_logging_state(state: Arc<Mutex<SettingsState>>) -> Result<LoggingLevel, String> {
     let settings_state = state.lock().unwrap();
     let inner_settings = settings_state.0.lock().map_err(|_| "Error while getting Logging state")?;
-    Ok(inner_settings.logging_state.clone())
+    Ok(inner_settings.logging_level.clone())
 }
 
 impl fmt::Display for LogLevel {
@@ -125,17 +125,17 @@ impl Logger {
             }
         };
 
-        if logging_state == LoggingState::OFF {
+        if logging_state == LoggingLevel::OFF {
             return;
         }
 
         let entry = match logging_state {
-            LoggingState::Full => format!(
+            LoggingLevel::Full => format!(
                 "{timestamp} - file: {file} - fn: {function} - line: {line} - {level} - {message}"
             ),
-            LoggingState::Partial => format!("{timestamp} - {level} - {message}"),
-            LoggingState::Minimal => format!("{level} - {message}"),
-            LoggingState::OFF => return, // redundant due to early return, but kept for safety
+            LoggingLevel::Partial => format!("{timestamp} - {level} - {message}"),
+            LoggingLevel::Minimal => format!("{level} - {message}"),
+            LoggingLevel::OFF => return, // redundant due to early return, but kept for safety
         };
 
         self.write_log(&entry);
@@ -290,7 +290,7 @@ mod tests_logging {
         {
             let mut state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
-            inner_settings.logging_state = LoggingState::Full;
+            inner_settings.logging_level = LoggingLevel::Full;
         }
 
         logger.log(LogLevel::Info, "test_file.rs", "test_function", "Full logging test", 42);
@@ -309,7 +309,7 @@ mod tests_logging {
         {
             let mut state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
-            inner_settings.logging_state = LoggingState::Partial;
+            inner_settings.logging_level = LoggingLevel::Partial;
         }
 
         logger.log(LogLevel::Warn, "test_file.rs", "test_function", "Partial logging test", 42);
@@ -328,7 +328,7 @@ mod tests_logging {
         {
             let mut state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
-            inner_settings.logging_state = LoggingState::Minimal;
+            inner_settings.logging_level = LoggingLevel::Minimal;
         }
 
         logger.log(LogLevel::Error, "test_file.rs", "test_function", "Minimal logging test", 42);
@@ -347,7 +347,7 @@ mod tests_logging {
         {
             let mut state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
-            inner_settings.logging_state = LoggingState::OFF;
+            inner_settings.logging_level = LoggingLevel::OFF;
         }
 
         logger.log(LogLevel::Critical, "test_file.rs", "test_function", "Logging OFF test", 42);
