@@ -56,6 +56,58 @@ use crate::constants::{LOG_FILE_NAME, ERROR_LOG_FILE_NAME, MAX_FILE_SIZE};
 use crate::models::LoggingLevel;
 use crate::state::SettingsState;
 
+#[macro_export]
+macro_rules! log_info {
+    ($msg:expr) => {
+        $crate::logging::Logger::global().log(
+            $crate::logging::LogLevel::Info,
+            file!(),
+            module_path!(),
+            $msg,
+            line!(),
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! log_warn {
+    ($msg:expr) => {
+        $crate::logging::Logger::global().log(
+            $crate::logging::LogLevel::Warn,
+            file!(),
+            module_path!(),
+            $msg,
+            line!(),
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! log_error {
+    ($msg:expr) => {
+        $crate::logging::Logger::global().log(
+            $crate::logging::LogLevel::Error,
+            file!(),
+            module_path!(),
+            $msg,
+            line!(),
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! log_critical {
+    ($msg:expr) => {
+        $crate::logging::Logger::global().log(
+            $crate::logging::LogLevel::Critical,
+            file!(),
+            module_path!(),
+            $msg,
+            line!(),
+        );
+    };
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(dead_code)]
 pub enum LogLevel {
@@ -183,58 +235,6 @@ impl Logger {
             }
         }
     }
-}
-
-#[macro_export]
-macro_rules! log_info {
-    ($msg:expr) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Info,
-            file!(),
-            module_path!(),
-            $msg,
-            line!(),
-        );
-    };
-}
-
-#[macro_export]
-macro_rules! log_warn {
-    ($msg:expr) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Warn,
-            file!(),
-            module_path!(),
-            $msg,
-            line!(),
-        );
-    };
-}
-
-#[macro_export]
-macro_rules! log_error {
-    ($msg:expr) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Error,
-            file!(),
-            module_path!(),
-            $msg,
-            line!(),
-        );
-    };
-}
-
-#[macro_export]
-macro_rules! log_critical {
-    ($msg:expr) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Critical,
-            file!(),
-            module_path!(),
-            $msg,
-            line!(),
-        );
-    };
 }
 
 #[cfg(test)]
