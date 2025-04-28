@@ -1,4 +1,4 @@
-use crate::{log_critical, log_info};
+use crate::log_info;
 
 #[tauri::command]
 pub fn get_template_paths() -> Result<String, String> {
