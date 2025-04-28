@@ -226,7 +226,7 @@ mod tests_settings_commands {
         let state = create_test_settings_state();
         let json = get_settings_as_json_impl(state);
         assert!(json.contains("\"darkmode\":false"));
-        assert!(json.contains("\"logging_state\":\"Full\""));
+        assert!(json.contains("\"logging_level\":\"Full\""));
     }
 
     #[test]
