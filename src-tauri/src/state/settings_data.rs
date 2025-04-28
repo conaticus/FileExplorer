@@ -1,5 +1,5 @@
 use crate::constants;
-use crate::filesystem::models::LoggingState;
+use crate::models::LoggingLevel;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::File;
@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use crate::commands::hash_commands::ChecksumMethod;
 
+
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
     pub darkmode: bool,
@@ -16,8 +18,8 @@ pub struct Settings {
     pub default_theme: String,
     pub default_themes_path: PathBuf,
     pub default_folder_path_on_opening: PathBuf,
-    pub default_checksum_hash: ChecksumMethod, // either "MD5" or "SHA256"
-    pub logging_state: LoggingState,
+    pub default_checksum_hash: ChecksumMethod,
+    pub logging_level: LoggingLevel,
     pub abs_file_path_buf: PathBuf,
 }
 
@@ -31,7 +33,7 @@ impl Default for Settings {
             default_themes_path: Default::default(),
             default_folder_path_on_opening: Default::default(),
             default_checksum_hash: ChecksumMethod::SHA256,
-            logging_state: LoggingState::Full,
+            logging_level: LoggingLevel::Full,
             abs_file_path_buf: constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf(),
         }
     }
@@ -434,7 +436,7 @@ mod tests_settings {
         //assert_eq!(settings.default_themes_path, Default::default());
         //assert_eq!(settings.default_folder_path_on_opening, Default::default());
         assert_eq!(settings.default_checksum_hash, ChecksumMethod::SHA256);
-        assert_eq!(settings.logging_state, LoggingState::Full);
+        assert_eq!(settings.logging_level, LoggingLevel::Full);
         assert_eq!(
             settings.abs_file_path_buf,
             constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf()
@@ -517,7 +519,7 @@ mod tests_settings {
         // Create a custom metadata object
         let mut settings = Settings::default();
         settings.abs_file_path_buf = test_path.clone();
-        settings.logging_state = LoggingState::Partial;
+        settings.logging_level = LoggingLevel::Partial;
         settings.default_folder_path_on_opening = PathBuf::from("temp_dir");
 
         // Create a MetaDataState and write the custom metadata
@@ -640,7 +642,7 @@ mod tests_settings {
 
         let result = state.update_setting_field("logging_state", json!("Minimal"));
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().logging_state, LoggingState::Minimal);
+        assert_eq!(result.unwrap().logging_level, LoggingLevel::Minimal);
     }
 
     /// Tests error handling when attempting to update a non-existent key.

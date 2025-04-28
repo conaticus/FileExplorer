@@ -1,7 +1,7 @@
 use crate::constants;
 use serde::{Deserialize, Serialize};
 
-use crate::filesystem::models::VolumeInformation;
+use crate::models::VolumeInformation;
 use crate::commands::volume_operations_commands;
 use std::fs::File;
 use std::io;

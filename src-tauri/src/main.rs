@@ -4,6 +4,8 @@ mod commands;
 pub mod constants;
 mod filesystem;
 mod state;
+mod search_engine;
+pub mod models;
 mod logging;
 
 use tauri::ipc::Invoke;
@@ -19,6 +21,8 @@ fn all_commands() -> fn(Invoke) -> bool {
         file_system_operation_commands::rename,
         file_system_operation_commands::move_to_trash,
         file_system_operation_commands::copy_file_or_dir,
+        file_system_operation_commands::zip,
+        file_system_operation_commands::unzip,
 
         // Metadata commands
         meta_data_commands::get_meta_data_as_json,
@@ -36,7 +40,7 @@ fn all_commands() -> fn(Invoke) -> bool {
         settings_commands::reset_settings_command,
 
         // Hash commands
-        hash_commands::gen_hash_and_copy_to_clipboard,
+        hash_commands::gen_hash_and_return_string,
         hash_commands::gen_hash_and_save_to_file,
         hash_commands::compare_file_or_dir_with_hash,
 
@@ -51,6 +55,7 @@ fn all_commands() -> fn(Invoke) -> bool {
 
 #[tokio::main]
 async fn main() {
+    log_info!("Starting application...");
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())

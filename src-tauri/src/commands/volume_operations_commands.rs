@@ -1,4 +1,4 @@
-use crate::filesystem::models::VolumeInformation;
+use crate::models::VolumeInformation;
 use sysinfo::Disks;
 
 #[tauri::command]
