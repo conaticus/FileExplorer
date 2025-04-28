@@ -24,3 +24,8 @@ pub const MAX_FILE_SIZE: u64 = 250 * 1024 * 1024; // 250 MB
 pub static SETTINGS_CONFIG_ABS_PATH: LazyLock<PathBuf> =
     LazyLock::new(|| CONFIG_PATH.join(SETTINGS_CONFIG_FILE_NAME));
 pub static SETTINGS_CONFIG_FILE_NAME: &str = "settings.json";
+
+pub static TEMPLATES_ABS_PATH_FOLDER: LazyLock<PathBuf> =
+    LazyLock::new(|| CONFIG_PATH.join(TEMPLATES_FOLDER));
+pub static TEMPLATES_FOLDER: &str = "templates";
+

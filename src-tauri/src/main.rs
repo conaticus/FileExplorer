@@ -49,8 +49,6 @@ fn all_commands() -> fn(Invoke) -> bool {
         template_commands::add_template,
         template_commands::use_template,
         template_commands::remove_template,
-
-
     ]
 }
 

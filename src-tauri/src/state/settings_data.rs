@@ -635,7 +635,7 @@ mod tests_settings {
     /// 1. The logging_state field can be updated to a different enum value
     /// 2. The returned settings object reflects the updated enum value
     #[test]
-    fn test_update_logging_state_field() {
+    fn test_update_logging_level_field() {
         let state = SettingsState::new_with_path(
             tempfile::NamedTempFile::new().unwrap().path().to_path_buf(),
         );
