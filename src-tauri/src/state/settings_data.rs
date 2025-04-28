@@ -640,7 +640,7 @@ mod tests_settings {
             tempfile::NamedTempFile::new().unwrap().path().to_path_buf(),
         );
 
-        let result = state.update_setting_field("logging_state", json!("Minimal"));
+        let result = state.update_setting_field("logging_level", json!("Minimal"));
         assert!(result.is_ok());
         assert_eq!(result.unwrap().logging_level, LoggingLevel::Minimal);
     }

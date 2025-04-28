@@ -14,6 +14,7 @@ pub struct MetaData {
     version: String,
     abs_file_path_buf: PathBuf,
     abs_file_path_for_settings_json: PathBuf,
+    template_paths: Vec<String>,
     all_volumes_with_information: Vec<VolumeInformation>,
 }
 impl Default for MetaData {
@@ -22,6 +23,7 @@ impl Default for MetaData {
             version: constants::VERSION.to_owned(),
             abs_file_path_buf: constants::META_DATA_CONFIG_ABS_PATH.to_path_buf(),
             abs_file_path_for_settings_json: constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf(),
+            template_paths: vec![],
             all_volumes_with_information: volume_operations_commands::get_system_volumes_information(),
         }
     }
