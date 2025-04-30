@@ -1,6 +1,6 @@
 mod models;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use home::home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs::read_dir;
