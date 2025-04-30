@@ -1,10 +1,10 @@
-use crate::constants;
+use crate::{constants, log_error};
 use serde::{Deserialize, Serialize};
 
 use crate::models::VolumeInformation;
 use crate::commands::volume_operations_commands;
 use std::fs::File;
-use std::io;
+use std::{fs, io};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -14,6 +14,8 @@ pub struct MetaData {
     version: String,
     abs_file_path_buf: PathBuf,
     abs_file_path_for_settings_json: PathBuf,
+    pub abs_folder_path_buf_for_templates: PathBuf,
+    pub template_paths: Vec<PathBuf>,
     all_volumes_with_information: Vec<VolumeInformation>,
 }
 impl Default for MetaData {
@@ -22,8 +24,27 @@ impl Default for MetaData {
             version: constants::VERSION.to_owned(),
             abs_file_path_buf: constants::META_DATA_CONFIG_ABS_PATH.to_path_buf(),
             abs_file_path_for_settings_json: constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf(),
+            abs_folder_path_buf_for_templates: constants::TEMPLATES_ABS_PATH_FOLDER.to_path_buf(),
+            template_paths: load_templates(),
             all_volumes_with_information: volume_operations_commands::get_system_volumes_information(),
         }
+    }
+}
+
+fn load_templates() -> Vec<PathBuf> {
+    let templates_path = constants::TEMPLATES_ABS_PATH_FOLDER.to_path_buf();
+    if templates_path.exists() {
+        std::fs::read_dir(templates_path)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .collect()
+    } else {
+        //create the empty folder
+        fs::create_dir_all(templates_path).map_err(|e| {
+            log_error!(format!("Failed to create templates folder. Error: {}", e).as_str());
+        }).unwrap();
+        vec![]
     }
 }
 
@@ -48,8 +69,14 @@ impl MetaDataState {
         self.write_meta_data_to_file(&meta_data)
     }
 
+    pub fn update_template_paths(&self) -> io::Result<()> {
+        let mut meta_data = self.0.lock().unwrap();
+        meta_data.template_paths = load_templates();
+        self.write_meta_data_to_file(&meta_data)
+    }
+
     /// Writes the current metadata to file
-    fn write_meta_data_to_file(&self, meta_data: &MetaData) -> io::Result<()> {
+    pub fn write_meta_data_to_file(&self, meta_data: &MetaData) -> io::Result<()> {
         let user_config_file_path = &meta_data.abs_file_path_buf;
         let serialized = serde_json::to_string_pretty(&meta_data)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;

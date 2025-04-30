@@ -13,7 +13,6 @@ edition = "2021"
 [dependencies]
 # Replace "0.1" with the correct version of the `explorer` crate
 tauri = { version = "2.4", features = [] }  # Removed "log" feature
-tauri-plugin-opener = "2.2"
 serde = { version = "1", features = ["derive"] }
 sysinfo = "0.33.1"
 walkdir = "2.3.3"

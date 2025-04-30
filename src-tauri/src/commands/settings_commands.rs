@@ -209,6 +209,7 @@ pub fn reset_settings_command(
 
 #[cfg(test)]
 mod tests_settings_commands {
+    use std::path::PathBuf;
     use super::*;
     use serde_json::json;
 
@@ -221,9 +222,16 @@ mod tests_settings_commands {
         Arc::new(Mutex::new(SettingsState::new_with_path(path)))
     }
 
+    fn create_test_settings_state_with_temp_file(temp_file: PathBuf) -> Arc<Mutex<SettingsState>> {
+        // Create a settings state with a temporary file path
+        Arc::new(Mutex::new(SettingsState::new_with_path(temp_file)))
+    }
+
     #[test]
     fn test_get_settings_as_json_contains_default() {
-        let state = create_test_settings_state();
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+
+        let state = create_test_settings_state_with_temp_file(temp_file.path().to_path_buf());
         let json = get_settings_as_json_impl(state);
         assert!(json.contains("\"darkmode\":false"));
         assert!(json.contains("\"logging_level\":\"Full\""));
