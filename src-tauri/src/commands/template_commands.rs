@@ -456,7 +456,7 @@ mod tests_template_commands {
     // Helper function to create a test MetaDataState
     fn create_test_metadata_state(meta_data_path: PathBuf, temp_dir_path: PathBuf) -> Arc<Mutex<MetaDataState>> {
         // Create a custom metadata state with our test directories
-        let mut meta_data = MetaDataState::new_with_path(meta_data_path.to_path_buf());
+        let meta_data = MetaDataState::new_with_path(meta_data_path.to_path_buf());
 
         {
             let mut meta_data_inner = meta_data.0.lock().unwrap().clone();
@@ -474,7 +474,7 @@ mod tests_template_commands {
         // Ensure we properly initialize template paths in the state
         meta_data.update_template_paths().expect("Failed to update template paths");
 
-        (Arc::new(Mutex::new(meta_data)))
+        Arc::new(Mutex::new(meta_data))
     }
 
     // Helper to create a test file with content

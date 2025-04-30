@@ -286,9 +286,9 @@ mod tests_logging {
 
     #[test]
     fn test_logging_state_full() {
-        let (mut logger, _temp_dir) = setup_test_logger();
+        let (logger, _temp_dir) = setup_test_logger();
         {
-            let mut state = logger.state.lock().unwrap();
+            let state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
             inner_settings.logging_level = LoggingLevel::Full;
         }
@@ -305,9 +305,9 @@ mod tests_logging {
 
     #[test]
     fn test_logging_state_partial() {
-        let (mut logger, _temp_dir) = setup_test_logger();
+        let (logger, _temp_dir) = setup_test_logger();
         {
-            let mut state = logger.state.lock().unwrap();
+            let state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
             inner_settings.logging_level = LoggingLevel::Partial;
         }
@@ -324,9 +324,9 @@ mod tests_logging {
 
     #[test]
     fn test_logging_state_minimal() {
-        let (mut logger, _temp_dir) = setup_test_logger();
+        let (logger, _temp_dir) = setup_test_logger();
         {
-            let mut state = logger.state.lock().unwrap();
+            let state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
             inner_settings.logging_level = LoggingLevel::Minimal;
         }
@@ -343,9 +343,9 @@ mod tests_logging {
 
     #[test]
     fn test_logging_state_off() {
-        let (mut logger, _temp_dir) = setup_test_logger();
+        let (logger, _temp_dir) = setup_test_logger();
         {
-            let mut state = logger.state.lock().unwrap();
+            let state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
             inner_settings.logging_level = LoggingLevel::OFF;
         }
