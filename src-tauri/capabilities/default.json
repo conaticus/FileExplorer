@@ -6,5 +6,8 @@
   "permissions": [
     "core:default",
     "opener:default"
+  ],
+  "capabilities": [
+
   ]
 }
