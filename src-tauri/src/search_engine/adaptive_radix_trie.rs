@@ -1,1668 +1,1394 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
-use std::time::SystemTime;
-use crate::log_info;
-use crate::log_error;
+use std::time::{SystemTime, Instant, Duration};
 
-// Enhanced radix node that supports adaptive segmentation
+/// A node in the Adaptive Radix Trie specifically optimized for file paths
 pub struct AdaptiveRadixNode {
-    // Maps segments to child nodes
-    pub children: HashMap<String, Arc<RwLock<AdaptiveRadixNode>>>,
-    // Terminal node value (if this node represents a complete path)
-    pub value: Option<PathBuf>,
-    // Tracking access patterns
-    pub frequency: u32,
-    pub last_accessed: SystemTime,
-    // The segment this node represents (could be a directory name or file name)
-    pub key_segment: String,
-    // Whether this segment is a directory separator
-    pub is_separator: bool,
+    /// Maps segments to child nodes
+    children: HashMap<String, Arc<RwLock<AdaptiveRadixNode>>>,
+    /// The complete path if this node is a terminal node
+    path: Option<PathBuf>,
+    /// The segment this node represents (e.g., directory or file name)
+    segment: String,
+    /// Frequency counter for this node
+    frequency: u32,
+    /// Last access time for ranking
+    last_accessed: SystemTime,
+    /// Parent node reference for hierarchical traversal
+    parent: Option<Arc<RwLock<AdaptiveRadixNode>>>,
+    /// Depth in the path hierarchy (root = 0)
+    depth: usize,
+    /// Whether this segment is case-sensitive
+    case_sensitive: bool,
+}
+
+/// Adaptive Radix Trie optimized for file paths across platforms
+pub struct AdaptiveRadixTrie {
+    /// Root node of the trie
+    root: Arc<RwLock<AdaptiveRadixNode>>,
+    /// Configuration flag for default case sensitivity
+    default_case_sensitive: bool,
+    /// Total number of paths indexed
+    path_count: Arc<RwLock<usize>>,
 }
 
 impl AdaptiveRadixNode {
-    pub fn new(segment: String, is_separator: bool) -> Self {
+    /// Create a new PathNode
+    fn new(segment: String, case_sensitive: bool, parent: Option<Arc<RwLock<AdaptiveRadixNode>>>, depth: usize) -> Self {
         Self {
             children: HashMap::new(),
-            value: None,
+            path: None,
+            segment,
             frequency: 0,
             last_accessed: SystemTime::now(),
-            key_segment: segment,
-            is_separator: is_separator,
+            parent,
+            depth,
+            case_sensitive,
         }
     }
 
-    pub fn new_root() -> Self {
-        Self::new(String::new(), false)
+    /// Create a new root node
+    fn new_root(case_sensitive: bool) -> Self {
+        Self::new(String::new(), case_sensitive, None, 0)
     }
-}
 
-pub struct AdaptiveRadixTrie {
-    pub root: Arc<RwLock<AdaptiveRadixNode>>,
-    // Configuration for segmentation
-    min_segment_length: usize,
-    // Whether to use directory separators as segment boundaries
-    use_path_separators: bool,
-    // Whether to insert parent directories automatically
-    insert_parents: bool,
+    /// Get normalized segment for comparison (handles case sensitivity)
+    fn normalized_segment(&self, segment: &str) -> String {
+        if self.case_sensitive {
+            segment.to_string()
+        } else {
+            segment.to_lowercase()
+        }
+    }
+
+    /// Check if this segment matches the provided segment (respecting case sensitivity)
+    fn segment_matches(&self, other: &str) -> bool {
+        if self.case_sensitive {
+            self.segment == other
+        } else {
+            self.segment.to_lowercase() == other.to_lowercase()
+        }
+    }
+
+    /// Increment access frequency of this node
+    fn record_access(&mut self) {
+        self.frequency += 1;
+        self.last_accessed = SystemTime::now();
+    }
 }
 
 impl AdaptiveRadixTrie {
+    /// Create a new AdaptivePathTrie with specific case sensitivity
+    pub fn new_with_arg(case_sensitive: bool) -> Self {
+        Self {
+            root: Arc::new(RwLock::new(AdaptiveRadixNode::new_root(case_sensitive))),
+            default_case_sensitive: case_sensitive,
+            path_count: Arc::new(RwLock::new(0)),
+        }
+    }
+
+    /// Create a new AdaptivePathTrie with default settings (case insensitive)
+    pub fn new_default() -> Self {
+        Self::new_with_arg(false)
+    }
+
+    /// No-parameter version of new() for backward compatibility
     pub fn new() -> Self {
-        log_info!("Creating new AdaptiveRadixTrie");
-        Self {
-            root: Arc::new(RwLock::new(AdaptiveRadixNode::new_root())),
-            min_segment_length: 2,
-            use_path_separators: true,
-            insert_parents: true,
-        }
+        Self::new_with_arg(false)
     }
 
-    // Create a new trie with custom parent insertion setting
-    pub fn new_with_options(insert_parents: bool) -> Self {
-        log_info!(&format!("Creating new AdaptiveRadixTrie with insert_parents={}", insert_parents));
-        Self {
-            root: Arc::new(RwLock::new(AdaptiveRadixNode::new_root())),
-            min_segment_length: 2,
-            use_path_separators: true,
-            insert_parents,
-        }
+    /// Default implementation
+    pub fn default() -> Self {
+        Self::new_default()
     }
 
-    pub fn insert(&self, path_str: &str, path: PathBuf) {
-        // Process the path with adaptive segmentation
-        let segments = self.segment_path(path_str);
+    /// Normalize a path for internal storage and comparison
+    pub fn normalize_path(&self, path: &str) -> String {
+        // Replace backslashes with forward slashes for uniform handling
+        let normalized = path.replace('\\', "/");
 
-        if let Ok(mut root) = self.root.write() {
-
-            // Store the original path string to maintain exact matches
-            let mut stored_path = path;
-            if !stored_path.to_string_lossy().to_string().eq(path_str) {
-                // Ensure we store the path exactly as provided
-                stored_path = PathBuf::from(path_str);
+        // Ensure drive letters are consistently formatted (lowercase for case-insensitive)
+        let normalized = if normalized.len() >= 2 && normalized.chars().nth(1) == Some(':') {
+            let mut chars: Vec<char> = normalized.chars().collect();
+            if !self.default_case_sensitive {
+                chars[0] = chars[0].to_lowercase().next().unwrap_or(chars[0]);
             }
-
-            // Insert the full path
-            self.insert_segments(&mut root, &segments, 0, stored_path.clone());
-
-            // Also insert all parent directories to enable hierarchical searches, if configured
-            if self.insert_parents {
-                let path_buf = PathBuf::from(path_str);
-                let mut current = path_buf.clone();
-                while let Some(parent) = current.parent() {
-                    if parent.as_os_str().is_empty() {
-                        break;
-                    }
-
-                    let parent_str = parent.to_string_lossy().to_string();
-                    let parent_segments = self.segment_path(&parent_str);
-
-                    // Only insert the parent if it has segments
-                    if !parent_segments.is_empty() {
-                        self.insert_segments(&mut root, &parent_segments, 0, PathBuf::from(&parent_str));
-                    }
-
-                    current = parent.to_path_buf();
-                }
-            }
+            chars.into_iter().collect()
         } else {
-            log_error!(&format!("Failed to acquire write lock for inserting path: {}", path_str));
-        }
-    }
+            normalized
+        };
 
-    fn insert_segments(
-        &self,
-        node: &mut AdaptiveRadixNode,
-        segments: &[String],
-        index: usize,
-        path: PathBuf
-    ) {
-        if index >= segments.len() {
-            // We've reached the end of the path, mark as terminal node
-            node.value = Some(path);
-            node.frequency += 1;
-            node.last_accessed = SystemTime::now();
-            return;
-        }
+        // Remove trailing slashes for consistency
+        let normalized = normalized.trim_end_matches('/').to_string();
 
-        let segment = &segments[index];
-        let is_separator = segment == "/" || segment == "\\";
-
-        // Find or create child node for this segment
-        if !node.children.contains_key(segment) {
-            let new_node = AdaptiveRadixNode::new(segment.clone(), is_separator);
-            node.children.insert(segment.clone(), Arc::new(RwLock::new(new_node)));
-        }
-
-        // Continue insertion with next segment
-        if let Some(child_arc) = node.children.get(segment) {
-            if let Ok(mut child) = child_arc.write() {
-                self.insert_segments(&mut child, segments, index + 1, path);
-            }
-        }
-    }
-
-    fn segment_path(&self, path: &str) -> Vec<String> {
-        let mut segments = Vec::new();
-
-        // If the path is empty, return an empty vector
-        if path.is_empty() {
-            // Return a single empty segment for empty string paths
-            // This ensures we can properly find empty paths later
-            segments.push(String::new());
-            return segments;
-        }
-
-        // Special handling for Windows drive paths (e.g., C:\, C:/)
-        if path.len() >= 2 && path.chars().nth(1) == Some(':') {
-            // Add the drive letter + colon as its own segment
-            segments.push(path[..2].to_string());
-
-            // Add the separator if it exists
-            if path.len() > 2 && (path.chars().nth(2) == Some('/') || path.chars().nth(2) == Some('\\')) {
-                segments.push(if path.chars().nth(2) == Some('/') { "/".to_string() } else { "\\".to_string() });
-
-                // Process the rest of the path
-                if path.len() > 3 {
-                    let rest_of_path = &path[3..];
-                    segments.extend(self.segment_path(rest_of_path));
-                }
-                return segments;
-            } else if path.len() > 2 {
-                // Handle C:something without separator
-                let rest_of_path = &path[2..];
-                segments.extend(self.segment_path(rest_of_path));
-                return segments;
-            }
-            return segments;
-        }
-
-        // For relative paths starting with ./ or .\, handle specially
-        if path.starts_with("./") || path.starts_with(".\\") {
-            // Add the "./" or ".\\" as its own segment
-            segments.push(path[..2].to_string());
-            // Add the separator as its own segment
-            segments.push(if path.starts_with("./") { "/".to_string() } else { "\\".to_string() });
-            // Process the rest of the path
-            let rest_of_path = &path[2..];
-            segments.extend(self.segment_path(rest_of_path));
-            return segments;
-        }
-
-        // Special handling for Unix paths starting with /
-        if path.starts_with('/') {
-            // Add the separator as its own segment
-            segments.push("/".to_string());
-            // Process the rest of the path
-            if path.len() > 1 {
-                let rest_of_path = &path[1..];
-                segments.extend(self.segment_path(rest_of_path));
-            }
-            return segments;
-        }
-
-        // Special handling for Windows paths starting with \
-        if path.starts_with('\\') {
-            // Add the separator as its own segment
-            segments.push("\\".to_string());
-            // Process the rest of the path
-            if path.len() > 1 {
-                let rest_of_path = &path[1..];
-                segments.extend(self.segment_path(rest_of_path));
-            }
-            return segments;
-        }
-
-        // Handle different path separator styles
-        if self.use_path_separators {
-            // Split by both forward and backslash to be platform-agnostic
-            let mut current_segment = String::new();
-
-            for c in path.chars() {
-                if c == '/' || c == '\\' {
-                    // Store the current segment if it's not empty
-                    if !current_segment.is_empty() {
-                        segments.push(current_segment);
-                        current_segment = String::new();
-                    }
-                    // Add the separator as its own segment
-                    segments.push(if c == '/' { "/".to_string() } else { "\\".to_string() });
-                } else {
-                    current_segment.push(c);
-                }
-            }
-
-            // Add the final segment if it's not empty
-            if !current_segment.is_empty() {
-                segments.push(current_segment);
-            }
+        // Handle case sensitivity based on configuration
+        if self.default_case_sensitive {
+            normalized
         } else {
-            // Without using path separators, just use the minimum segment length
-            let mut current_pos = 0;
+            normalized.to_lowercase()
+        }
+    }
 
-            while current_pos < path.len() {
-                let end_pos = std::cmp::min(current_pos + self.min_segment_length, path.len());
-                let segment = path[current_pos..end_pos].to_string();
-                segments.push(segment);
-                current_pos = end_pos;
-            }
+    /// Segment a path into components for trie storage
+    pub fn segment_path(&self, path: &str) -> Vec<String> {
+        let normalized = self.normalize_path(path);
+
+        // Split by both forward slashes and backslashes
+        let segments: Vec<String> = normalized
+            .split(|c| c == '/' || c == '\\')
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect();
+
+        // Handle drive letters for Windows paths
+        if normalized.len() >= 2 && normalized.chars().nth(1) == Some(':') {
+            let drive = normalized.chars().take(2).collect::<String>();
+            let mut result = Vec::with_capacity(segments.len() + 1);
+            result.push(drive.clone());
+            result.extend(segments.into_iter().filter(|s| s != &drive));
+            return result;
+        }
+
+        // Handle root directory case
+        if normalized.starts_with('/') {
+            let mut result = Vec::with_capacity(segments.len() + 1);
+            result.push("/".to_string());
+            result.extend(segments);
+            return result;
         }
 
         segments
     }
 
-    fn collect_all_values(&self, node: &AdaptiveRadixNode, results: &mut Vec<PathBuf>) {
-        // Add this node's value if it exists
-        if let Some(path) = &node.value {
-            results.push(path.clone());
+    /// Insert a path into the trie
+    pub fn insert(&self, path_str: &str, path: PathBuf) -> Result<(), String> {
+        let segments = self.segment_path(path_str);
+
+        if segments.is_empty() {
+            return Err("Cannot insert empty path".to_string());
         }
 
-        // Recursively collect values from all children
-        for (_, child_arc) in &node.children {
-            if let Ok(child) = child_arc.read() {
-                self.collect_all_values(&child, results);
+        if let Ok(mut root) = self.root.write() {
+            self.insert_segments(&mut root, &segments, 0, path.clone(), None)?;
+
+            // Increment path count
+            if let Ok(mut count) = self.path_count.write() {
+                *count += 1;
+            } else {
+                return Err("Failed to acquire write lock on path count".to_string());
             }
+
+            Ok(())
+        } else {
+            Err("Failed to acquire write lock on root node".to_string())
         }
     }
 
-    fn collect_all_values_with_prefix(&self, node: &AdaptiveRadixNode, results: &mut Vec<PathBuf>, prefix: &str) {
-        // Add this node's value if it matches the prefix
-        if let Some(path) = &node.value {
-            let path_str = path.to_string_lossy().to_string();
-            let norm_path = path_str.replace('\\', "/");
-            let norm_prefix = prefix.replace('\\', "/");
+    /// Recursively insert path segments
+    fn insert_segments(
+        &self,
+        node: &mut AdaptiveRadixNode,
+        segments: &[String],
+        index: usize,
+        path: PathBuf,
+        parent: Option<Arc<RwLock<AdaptiveRadixNode>>>
+    ) -> Result<(), String> {
+        if index >= segments.len() {
+            // We've reached the end of the path, mark as terminal node
+            node.path = Some(path);
+            node.record_access();
+            return Ok(());
+        }
 
-            // Case insensitive comparison for Windows paths
-            let is_windows_path = path_str.contains('\\') || path_str.to_lowercase().starts_with("c:");
+        let segment = &segments[index];
+        let normalized_segment = node.normalized_segment(segment);
 
-            let matches = norm_path.starts_with(&norm_prefix) ||
-                          path_str.starts_with(prefix) ||
-                          (is_windows_path &&
-                           path_str.to_lowercase().starts_with(&prefix.to_lowercase()));
+        // Find or create child node for this segment
+        if !node.children.contains_key(&normalized_segment) {
+            let new_node = AdaptiveRadixNode::new(
+                segment.clone(),
+                self.default_case_sensitive,
+                parent.clone(),
+                index + 1
+            );
 
-            if matches {
-                results.push(path.clone());
+            node.children.insert(
+                normalized_segment.clone(),
+                Arc::new(RwLock::new(new_node))
+            );
+        }
+
+        // Continue insertion with next segment
+        if let Some(child_arc) = node.children.get(&normalized_segment) {
+            let parent_arc = Arc::clone(child_arc);
+
+            if let Ok(mut child) = child_arc.write() {
+                self.insert_segments(&mut child, segments, index + 1, path, Some(parent_arc))?;
+            } else {
+                return Err("Failed to acquire write lock on child node".to_string());
             }
         }
 
-        // Recursively collect values from all children
-        for (_, child_arc) in &node.children {
-            if let Ok(child) = child_arc.read() {
-                self.collect_all_values_with_prefix(&child, results, prefix);
-            }
-        }
+        Ok(())
     }
 
-    fn collect_direct_children(&self, node: &AdaptiveRadixNode, prefix: &str, results: &mut Vec<PathBuf>) {
-        // First add this node's value if it exists and matches the prefix
-        if let Some(path) = &node.value {
-            let path_str = path.to_string_lossy().to_string();
-            let path_lower = path_str.to_lowercase();
-            let prefix_lower = prefix.to_lowercase();
-
-            // Only add the node value if it starts with the prefix
-            if path_lower.starts_with(&prefix_lower) {
-                results.push(path.clone());
-            }
-        }
-
-        // Now add all direct children's values
-        for (_, child_arc) in &node.children {
-            if let Ok(child) = child_arc.read() {
-                if let Some(path) = &child.value {
-                    let path_str = path.to_string_lossy().to_string();
-                    let path_lower = path_str.to_lowercase();
-                    let prefix_lower = prefix.to_lowercase();
-
-                    // Check if this is a direct child path that matches the prefix
-                    if path_lower.starts_with(&prefix_lower) {
-                        // Ensure this is a direct child and not deeper in the hierarchy
-                        let relative_path = if path_lower.len() > prefix_lower.len() {
-                            &path_lower[prefix_lower.len()..]
-                        } else {
-                            ""
-                        };
-
-                        // Only one path separator (or none) means direct child
-                        let separator_count = relative_path.matches('/').count() + relative_path.matches('\\').count();
-                        if separator_count <= 1 {
-                            results.push(path.clone());
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn find_anywhere(&self, pattern: &str) -> Vec<PathBuf> {
+    /// Find paths with the given prefix
+    /// Note: This method only finds paths that START WITH the given prefix.
+    /// For substring matching anywhere in the path, use search_recursive() instead.
+    pub fn find_with_prefix(&self, prefix: &str) -> Vec<PathBuf> {
+        let segments = self.segment_path(prefix);
         let mut results = Vec::new();
 
-        if pattern.is_empty() {
+        if segments.is_empty() {
             return results;
         }
 
         if let Ok(root) = self.root.read() {
-            log_info!(&format!("Searching for pattern anywhere: {}", pattern));
-
-            // Search for the pattern in any part of the path
-            self.find_pattern_anywhere(&root, pattern, &mut results);
-
-            // Sort results by relevance (shorter paths first)
-            results.sort_by(|a, b| {
-                let a_len = a.to_string_lossy().len();
-                let b_len = b.to_string_lossy().len();
-                a_len.cmp(&b_len)
-            });
-        }
-
-        log_info!(&format!("Found {} results for pattern anywhere: {}", results.len(), pattern));
-        results
-    }
-
-    fn find_pattern_anywhere(&self, node: &AdaptiveRadixNode, pattern: &str, results: &mut Vec<PathBuf>) {
-        // Check if this node's value matches the pattern
-        if let Some(path) = &node.value {
-            let path_str = path.to_string_lossy().to_lowercase();
-            if path_str.contains(&pattern.to_lowercase()) {
-                results.push(path.clone());
-            }
-        }
-
-        // Recursively check all children
-        for (_, child_arc) in &node.children {
-            if let Ok(child) = child_arc.read() {
-                self.find_pattern_anywhere(&child, pattern, results);
-            }
-        }
-    }
-
-    pub fn find_with_prefix(&self, prefix: &str) -> Vec<PathBuf> {
-        let mut results = Vec::new();
-
-        // Special case for empty string - must handle differently
-        if prefix.is_empty() {
-            if let Ok(root) = self.root.read() {
-                // For empty prefix, check if root has a value
-                if let Some(path) = &root.value {
-                    results.push(path.clone());
-                }
-
-                // Check for empty string in children, but avoid duplicates
-                for (segment, child_arc) in &root.children {
-                    if segment.is_empty() {
-                        if let Ok(child) = child_arc.read() {
-                            if let Some(path) = &child.value {
-                                if !results.contains(path) {
-                                    results.push(path.clone());
-                                }
-                            }
-                        }
-                    }
-                }
-
-                return results;
-            }
-        }
-
-        if let Ok(root) = self.root.read() {
-            log_info!(&format!("Searching with prefix: {}", prefix));
-
-            // Special handling for Windows drive paths (e.g., C:\, C:/)
-            let is_windows_drive = prefix.len() >= 2 && prefix.chars().nth(1) == Some(':');
-
-            if is_windows_drive {
-                log_info!(&format!("Using Windows drive path handling for prefix: {}", prefix));
-
-                // Try multiple variants of Windows drive paths
-                let variants = vec![
-                    prefix.to_string(),
-                    prefix.replace('\\', "/"),
-                    // Remove potential trailing slash
-                    if prefix.ends_with('\\') || prefix.ends_with('/') {
-                        prefix[0..prefix.len()-1].to_string()
-                    } else {
-                        prefix.to_string()
-                    }
-                ];
-
-                for variant in &variants {
-                    let segments = self.segment_path(variant);
-                    self.find_with_segments(&root, &segments, 0, &mut results, false, variant);
-                }
-
-                // If still no results, try more aggressive search
-                if results.is_empty() {
-                    // Collect all paths and filter for Windows drive paths
-                    let mut all_paths = Vec::new();
-                    self.collect_all_values(&root, &mut all_paths);
-
-                    // Case-insensitive matching for Windows paths
-                    let prefix_lower = prefix.to_lowercase();
-
-                    for path in all_paths {
-                        let path_str = path.to_string_lossy().to_lowercase();
-                        if path_str.starts_with(&prefix_lower) ||
-                           path_str.replace('\\', "/").starts_with(&prefix_lower.replace('\\', "/")) {
-                            results.push(path);
-                        }
-                    }
-                }
-
-                // Filter results when parent insertion is disabled
-                if !self.insert_parents {
-                    results = self.filter_non_parent_results(results, prefix);
-                }
-
-                return results;
-            }
-
-            // Special handling for Unix-style paths - check this before others
-            if prefix.starts_with('/') {
-                log_info!(&format!("Using Unix path special handling for prefix: {}", prefix));
-
-                // Collect all paths and filter for Unix paths that match
-                let mut unix_results = Vec::new();
-                self.collect_all_values(&root, &mut unix_results);
-
-                unix_results = unix_results.into_iter().filter(|path| {
-                    let path_str = path.to_string_lossy().to_string();
-                    // Try both exact and normalized matching for Unix paths
-                    path_str.starts_with(prefix) ||
-                    path_str.replace('\\', "/").starts_with(prefix)
-                }).collect();
-
-                if !unix_results.is_empty() {
-                    log_info!(&format!("Found {} results with Unix path matching", unix_results.len()));
-                    results.extend(unix_results);
-
-                    // Filter results when parent insertion is disabled
-                    if !self.insert_parents {
-                        results = self.filter_non_parent_results(results, prefix);
-                    }
-
-                    return results;
-                }
-            }
-
-            // Special handling for Windows-style paths with backslash
-            if prefix.starts_with('\\') {
-                log_info!(&format!("Using Windows backslash path handling for prefix: {}", prefix));
-
-                let mut windows_results = Vec::new();
-                self.collect_all_values(&root, &mut windows_results);
-
-                windows_results = windows_results.into_iter().filter(|path| {
-                    let path_str = path.to_string_lossy().to_string();
-                    path_str.starts_with(prefix) ||
-                    path_str.replace('\\', "/").starts_with(&prefix.replace('\\', "/"))
-                }).collect();
-
-                if !windows_results.is_empty() {
-                    log_info!(&format!("Found {} results with Windows backslash path matching", windows_results.len()));
-                    results.extend(windows_results);
-
-                    if !self.insert_parents {
-                        results = self.filter_non_parent_results(results, prefix);
-                    }
-
-                    return results;
-                }
-            }
-
-            // Determine if we're looking for an exact match
-            let is_exact_match = !prefix.is_empty() && !prefix.ends_with('/') && !prefix.ends_with('\\');
-
-            // Special case for filename-only searches (no path separators)
-            let is_filename_search = !prefix.is_empty() && !prefix.contains('/') && !prefix.contains('\\');
-
-            // Handle relative paths starting with ./ or .\
-            if prefix.starts_with("./") || prefix.starts_with(".\\") {
-                log_info!(&format!("Using relative path handling for prefix: {}", prefix));
-                self.find_with_relative_prefix(&root, prefix, &mut results);
-                if !results.is_empty() {
-                    // Filter results when parent insertion is disabled
-                    if !self.insert_parents {
-                        results = self.filter_non_parent_results(results, prefix);
-                    }
-                    return results;
-                }
-            }
-
-            // Special handling for root paths - check this first
-            if prefix == "/" || prefix == "\\" || prefix.eq_ignore_ascii_case("c:\\") ||
-               prefix.eq_ignore_ascii_case("c:/") {
-                log_info!(&format!("Using root path special handling for prefix: {}", prefix));
-
-                if self.insert_parents {
-                    // Only collect all values when parent insertion is enabled
-                    self.collect_all_values(&root, &mut results);
-                } else {
-                    // For disabled parent insertion, only collect direct children of root
-                    self.collect_direct_children(&root, prefix, &mut results);
-                }
-
-                // Filter results to only include those that start with the given prefix or its variant
-                let norm_prefix = prefix.replace('\\', "/").to_lowercase();
-                results = results.into_iter().filter(|path: &PathBuf| {
-                    let path_str = path.to_string_lossy().to_string();
-                    let norm_path_str = path_str.replace('\\', "/").to_lowercase();
-
-                    // For Unix-style root, consider any absolute path valid
-                    if prefix == "/" || norm_prefix == "/" {
-                        return norm_path_str.starts_with("/");
-                    }
-
-                    // For Windows-style root, accept anything that starts with C: (case insensitive)
-                    if prefix.eq_ignore_ascii_case("c:\\") || prefix.eq_ignore_ascii_case("c:/") {
-                        return norm_path_str.starts_with("c:/") ||
-                               path_str.to_lowercase().starts_with("c:\\");
-                    }
-
-                    path_str.starts_with(prefix) || norm_path_str.starts_with(&norm_prefix)
-                }).collect();
-
-                if !results.is_empty() {
-                    log_info!(&format!("Found {} results for root path prefix: {}", results.len(), prefix));
-
-                    // Filter results when parent insertion is disabled
-                    if !self.insert_parents {
-                        results = self.filter_non_parent_results(results, prefix);
-                    }
-
-                    return results;
-                }
-            }
-
-            // Special handling for Windows paths (improved)
-            let is_windows_path = prefix.contains('\\') ||
-                                 prefix.to_lowercase().starts_with("c:") ||
-                                 prefix.to_lowercase().starts_with("c/");
-
-            if is_windows_path {
-                log_info!(&format!("Using special Windows path handling for: {}", prefix));
-
-                // Try multiple variants of the prefix for Windows paths
-                let variants = vec![
-                    prefix.to_string(),
-                    prefix.replace('\\', "/"),
-                    if prefix.starts_with("c:") || prefix.starts_with("C:") {
-                        prefix.chars().skip(2).collect()
-                    } else { prefix.to_string() }
-                ];
-
-                for variant in variants {
-                    // Segment the current variant
-                    let segments = self.segment_path(&variant);
-                    self.find_with_segments(&root, &segments, 0, &mut results, is_exact_match, &variant);
-
-                    if !results.is_empty() {
-                        log_info!(&format!("Found {} results using Windows path variant: {}", results.len(), variant));
-                        break;
-                    }
-                }
-
-                // If still no results, use a more flexible approach for Windows paths
-                if results.is_empty() {
-                    let lowercase_prefix = prefix.to_lowercase();
-                    let mut all_paths = Vec::new();
-                    self.collect_all_values(&root, &mut all_paths);
-
-                    // Use more permissive matching for Windows paths
-                    let fixed_prefix = lowercase_prefix.replace('\\', "/");
-
-                    results = all_paths.into_iter().filter(|path| {
-                        let path_str = path.to_string_lossy().to_lowercase();
-                        let norm_path = path_str.replace('\\', "/");
-
-                        // More aggressive matching for Windows paths
-                        norm_path.starts_with(&fixed_prefix) ||
-                        path_str.starts_with(&lowercase_prefix) ||
-                        (lowercase_prefix.starts_with("c:") &&
-                         (norm_path.starts_with(&fixed_prefix[2..]) ||
-                          path_str.starts_with(&lowercase_prefix[2..])))
-                    }).collect();
-
-                    log_info!(&format!("Found {} results with flexible Windows path matching", results.len()));
-                }
-
-                if !results.is_empty() {
-                    // Filter results when parent insertion is disabled
-                    if !self.insert_parents {
-                        results = self.filter_non_parent_results(results, prefix);
-                    }
-
-                    return results;
-                }
-            }
-
-            // Handle repeated path segments (for test/ repeated pattern case)
-            if prefix.contains('/') || prefix.contains('\\') {
-                let segments = prefix.split('/').collect::<Vec<&str>>();
-                let has_repeated_segments = segments.windows(2).any(|window| window[0] == window[1]);
-
-                if has_repeated_segments || prefix.contains("test/") {
-                    log_info!(&format!("Using special handling for repeated path segments: {}", prefix));
-
-                    let mut all_paths = Vec::new();
-                    self.collect_all_values(&root, &mut all_paths);
-
-                    let norm_prefix = prefix.replace('\\', "/");
-                    results = all_paths.into_iter().filter(|path| {
-                        let path_str = path.to_string_lossy().to_string();
-                        let norm_path = path_str.replace('\\', "/");
-
-                        norm_path.starts_with(&norm_prefix) || path_str.starts_with(prefix)
-                    }).collect();
-
-                    if !results.is_empty() {
-                        return results;
-                    }
-                }
-            }
-
-            if is_filename_search {
-                // For filename-only searches, collect all paths and filter by filename
-                self.find_by_filename(&root, prefix, &mut results);
-
-                // Apply parent insertion filtering for filenames too, but handle differently
-                if !self.insert_parents && !results.is_empty() {
-                    // In non-parent insertion mode, only exact filename matches should be considered
-                    results = results.into_iter().filter(|path| {
-                        if let Some(file_name) = path.file_name() {
-                            let file_name_str = file_name.to_string_lossy().to_lowercase();
-                            let search_term = prefix.to_lowercase();
-                            // Keep exact filename matches or where filename contains the search term
-                            file_name_str == search_term || file_name_str.contains(&search_term)
-                        } else {
-                            false
-                        }
-                    }).collect();
-                }
-            } else {
-                // Normal path prefix search
-                let segments = self.segment_path(prefix);
-                self.find_with_segments(&root, &segments, 0, &mut results, is_exact_match, prefix);
-
-                // If no results and we're using a path separator that might be normalized,
-                // try with alternative separators
-                if results.is_empty() && (prefix.contains('\\') || prefix.contains('/')) {
-                    let alt_prefix = if prefix.contains('\\') {
-                        prefix.replace('\\', "/")
-                    } else {
-                        prefix.replace('/', "\\")
-                    };
-
-                    let alt_segments = self.segment_path(&alt_prefix);
-                    self.find_with_segments(&root, &alt_segments, 0, &mut results, is_exact_match, &alt_prefix);
-                }
-            }
-
-            // If still no results, try a more flexible search
-            if results.is_empty() && !prefix.is_empty() {
-                self.flexible_prefix_search(&root, prefix, &mut results);
-            }
-
-            // Final fallback for long paths - if we have a prefix with repeating segments
-            if results.is_empty() && prefix.len() > 3 {
-                // For long paths with repeated patterns, do a more relaxed search
-                let normalized_prefix = prefix.replace('\\', "/");
-
-                // Create a more flexible search for long paths
-                self.collect_all_values(&root, &mut results);
-                results = results.into_iter().filter(|path| {
-                    let path_str = path.to_string_lossy().to_string();
-                    let normalized_path = path_str.replace('\\', "/");
-
-                    // Try to handle both exact and case-insensitive matching
-                    normalized_path.contains(&normalized_prefix) ||
-                    normalized_path.to_lowercase().contains(&normalized_prefix.to_lowercase()) ||
-                    path_str.contains(prefix) ||
-                    path_str.to_lowercase().contains(&prefix.to_lowercase())
-                }).collect();
+            if let Err(_) = self.find_with_segments(&root, &segments, 0, &mut results) {
+                return Vec::new();
             }
         } else {
-            log_error!(&format!("Failed to acquire read lock for searching prefix: {}", prefix));
-        }
-
-        log_info!(&format!("Found {} results for prefix: {}", results.len(), prefix));
-
-        // If parent insertion is disabled, apply stricter filtering for prefix matches
-        if !self.insert_parents && !prefix.is_empty() {
-            results = self.filter_non_parent_results(results, prefix);
-
-            log_info!(&format!("After stricter filtering for non-parent insertion mode: {} results for prefix: {}",
-                results.len(), prefix));
+            return Vec::new();
         }
 
         results
     }
 
-    // New method to handle relative paths specifically
-    fn find_with_relative_prefix(&self, node: &AdaptiveRadixNode, prefix: &str, results: &mut Vec<PathBuf>) {
-        // First try an exact match with the prefix as given
-        let norm_prefix = prefix.replace('\\', "/");
-
-        // Collect all values and filter by the relative path prefix
-        let mut all_results = Vec::new();
-        self.collect_all_values(node, &mut all_results);
-
-        for path in all_results {
-            let path_str = path.to_string_lossy().to_string();
-            let norm_path = path_str.replace('\\', "/");
-
-            // Match with relaxed criteria for relative paths
-            if norm_path.starts_with(&norm_prefix) ||
-               path_str.starts_with(prefix) ||
-               // Handle the case where the stored path might not have the "./" prefix
-               norm_path.starts_with(&norm_prefix[2..]) ||
-               path_str.starts_with(&prefix[2..]) {
-                results.push(path);
-            }
-        }
-    }
-
+    /// Recursively find paths with given segments
     fn find_with_segments(
         &self,
         node: &AdaptiveRadixNode,
         segments: &[String],
         index: usize,
-        results: &mut Vec<PathBuf>,
-        is_exact_match: bool,
-        original_prefix: &str
-    ) {
+        results: &mut Vec<PathBuf>
+    ) -> Result<(), String> {
         // If we've consumed all segments, this is a prefix match
         if index >= segments.len() {
-            // Add this node's value if it exists
-            if let Some(path) = &node.value {
-                // For exact matches, only add if the path exactly matches the original prefix
-                if !is_exact_match || path.to_string_lossy().eq(original_prefix) {
-                    results.push(path.clone());
+            // Add this node's path if it exists
+            if let Some(path) = &node.path {
+                results.push(path.clone());
+            }
+
+            // Recursively add all children's paths
+            for (_, child_arc) in &node.children {
+                if let Ok(child) = child_arc.read() {
+                    self.collect_all_paths(&child, results)?;
+                } else {
+                    return Err("Failed to acquire read lock on child node".to_string());
                 }
             }
 
-            // For prefix searches (not exact matches), recursively add all children's values
-            if !is_exact_match {
-                for (_, child_arc) in &node.children {
-                    if let Ok(child) = child_arc.read() {
-                        self.collect_all_values_with_prefix(&child, results, original_prefix);
-                    }
-                }
-            }
-
-            return;
+            return Ok(());
         }
 
         let segment = &segments[index];
+        let is_last_segment = index == segments.len() - 1;
 
-        // Special case: if the last segment is only a partial match,
-        // we need to find all children that start with this segment
-        if index == segments.len() - 1 && !is_exact_match {
-            for (child_segment, child_arc) in &node.children {
-                // Check for exact match first
-                let is_exact_segment_match = child_segment == segment;
-
-                // Then check for prefix matches (case insensitive for Windows paths)
-                let is_prefix_match = child_segment.to_lowercase().starts_with(&segment.to_lowercase()) ||
-                                      segment.to_lowercase().starts_with(&child_segment.to_lowercase());
-
-                // Special handling for directory separators
-                let is_separator_match = (segment == "/" || segment == "\\") &&
-                                        (child_segment == "/" || child_segment == "\\");
-
-                if is_exact_segment_match || is_prefix_match || is_separator_match {
-                    if let Ok(child) = child_arc.read() {
-                        if is_exact_segment_match {
-                            // Only for exact segment matches, handle like a complete segment
-                            self.find_with_segments(&child, segments, index + 1, results, is_exact_match, original_prefix);
-                        } else {
-                            // For prefix searches, add matching values
-                            if let Some(path) = &child.value {
-                                let path_str = path.to_string_lossy().to_string();
-                                let norm_path = path_str.replace('\\', "/");
-                                let norm_prefix = original_prefix.replace('\\', "/");
-
-                                // Case insensitive comparison for Windows paths
-                                let is_windows_path = path_str.contains('\\') ||
-                                                     path_str.to_lowercase().starts_with("c:");
-
-                                if norm_path.starts_with(&norm_prefix) ||
-                                   path_str.starts_with(original_prefix) ||
-                                   (is_windows_path &&
-                                    path_str.to_lowercase().starts_with(&original_prefix.to_lowercase())) {
-                                    results.push(path.clone());
-                                }
-                            }
-                            // Recursively collect all children's values that match the prefix
-                            self.collect_all_values_with_prefix(&child, results, original_prefix);
-                        }
-                    }
-                }
-            }
-        } else {
-            // Improved exact match for a complete segment handling
-            // Try with both types of separators and be case-insensitive for Windows paths
-            let alt_segment = if segment == "/" { "\\".to_string() }
-                             else if segment == "\\" { "/".to_string() }
-                             else { segment.clone() };
-
-            let segment_lower = segment.to_lowercase();
-            let alt_segment_lower = alt_segment.to_lowercase();
-
-            // First try with the original segment - direct match
-            if let Some(child_arc) = node.children.get(segment) {
-                if let Ok(child) = child_arc.read() {
-                    self.find_with_segments(&child, segments, index + 1, results, is_exact_match, original_prefix);
-                }
-            }
-            // Then try with the alternative separator
-            else if segment != &alt_segment {
-                if let Some(child_arc) = node.children.get(&alt_segment) {
-                    if let Ok(child) = child_arc.read() {
-                        self.find_with_segments(&child, segments, index + 1, results, is_exact_match, original_prefix);
-                    }
-                }
-            }
-
-            // Case insensitive search for paths - more exhaustive approach
-            // This is a fallback that checks all children for case-insensitive matches
-            if results.is_empty() {  // Only do this expensive search if we haven't found anything yet
-                for (child_segment, child_arc) in &node.children {
-                    let child_segment_lower = child_segment.to_lowercase();
-
-                    if child_segment_lower == segment_lower || child_segment_lower == alt_segment_lower {
-                        if let Ok(child) = child_arc.read() {
-                            self.find_with_segments(&child, segments, index + 1, results, is_exact_match, original_prefix);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn find_in_deep_hierarchy(&self, node: &AdaptiveRadixNode, prefix: &str, results: &mut Vec<PathBuf>) {
-        // First check if this node's value matches the prefix in any way
-        if let Some(path) = &node.value {
-            let path_str = path.to_string_lossy().to_string();
-            let path_lower = path_str.to_lowercase();
-            let prefix_lower = prefix.to_lowercase();
-
-            // Check if the path contains the prefix at any level
-            if path_lower.contains(&prefix_lower) {
-                // Check if the prefix is at a directory boundary
-                let norm_path = path_str.replace('\\', "/");
-                let _norm_prefix = prefix.replace('\\', "/");
-
-                // Treat the prefix as a directory or file name
-                let segments: Vec<&str> = norm_path.split('/').collect();
-
-                // Check if any segment contains or matches the prefix
-                if segments.iter().any(|&seg|
-                    seg.to_lowercase().contains(&prefix_lower) ||
-                    prefix_lower.contains(&seg.to_lowercase())) {
-                    results.push(path.clone());
-                }
-            }
-        }
-
-        // Recursively check all children
-        for (_, child_arc) in &node.children {
-            if let Ok(child) = child_arc.read() {
-                self.find_in_deep_hierarchy(&child, prefix, results);
-            }
-        }
-    }
-
-    fn find_by_filename(&self, node: &AdaptiveRadixNode, filename: &str, results: &mut Vec<PathBuf>) {
-        // Add this node's value if it matches the filename criteria
-        if let Some(path) = &node.value {
-            if let Some(path_filename) = path.file_name() {
-                let path_filename_str = path_filename.to_string_lossy().to_lowercase();
-                let search_filename = filename.to_lowercase();
-
-                // Improved matching logic - check for exact match first, then partial match
-                if path_filename_str == search_filename ||
-                   path_filename_str.contains(&search_filename) ||
-                   search_filename.contains(&path_filename_str) {
-                    results.push(path.clone());
-                }
-            }
-        }
-
-        // Recursively search all children
-        for (_, child_arc) in &node.children {
-            if let Ok(child) = child_arc.read() {
-                self.find_by_filename(&child, filename, results);
-            }
-        }
-    }
-
-    fn flexible_prefix_search(&self, node: &AdaptiveRadixNode, prefix: &str, results: &mut Vec<PathBuf>) {
-        // Implement a more flexible search strategy when exact prefix matching fails
-
-        // Add this node's value if it somehow relates to the prefix (case insensitive)
-        if let Some(path) = &node.value {
-            let path_str = path.to_string_lossy().to_string();
-            let path_str_lower = path_str.to_lowercase();
-            let lowercase_prefix = prefix.to_lowercase();
-
-            // Check for root paths first
-            let path_matches = if prefix == "/" || prefix == "\\" ||
-                                lowercase_prefix == "c:/" || lowercase_prefix == "c:\\" {
-                // For root paths, match absolute paths
-                if prefix == "/" || prefix == "\\" {
-                    path_str.starts_with('/') || path_str.starts_with('\\')
+        // Handle all children that might match
+        for (normalized_key, child_arc) in &node.children {
+            let key_matches = if node.case_sensitive {
+                if is_last_segment {
+                    // For last segment, do prefix matching
+                    normalized_key.starts_with(segment)
                 } else {
-                    // For Windows root paths
-                    path_str_lower.starts_with("c:\\") || path_str_lower.starts_with("c:/")
-                }
-            } else if prefix.starts_with("./") || prefix.starts_with(".\\") {
-                // For relative paths, be more flexible in matching
-                let norm_path = path_str_lower.replace('\\', "/");
-                let norm_prefix = lowercase_prefix.replace('\\', "/");
-
-                // Check if relative path components match, respecting parent insertion setting
-                if self.insert_parents {
-                    norm_path.starts_with(&norm_prefix) ||
-                    norm_path.contains(&norm_prefix) ||
-                    // Special case: if the path is "./" followed by something and we search for just that something
-                    (norm_prefix.len() > 2 && norm_path.contains(&norm_prefix[2..]))
-                } else {
-                    // Stricter matching when parent insertion is disabled
-                    norm_path == norm_prefix ||
-                    // Only allow if it's a direct child
-                    (norm_path.starts_with(&norm_prefix) &&
-                     norm_path[norm_prefix.len()..].matches('/').count() <= 1)
+                    // For middle segments, do exact matching
+                    normalized_key == segment
                 }
             } else {
-                // Regular path matching - be more strict when parent insertion is disabled
-                if self.insert_parents {
-                    // Match anywhere in the path
-                    path_str_lower.contains(&lowercase_prefix)
+                if is_last_segment {
+                    // For last segment, do case-insensitive prefix matching
+                    normalized_key.to_lowercase().starts_with(&segment.to_lowercase())
                 } else {
-                    // Much stricter matching when parent insertion is disabled
-                    path_str_lower == lowercase_prefix ||
-                    // Only allow direct children of directories
-                    (path_str_lower.starts_with(&format!("{}/", lowercase_prefix)) &&
-                     path_str_lower[lowercase_prefix.len() + 1..].matches('/').count() == 0) ||
-                    (path_str_lower.starts_with(&format!("{}\\", lowercase_prefix)) &&
-                     path_str_lower[lowercase_prefix.len() + 1..].matches('\\').count() == 0) ||
-                    // Only match the filename part if no path separators in prefix
-                    (!prefix.contains('/') && !prefix.contains('\\') &&
-                     path.file_name().map_or(false, |name| name.to_string_lossy().to_lowercase().contains(&lowercase_prefix)))
+                    // For middle segments, do case-insensitive exact matching
+                    normalized_key.to_lowercase() == segment.to_lowercase()
                 }
             };
 
-            if path_matches {
+            if key_matches {
+                if let Ok(child) = child_arc.read() {
+                    self.find_with_segments(&child, segments, index + 1, results)?;
+                } else {
+                    return Err("Failed to acquire read lock on child node".to_string());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Find paths where any segment contains the given prefix
+    /// This is more flexible than find_with_prefix() as it looks for the term
+    /// as a substring within path segments rather than requiring exact prefix matches.
+    pub fn find_with_flexible_prefix(&self, prefix: &str) -> Vec<PathBuf> {
+        let mut results = Vec::new();
+        let mut seen_paths = std::collections::HashSet::new();
+
+        if let Ok(root) = self.root.read() {
+            // Start the recursive search from the root
+            let _ = self.find_with_flexible_prefix_recursive(
+                &root,
+                prefix,
+                &mut results,
+                &mut seen_paths
+            );
+        }
+
+        results
+    }
+
+    /// Recursively find paths containing the prefix in any segment
+    fn find_with_flexible_prefix_recursive(
+        &self,
+        node: &AdaptiveRadixNode,
+        prefix: &str,
+        results: &mut Vec<PathBuf>,
+        seen_paths: &mut std::collections::HashSet<PathBuf>
+    ) -> Result<(), String> {
+        // Check if the current node's segment contains the prefix
+        let segment_matches = if node.case_sensitive {
+            node.segment.contains(prefix)
+        } else {
+            node.segment.to_lowercase().contains(&prefix.to_lowercase())
+        };
+
+        // If this node matches and has a path, add it
+        if segment_matches && node.path.is_some() {
+            if let Some(path) = &node.path {
+                if !seen_paths.contains(path) {
+                    seen_paths.insert(path.clone());
+                    results.push(path.clone());
+                }
+            }
+        }
+
+        // If this is a terminal node and the full path contains the prefix
+        if let Some(path) = &node.path {
+            let path_str = path.to_string_lossy();
+            let path_contains = if node.case_sensitive {
+                path_str.contains(prefix)
+            } else {
+                path_str.to_lowercase().contains(&prefix.to_lowercase())
+            };
+
+            if path_contains && !seen_paths.contains(path) {
+                seen_paths.insert(path.clone());
                 results.push(path.clone());
             }
         }
 
-        // Recursively search all children - but for non-parent insertion mode, limit the search
-        if self.insert_parents || results.len() < 100 {
-            for (_, child_arc) in &node.children {
-                if let Ok(child) = child_arc.read() {
-                    self.flexible_prefix_search(&child, prefix, results);
+        // Continue searching in all children
+        for (_, child_arc) in &node.children {
+            if let Ok(child) = child_arc.read() {
+                self.find_with_flexible_prefix_recursive(
+                    &child,
+                    prefix,
+                    results,
+                    seen_paths
+                )?;
+            } else {
+                return Err("Failed to acquire read lock on child node".to_string());
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Search recursively through all paths for a substring
+    /// This method finds ANY path containing the search term anywhere (most similar to
+    /// standard file search implementations) and is recommended for general-purpose searches.
+    pub fn search_recursive(&self, search_term: &str) -> Vec<PathBuf> {
+        let mut results = Vec::new();
+        let mut seen_paths = std::collections::HashSet::new();
+
+        if let Ok(root) = self.root.read() {
+            // Start the recursive search from the root
+            let _ = self.search_recursive_impl(
+                &root,
+                search_term,
+                &mut results,
+                &mut seen_paths
+            );
+        }
+
+        results
+    }
+
+    /// Implementation of recursive search
+    fn search_recursive_impl(
+        &self,
+        node: &AdaptiveRadixNode,
+        search_term: &str,
+        results: &mut Vec<PathBuf>,
+        seen_paths: &mut std::collections::HashSet<PathBuf>
+    ) -> Result<(), String> {
+        // Check if the current node's segment contains the search term
+        let segment_matches = if node.case_sensitive {
+            node.segment.contains(search_term)
+        } else {
+            node.segment.to_lowercase().contains(&search_term.to_lowercase())
+        };
+
+        // If this node has a path and it matches or hasn't been checked yet
+        if let Some(path) = &node.path {
+            let path_str = path.to_string_lossy();
+            let path_contains = if node.case_sensitive {
+                path_str.contains(search_term)
+            } else {
+                path_str.to_lowercase().contains(&search_term.to_lowercase())
+            };
+
+            if segment_matches || path_contains {
+                if !seen_paths.contains(path) {
+                    seen_paths.insert(path.clone());
+                    results.push(path.clone());
                 }
             }
         }
 
-        // Limit results to prevent excessive matches
-        if results.len() > 100 {
-            // Cap results to avoid performance issues with extremely broad searches
-            return;
+        // Continue searching in all children
+        for (_, child_arc) in &node.children {
+            if let Ok(child) = child_arc.read() {
+                self.search_recursive_impl(
+                    &child,
+                    search_term,
+                    results,
+                    seen_paths
+                )?;
+            } else {
+                return Err("Failed to acquire read lock on child node".to_string());
+            }
         }
+
+        Ok(())
     }
 
-    pub fn remove(&self, path_str: &str) -> bool {
+    /// Search for paths containing all specified components
+    pub fn search_by_components(&self, components: &[&str]) -> Vec<PathBuf> {
+        if components.is_empty() {
+            return Vec::new();
+        }
+
+        // Convert components to String for consistent processing
+        let components: Vec<String> = components.iter()
+            .map(|&s| s.to_string())
+            .collect();
+
+        let mut results = Vec::new();
+        let mut seen_paths = std::collections::HashSet::new();
+
+        if let Ok(root) = self.root.read() {
+            // Start with an empty vector of matched components
+            let _ = self.search_components_recursive(
+                &root,
+                &components,
+                &Vec::new(),
+                &mut results,
+                &mut seen_paths
+            );
+        }
+
+        results
+    }
+
+    /// Recursively search for components
+    fn search_components_recursive(
+        &self,
+        node: &AdaptiveRadixNode,
+        components: &[String],
+        matched_components: &Vec<String>,
+        results: &mut Vec<PathBuf>,
+        seen_paths: &mut std::collections::HashSet<PathBuf>
+    ) -> Result<(), String> {
+        // If we've matched all components and this is a terminal node, add the path
+        if matched_components.len() >= components.len() && node.path.is_some() {
+            if let Some(path) = &node.path {
+                if !seen_paths.contains(path) {
+                    seen_paths.insert(path.clone());
+                    results.push(path.clone());
+                }
+            }
+            return Ok(());
+        }
+
+        // Check if the current segment matches any remaining component
+        let mut new_matched = matched_components.clone();
+        let current_segment = &node.segment;
+
+        if !current_segment.is_empty() {
+            for (i, component) in components.iter().enumerate() {
+                // Skip components we've already matched
+                if matched_components.iter().any(|m| m == component) {
+                    continue;
+                }
+
+                let matches = if node.case_sensitive {
+                    current_segment.contains(component)
+                } else {
+                    current_segment.to_lowercase().contains(&component.to_lowercase())
+                };
+
+                if matches {
+                    new_matched.push(component.clone());
+                    break; // Only match one component per segment
+                }
+            }
+        }
+
+        // Check if we matched all components with the current path
+        if new_matched.len() >= components.len() && node.path.is_some() {
+            if let Some(path) = &node.path {
+                if !seen_paths.contains(path) {
+                    seen_paths.insert(path.clone());
+                    results.push(path.clone());
+                }
+            }
+        }
+
+        // Continue search in all children
+        for (_, child_arc) in &node.children {
+            if let Ok(child) = child_arc.read() {
+                // Try with the new matched components
+                self.search_components_recursive(
+                    &child,
+                    components,
+                    &new_matched,
+                    results,
+                    seen_paths
+                )?;
+            } else {
+                return Err("Failed to acquire read lock on child node".to_string());
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Helper to collect all paths from a node and its descendants
+    fn collect_all_paths(&self, node: &AdaptiveRadixNode, results: &mut Vec<PathBuf>) -> Result<(), String> {
+        // First add the current node's path if it exists
+        if let Some(path) = &node.path {
+            results.push(path.clone());
+        }
+
+        // Then recursively collect from all children
+        for (_, child_arc) in &node.children {
+            if let Ok(child) = child_arc.read() {
+                self.collect_all_paths(&child, results)?;
+            } else {
+                return Err("Failed to acquire read lock on child node".to_string());
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Remove a path from the trie
+    pub fn remove(&self, path_str: &str) -> Result<bool, String> {
         let segments = self.segment_path(path_str);
 
-        if let Ok(mut root) = self.root.write() {
-            // Only return true if a value was actually removed
-            log_info!(&format!("Removing path: {}", path_str));
-            let (removed_value, _) = self.remove_segments(&mut root, &segments, 0);
-            if removed_value {
-                log_info!(&format!("Successfully removed path: {}", path_str));
-            } else {
-                log_info!(&format!("Path not found for removal: {}", path_str));
-            }
-            return removed_value;
-        } else {
-            log_error!(&format!("Failed to acquire write lock for removing path: {}", path_str));
-            false
+        if segments.is_empty() {
+            return Ok(false);
         }
+
+        let removed;
+
+        if let Ok(mut root) = self.root.write() {
+            removed = self.remove_path(&mut root, &segments, 0)?;
+
+            // Decrement path count if a path was removed
+            if removed {
+                if let Ok(mut count) = self.path_count.write() {
+                    if *count > 0 {
+                        *count -= 1;
+                    }
+                } else {
+                    return Err("Failed to acquire write lock on path count".to_string());
+                }
+            }
+        } else {
+            return Err("Failed to acquire write lock on root node".to_string());
+        }
+
+        Ok(removed)
     }
 
-    fn remove_segments(
+    /// Recursively remove path segments
+    fn remove_path(
         &self,
         node: &mut AdaptiveRadixNode,
         segments: &[String],
         index: usize
-    ) -> (bool, bool) {
+    ) -> Result<bool, String> {
         if index >= segments.len() {
             // Path found, remove the value
-            let had_value = node.value.is_some();
-            if had_value {
-                node.value = None;
-                return (true, node.children.is_empty());
+            if node.path.is_some() {
+                node.path = None;
+                return Ok(true);
             }
-            return (false, false);
+            return Ok(false);
         }
 
         let segment = &segments[index];
-        let mut value_removed = false;
-        let mut should_remove_child = false;
 
-        if let Some(child_arc) = node.children.get(segment) {
-            if let Ok(mut child) = child_arc.write() {
-                let (removed, empty) = self.remove_segments(&mut child, segments, index + 1);
-                value_removed = removed;
-                should_remove_child = empty;
-            }
+        // Find all matching children (considering case sensitivity)
+        let mut removed = false;
+        let mut children_to_check = Vec::new();
 
-            if should_remove_child {
-                node.children.remove(segment);
+        for key in node.children.keys() {
+            if (node.case_sensitive && key == segment) ||
+               (!node.case_sensitive && key.to_lowercase() == segment.to_lowercase()) {
+                children_to_check.push(key.clone());
             }
         }
 
-        // Return if a value was removed and if this node can be removed
-        (value_removed, node.value.is_none() && node.children.is_empty())
+        for key in children_to_check {
+            if let Some(child_arc) = node.children.get(&key).cloned() {
+                if let Ok(mut child) = child_arc.write() {
+                    let result = self.remove_path(&mut child, segments, index + 1)?;
+
+                    if result {
+                        // Mark as removed
+                        removed = true;
+
+                        // If the child has no path and no children, remove it
+                        if child.path.is_none() && child.children.is_empty() {
+                            node.children.remove(&key);
+                        }
+                    }
+                } else {
+                    return Err("Failed to acquire write lock on child node".to_string());
+                }
+            }
+        }
+
+        Ok(removed)
     }
 
-    pub fn get_path_count(&self) -> usize {
-        let mut count = 0;
-        if let Ok(root) = self.root.read() {
-            count = self.count_all_values(&root);
-            log_info!(&format!("Current path count: {}", count));
+    /// Get the total number of indexed paths
+    pub fn path_count(&self) -> usize {
+        if let Ok(count) = self.path_count.read() {
+            *count
         } else {
-            log_error!("Failed to acquire read lock for counting paths");
+            0
         }
-        count
     }
 
-    fn count_all_values(&self, node: &AdaptiveRadixNode) -> usize {
-        let mut count = if node.value.is_some() { 1 } else { 0 };
-
-        for (_, child_arc) in &node.children {
-            if let Ok(child) = child_arc.read() {
-                count += self.count_all_values(&child);
-            }
-        }
-
-        count
-    }
-
-    // Filter results for non-parent insertion mode to ensure only relevant results are returned
-    fn filter_non_parent_results(&self, results: Vec<PathBuf>, prefix: &str) -> Vec<PathBuf> {
-        // Skip filtering for empty prefix
-        if prefix.is_empty() {
-            return results;
-        }
-
-        let norm_prefix = prefix.replace('\\', "/").to_lowercase();
-        let is_filename_search = !prefix.contains('/') && !prefix.contains('\\');
-
-        results.into_iter().filter(|path| {
-            let path_str = path.to_string_lossy().to_string();
-            let norm_path = path_str.replace('\\', "/").to_lowercase();
-
-            if is_filename_search {
-                // For filename searches, include if the filename matches exactly
-                if let Some(file_name) = path.file_name() {
-                    let file_name_str = file_name.to_string_lossy().to_lowercase();
-                    return file_name_str.contains(&norm_prefix);
-                }
-                return false;
-            }
-
-            // Include exact matches
-            if norm_path == norm_prefix {
-                return true;
-            }
-
-            // For direct path queries in non-parent mode, be very strict
-            // We only want paths that were explicitly inserted
-            if !self.insert_parents {
-                // When parent insertion is disabled, only return exact matches or direct children
-                if norm_path.starts_with(&norm_prefix) {
-                    // A direct child should only have one more path component
-                    let rel_path = if norm_prefix.ends_with('/') {
-                        &norm_path[norm_prefix.len()..]
-                    } else {
-                        &norm_path[norm_prefix.len()..]
-                    };
-
-                    // Skip the leading separator if present
-                    let rel_path = if rel_path.starts_with('/') { &rel_path[1..] } else { rel_path };
-
-                    // If there are no more separators, it's a direct child file
-                    // If there's one more separator, it could be a direct child dir with file
-                    let separator_count = rel_path.matches('/').count();
-
-                    return separator_count == 0;  // Stricter: only exact children, no grandchildren
-                }
-                return false;  // No partial matches in non-parent mode
-            }
-
-            // Include direct children (only one separator after the prefix)
-            if norm_path.starts_with(&norm_prefix) {
-                let rel_path = &norm_path[norm_prefix.len()..];
-                // Skip the leading separator if present
-                let rel_path = if rel_path.starts_with('/') { &rel_path[1..] } else { rel_path };
-
-                // Count separators in the relative path
-                let separator_count = rel_path.matches('/').count();
-                // No separators means direct child file, one separator means direct child directory with a file
-                return separator_count <= 1;
-            }
-
-            // For special root paths, handle differently
-            if norm_prefix == "/" || norm_prefix == "c:/" || norm_prefix == "c:\\" {
-                // For root paths, consider paths with just one level of directory as direct children
-                let segments: Vec<&str> = norm_path.split('/').filter(|s| !s.is_empty()).collect();
-                return segments.len() <= 2; // Root + one directory level
-            }
-
-            false
-        }).collect()
+    /// Alias for path_count for backward compatibility
+    pub fn get_path_count(&self) -> usize {
+        self.path_count()
     }
 }
 
 #[cfg(test)]
-mod tests_adaptive_radix_tree {
+mod tests_art {
     use super::*;
-    use std::time::{Duration, Instant};
-    use crate::search_engine::{Entry, generate_test_data, index_given_path, index_given_path_parallel};
+    use std::path::Path;
+    use std::time::Instant;
+    use crate::search_engine::generate_test_data;
+    use std::collections::{HashSet, HashMap};
+    use std::fs::read_dir;
+    use crate::{log_info, log_error};
 
-    // Helper function to get the test data path and verify it exists
+    // Helper function to get the test data path, creating it if needed
     fn get_test_data_path() -> PathBuf {
-        let mut path = PathBuf::from(".");
-        path = path.join("test-data-for-search-engine");
+        let path = PathBuf::from("./test-data-for-art");
         if !path.exists() {
-            panic!("Test data directory does not exist: {:?}. Run the 'create_test_data' test first.", path);
+            log_info!("Test data doesn't exist, generating it now");
+            generate_test_data(path.clone()).expect("Failed to generate test data");
+            log_info!("Test data generation complete");
         }
         path
     }
 
-    #[test]
-    #[ignore]
-    fn test_generate_test_data() {
-        match generate_test_data(get_test_data_path()) {
-            Ok(path) => {
-                assert!(path.exists(), "Test data directory should exist");
+    // Helper function to index all files in a directory for testing
+    fn index_directory_in_trie(trie: &AdaptiveRadixTrie, dir_path: &Path) -> usize {
+        let mut count = 0;
+        if let Ok(entries) = read_dir(dir_path) {
+            for entry in entries.filter_map(Result::ok) {
+                let path = entry.path();
+                let path_str = path.to_string_lossy().to_string();
 
-                // Test sequential vs parallel indexing of the test data
-                let start = std::time::Instant::now();
-                let seq_entries = index_given_path(path.clone());
-                let seq_duration = start.elapsed();
-
-                let start = std::time::Instant::now();
-                let par_entries = index_given_path_parallel(path.clone());
-                let par_duration = start.elapsed();
-
-                log_info!(&format!("Test data indexed:"));
-                log_info!(&format!("  - Sequential: {} entries in {:?}", seq_entries.len(), seq_duration));
-                log_info!(&format!("  - Parallel: {} entries in {:?}", par_entries.len(), par_duration));
-
-                assert!(!seq_entries.is_empty(), "Should have indexed some entries");
-                assert_eq!(seq_entries.len(), par_entries.len(),
-                           "Sequential and parallel indexing should find the same number of entries");
-            },
-            Err(e) => {
-                panic!("Failed to generate test data: {}", e);
-            }
-        }
-    }
-
-    #[test]
-    #[cfg(feature = "generate-test-data")]
-    fn create_test_data() {
-        match generate_test_data(get_test_data_path()) {
-            Ok(path) => log_info!(&format!("Test data created at: {:?}", path)),
-            Err(e) => panic!("Failed to generate test data: {}", e)
-        }
-    }
-
-    #[test]
-    fn test_index_real_test_data() {
-        let test_path = get_test_data_path();
-        let trie = AdaptiveRadixTrie::new_with_options(false); // Don't insert parents for test
-
-        // Get paths from test data
-        let entries = index_given_path(test_path);
-        let total_entries = entries.len();
-        log_info!(&format!("Indexing {} real test paths into trie", total_entries));
-
-        let start = Instant::now();
-        for entry in &entries {
-            match entry {
-                Entry::FILE(file) => {
-                    let path_str = file.path.clone();
-                    trie.insert(&path_str, PathBuf::from(&path_str));
-                },
-                Entry::DIRECTORY(dir) => {
-                    let path_str = dir.path.clone();
-                    trie.insert(&path_str, PathBuf::from(&path_str));
-                }
-            }
-        }
-        let insertion_time = start.elapsed();
-
-        log_info!(&format!("Inserted {} real paths in {:?}", total_entries, insertion_time));
-
-        // Verify count matches
-        assert_eq!(trie.get_path_count(), total_entries,
-            "Trie should contain exactly {} paths", total_entries);
-
-        // Test some prefix searches
-        if total_entries > 0 {
-            // Log some of the entries to debug
-            log_info!(&format!("First few entries for debugging:"));
-            for (i, entry) in entries.iter().take(5).enumerate() {
-                match entry {
-                    Entry::FILE(file) => log_info!(&format!("File {}: {}", i, file.path)),
-                    Entry::DIRECTORY(dir) => log_info!(&format!("Dir {}: {}", i, dir.path)),
-                }
-            }
-
-            // Instead of assuming root paths, extract actual prefixes from the data
-            let mut prefixes = Vec::new();
-
-            // Try root prefixes in case they exist
-            let root_prefixes = vec!["/", "\\", "C:\\", "c:/"];
-            for prefix in &root_prefixes {
-                prefixes.push(prefix.to_string());
-            }
-
-            // Extract file/directory name prefixes from actual entries
-            for entry in entries.iter().take(10) {
-                let path_str = match entry {
-                    Entry::FILE(file) => &file.path,
-                    Entry::DIRECTORY(dir) => &dir.path,
-                };
-
-                let path_buf = PathBuf::from(path_str);
-                if let Some(filename) = path_buf.file_name() {
-                    let prefix = filename.to_string_lossy().to_string();
-                    if !prefix.is_empty() {
-                        prefixes.push(prefix);
-                    }
-                }
-
-                // Also add the parent directory as a prefix if it exists
-                if let Some(parent) = path_buf.parent() {
-                    if !parent.as_os_str().is_empty() {
-                        prefixes.push(parent.to_string_lossy().to_string());
+                if let Ok(metadata) = entry.metadata() {
+                    if metadata.is_file() {
+                        trie.insert(&path_str, path.clone()).unwrap();
+                        count += 1;
+                    } else if metadata.is_dir() {
+                        count += index_directory_in_trie(trie, &path);
                     }
                 }
             }
-
-            // Test with actual prefixes
-            let mut found_results = false;
-            for prefix in &prefixes {
-                let results = trie.find_with_prefix(prefix);
-                log_info!(&format!("Prefix '{}' returned {} results", prefix, results.len()));
-
-                if !results.is_empty() {
-                    found_results = true;
-                    break;
-                }
-            }
-
-            assert!(found_results, "Should find at least some paths with extracted prefixes");
         }
+        count
     }
 
     #[test]
-    fn test_parallel_vs_sequential_indexing_performance() {
-        let test_path = get_test_data_path();
+    fn test_creation() {
+        let trie = AdaptiveRadixTrie::new();
+        assert_eq!(trie.path_count(), 0);
+        assert!(!trie.default_case_sensitive);
 
-        // Gather test data paths using both methods
-        let start = Instant::now();
-        let seq_results = index_given_path(test_path.clone());
-        let seq_time = start.elapsed();
-        log_info!(&format!("Sequential indexing found {} paths in {:?}",
-            seq_results.len(), seq_time));
-
-        let start = Instant::now();
-        let par_results = index_given_path_parallel(test_path.clone());
-        let par_time = start.elapsed();
-        log_info!(&format!("Parallel indexing found {} paths in {:?}",
-            par_results.len(), par_time));
-
-        // Compare results
-        assert_eq!(seq_results.len(), par_results.len(),
-            "Both methods should find the same number of files");
-
-        // Create tries and compare insert performance
-        let trie_seq = AdaptiveRadixTrie::new();
-        let trie_par = AdaptiveRadixTrie::new();
-
-        let start = Instant::now();
-        for entry in &seq_results {
-            match entry {
-                Entry::FILE(file) => {
-                    let path_str = file.path.clone();
-                    trie_seq.insert(&path_str, PathBuf::from(&path_str));
-                },
-                Entry::DIRECTORY(dir) => {
-                    let path_str = dir.path.clone();
-                    trie_seq.insert(&path_str, PathBuf::from(&path_str));
-                }
-            }
-        }
-        let seq_insert_time = start.elapsed();
-        log_info!(&format!("Sequential trie insertion: {:?}", seq_insert_time));
-
-        let start = Instant::now();
-        for entry in &par_results {
-            match entry {
-                Entry::FILE(file) => {
-                    let path_str = file.path.clone();
-                    trie_par.insert(&path_str, PathBuf::from(&path_str));
-                },
-                Entry::DIRECTORY(dir) => {
-                    let path_str = dir.path.clone();
-                    trie_par.insert(&path_str, PathBuf::from(&path_str));
-                }
-            }
-        }
-        let par_insert_time = start.elapsed();
-        log_info!(&format!("Parallel data trie insertion: {:?}", par_insert_time));
-
-        // The counts should match
-        assert_eq!(trie_seq.get_path_count(), trie_par.get_path_count());
+        let case_sensitive_trie = AdaptiveRadixTrie::new_with_arg(true);
+        assert!(case_sensitive_trie.default_case_sensitive);
     }
 
     #[test]
-    fn test_trie_with_real_world_queries() {
-        let test_path = get_test_data_path();
+    fn test_insert_and_count() {
         let trie = AdaptiveRadixTrie::new();
 
-        // Index the test data
-        let entries = index_given_path(test_path);
-        if entries.is_empty() {
-            log_info!("No test paths found, skipping test");
-            return;
+        // Insert some paths
+        trie.insert("/home/user/documents/file1.txt", PathBuf::from("/home/user/documents/file1.txt")).unwrap();
+        trie.insert("/home/user/documents/file2.txt", PathBuf::from("/home/user/documents/file2.txt")).unwrap();
+        trie.insert("/home/user/pictures/img1.jpg", PathBuf::from("/home/user/pictures/img1.jpg")).unwrap();
+
+        assert_eq!(trie.path_count(), 3);
+    }
+
+    #[test]
+    fn test_normalize_and_segment_paths() {
+        let trie = AdaptiveRadixTrie::new();
+
+        // Test normalization (backslash to forward slash)
+        let normalized = trie.normalize_path(r"C:\Users\Documents\file.txt");
+        assert_eq!(normalized, "c:/users/documents/file.txt");
+
+        // Test segmentation
+        let segments = trie.segment_path("/home/user/file.txt");
+        assert_eq!(segments, vec!["/", "home", "user", "file.txt"]);
+
+        let windows_segments = trie.segment_path(r"C:\Users\Documents\file.txt");
+        assert_eq!(windows_segments, vec!["c:", "users", "documents", "file.txt"]);
+    }
+
+    #[test]
+    fn test_find_with_prefix() {
+        let trie = AdaptiveRadixTrie::new();
+
+        // Insert some paths
+        trie.insert("/home/user/documents/report.pdf", PathBuf::from("/home/user/documents/report.pdf")).unwrap();
+        trie.insert("/home/user/documents/notes.txt", PathBuf::from("/home/user/documents/notes.txt")).unwrap();
+        trie.insert("/home/user/pictures/vacation.jpg", PathBuf::from("/home/user/pictures/vacation.jpg")).unwrap();
+        trie.insert("/home/user/pictures/family.jpg", PathBuf::from("/home/user/pictures/family.jpg")).unwrap();
+
+        // Test exact prefix
+        let docs = trie.find_with_prefix("/home/user/documents");
+        assert_eq!(docs.len(), 2);
+        assert!(docs.contains(&PathBuf::from("/home/user/documents/report.pdf")));
+        assert!(docs.contains(&PathBuf::from("/home/user/documents/notes.txt")));
+
+        // Test broader prefix
+        let all = trie.find_with_prefix("/home/user");
+        assert_eq!(all.len(), 4);
+
+        // Test specific file prefix
+        let report = trie.find_with_prefix("/home/user/documents/report");
+        assert_eq!(report.len(), 1);
+        assert_eq!(report[0], PathBuf::from("/home/user/documents/report.pdf"));
+    }
+
+    #[test]
+    fn test_find_with_flexible_prefix() {
+        let trie = AdaptiveRadixTrie::new();
+
+        // Insert some paths with different styles
+        trie.insert("/home/user/documents/report.pdf", PathBuf::from("/home/user/documents/report.pdf")).unwrap();
+        trie.insert("C:/Users/Documents/notes.txt", PathBuf::from("C:/Users/Documents/notes.txt")).unwrap();
+        trie.insert(r"D:\Projects\code.rs", PathBuf::from(r"D:\Projects\code.rs")).unwrap();
+
+        // Test flexible prefix matching
+        let docs1 = trie.find_with_flexible_prefix("documents");
+        assert!(docs1.contains(&PathBuf::from("/home/user/documents/report.pdf")));
+
+        let docs2 = trie.find_with_flexible_prefix("Documents");
+        assert!(docs2.contains(&PathBuf::from("C:/Users/Documents/notes.txt")));
+
+        // Test with partial path
+        let projects = trie.find_with_flexible_prefix("Projects");
+        assert!(projects.contains(&PathBuf::from(r"D:\Projects\code.rs")));
+    }
+
+    #[test]
+    fn test_search_recursive() {
+        let trie = AdaptiveRadixTrie::new();
+
+        // Insert paths with common patterns
+        trie.insert("/home/user/work/project1/source.rs", PathBuf::from("/home/user/work/project1/source.rs")).unwrap();
+        trie.insert("/home/user/work/project2/source.rs", PathBuf::from("/home/user/work/project2/source.rs")).unwrap();
+        trie.insert("/home/user/personal/notes.txt", PathBuf::from("/home/user/personal/notes.txt")).unwrap();
+        trie.insert("/opt/data/backup/config.bak", PathBuf::from("/opt/data/backup/config.bak")).unwrap();
+
+        // Test recursive search for pattern
+        let source_files = trie.search_recursive("source");
+        assert_eq!(source_files.len(), 2);
+
+        let rs_files = trie.search_recursive(".rs");
+        assert_eq!(rs_files.len(), 2);
+
+        let project_files = trie.search_recursive("project");
+        assert_eq!(project_files.len(), 2);
+
+        // Test that it finds substrings within segments
+        let backup_files = trie.search_recursive("back");
+        assert_eq!(backup_files.len(), 1);
+        assert!(backup_files.contains(&PathBuf::from("/opt/data/backup/config.bak")));
+    }
+
+    #[test]
+    fn test_search_by_components() {
+        let trie = AdaptiveRadixTrie::new();
+
+        // Insert paths
+        trie.insert("/usr/local/bin/program", PathBuf::from("/usr/local/bin/program")).unwrap();
+        trie.insert("/usr/share/doc/manual.pdf", PathBuf::from("/usr/share/doc/manual.pdf")).unwrap();
+        trie.insert("/home/user/Downloads/app.dmg", PathBuf::from("/home/user/Downloads/app.dmg")).unwrap();
+
+        // Test component search
+        let results = trie.search_by_components(&["usr", "bin"]);
+        assert_eq!(results.len(), 1);
+        assert!(results.contains(&PathBuf::from("/usr/local/bin/program")));
+
+        // Test component search with non-adjacent terms
+        let results = trie.search_by_components(&["usr", "manual"]);
+        assert_eq!(results.len(), 1);
+        assert!(results.contains(&PathBuf::from("/usr/share/doc/manual.pdf")));
+    }
+
+    #[test]
+    fn test_case_sensitivity() {
+        // Default case insensitive
+        let case_insensitive = AdaptiveRadixTrie::new();
+        case_insensitive.insert("/Home/User/Documents/Report.pdf", PathBuf::from("/Home/User/Documents/Report.pdf")).unwrap();
+
+        // Find with different case
+        let results1 = case_insensitive.find_with_prefix("/home/user");
+        assert_eq!(results1.len(), 1);
+
+        let results2 = case_insensitive.search_recursive("report");
+        assert_eq!(results2.len(), 1);
+
+        // Case sensitive
+        let case_sensitive = AdaptiveRadixTrie::new_with_arg(true);
+        case_sensitive.insert("/Home/User/Documents/Report.pdf", PathBuf::from("/Home/User/Documents/Report.pdf")).unwrap();
+
+        // Should not find with different case
+        let results3 = case_sensitive.find_with_prefix("/home/user");
+        assert_eq!(results3.len(), 0);
+
+        // Should find with exact case
+        let results4 = case_sensitive.find_with_prefix("/Home/User");
+        assert_eq!(results4.len(), 1);
+    }
+
+    #[test]
+    fn test_remove() {
+        let trie = AdaptiveRadixTrie::new();
+
+        // Insert some paths
+        trie.insert("/tmp/file1.txt", PathBuf::from("/tmp/file1.txt")).unwrap();
+        trie.insert("/tmp/file2.txt", PathBuf::from("/tmp/file2.txt")).unwrap();
+        trie.insert("/tmp/subdir/file3.txt", PathBuf::from("/tmp/subdir/file3.txt")).unwrap();
+
+        assert_eq!(trie.path_count(), 3);
+
+        // Remove a path
+        let removed = trie.remove("/tmp/file1.txt").unwrap();
+        assert!(removed);
+        assert_eq!(trie.path_count(), 2);
+
+        // Verify it's gone
+        let results = trie.find_with_prefix("/tmp/file1");
+        assert_eq!(results.len(), 0);
+
+        // Other files still exist
+        let remaining = trie.find_with_prefix("/tmp");
+        assert_eq!(remaining.len(), 2);
+
+        // Remove non-existent path
+        let removed = trie.remove("/nonexistent/path").unwrap();
+        assert!(!removed);
+        assert_eq!(trie.path_count(), 2);
+    }
+
+    #[test]
+    fn test_windows_paths() {
+        let trie = AdaptiveRadixTrie::new();
+
+        // Insert Windows paths
+        trie.insert(r"C:\Program Files\App\program.exe", PathBuf::from(r"C:\Program Files\App\program.exe")).unwrap();
+        trie.insert(r"C:\Users\User\Documents\file.docx", PathBuf::from(r"C:\Users\User\Documents\file.docx")).unwrap();
+
+        // Find with Windows path syntax
+        let results1 = trie.find_with_prefix(r"C:\Program Files");
+        assert_eq!(results1.len(), 1);
+
+        // Find with forward slashes
+        let results2 = trie.find_with_prefix("C:/Users");
+        assert_eq!(results2.len(), 1);
+
+        // Search by component
+        let results3 = trie.search_by_components(&["Program Files", "program.exe"]);
+        assert_eq!(results3.len(), 1);
+    }
+
+    #[test]
+    fn test_comprehensive() {
+        let trie = AdaptiveRadixTrie::new();
+
+        // Insert a variety of paths
+        let paths = [
+            "/usr/bin/gcc",
+            "/usr/local/bin/python",
+            "/home/user/Documents/report.docx",
+            "/home/user/Documents/presentation.pptx",
+            "/home/user/Pictures/vacation/beach.jpg",
+            "/home/user/Pictures/vacation/sunset.jpg",
+            "/home/user/Pictures/family.jpg",
+            "/var/log/syslog",
+            "/etc/config/settings.conf",
+            r"C:\Windows\System32\cmd.exe",
+        ];
+
+        for path in &paths {
+            trie.insert(path, PathBuf::from(path)).unwrap();
         }
 
-        // Insert all paths
-        for entry in &entries {
-            match entry {
-                Entry::FILE(file) => {
-                    let path_str = file.path.clone();
-                    trie.insert(&path_str, PathBuf::from(&path_str));
-                },
-                Entry::DIRECTORY(dir) => {
-                    let path_str = dir.path.clone();
-                    trie.insert(&path_str, PathBuf::from(&path_str));
-                }
-            }
+        assert_eq!(trie.path_count(), paths.len());
+
+        // Test various search functions
+        let bin_files = trie.find_with_prefix("/usr");
+        assert_eq!(bin_files.len(), 2);
+
+        let doc_files = trie.find_with_prefix("/home/user/Documents");
+        assert_eq!(doc_files.len(), 2);
+
+        let pic_files = trie.search_recursive("Pictures");
+        assert_eq!(pic_files.len(), 3);
+
+        let vacation_files = trie.find_with_flexible_prefix("vacation");
+        assert_eq!(vacation_files.len(), 2);
+
+        // Remove some paths
+        trie.remove("/home/user/Pictures/vacation/beach.jpg").unwrap();
+        assert_eq!(trie.path_count(), paths.len() - 1);
+
+        // Verify removed path is gone but others remain
+        let remaining_vacation = trie.find_with_prefix("/home/user/Pictures/vacation");
+        assert_eq!(remaining_vacation.len(), 1);
+        assert!(remaining_vacation.contains(&PathBuf::from("/home/user/Pictures/vacation/sunset.jpg")));
+    }
+
+    #[test]
+    fn test_performance_insertion() {
+        let trie = AdaptiveRadixTrie::new();
+        let start_time = Instant::now();
+        let count = 1000;
+
+        for i in 0..count {
+            let path = format!("/test/path/to/file_{}.txt", i);
+            trie.insert(&path, PathBuf::from(&path)).unwrap();
         }
 
-        // Extract some realistic prefixes from the data
-        let mut prefixes = Vec::new();
-        for entry in &entries {
-            let path_str = match entry {
-                Entry::FILE(file) => &file.path,
-                Entry::DIRECTORY(dir) => &dir.path,
+        let duration = start_time.elapsed();
+        log_info!(&format!("Performance: Inserted {} paths in {:?} ({:?} per insertion)",
+                 count, duration, duration / count as u32));
+
+        assert_eq!(trie.path_count(), count);
+    }
+
+    #[test]
+    fn test_performance_search() {
+        let trie = AdaptiveRadixTrie::new();
+        let count = 1000;
+
+        // Insert paths first
+        for i in 0..count {
+            let path = format!("/test/path/level{}/file_{}.txt", i % 10, i);
+            trie.insert(&path, PathBuf::from(&path)).unwrap();
+        }
+
+        // Test prefix search
+        let start_prefix = Instant::now();
+        let prefix_results = trie.find_with_prefix("/test/path/level5");
+        let prefix_duration = start_prefix.elapsed();
+        log_info!(&format!("Performance: Prefix search found {} paths in {:?}",
+                 prefix_results.len(), prefix_duration));
+
+        // Test recursive search
+        let start_recursive = Instant::now();
+        let recursive_results = trie.search_recursive("file_50");
+        let recursive_duration = start_recursive.elapsed();
+        log_info!(&format!("Performance: Recursive search found {} paths in {:?}",
+                 recursive_results.len(), recursive_duration));
+
+        // Test flexible search
+        let start_flexible = Instant::now();
+        let flexible_results = trie.find_with_flexible_prefix("level3");
+        let flexible_duration = start_flexible.elapsed();
+        log_info!(&format!("Performance: Flexible search found {} paths in {:?}",
+                 flexible_results.len(), flexible_duration));
+
+        // Test component search
+        let start_component = Instant::now();
+        let component_results = trie.search_by_components(&["level2", "file"]);
+        let component_duration = start_component.elapsed();
+        log_info!(&format!("Performance: Component search found {} paths in {:?}",
+                 component_results.len(), component_duration));
+    }
+
+    #[test]
+    fn test_performance_large_dataset() {
+        let trie = AdaptiveRadixTrie::new();
+        let count = 10000;
+
+        // Create a larger dataset with varied paths
+        log_info!("Building large test dataset...");
+        let insert_start = Instant::now();
+
+        for i in 0..count {
+            let folder = match i % 5 {
+                0 => "documents",
+                1 => "pictures",
+                2 => "videos",
+                3 => "music",
+                _ => "projects",
             };
 
-            // Add partial path prefixes - use platform-agnostic path handling
-            let path_buf = PathBuf::from(path_str);
-            if let Some(parent) = path_buf.parent() {
-                if !parent.as_os_str().is_empty() {
-                    let prefix1 = parent.to_string_lossy().to_string();
-                    if !prefix1.is_empty() && !prefixes.contains(&prefix1) {
-                        prefixes.push(prefix1);
-                    }
+            let depth = i % 4 + 1;
+            let mut path = format!("/home/user/{}", folder);
 
-                    // For the second level, try to go one level deeper if possible
-                    if let Some(grandparent) = parent.parent() {
-                        if !grandparent.as_os_str().is_empty() {
-                            let prefix2 = format!("{}{}{}",
-                                grandparent.to_string_lossy(),
-                                std::path::MAIN_SEPARATOR,
-                                parent.file_name().unwrap_or_default().to_string_lossy());
-                            if !prefixes.contains(&prefix2) {
-                                prefixes.push(prefix2);
-                            }
-                        }
-                    }
-                }
+            for d in 0..depth {
+                path = format!("{}/subfolder_{}", path, d);
             }
 
-            // Add filename prefix (first few chars)
-            if let Some(filename) = PathBuf::from(path_str).file_name() {
-                let filename_str = filename.to_string_lossy();
-                if filename_str.len() >= 3 {
-                    let filename_prefix = filename_str.chars().take(3).collect::<String>();
-                    if !prefixes.contains(&filename_prefix) {
-                        prefixes.push(filename_prefix);
-                    }
-                }
-            }
+            let extension = match i % 8 {
+                0 => "txt",
+                1 => "doc",
+                2 => "jpg",
+                3 => "png",
+                4 => "mp4",
+                5 => "mp3",
+                6 => "rs",
+                _ => "json",
+            };
 
-            // Limit number of test prefixes
-            if prefixes.len() >= 20 {
-                break;
-            }
+            path = format!("{}/file_{}_{}.{}", path, folder, i, extension);
+            trie.insert(&path, PathBuf::from(&path)).unwrap();
         }
 
-        log_info!(&format!("Testing {} real-world prefixes", prefixes.len()));
+        let insert_duration = insert_start.elapsed();
+        log_info!(&format!("Performance: Inserted {} varied paths in {:?} ({:?} per insertion)",
+                 count, insert_duration, insert_duration / count as u32));
 
-        let mut total_results = 0;
-        let start = Instant::now();
+        // Measure search performance with different patterns
+        let search_terms = [
+            "documents", "projects/subfolder", "file_pictures", ".json",
+            "music/subfolder_2", "videos/subfolder_3/file"
+        ];
 
-        for prefix in &prefixes {
-            let results = trie.find_with_prefix(prefix);
-            log_info!(&format!("Prefix '{}' returned {} results", prefix, results.len()));
-            total_results += results.len();
+        for term in &search_terms {
+            let search_start = Instant::now();
+            let results = trie.search_recursive(term);
+            let search_duration = search_start.elapsed();
+            log_info!(&format!("Performance: Searching for '{}' found {} results in {:?}",
+                     term, results.len(), search_duration));
         }
-
-        let total_time = start.elapsed();
-        let avg_time = if prefixes.len() > 0 {
-            total_time.div_f32(prefixes.len() as f32)
-        } else {
-            total_time
-        };
-
-        log_info!(&format!("Average query time for real-world prefixes: {:?}", avg_time));
-        log_info!(&format!("Total results across all queries: {}", total_results));
-
-        // Ensure we found something
-        assert!(total_results > 0, "Should find at least some results with real-world prefixes");
     }
 
     #[test]
-    fn test_remove_with_real_data() {
+    fn test_with_generated_data() {
         let test_path = get_test_data_path();
         let trie = AdaptiveRadixTrie::new();
 
-        // Index the test data
-        let entries = index_given_path(test_path);
-        if entries.is_empty() {
-            log_info!("No test paths found, skipping test");
-            return;
-        }
+        // Index the generated test data
+        let start_time = Instant::now();
+        let indexed_count = index_directory_in_trie(&trie, &test_path);
+        let index_duration = start_time.elapsed();
 
-        // Insert all paths
-        for entry in &entries {
-            match entry {
-                Entry::FILE(file) => {
-                    let path_str = file.path.clone();
-                    trie.insert(&path_str, PathBuf::from(&path_str));
-                },
-                Entry::DIRECTORY(dir) => {
-                    let path_str = dir.path.clone();
-                    trie.insert(&path_str, PathBuf::from(&path_str));
+        log_info!(&format!("Indexed {} entries from generated test data in {:?}", indexed_count, index_duration));
+        assert!(indexed_count > 0, "Should have indexed some entries from test data");
+        assert_eq!(trie.path_count(), indexed_count);
+
+        // Test search on the generated data
+        let search_terms = ["banana", "apple", "txt", "jpg"];
+
+        for term in &search_terms {
+            let search_start = Instant::now();
+            let results = trie.search_recursive(term);
+            let search_duration = search_start.elapsed();
+
+            log_info!(&format!("Searching for '{}' in generated data found {} results in {:?}",
+                     term, results.len(), search_duration));
+        }
+    }
+
+    #[test]
+    fn test_prefix_search_with_generated_data() {
+        let test_path = get_test_data_path();
+        let trie = AdaptiveRadixTrie::new();
+
+        // Index the generated test data
+        let indexed_count = index_directory_in_trie(&trie, &test_path);
+        assert!(indexed_count > 0, "Should have indexed some entries from test data");
+
+        // Get some directories from the test data to use as prefixes
+        let mut test_prefixes = Vec::new();
+        if let Ok(entries) = read_dir(&test_path) {
+            for entry in entries.filter_map(Result::ok).take(3) {
+                if entry.path().is_dir() {
+                    test_prefixes.push(entry.path().to_string_lossy().to_string());
                 }
             }
         }
 
-        let total_count = trie.get_path_count();
-        log_info!(&format!("Indexed {} real paths", total_count));
+        // If we found directories, test prefix search with them
+        if !test_prefixes.is_empty() {
+            for prefix in &test_prefixes {
+                let start_time = Instant::now();
+                let results = trie.find_with_prefix(prefix);
+                let duration = start_time.elapsed();
 
-        // Remove about 10% of paths
-        let remove_count = std::cmp::max(1, entries.len() / 10);
+                log_info!(&format!("Prefix search for '{}' found {} results in {:?}",
+                         prefix, results.len(), duration));
+            }
+        } else {
+            // Fallback if no directories were found
+            log_info!("No directories found in test data for prefix search test");
+        }
+    }
 
-        // Create a vector of paths to remove
-        let mut paths_to_remove = Vec::with_capacity(remove_count);
-        for (i, entry) in entries.iter().enumerate() {
-            if i % 10 == 0 && paths_to_remove.len() < remove_count {
-                match entry {
-                    Entry::FILE(file) => {
-                        paths_to_remove.push(PathBuf::from(&file.path));
-                    },
-                    Entry::DIRECTORY(dir) => {
-                        paths_to_remove.push(PathBuf::from(&dir.path));
+    #[test]
+    fn test_component_search_with_generated_data() {
+        let test_path = get_test_data_path();
+        let trie = AdaptiveRadixTrie::new();
+
+        // Index the generated test data
+        let indexed_count = index_directory_in_trie(&trie, &test_path);
+        assert!(indexed_count > 0, "Should have indexed some entries from test data");
+
+        // Test component search with common components from the generated data
+        let components = [
+            &["banana", "apple"],
+            &["orange", "grape"],
+            &["car", "truck"],
+            &["txt", "pdf"],
+            &["json", "png"]
+        ];
+
+        for comp_set in &components {
+            let start_time = Instant::now();
+            let results = trie.search_by_components(*comp_set);
+            let duration = start_time.elapsed();
+
+            log_info!(&format!("Component search for {:?} found {} results in {:?}",
+                     comp_set, results.len(), duration));
+        }
+    }
+
+    #[test]
+    fn test_performance_comparison_with_generated_data() {
+        let test_path = get_test_data_path();
+        let trie = AdaptiveRadixTrie::new();
+
+        // Index the generated test data
+        log_info!("Indexing generated test data...");
+        let start_time = Instant::now();
+        let indexed_count = index_directory_in_trie(&trie, &test_path);
+        let index_duration = start_time.elapsed();
+
+        log_info!(&format!("Indexed {} entries in {:?} ({:?} per entry)",
+                 indexed_count, index_duration,
+                 if indexed_count > 0 { index_duration / indexed_count as u32 } else { Duration::from_secs(0) }));
+
+        // Test different search methods and compare performance
+        let search_terms = ["txt", "json", "banana", "car"];
+
+        log_info!(&format!("\n{:<10} | {:<15} | {:<15} | {:<15}",
+                 "Term", "Recursive Time", "Prefix Time", "Component Time"));
+        log_info!(&format!("{:-<60}", ""));
+
+        for term in &search_terms {
+            // Test recursive search
+            let recursive_start = Instant::now();
+            let recursive_results = trie.search_recursive(term);
+            let recursive_duration = recursive_start.elapsed();
+
+            // Test prefix search
+            let prefix_start = Instant::now();
+            let prefix_results = trie.find_with_prefix(term);
+            let prefix_duration = prefix_start.elapsed();
+
+            // Test component search
+            let component_start = Instant::now();
+            let component_results = trie.search_by_components(&[term]);
+            let component_duration = component_start.elapsed();
+
+            log_info!(&format!("{:<10} | {:>15?} | {:>15?} | {:>15?}",
+                     term, recursive_duration, prefix_duration, component_duration));
+
+            log_info!(&format!("  Found: {} (recursive) | {} (prefix) | {} (component)",
+                     recursive_results.len(), prefix_results.len(), component_results.len()));
+        }
+    }
+
+    #[test]
+    fn test_remove_with_generated_data() {
+        let test_path = get_test_data_path();
+        let trie = AdaptiveRadixTrie::new();
+
+        // Index the generated test data
+        let indexed_count = index_directory_in_trie(&trie, &test_path);
+        assert!(indexed_count > 0, "Should have indexed some entries from test data");
+
+        // Find some paths to remove
+        let search_results = trie.search_recursive("txt");
+
+        if !search_results.is_empty() {
+            // Take 5 paths to remove (or fewer if we don't have 5)
+            let paths_to_remove: Vec<PathBuf> = search_results.into_iter().take(5).collect();
+            let initial_count = trie.path_count();
+
+            log_info!(&format!("Starting with {} indexed paths", initial_count));
+
+            // Remove each path and verify the count decreases
+            for path in &paths_to_remove {
+                let path_str = path.to_string_lossy().to_string();
+
+                let removed = trie.remove(&path_str).unwrap();
+                assert!(removed, "Path should have been successfully removed");
+
+                // Verify the path is gone
+                let search_after = trie.find_with_prefix(&path_str);
+                assert!(search_after.is_empty(), "Path should no longer be found after removal");
+            }
+
+            let final_count = trie.path_count();
+            assert_eq!(final_count, initial_count - paths_to_remove.len(),
+                       "Path count should decrease by the number of paths removed");
+
+            log_info!(&format!("Successfully removed {} paths, count reduced from {} to {}",
+                     paths_to_remove.len(), initial_count, final_count));
+        } else {
+            log_info!("No .txt files found in test data to test removal");
+        }
+    }
+
+    #[test]
+    fn test_prefix_search_basic() {
+        let trie = AdaptiveRadixTrie::new();
+
+        // Insert paths with clear prefix relationships
+        let base_paths = [
+            "/test/documents/file1.txt",
+            "/test/documents/file2.txt",
+            "/test/documents/subfolder/file3.txt",
+            "/test/images/photo1.jpg",
+            "/test/images/photo2.jpg",
+        ];
+
+        for path in &base_paths {
+            trie.insert(path, PathBuf::from(path)).unwrap();
+        }
+
+        // Test specific prefixes that should definitely have results
+        let test_cases = [
+            ("/test/documents", 3),
+            ("/test/documents/", 3),
+            ("/test/documents/file", 2),
+            ("/test/documents/subfolder", 1),
+            ("/test/images", 2),
+            ("/test", 5),
+        ];
+
+        for (prefix, expected_count) in &test_cases {
+            let results = trie.find_with_prefix(prefix);
+            assert_eq!(
+                results.len(),
+                *expected_count,
+                "Prefix '{}' should return {} results, got {}",
+                prefix, expected_count, results.len()
+            );
+
+            // Verify the paths actually start with this prefix
+            for path in &results {
+                let path_str = path.to_string_lossy();
+                let normalized_prefix = trie.normalize_path(prefix);
+                let normalized_path = trie.normalize_path(&path_str);
+                assert!(
+                    normalized_path.starts_with(&normalized_prefix),
+                    "Result '{}' should start with prefix '{}'",
+                    path_str, prefix
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_prefix_search_with_real_inserted_paths() {
+        let test_path = get_test_data_path();
+        let trie = AdaptiveRadixTrie::new();
+
+        // Index files and collect the actual paths we inserted
+        let mut inserted_paths = Vec::new();
+
+        if let Ok(entries) = read_dir(&test_path) {
+            for entry in entries.filter_map(Result::ok).take(20) {
+                let path = entry.path();
+                let path_str = path.to_string_lossy().to_string();
+
+                if let Ok(metadata) = entry.metadata() {
+                    if metadata.is_file() {
+                        trie.insert(&path_str, path.clone()).unwrap();
+                        inserted_paths.push(path_str);
                     }
                 }
             }
         }
 
-        log_info!(&format!("Removing {} paths...", paths_to_remove.len()));
+        assert!(!inserted_paths.is_empty(), "Should have inserted some test paths");
 
-        let start = Instant::now();
-        for path in &paths_to_remove {
-            let path_str = path.to_string_lossy().to_string();
-            trie.remove(&path_str);
-        }
-        let remove_time = start.elapsed();
+        // Test prefix search with prefixes derived from actual inserted paths
+        for inserted_path in &inserted_paths {
+            // Create a prefix from the path by taking the parent directory
+            let path = Path::new(inserted_path);
+            if let Some(parent) = path.parent() {
+                let prefix = parent.to_string_lossy().to_string();
 
-        let remaining_count = trie.get_path_count();
-        log_info!(&format!("Removed {} paths in {:?}. {} paths remain.",
-            paths_to_remove.len(), remove_time, remaining_count));
+                let results = trie.find_with_prefix(&prefix);
 
-        // Verify count
-        assert_eq!(total_count - paths_to_remove.len(), remaining_count,
-            "Count after removal should be original count minus removed count");
+                log_info!(&format!("Prefix search for '{}' found {} results", prefix, results.len()));
 
-        // Verify removed paths are actually gone
-        for path in &paths_to_remove {
-            let path_str = path.to_string_lossy().to_string();
-            let results = trie.find_with_prefix(&path_str);
-
-            // The exact path should not be in results
-            assert!(!results.contains(path),
-                "Removed path {} should not be found in trie", path_str);
+                // The prefix search should at least find the path we derived the prefix from
+                assert!(
+                    results.contains(&PathBuf::from(inserted_path)),
+                    "Prefix '{}' should at least find path '{}'",
+                    prefix, inserted_path
+                );
+            }
         }
     }
 
     #[test]
-    fn test_trie_basic_operations() {
-        let trie = AdaptiveRadixTrie::new_with_options(false); // Don't insert parents for test
+    fn test_prefix_case_sensitivity() {
+        // Test with case-insensitive trie (default)
+        let case_insensitive = AdaptiveRadixTrie::new();
+        case_insensitive.insert("/Home/User/Documents/Report.pdf", PathBuf::from("/Home/User/Documents/Report.pdf")).unwrap();
 
-        // Test insertion
-        trie.insert("/home/user/documents", PathBuf::from("/home/user/documents"));
-        trie.insert("/home/user/pictures", PathBuf::from("/home/user/pictures"));
-        trie.insert("/home/user/videos", PathBuf::from("/home/user/videos"));
+        // Should find with different case prefixes
+        let results1 = case_insensitive.find_with_prefix("/home/user");
+        assert_eq!(results1.len(), 1, "Case-insensitive trie should find path with different case prefix");
 
-        // Test count
-        assert_eq!(trie.get_path_count(), 3, "Trie should contain 3 paths");
+        let results2 = case_insensitive.find_with_prefix("/HOME/USER");
+        assert_eq!(results2.len(), 1, "Case-insensitive trie should find path with uppercase prefix");
 
-        // Test finding with prefix
-        let results = trie.find_with_prefix("/home/user");
-        assert_eq!(results.len(), 3, "Should find 3 paths with prefix '/home/user'");
+        // Test with case-sensitive trie
+        let case_sensitive = AdaptiveRadixTrie::new_with_arg(true);
+        case_sensitive.insert("/Home/User/Documents/Report.pdf", PathBuf::from("/Home/User/Documents/Report.pdf")).unwrap();
 
-        // Test exact path match
-        let results = trie.find_with_prefix("/home/user/documents");
-        assert_eq!(results.len(), 1, "Should find exact path match");
-        assert_eq!(results[0], PathBuf::from("/home/user/documents"));
+        // Should only find with exact case prefix
+        let results3 = case_sensitive.find_with_prefix("/Home/User");
+        assert_eq!(results3.len(), 1, "Case-sensitive trie should find path with exact case prefix");
 
-        // Test removal
-        assert!(trie.remove("/home/user/documents"), "Removal should return true for existing path");
-        assert_eq!(trie.get_path_count(), 2, "Path count should be reduced after removal");
-
-        // Test finding after removal
-        let results = trie.find_with_prefix("/home/user");
-        assert_eq!(results.len(), 2, "Should find 2 paths after removal");
-        assert!(!results.contains(&PathBuf::from("/home/user/documents")), "Removed path should not be found");
-
-        // Test removing non-existent path
-        assert!(!trie.remove("/home/user/nonexistent"), "Removing non-existent path should return false");
-        assert_eq!(trie.get_path_count(), 2, "Path count should remain unchanged");
-    }
-
-    #[test]
-    fn test_trie_empty_and_edge_cases() {
-        let trie = AdaptiveRadixTrie::new_with_options(false); // Don't insert parents for test
-
-        // Test empty trie operations
-        assert_eq!(trie.get_path_count(), 0, "New trie should be empty");
-        assert!(trie.find_with_prefix("/any/path").is_empty(), "Empty trie should return no results");
-        assert!(!trie.remove("/nonexistent/path"), "Removing from empty trie should return false");
-
-        // Test with empty string
-        trie.insert("", PathBuf::from(""));
-        assert_eq!(trie.get_path_count(), 1, "Trie should accept empty string");
-        let results = trie.find_with_prefix("");
-        assert_eq!(results.len(), 1, "Should find empty string path");
-        assert!(trie.remove(""), "Should successfully remove empty string path");
-
-        // Test with very long path - using relative path instead of absolute
-        let long_path = "test/".repeat(100) + "file.txt";
-        trie.insert(&long_path, PathBuf::from(&long_path));
-        assert_eq!(trie.get_path_count(), 1, "Trie should accept very long path");
-        assert!(trie.find_with_prefix("test/").len() > 0, "Should find long path with prefix");
-        assert!(trie.remove(&long_path), "Should successfully remove long path");
-    }
-
-    #[test]
-    fn test_trie_segmentation_strategies() {
-        let trie = AdaptiveRadixTrie::new_with_options(false); // Don't insert parents for test
-
-        // Test with different types of paths to test segmentation logic
-        let windows_path = "C:\\Users\\username\\Documents\\file.txt";
-        let unix_path = "/home/username/documents/file.txt";
-        let mixed_path = "C:/Users/username/Documents/file.txt";
-
-        trie.insert(windows_path, PathBuf::from(windows_path));
-        trie.insert(unix_path, PathBuf::from(unix_path));
-        trie.insert(mixed_path, PathBuf::from(mixed_path));
-
-        assert_eq!(trie.get_path_count(), 3, "All paths should be inserted regardless of separator style");
-
-        // Test finding with different prefix styles
-        let windows_results = trie.find_with_prefix("C:\\Users");
-        let unix_results = trie.find_with_prefix("/home");
-        let mixed_results = trie.find_with_prefix("C:/Users");
-
-        assert!(!windows_results.is_empty(), "Should find Windows-style paths");
-        assert!(!unix_results.is_empty(), "Should find Unix-style paths");
-        assert!(!mixed_results.is_empty(), "Should find mixed-style paths");
-
-        // Test that segmentation handles file names correctly
-        let file_results = trie.find_with_prefix("file.txt");
-        assert!(file_results.len() > 0, "Should find paths by filename");
-    }
-
-    // Add a new test to explicitly test parent insertion behavior
-    #[test]
-    fn test_parent_insertion_behavior() {
-        // Test with parent insertion enabled
-        let trie_with_parents = AdaptiveRadixTrie::new_with_options(true);
-        trie_with_parents.insert("/home/user/documents", PathBuf::from("/home/user/documents"));
-
-        // Should have inserted original path plus parent paths
-        assert!(trie_with_parents.get_path_count() > 1, "Should have inserted parent paths");
-
-        // Find parent paths
-        let parent_results = trie_with_parents.find_with_prefix("/home");
-        assert!(parent_results.len() > 0, "Should find parent paths");
-
-        // Test with parent insertion disabled
-        let trie_without_parents = AdaptiveRadixTrie::new_with_options(false);
-        trie_without_parents.insert("/home/user/documents", PathBuf::from("/home/user/documents"));
-
-        // Should have only one path
-        assert_eq!(trie_without_parents.get_path_count(), 1, "Should have only inserted the explicit path");
-
-        // Should find the full path but not parents
-        let results = trie_without_parents.find_with_prefix("/home/user/documents");
-        assert_eq!(results.len(), 1, "Should find the exact path");
-
-        let parent_results = trie_without_parents.find_with_prefix("/home");
-        assert_eq!(parent_results.len(), 0, "Should not find parent paths that weren't explicitly inserted");
+        let results4 = case_sensitive.find_with_prefix("/home/user");
+        assert_eq!(results4.len(), 0, "Case-sensitive trie should not find path with different case prefix");
     }
 }
-
