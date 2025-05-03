@@ -5,6 +5,7 @@ mod lru_chache;
 mod adaptive_radix_trie;
 mod context_aware_ranking;
 mod fuzzy;
+mod benchmarks;
 
 use std::path::PathBuf;
 use home::home_dir;
@@ -553,4 +554,5 @@ mod tests_p {
         }
     }
 }
+
 
