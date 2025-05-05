@@ -73,6 +73,19 @@ impl FuzzySearchIndex {
         self.n_gram_index.retain(|_, paths| !paths.is_empty());
     }
 
+    // Check if a path exists in the fuzzy index
+    pub fn contains_path(&self, path: &Path) -> bool {
+        // Check if the path exists in any of the n-gram collections
+        for (_, paths) in &self.n_gram_index {
+            if paths.contains(path) {
+                return true;
+            }
+        }
+
+        // Path not found in any n-gram index
+        false
+    }
+
     pub fn find_matches(&self, query: &str, limit: usize) -> Vec<PathBuf> {
         let query = query.to_lowercase();
 

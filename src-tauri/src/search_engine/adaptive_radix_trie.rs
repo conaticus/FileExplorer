@@ -583,7 +583,52 @@ impl AdaptiveRadixTrie {
         Ok(())
     }
 
-    /// Remove a path from the trie
+    /// Find a specific exact path and return it if it exists
+    pub fn find_exact_path(&self, path_str: &str) -> Option<PathBuf> {
+        let segments = self.segment_path(path_str);
+
+        if segments.is_empty() {
+            return None;
+        }
+
+        if let Ok(root) = self.root.read() {
+            if let Ok(result) = self.find_exact_path_impl(&root, &segments, 0) {
+                return result;
+            }
+        }
+
+        None
+    }
+
+    /// Implementation to find an exact path
+    fn find_exact_path_impl(
+        &self,
+        node: &AdaptiveRadixNode,
+        segments: &[String],
+        index: usize
+    ) -> Result<Option<PathBuf>, String> {
+        // If we've reached the end of the segments, check if this is a terminal node
+        if index >= segments.len() {
+            return Ok(node.path.clone());
+        }
+
+        let segment = &segments[index];
+        let normalized_segment = node.normalized_segment(segment);
+
+        // Check if this segment exists
+        if let Some(child_arc) = node.children.get(&normalized_segment) {
+            if let Ok(child) = child_arc.read() {
+                return self.find_exact_path_impl(&child, segments, index + 1);
+            } else {
+                return Err("Failed to acquire read lock on child node".to_string());
+            }
+        }
+
+        // No matching segment found
+        Ok(None)
+    }
+
+    /// Remove a path from the trie - improved version to ensure complete removal
     pub fn remove(&self, path_str: &str) -> Result<bool, String> {
         let segments = self.segment_path(path_str);
 
@@ -604,6 +649,11 @@ impl AdaptiveRadixTrie {
                     }
                 } else {
                     return Err("Failed to acquire write lock on path count".to_string());
+                }
+
+                // Double-check the path is gone by attempting to find it
+                if self.find_exact_path(path_str).is_some() {
+                    return Err(format!("Path removal verification failed for: {}", path_str));
                 }
             }
         } else {
