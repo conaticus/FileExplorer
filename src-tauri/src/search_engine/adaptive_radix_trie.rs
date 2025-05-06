@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use std::time::{SystemTime, Instant, Duration};
+use std::time::{SystemTime};
 
 /// A node in the Adaptive Radix Trie specifically optimized for file paths
 pub struct AdaptiveRadixNode {
@@ -15,10 +15,6 @@ pub struct AdaptiveRadixNode {
     frequency: u32,
     /// Last access time for ranking
     last_accessed: SystemTime,
-    /// Parent node reference for hierarchical traversal
-    parent: Option<Arc<RwLock<AdaptiveRadixNode>>>,
-    /// Depth in the path hierarchy (root = 0)
-    depth: usize,
     /// Whether this segment is case-sensitive
     case_sensitive: bool,
 }
@@ -35,22 +31,20 @@ pub struct AdaptiveRadixTrie {
 
 impl AdaptiveRadixNode {
     /// Create a new PathNode
-    fn new(segment: String, case_sensitive: bool, parent: Option<Arc<RwLock<AdaptiveRadixNode>>>, depth: usize) -> Self {
+    fn new(segment: String, case_sensitive: bool) -> Self {
         Self {
             children: HashMap::new(),
             path: None,
             segment,
             frequency: 0,
             last_accessed: SystemTime::now(),
-            parent,
-            depth,
             case_sensitive,
         }
     }
 
     /// Create a new root node
     fn new_root(case_sensitive: bool) -> Self {
-        Self::new(String::new(), case_sensitive, None, 0)
+        Self::new(String::new(), case_sensitive)
     }
 
     /// Get normalized segment for comparison (handles case sensitivity)
@@ -59,15 +53,6 @@ impl AdaptiveRadixNode {
             segment.to_string()
         } else {
             segment.to_lowercase()
-        }
-    }
-
-    /// Check if this segment matches the provided segment (respecting case sensitivity)
-    fn segment_matches(&self, other: &str) -> bool {
-        if self.case_sensitive {
-            self.segment == other
-        } else {
-            self.segment.to_lowercase() == other.to_lowercase()
         }
     }
 
@@ -88,19 +73,9 @@ impl AdaptiveRadixTrie {
         }
     }
 
-    /// Create a new AdaptivePathTrie with default settings (case insensitive)
-    pub fn new_default() -> Self {
-        Self::new_with_arg(false)
-    }
-
     /// No-parameter version of new() for backward compatibility
     pub fn new() -> Self {
         Self::new_with_arg(false)
-    }
-
-    /// Default implementation
-    pub fn default() -> Self {
-        Self::new_default()
     }
 
     /// Normalize a path for internal storage and comparison
@@ -170,7 +145,7 @@ impl AdaptiveRadixTrie {
         }
 
         if let Ok(mut root) = self.root.write() {
-            self.insert_segments(&mut root, &segments, 0, path.clone(), None)?;
+            self.insert_segments(&mut root, &segments, 0, path.clone())?;
 
             // Increment path count
             if let Ok(mut count) = self.path_count.write() {
@@ -192,7 +167,6 @@ impl AdaptiveRadixTrie {
         segments: &[String],
         index: usize,
         path: PathBuf,
-        parent: Option<Arc<RwLock<AdaptiveRadixNode>>>
     ) -> Result<(), String> {
         if index >= segments.len() {
             // We've reached the end of the path, mark as terminal node
@@ -209,8 +183,6 @@ impl AdaptiveRadixTrie {
             let new_node = AdaptiveRadixNode::new(
                 segment.clone(),
                 self.default_case_sensitive,
-                parent.clone(),
-                index + 1
             );
 
             node.children.insert(
@@ -221,10 +193,9 @@ impl AdaptiveRadixTrie {
 
         // Continue insertion with next segment
         if let Some(child_arc) = node.children.get(&normalized_segment) {
-            let parent_arc = Arc::clone(child_arc);
 
             if let Ok(mut child) = child_arc.write() {
-                self.insert_segments(&mut child, segments, index + 1, path, Some(parent_arc))?;
+                self.insert_segments(&mut child, segments, index + 1, path)?;
             } else {
                 return Err("Failed to acquire write lock on child node".to_string());
             }
@@ -516,7 +487,7 @@ impl AdaptiveRadixTrie {
         let current_segment = &node.segment;
 
         if !current_segment.is_empty() {
-            for (i, component) in components.iter().enumerate() {
+            for (_i, component) in components.iter().enumerate() {
                 // Skip components we've already matched
                 if matched_components.iter().any(|m| m == component) {
                     continue;
@@ -736,9 +707,8 @@ mod tests_art {
     use std::path::Path;
     use std::time::Instant;
     use crate::search_engine::generate_test_data;
-    use std::collections::{HashSet, HashMap};
     use std::fs::read_dir;
-    use crate::{log_info, log_error};
+    use crate::log_info;
 
     // Helper function to get the test data path, creating it if needed
     fn get_test_data_path() -> PathBuf {
@@ -1236,6 +1206,7 @@ mod tests_art {
 
     #[test]
     fn test_performance_comparison_with_generated_data() {
+        use std::time::Duration;
         let test_path = get_test_data_path();
         let trie = AdaptiveRadixTrie::new();
 

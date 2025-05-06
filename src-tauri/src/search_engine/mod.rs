@@ -5,7 +5,7 @@ mod lru_chache;
 mod adaptive_radix_trie;
 mod context_aware_ranking;
 mod fuzzy;
-mod benchmarks;
+mod fast_fuzzy;
 
 use std::path::PathBuf;
 use home::home_dir;
@@ -520,22 +520,22 @@ mod tests_p {
         match generate_test_data(get_test_data_path()) {
             Ok(path) => {
                 assert!(path.exists(), "Test data directory should exist");
-                
+
                 // Test sequential vs parallel indexing of the test data
                 let start = std::time::Instant::now();
                 let seq_entries = index_given_path(path.clone());
                 let seq_duration = start.elapsed();
-                
+
                 let start = std::time::Instant::now();
                 let par_entries = index_given_path_parallel(path.clone());
                 let par_duration = start.elapsed();
-                
+
                 println!("Test data indexed:");
                 println!("  - Sequential: {} entries in {:?}", seq_entries.len(), seq_duration);
                 println!("  - Parallel: {} entries in {:?}", par_entries.len(), par_duration);
-                
+
                 assert!(!seq_entries.is_empty(), "Should have indexed some entries");
-                assert_eq!(seq_entries.len(), par_entries.len(), 
+                assert_eq!(seq_entries.len(), par_entries.len(),
                            "Sequential and parallel indexing should find the same number of entries");
             },
             Err(e) => {

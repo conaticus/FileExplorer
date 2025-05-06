@@ -112,12 +112,6 @@ impl<K: Hash + Eq + Clone, V: Clone> ThreadSafeLRUCache<K, V> {
         }
     }
 
-    pub fn clone(&self) -> Self {
-        Self {
-            cache: Arc::clone(&self.cache),
-        }
-    }
-
     pub fn get(&self, key: &K) -> Option<V> {
         if let Ok(mut cache) = self.cache.write() {
             cache.get(key)
@@ -205,12 +199,6 @@ impl AutocompleteLRUCache {
             // For a more sophisticated approach, you could iterate through
             // all cached queries and remove those that contain the prefix
             Ok(())
-        }
-    }
-
-    pub fn clone(&self) -> Self {
-        Self {
-            cache: self.cache.clone(),
         }
     }
 
@@ -484,8 +472,7 @@ mod tests_lru_cache {
 
 #[cfg(test)]
 mod benchmarks_lru_cache {
-    use std::sync::Barrier;
-    use std::thread;
+    #[cfg(feature = "bench")]
     use std::time::Instant;
     use super::*;
     use crate::log_info;
@@ -586,6 +573,9 @@ mod benchmarks_lru_cache {
     #[test]
     #[cfg(feature = "bench")]
     fn bench_thread_safe_lru_cache_concurrent_access() {
+        use std::sync::Barrier;
+        use std::thread;
+
         let threads_count = 4;
         let cache = Arc::new(ThreadSafeLRUCache::<String, i32>::new(1000));
         let iterations = 1000;
