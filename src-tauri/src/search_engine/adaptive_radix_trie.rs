@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use std::time::SystemTime;
+use std::time::{SystemTime, Instant, Duration};
 
-#[allow(dead_code)]
 /// A node in the Adaptive Radix Trie specifically optimized for file paths
 pub struct AdaptiveRadixNode {
     /// Maps segments to child nodes
@@ -24,7 +23,6 @@ pub struct AdaptiveRadixNode {
     case_sensitive: bool,
 }
 
-#[allow(dead_code)]
 /// Adaptive Radix Trie optimized for file paths across platforms
 pub struct AdaptiveRadixTrie {
     /// Root node of the trie
@@ -35,15 +33,9 @@ pub struct AdaptiveRadixTrie {
     path_count: Arc<RwLock<usize>>,
 }
 
-#[allow(dead_code)]
 impl AdaptiveRadixNode {
     /// Create a new PathNode
-    fn new(
-        segment: String,
-        case_sensitive: bool,
-        parent: Option<Arc<RwLock<AdaptiveRadixNode>>>,
-        depth: usize,
-    ) -> Self {
+    fn new(segment: String, case_sensitive: bool, parent: Option<Arc<RwLock<AdaptiveRadixNode>>>, depth: usize) -> Self {
         Self {
             children: HashMap::new(),
             path: None,
@@ -86,7 +78,6 @@ impl AdaptiveRadixNode {
     }
 }
 
-#[allow(dead_code)]
 impl AdaptiveRadixTrie {
     /// Create a new AdaptivePathTrie with specific case sensitivity
     pub fn new_with_arg(case_sensitive: bool) -> Self {
@@ -201,7 +192,7 @@ impl AdaptiveRadixTrie {
         segments: &[String],
         index: usize,
         path: PathBuf,
-        parent: Option<Arc<RwLock<AdaptiveRadixNode>>>,
+        parent: Option<Arc<RwLock<AdaptiveRadixNode>>>
     ) -> Result<(), String> {
         if index >= segments.len() {
             // We've reached the end of the path, mark as terminal node
@@ -219,11 +210,13 @@ impl AdaptiveRadixTrie {
                 segment.clone(),
                 self.default_case_sensitive,
                 parent.clone(),
-                index + 1,
+                index + 1
             );
 
-            node.children
-                .insert(normalized_segment.clone(), Arc::new(RwLock::new(new_node)));
+            node.children.insert(
+                normalized_segment.clone(),
+                Arc::new(RwLock::new(new_node))
+            );
         }
 
         // Continue insertion with next segment
@@ -268,7 +261,7 @@ impl AdaptiveRadixTrie {
         node: &AdaptiveRadixNode,
         segments: &[String],
         index: usize,
-        results: &mut Vec<PathBuf>,
+        results: &mut Vec<PathBuf>
     ) -> Result<(), String> {
         // If we've consumed all segments, this is a prefix match
         if index >= segments.len() {
@@ -305,9 +298,7 @@ impl AdaptiveRadixTrie {
             } else {
                 if is_last_segment {
                     // For last segment, do case-insensitive prefix matching
-                    normalized_key
-                        .to_lowercase()
-                        .starts_with(&segment.to_lowercase())
+                    normalized_key.to_lowercase().starts_with(&segment.to_lowercase())
                 } else {
                     // For middle segments, do case-insensitive exact matching
                     normalized_key.to_lowercase() == segment.to_lowercase()
@@ -339,7 +330,7 @@ impl AdaptiveRadixTrie {
                 &root,
                 prefix,
                 &mut results,
-                &mut seen_paths,
+                &mut seen_paths
             );
         }
 
@@ -352,7 +343,7 @@ impl AdaptiveRadixTrie {
         node: &AdaptiveRadixNode,
         prefix: &str,
         results: &mut Vec<PathBuf>,
-        seen_paths: &mut std::collections::HashSet<PathBuf>,
+        seen_paths: &mut std::collections::HashSet<PathBuf>
     ) -> Result<(), String> {
         // Check if the current node's segment contains the prefix
         let segment_matches = if node.case_sensitive {
@@ -389,7 +380,12 @@ impl AdaptiveRadixTrie {
         // Continue searching in all children
         for (_, child_arc) in &node.children {
             if let Ok(child) = child_arc.read() {
-                self.find_with_flexible_prefix_recursive(&child, prefix, results, seen_paths)?;
+                self.find_with_flexible_prefix_recursive(
+                    &child,
+                    prefix,
+                    results,
+                    seen_paths
+                )?;
             } else {
                 return Err("Failed to acquire read lock on child node".to_string());
             }
@@ -407,7 +403,12 @@ impl AdaptiveRadixTrie {
 
         if let Ok(root) = self.root.read() {
             // Start the recursive search from the root
-            let _ = self.search_recursive_impl(&root, search_term, &mut results, &mut seen_paths);
+            let _ = self.search_recursive_impl(
+                &root,
+                search_term,
+                &mut results,
+                &mut seen_paths
+            );
         }
 
         results
@@ -419,15 +420,13 @@ impl AdaptiveRadixTrie {
         node: &AdaptiveRadixNode,
         search_term: &str,
         results: &mut Vec<PathBuf>,
-        seen_paths: &mut std::collections::HashSet<PathBuf>,
+        seen_paths: &mut std::collections::HashSet<PathBuf>
     ) -> Result<(), String> {
         // Check if the current node's segment contains the search term
         let segment_matches = if node.case_sensitive {
             node.segment.contains(search_term)
         } else {
-            node.segment
-                .to_lowercase()
-                .contains(&search_term.to_lowercase())
+            node.segment.to_lowercase().contains(&search_term.to_lowercase())
         };
 
         // If this node has a path and it matches or hasn't been checked yet
@@ -436,9 +435,7 @@ impl AdaptiveRadixTrie {
             let path_contains = if node.case_sensitive {
                 path_str.contains(search_term)
             } else {
-                path_str
-                    .to_lowercase()
-                    .contains(&search_term.to_lowercase())
+                path_str.to_lowercase().contains(&search_term.to_lowercase())
             };
 
             if segment_matches || path_contains {
@@ -452,7 +449,12 @@ impl AdaptiveRadixTrie {
         // Continue searching in all children
         for (_, child_arc) in &node.children {
             if let Ok(child) = child_arc.read() {
-                self.search_recursive_impl(&child, search_term, results, seen_paths)?;
+                self.search_recursive_impl(
+                    &child,
+                    search_term,
+                    results,
+                    seen_paths
+                )?;
             } else {
                 return Err("Failed to acquire read lock on child node".to_string());
             }
@@ -468,7 +470,9 @@ impl AdaptiveRadixTrie {
         }
 
         // Convert components to String for consistent processing
-        let components: Vec<String> = components.iter().map(|&s| s.to_string()).collect();
+        let components: Vec<String> = components.iter()
+            .map(|&s| s.to_string())
+            .collect();
 
         let mut results = Vec::new();
         let mut seen_paths = std::collections::HashSet::new();
@@ -480,7 +484,7 @@ impl AdaptiveRadixTrie {
                 &components,
                 &Vec::new(),
                 &mut results,
-                &mut seen_paths,
+                &mut seen_paths
             );
         }
 
@@ -494,7 +498,7 @@ impl AdaptiveRadixTrie {
         components: &[String],
         matched_components: &Vec<String>,
         results: &mut Vec<PathBuf>,
-        seen_paths: &mut std::collections::HashSet<PathBuf>,
+        seen_paths: &mut std::collections::HashSet<PathBuf>
     ) -> Result<(), String> {
         // If we've matched all components and this is a terminal node, add the path
         if matched_components.len() >= components.len() && node.path.is_some() {
@@ -512,7 +516,7 @@ impl AdaptiveRadixTrie {
         let current_segment = &node.segment;
 
         if !current_segment.is_empty() {
-            for (_i, component) in components.iter().enumerate() {
+            for (i, component) in components.iter().enumerate() {
                 // Skip components we've already matched
                 if matched_components.iter().any(|m| m == component) {
                     continue;
@@ -521,9 +525,7 @@ impl AdaptiveRadixTrie {
                 let matches = if node.case_sensitive {
                     current_segment.contains(component)
                 } else {
-                    current_segment
-                        .to_lowercase()
-                        .contains(&component.to_lowercase())
+                    current_segment.to_lowercase().contains(&component.to_lowercase())
                 };
 
                 if matches {
@@ -552,7 +554,7 @@ impl AdaptiveRadixTrie {
                     components,
                     &new_matched,
                     results,
-                    seen_paths,
+                    seen_paths
                 )?;
             } else {
                 return Err("Failed to acquire read lock on child node".to_string());
@@ -563,11 +565,7 @@ impl AdaptiveRadixTrie {
     }
 
     /// Helper to collect all paths from a node and its descendants
-    fn collect_all_paths(
-        &self,
-        node: &AdaptiveRadixNode,
-        results: &mut Vec<PathBuf>,
-    ) -> Result<(), String> {
+    fn collect_all_paths(&self, node: &AdaptiveRadixNode, results: &mut Vec<PathBuf>) -> Result<(), String> {
         // First add the current node's path if it exists
         if let Some(path) = &node.path {
             results.push(path.clone());
@@ -607,7 +605,7 @@ impl AdaptiveRadixTrie {
         &self,
         node: &AdaptiveRadixNode,
         segments: &[String],
-        index: usize,
+        index: usize
     ) -> Result<Option<PathBuf>, String> {
         // If we've reached the end of the segments, check if this is a terminal node
         if index >= segments.len() {
@@ -655,10 +653,7 @@ impl AdaptiveRadixTrie {
 
                 // Double-check the path is gone by attempting to find it
                 if self.find_exact_path(path_str).is_some() {
-                    return Err(format!(
-                        "Path removal verification failed for: {}",
-                        path_str
-                    ));
+                    return Err(format!("Path removal verification failed for: {}", path_str));
                 }
             }
         } else {
@@ -673,7 +668,7 @@ impl AdaptiveRadixTrie {
         &self,
         node: &mut AdaptiveRadixNode,
         segments: &[String],
-        index: usize,
+        index: usize
     ) -> Result<bool, String> {
         if index >= segments.len() {
             // Path found, remove the value
@@ -691,9 +686,8 @@ impl AdaptiveRadixTrie {
         let mut children_to_check = Vec::new();
 
         for key in node.children.keys() {
-            if (node.case_sensitive && key == segment)
-                || (!node.case_sensitive && key.to_lowercase() == segment.to_lowercase())
-            {
+            if (node.case_sensitive && key == segment) ||
+               (!node.case_sensitive && key.to_lowercase() == segment.to_lowercase()) {
                 children_to_check.push(key.clone());
             }
         }
@@ -739,11 +733,12 @@ impl AdaptiveRadixTrie {
 #[cfg(test)]
 mod tests_art {
     use super::*;
-    use crate::search_engine::generate_test_data;
-    use crate::log_info;
-    use std::fs::read_dir;
     use std::path::Path;
-    use std::time::{Duration, Instant};
+    use std::time::Instant;
+    use crate::search_engine::generate_test_data;
+    use std::collections::{HashSet, HashMap};
+    use std::fs::read_dir;
+    use crate::{log_info, log_error};
 
     // Helper function to get the test data path, creating it if needed
     fn get_test_data_path() -> PathBuf {
@@ -792,21 +787,9 @@ mod tests_art {
         let trie = AdaptiveRadixTrie::new();
 
         // Insert some paths
-        trie.insert(
-            "/home/user/documents/file1.txt",
-            PathBuf::from("/home/user/documents/file1.txt"),
-        )
-        .unwrap();
-        trie.insert(
-            "/home/user/documents/file2.txt",
-            PathBuf::from("/home/user/documents/file2.txt"),
-        )
-        .unwrap();
-        trie.insert(
-            "/home/user/pictures/img1.jpg",
-            PathBuf::from("/home/user/pictures/img1.jpg"),
-        )
-        .unwrap();
+        trie.insert("/home/user/documents/file1.txt", PathBuf::from("/home/user/documents/file1.txt")).unwrap();
+        trie.insert("/home/user/documents/file2.txt", PathBuf::from("/home/user/documents/file2.txt")).unwrap();
+        trie.insert("/home/user/pictures/img1.jpg", PathBuf::from("/home/user/pictures/img1.jpg")).unwrap();
 
         assert_eq!(trie.path_count(), 3);
     }
@@ -824,10 +807,7 @@ mod tests_art {
         assert_eq!(segments, vec!["/", "home", "user", "file.txt"]);
 
         let windows_segments = trie.segment_path(r"C:\Users\Documents\file.txt");
-        assert_eq!(
-            windows_segments,
-            vec!["c:", "users", "documents", "file.txt"]
-        );
+        assert_eq!(windows_segments, vec!["c:", "users", "documents", "file.txt"]);
     }
 
     #[test]
@@ -835,26 +815,10 @@ mod tests_art {
         let trie = AdaptiveRadixTrie::new();
 
         // Insert some paths
-        trie.insert(
-            "/home/user/documents/report.pdf",
-            PathBuf::from("/home/user/documents/report.pdf"),
-        )
-        .unwrap();
-        trie.insert(
-            "/home/user/documents/notes.txt",
-            PathBuf::from("/home/user/documents/notes.txt"),
-        )
-        .unwrap();
-        trie.insert(
-            "/home/user/pictures/vacation.jpg",
-            PathBuf::from("/home/user/pictures/vacation.jpg"),
-        )
-        .unwrap();
-        trie.insert(
-            "/home/user/pictures/family.jpg",
-            PathBuf::from("/home/user/pictures/family.jpg"),
-        )
-        .unwrap();
+        trie.insert("/home/user/documents/report.pdf", PathBuf::from("/home/user/documents/report.pdf")).unwrap();
+        trie.insert("/home/user/documents/notes.txt", PathBuf::from("/home/user/documents/notes.txt")).unwrap();
+        trie.insert("/home/user/pictures/vacation.jpg", PathBuf::from("/home/user/pictures/vacation.jpg")).unwrap();
+        trie.insert("/home/user/pictures/family.jpg", PathBuf::from("/home/user/pictures/family.jpg")).unwrap();
 
         // Test exact prefix
         let docs = trie.find_with_prefix("/home/user/documents");
@@ -877,21 +841,9 @@ mod tests_art {
         let trie = AdaptiveRadixTrie::new();
 
         // Insert some paths with different styles
-        trie.insert(
-            "/home/user/documents/report.pdf",
-            PathBuf::from("/home/user/documents/report.pdf"),
-        )
-        .unwrap();
-        trie.insert(
-            "C:/Users/Documents/notes.txt",
-            PathBuf::from("C:/Users/Documents/notes.txt"),
-        )
-        .unwrap();
-        trie.insert(
-            r"D:\Projects\code.rs",
-            PathBuf::from(r"D:\Projects\code.rs"),
-        )
-        .unwrap();
+        trie.insert("/home/user/documents/report.pdf", PathBuf::from("/home/user/documents/report.pdf")).unwrap();
+        trie.insert("C:/Users/Documents/notes.txt", PathBuf::from("C:/Users/Documents/notes.txt")).unwrap();
+        trie.insert(r"D:\Projects\code.rs", PathBuf::from(r"D:\Projects\code.rs")).unwrap();
 
         // Test flexible prefix matching
         let docs1 = trie.find_with_flexible_prefix("documents");
@@ -910,26 +862,10 @@ mod tests_art {
         let trie = AdaptiveRadixTrie::new();
 
         // Insert paths with common patterns
-        trie.insert(
-            "/home/user/work/project1/source.rs",
-            PathBuf::from("/home/user/work/project1/source.rs"),
-        )
-        .unwrap();
-        trie.insert(
-            "/home/user/work/project2/source.rs",
-            PathBuf::from("/home/user/work/project2/source.rs"),
-        )
-        .unwrap();
-        trie.insert(
-            "/home/user/personal/notes.txt",
-            PathBuf::from("/home/user/personal/notes.txt"),
-        )
-        .unwrap();
-        trie.insert(
-            "/opt/data/backup/config.bak",
-            PathBuf::from("/opt/data/backup/config.bak"),
-        )
-        .unwrap();
+        trie.insert("/home/user/work/project1/source.rs", PathBuf::from("/home/user/work/project1/source.rs")).unwrap();
+        trie.insert("/home/user/work/project2/source.rs", PathBuf::from("/home/user/work/project2/source.rs")).unwrap();
+        trie.insert("/home/user/personal/notes.txt", PathBuf::from("/home/user/personal/notes.txt")).unwrap();
+        trie.insert("/opt/data/backup/config.bak", PathBuf::from("/opt/data/backup/config.bak")).unwrap();
 
         // Test recursive search for pattern
         let source_files = trie.search_recursive("source");
@@ -952,21 +888,9 @@ mod tests_art {
         let trie = AdaptiveRadixTrie::new();
 
         // Insert paths
-        trie.insert(
-            "/usr/local/bin/program",
-            PathBuf::from("/usr/local/bin/program"),
-        )
-        .unwrap();
-        trie.insert(
-            "/usr/share/doc/manual.pdf",
-            PathBuf::from("/usr/share/doc/manual.pdf"),
-        )
-        .unwrap();
-        trie.insert(
-            "/home/user/Downloads/app.dmg",
-            PathBuf::from("/home/user/Downloads/app.dmg"),
-        )
-        .unwrap();
+        trie.insert("/usr/local/bin/program", PathBuf::from("/usr/local/bin/program")).unwrap();
+        trie.insert("/usr/share/doc/manual.pdf", PathBuf::from("/usr/share/doc/manual.pdf")).unwrap();
+        trie.insert("/home/user/Downloads/app.dmg", PathBuf::from("/home/user/Downloads/app.dmg")).unwrap();
 
         // Test component search
         let results = trie.search_by_components(&["usr", "bin"]);
@@ -983,12 +907,7 @@ mod tests_art {
     fn test_case_sensitivity() {
         // Default case insensitive
         let case_insensitive = AdaptiveRadixTrie::new();
-        case_insensitive
-            .insert(
-                "/Home/User/Documents/Report.pdf",
-                PathBuf::from("/Home/User/Documents/Report.pdf"),
-            )
-            .unwrap();
+        case_insensitive.insert("/Home/User/Documents/Report.pdf", PathBuf::from("/Home/User/Documents/Report.pdf")).unwrap();
 
         // Find with different case
         let results1 = case_insensitive.find_with_prefix("/home/user");
@@ -999,12 +918,7 @@ mod tests_art {
 
         // Case sensitive
         let case_sensitive = AdaptiveRadixTrie::new_with_arg(true);
-        case_sensitive
-            .insert(
-                "/Home/User/Documents/Report.pdf",
-                PathBuf::from("/Home/User/Documents/Report.pdf"),
-            )
-            .unwrap();
+        case_sensitive.insert("/Home/User/Documents/Report.pdf", PathBuf::from("/Home/User/Documents/Report.pdf")).unwrap();
 
         // Should not find with different case
         let results3 = case_sensitive.find_with_prefix("/home/user");
@@ -1020,15 +934,9 @@ mod tests_art {
         let trie = AdaptiveRadixTrie::new();
 
         // Insert some paths
-        trie.insert("/tmp/file1.txt", PathBuf::from("/tmp/file1.txt"))
-            .unwrap();
-        trie.insert("/tmp/file2.txt", PathBuf::from("/tmp/file2.txt"))
-            .unwrap();
-        trie.insert(
-            "/tmp/subdir/file3.txt",
-            PathBuf::from("/tmp/subdir/file3.txt"),
-        )
-        .unwrap();
+        trie.insert("/tmp/file1.txt", PathBuf::from("/tmp/file1.txt")).unwrap();
+        trie.insert("/tmp/file2.txt", PathBuf::from("/tmp/file2.txt")).unwrap();
+        trie.insert("/tmp/subdir/file3.txt", PathBuf::from("/tmp/subdir/file3.txt")).unwrap();
 
         assert_eq!(trie.path_count(), 3);
 
@@ -1056,16 +964,8 @@ mod tests_art {
         let trie = AdaptiveRadixTrie::new();
 
         // Insert Windows paths
-        trie.insert(
-            r"C:\Program Files\App\program.exe",
-            PathBuf::from(r"C:\Program Files\App\program.exe"),
-        )
-        .unwrap();
-        trie.insert(
-            r"C:\Users\User\Documents\file.docx",
-            PathBuf::from(r"C:\Users\User\Documents\file.docx"),
-        )
-        .unwrap();
+        trie.insert(r"C:\Program Files\App\program.exe", PathBuf::from(r"C:\Program Files\App\program.exe")).unwrap();
+        trie.insert(r"C:\Users\User\Documents\file.docx", PathBuf::from(r"C:\Users\User\Documents\file.docx")).unwrap();
 
         // Find with Windows path syntax
         let results1 = trie.find_with_prefix(r"C:\Program Files");
@@ -1118,16 +1018,13 @@ mod tests_art {
         assert_eq!(vacation_files.len(), 2);
 
         // Remove some paths
-        trie.remove("/home/user/Pictures/vacation/beach.jpg")
-            .unwrap();
+        trie.remove("/home/user/Pictures/vacation/beach.jpg").unwrap();
         assert_eq!(trie.path_count(), paths.len() - 1);
 
         // Verify removed path is gone but others remain
         let remaining_vacation = trie.find_with_prefix("/home/user/Pictures/vacation");
         assert_eq!(remaining_vacation.len(), 1);
-        assert!(
-            remaining_vacation.contains(&PathBuf::from("/home/user/Pictures/vacation/sunset.jpg"))
-        );
+        assert!(remaining_vacation.contains(&PathBuf::from("/home/user/Pictures/vacation/sunset.jpg")));
     }
 
     #[test]
@@ -1142,12 +1039,8 @@ mod tests_art {
         }
 
         let duration = start_time.elapsed();
-        log_info!(&format!(
-            "Performance: Inserted {} paths in {:?} ({:?} per insertion)",
-            count,
-            duration,
-            duration / count as u32
-        ));
+        log_info!(&format!("Performance: Inserted {} paths in {:?} ({:?} per insertion)",
+                 count, duration, duration / count as u32));
 
         assert_eq!(trie.path_count(), count);
     }
@@ -1167,41 +1060,29 @@ mod tests_art {
         let start_prefix = Instant::now();
         let prefix_results = trie.find_with_prefix("/test/path/level5");
         let prefix_duration = start_prefix.elapsed();
-        log_info!(&format!(
-            "Performance: Prefix search found {} paths in {:?}",
-            prefix_results.len(),
-            prefix_duration
-        ));
+        log_info!(&format!("Performance: Prefix search found {} paths in {:?}",
+                 prefix_results.len(), prefix_duration));
 
         // Test recursive search
         let start_recursive = Instant::now();
         let recursive_results = trie.search_recursive("file_50");
         let recursive_duration = start_recursive.elapsed();
-        log_info!(&format!(
-            "Performance: Recursive search found {} paths in {:?}",
-            recursive_results.len(),
-            recursive_duration
-        ));
+        log_info!(&format!("Performance: Recursive search found {} paths in {:?}",
+                 recursive_results.len(), recursive_duration));
 
         // Test flexible search
         let start_flexible = Instant::now();
         let flexible_results = trie.find_with_flexible_prefix("level3");
         let flexible_duration = start_flexible.elapsed();
-        log_info!(&format!(
-            "Performance: Flexible search found {} paths in {:?}",
-            flexible_results.len(),
-            flexible_duration
-        ));
+        log_info!(&format!("Performance: Flexible search found {} paths in {:?}",
+                 flexible_results.len(), flexible_duration));
 
         // Test component search
         let start_component = Instant::now();
         let component_results = trie.search_by_components(&["level2", "file"]);
         let component_duration = start_component.elapsed();
-        log_info!(&format!(
-            "Performance: Component search found {} paths in {:?}",
-            component_results.len(),
-            component_duration
-        ));
+        log_info!(&format!("Performance: Component search found {} paths in {:?}",
+                 component_results.len(), component_duration));
     }
 
     #[test]
@@ -1245,33 +1126,21 @@ mod tests_art {
         }
 
         let insert_duration = insert_start.elapsed();
-        log_info!(&format!(
-            "Performance: Inserted {} varied paths in {:?} ({:?} per insertion)",
-            count,
-            insert_duration,
-            insert_duration / count as u32
-        ));
+        log_info!(&format!("Performance: Inserted {} varied paths in {:?} ({:?} per insertion)",
+                 count, insert_duration, insert_duration / count as u32));
 
         // Measure search performance with different patterns
         let search_terms = [
-            "documents",
-            "projects/subfolder",
-            "file_pictures",
-            ".json",
-            "music/subfolder_2",
-            "videos/subfolder_3/file",
+            "documents", "projects/subfolder", "file_pictures", ".json",
+            "music/subfolder_2", "videos/subfolder_3/file"
         ];
 
         for term in &search_terms {
             let search_start = Instant::now();
             let results = trie.search_recursive(term);
             let search_duration = search_start.elapsed();
-            log_info!(&format!(
-                "Performance: Searching for '{}' found {} results in {:?}",
-                term,
-                results.len(),
-                search_duration
-            ));
+            log_info!(&format!("Performance: Searching for '{}' found {} results in {:?}",
+                     term, results.len(), search_duration));
         }
     }
 
@@ -1285,14 +1154,8 @@ mod tests_art {
         let indexed_count = index_directory_in_trie(&trie, &test_path);
         let index_duration = start_time.elapsed();
 
-        log_info!(&format!(
-            "Indexed {} entries from generated test data in {:?}",
-            indexed_count, index_duration
-        ));
-        assert!(
-            indexed_count > 0,
-            "Should have indexed some entries from test data"
-        );
+        log_info!(&format!("Indexed {} entries from generated test data in {:?}", indexed_count, index_duration));
+        assert!(indexed_count > 0, "Should have indexed some entries from test data");
         assert_eq!(trie.path_count(), indexed_count);
 
         // Test search on the generated data
@@ -1303,12 +1166,8 @@ mod tests_art {
             let results = trie.search_recursive(term);
             let search_duration = search_start.elapsed();
 
-            log_info!(&format!(
-                "Searching for '{}' in generated data found {} results in {:?}",
-                term,
-                results.len(),
-                search_duration
-            ));
+            log_info!(&format!("Searching for '{}' in generated data found {} results in {:?}",
+                     term, results.len(), search_duration));
         }
     }
 
@@ -1319,10 +1178,7 @@ mod tests_art {
 
         // Index the generated test data
         let indexed_count = index_directory_in_trie(&trie, &test_path);
-        assert!(
-            indexed_count > 0,
-            "Should have indexed some entries from test data"
-        );
+        assert!(indexed_count > 0, "Should have indexed some entries from test data");
 
         // Get some directories from the test data to use as prefixes
         let mut test_prefixes = Vec::new();
@@ -1341,12 +1197,8 @@ mod tests_art {
                 let results = trie.find_with_prefix(prefix);
                 let duration = start_time.elapsed();
 
-                log_info!(&format!(
-                    "Prefix search for '{}' found {} results in {:?}",
-                    prefix,
-                    results.len(),
-                    duration
-                ));
+                log_info!(&format!("Prefix search for '{}' found {} results in {:?}",
+                         prefix, results.len(), duration));
             }
         } else {
             // Fallback if no directories were found
@@ -1361,10 +1213,7 @@ mod tests_art {
 
         // Index the generated test data
         let indexed_count = index_directory_in_trie(&trie, &test_path);
-        assert!(
-            indexed_count > 0,
-            "Should have indexed some entries from test data"
-        );
+        assert!(indexed_count > 0, "Should have indexed some entries from test data");
 
         // Test component search with common components from the generated data
         let components = [
@@ -1372,7 +1221,7 @@ mod tests_art {
             &["orange", "grape"],
             &["car", "truck"],
             &["txt", "pdf"],
-            &["json", "png"],
+            &["json", "png"]
         ];
 
         for comp_set in &components {
@@ -1380,12 +1229,8 @@ mod tests_art {
             let results = trie.search_by_components(*comp_set);
             let duration = start_time.elapsed();
 
-            log_info!(&format!(
-                "Component search for {:?} found {} results in {:?}",
-                comp_set,
-                results.len(),
-                duration
-            ));
+            log_info!(&format!("Component search for {:?} found {} results in {:?}",
+                     comp_set, results.len(), duration));
         }
     }
 
@@ -1400,24 +1245,15 @@ mod tests_art {
         let indexed_count = index_directory_in_trie(&trie, &test_path);
         let index_duration = start_time.elapsed();
 
-        log_info!(&format!(
-            "Indexed {} entries in {:?} ({:?} per entry)",
-            indexed_count,
-            index_duration,
-            if indexed_count > 0 {
-                index_duration / indexed_count as u32
-            } else {
-                Duration::from_secs(0)
-            }
-        ));
+        log_info!(&format!("Indexed {} entries in {:?} ({:?} per entry)",
+                 indexed_count, index_duration,
+                 if indexed_count > 0 { index_duration / indexed_count as u32 } else { Duration::from_secs(0) }));
 
         // Test different search methods and compare performance
         let search_terms = ["txt", "json", "banana", "car"];
 
-        log_info!(&format!(
-            "\n{:<10} | {:<15} | {:<15} | {:<15}",
-            "Term", "Recursive Time", "Prefix Time", "Component Time"
-        ));
+        log_info!(&format!("\n{:<10} | {:<15} | {:<15} | {:<15}",
+                 "Term", "Recursive Time", "Prefix Time", "Component Time"));
         log_info!(&format!("{:-<60}", ""));
 
         for term in &search_terms {
@@ -1436,17 +1272,11 @@ mod tests_art {
             let component_results = trie.search_by_components(&[term]);
             let component_duration = component_start.elapsed();
 
-            log_info!(&format!(
-                "{:<10} | {:>15?} | {:>15?} | {:>15?}",
-                term, recursive_duration, prefix_duration, component_duration
-            ));
+            log_info!(&format!("{:<10} | {:>15?} | {:>15?} | {:>15?}",
+                     term, recursive_duration, prefix_duration, component_duration));
 
-            log_info!(&format!(
-                "  Found: {} (recursive) | {} (prefix) | {} (component)",
-                recursive_results.len(),
-                prefix_results.len(),
-                component_results.len()
-            ));
+            log_info!(&format!("  Found: {} (recursive) | {} (prefix) | {} (component)",
+                     recursive_results.len(), prefix_results.len(), component_results.len()));
         }
     }
 
@@ -1457,10 +1287,7 @@ mod tests_art {
 
         // Index the generated test data
         let indexed_count = index_directory_in_trie(&trie, &test_path);
-        assert!(
-            indexed_count > 0,
-            "Should have indexed some entries from test data"
-        );
+        assert!(indexed_count > 0, "Should have indexed some entries from test data");
 
         // Find some paths to remove
         let search_results = trie.search_recursive("txt");
@@ -1481,25 +1308,15 @@ mod tests_art {
 
                 // Verify the path is gone
                 let search_after = trie.find_with_prefix(&path_str);
-                assert!(
-                    search_after.is_empty(),
-                    "Path should no longer be found after removal"
-                );
+                assert!(search_after.is_empty(), "Path should no longer be found after removal");
             }
 
             let final_count = trie.path_count();
-            assert_eq!(
-                final_count,
-                initial_count - paths_to_remove.len(),
-                "Path count should decrease by the number of paths removed"
-            );
+            assert_eq!(final_count, initial_count - paths_to_remove.len(),
+                       "Path count should decrease by the number of paths removed");
 
-            log_info!(&format!(
-                "Successfully removed {} paths, count reduced from {} to {}",
-                paths_to_remove.len(),
-                initial_count,
-                final_count
-            ));
+            log_info!(&format!("Successfully removed {} paths, count reduced from {} to {}",
+                     paths_to_remove.len(), initial_count, final_count));
         } else {
             log_info!("No .txt files found in test data to test removal");
         }
@@ -1538,9 +1355,7 @@ mod tests_art {
                 results.len(),
                 *expected_count,
                 "Prefix '{}' should return {} results, got {}",
-                prefix,
-                expected_count,
-                results.len()
+                prefix, expected_count, results.len()
             );
 
             // Verify the paths actually start with this prefix
@@ -1551,8 +1366,7 @@ mod tests_art {
                 assert!(
                     normalized_path.starts_with(&normalized_prefix),
                     "Result '{}' should start with prefix '{}'",
-                    path_str,
-                    prefix
+                    path_str, prefix
                 );
             }
         }
@@ -1580,10 +1394,7 @@ mod tests_art {
             }
         }
 
-        assert!(
-            !inserted_paths.is_empty(),
-            "Should have inserted some test paths"
-        );
+        assert!(!inserted_paths.is_empty(), "Should have inserted some test paths");
 
         // Test prefix search with prefixes derived from actual inserted paths
         for inserted_path in &inserted_paths {
@@ -1594,18 +1405,13 @@ mod tests_art {
 
                 let results = trie.find_with_prefix(&prefix);
 
-                log_info!(&format!(
-                    "Prefix search for '{}' found {} results",
-                    prefix,
-                    results.len()
-                ));
+                log_info!(&format!("Prefix search for '{}' found {} results", prefix, results.len()));
 
                 // The prefix search should at least find the path we derived the prefix from
                 assert!(
                     results.contains(&PathBuf::from(inserted_path)),
                     "Prefix '{}' should at least find path '{}'",
-                    prefix,
-                    inserted_path
+                    prefix, inserted_path
                 );
             }
         }
@@ -1615,50 +1421,24 @@ mod tests_art {
     fn test_prefix_case_sensitivity() {
         // Test with case-insensitive trie (default)
         let case_insensitive = AdaptiveRadixTrie::new();
-        case_insensitive
-            .insert(
-                "/Home/User/Documents/Report.pdf",
-                PathBuf::from("/Home/User/Documents/Report.pdf"),
-            )
-            .unwrap();
+        case_insensitive.insert("/Home/User/Documents/Report.pdf", PathBuf::from("/Home/User/Documents/Report.pdf")).unwrap();
 
         // Should find with different case prefixes
         let results1 = case_insensitive.find_with_prefix("/home/user");
-        assert_eq!(
-            results1.len(),
-            1,
-            "Case-insensitive trie should find path with different case prefix"
-        );
+        assert_eq!(results1.len(), 1, "Case-insensitive trie should find path with different case prefix");
 
         let results2 = case_insensitive.find_with_prefix("/HOME/USER");
-        assert_eq!(
-            results2.len(),
-            1,
-            "Case-insensitive trie should find path with uppercase prefix"
-        );
+        assert_eq!(results2.len(), 1, "Case-insensitive trie should find path with uppercase prefix");
 
         // Test with case-sensitive trie
         let case_sensitive = AdaptiveRadixTrie::new_with_arg(true);
-        case_sensitive
-            .insert(
-                "/Home/User/Documents/Report.pdf",
-                PathBuf::from("/Home/User/Documents/Report.pdf"),
-            )
-            .unwrap();
+        case_sensitive.insert("/Home/User/Documents/Report.pdf", PathBuf::from("/Home/User/Documents/Report.pdf")).unwrap();
 
         // Should only find with exact case prefix
         let results3 = case_sensitive.find_with_prefix("/Home/User");
-        assert_eq!(
-            results3.len(),
-            1,
-            "Case-sensitive trie should find path with exact case prefix"
-        );
+        assert_eq!(results3.len(), 1, "Case-sensitive trie should find path with exact case prefix");
 
         let results4 = case_sensitive.find_with_prefix("/home/user");
-        assert_eq!(
-            results4.len(),
-            0,
-            "Case-sensitive trie should not find path with different case prefix"
-        );
+        assert_eq!(results4.len(), 0, "Case-sensitive trie should not find path with different case prefix");
     }
 }
