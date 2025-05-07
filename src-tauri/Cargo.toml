@@ -32,7 +32,6 @@ crc32fast = "1.3.2"
 hex = "0.4.3"
 once_cell = "1.21.3"
 zip = "2.6.1"
-homedir = "0.3.4"
 
 [build-dependencies]
 tauri-build = { version = "2.1", features = [] }  # Removed "log" feature
