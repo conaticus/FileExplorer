@@ -1,4 +1,11 @@
 mod models;
+mod autocomplete_engine;
+
+mod lru_chache;
+mod adaptive_radix_trie;
+mod context_aware_ranking;
+mod fuzzy;
+mod benchmarks;
 
 use std::path::PathBuf;
 use home::home_dir;
@@ -473,7 +480,7 @@ mod tests_p {
             let seq_duration = seq_start.elapsed();
             
             // Parallel search
-            let par_start = std::time::Instant::now();
+            let _par_start = std::time::Instant::now();
             let par_results = search_by_filename_parallel(keyword, entries.clone());
             let par_duration = start_time.elapsed();
             
@@ -547,4 +554,5 @@ mod tests_p {
         }
     }
 }
+
 
