@@ -6,6 +6,7 @@ mod adaptive_radix_trie;
 mod context_aware_ranking;
 mod fuzzy;
 mod fast_fuzzy;
+mod fast_fuzzy_v2;
 
 use std::path::PathBuf;
 use home::home_dir;
