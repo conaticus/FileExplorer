@@ -442,7 +442,7 @@ pub fn generate_test_data(base_path: PathBuf) -> Result<PathBuf, std::io::Error>
 }
 
 #[cfg(test)]
-mod tests_fast_fuzzy {
+mod tests_fast_fuzzy_v1 {
     use super::*;
     use std::time::Instant;
     use std::path::PathBuf;
