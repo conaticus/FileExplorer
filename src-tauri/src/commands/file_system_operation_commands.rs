@@ -75,6 +75,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 /// ```
 #[tauri::command]
 pub async fn open_directory(path: String) -> Result<String, String> {
+    log_info!("Directory started successfully.");
     let path_obj = Path::new(&path);
 
     // Check if path exists

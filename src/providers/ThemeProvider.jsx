@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api';
+import { invoke } from '@tauri-apps/api/core';
 
 // Create context
 const ThemeContext = createContext({
@@ -135,10 +135,10 @@ export default function ThemeProvider({ children }) {
     return (
         <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
             <style jsx global>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+            `}</style>
             {children}
         </ThemeContext.Provider>
     );

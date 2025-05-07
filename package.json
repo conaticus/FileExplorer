@@ -11,7 +11,7 @@
     "prepare": "yarn install && cd src-tauri && yarn install"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2",
+    "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-opener": "^2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
