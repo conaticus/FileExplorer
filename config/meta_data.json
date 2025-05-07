@@ -1,0 +1,67 @@
+{
+  "version": "0.1.0",
+  "abs_file_path_buf": "/home/marco/Documents/FileExplorer/config/meta_data.json",
+  "abs_file_path_for_settings_json": "/home/marco/Documents/FileExplorer/config/settings.json",
+  "all_volumes_with_information": [
+    {
+      "volume_name": "/dev/nvme0n1p3",
+      "mount_point": "/",
+      "file_system": "btrfs",
+      "size": 998500204544,
+      "available_space": 893416914944,
+      "is_removable": false,
+      "total_written_bytes": 58007064576,
+      "total_read_bytes": 10091290624
+    },
+    {
+      "volume_name": "/dev/nvme0n1p3",
+      "mount_point": "/home",
+      "file_system": "btrfs",
+      "size": 998500204544,
+      "available_space": 893416914944,
+      "is_removable": false,
+      "total_written_bytes": 58007064576,
+      "total_read_bytes": 10091290624
+    },
+    {
+      "volume_name": "/dev/nvme0n1p2",
+      "mount_point": "/boot",
+      "file_system": "ext4",
+      "size": 1020702720,
+      "available_space": 511541248,
+      "is_removable": false,
+      "total_written_bytes": 192512,
+      "total_read_bytes": 5919744
+    },
+    {
+      "volume_name": "/dev/nvme0n1p1",
+      "mount_point": "/boot/efi",
+      "file_system": "vfat",
+      "size": 627900416,
+      "available_space": 607588352,
+      "is_removable": false,
+      "total_written_bytes": 1024,
+      "total_read_bytes": 7085056
+    },
+    {
+      "volume_name": "jetbrains-toolbox",
+      "mount_point": "/tmp/.mount_jetbrawdoBkS",
+      "file_system": "fuse.jetbrains-toolbox",
+      "size": 0,
+      "available_space": 0,
+      "is_removable": false,
+      "total_written_bytes": 0,
+      "total_read_bytes": 0
+    },
+    {
+      "volume_name": "Vial-v0.7.2-x86_64.AppImage",
+      "mount_point": "/tmp/.mount_Vial-vYQ8Ci7",
+      "file_system": "fuse.Vial-v0.7.2-x86_64.AppImage",
+      "size": 0,
+      "available_space": 0,
+      "is_removable": false,
+      "total_written_bytes": 0,
+      "total_read_bytes": 0
+    }
+  ]
+}
