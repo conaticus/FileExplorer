@@ -5,6 +5,6 @@
   "default_themes_path": "",
   "default_folder_path_on_opening": "",
   "default_checksum_hash": "SHA256",
-  "logging_state": "Full",
-  "abs_file_path_buf": "/home/marco/Documents/FileExplorer/config/settings.json"
+  "logging_level": "Full",
+  "abs_file_path_buf": "/Users/lauritzwiebusch/WebstormProjects/FileExplorer/config/settings.json"
 }

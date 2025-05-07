@@ -1,0 +1,94 @@
+.search-results-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.search-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--border);
+    background-color: var(--background-secondary);
+}
+
+.search-title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.search-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.search-count {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.search-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-lg);
+    border-bottom: 1px solid var(--border);
+    background-color: var(--background-tertiary);
+}
+
+.search-filter {
+    padding: var(--space-xxs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    background-color: var(--accent-surface);
+    color: var(--accent);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+}
+
+.search-progress {
+    margin-top: var(--space-sm);
+    max-width: 400px;
+}
+
+.search-info {
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+}
+
+.search-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: var(--space-xl) 0;
+}
+
+/* Icon placeholder */
+.icon-alert-circle {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'%3E%3C/circle%3E%3Cline x1='12' y1='8' x2='12' y2='12'%3E%3C/line%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'%3E%3C/line%3E%3C/svg%3E");
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .search-header {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: var(--space-sm);
+    }
+
+    .search-controls {
+        width: 100%;
+        margin-top: var(--space-sm);
+        justify-content: space-between;
+    }
+
+    .search-filters {
+        padding: var(--space-xs) var(--space-sm);
+    }
+}

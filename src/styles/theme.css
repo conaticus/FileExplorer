@@ -1,0 +1,171 @@
+/**
+ * Theme styles for the file explorer.
+ * This file contains theme-specific styles that are toggled based on the active theme.
+ */
+
+/* Light Theme (default) */
+.theme-light {
+    --background: var(--light-background);
+    --background-secondary: var(--light-background-secondary);
+    --background-tertiary: var(--light-background-tertiary);
+    --surface: var(--light-surface);
+    --surface-hover: var(--light-surface-hover);
+    --surface-active: var(--light-surface-active);
+    --border: var(--light-border);
+    --text-primary: var(--light-text-primary);
+    --text-secondary: var(--light-text-secondary);
+    --text-tertiary: var(--light-text-tertiary);
+    --accent: var(--light-accent);
+    --accent-hover: var(--light-accent-hover);
+    --accent-surface: var(--light-accent-surface);
+    --error: var(--light-error);
+    --success: var(--light-success);
+    --warning: var(--light-warning);
+    --info: var(--light-info);
+}
+
+/* Dark Theme */
+.theme-dark {
+    --background: var(--dark-background);
+    --background-secondary: var(--dark-background-secondary);
+    --background-tertiary: var(--dark-background-tertiary);
+    --surface: var(--dark-surface);
+    --surface-hover: var(--dark-surface-hover);
+    --surface-active: var(--dark-surface-active);
+    --border: var(--dark-border);
+    --text-primary: var(--dark-text-primary);
+    --text-secondary: var(--dark-text-secondary);
+    --text-tertiary: var(--dark-text-tertiary);
+    --accent: var(--dark-accent);
+    --accent-hover: var(--dark-accent-hover);
+    --accent-surface: var(--dark-accent-surface);
+    --error: var(--dark-error);
+    --success: var(--dark-success);
+    --warning: var(--dark-warning);
+    --info: var(--dark-info);
+}
+
+/* System preference based theme */
+@media (prefers-color-scheme: dark) {
+    :root:not(.theme-light):not(.theme-dark) {
+        --background: var(--dark-background);
+        --background-secondary: var(--dark-background-secondary);
+        --background-tertiary: var(--dark-background-tertiary);
+        --surface: var(--dark-surface);
+        --surface-hover: var(--dark-surface-hover);
+        --surface-active: var(--dark-surface-active);
+        --border: var(--dark-border);
+        --text-primary: var(--dark-text-primary);
+        --text-secondary: var(--dark-text-secondary);
+        --text-tertiary: var(--dark-text-tertiary);
+        --accent: var(--dark-accent);
+        --accent-hover: var(--dark-accent-hover);
+        --accent-surface: var(--dark-accent-surface);
+        --error: var(--dark-error);
+        --success: var(--dark-success);
+        --warning: var(--dark-warning);
+        --info: var(--dark-info);
+    }
+}
+
+@media (prefers-color-scheme: light) {
+    :root:not(.theme-light):not(.theme-dark) {
+        --background: var(--light-background);
+        --background-secondary: var(--light-background-secondary);
+        --background-tertiary: var(--light-background-tertiary);
+        --surface: var(--light-surface);
+        --surface-hover: var(--light-surface-hover);
+        --surface-active: var(--light-surface-active);
+        --border: var(--light-border);
+        --text-primary: var(--light-text-primary);
+        --text-secondary: var(--light-text-secondary);
+        --text-tertiary: var(--light-text-tertiary);
+        --accent: var(--light-accent);
+        --accent-hover: var(--light-accent-hover);
+        --accent-surface: var(--light-accent-surface);
+        --error: var(--light-error);
+        --success: var(--light-success);
+        --warning: var(--light-warning);
+        --info: var(--light-info);
+    }
+}
+
+/* High Contrast Theme */
+.theme-high-contrast {
+    --background: #000000;
+    --background-secondary: #0a0a0a;
+    --background-tertiary: #151515;
+    --surface: #0a0a0a;
+    --surface-hover: #151515;
+    --surface-active: #202020;
+    --border: #ffffff;
+    --text-primary: #ffffff;
+    --text-secondary: #eeeeee;
+    --text-tertiary: #cccccc;
+    --accent: #ffff00;
+    --accent-hover: #ffffaa;
+    --accent-surface: rgba(255, 255, 0, 0.2);
+    --error: #ff0000;
+    --success: #00ff00;
+    --warning: #ffaa00;
+    --info: #00ffff;
+}
+
+/* Custom color themes */
+.theme-blue {
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-surface: rgba(37, 99, 235, 0.1);
+}
+
+.theme-green {
+    --accent: #10b981;
+    --accent-hover: #059669;
+    --accent-surface: rgba(16, 185, 129, 0.1);
+}
+
+.theme-purple {
+    --accent: #8b5cf6;
+    --accent-hover: #7c3aed;
+    --accent-surface: rgba(139, 92, 246, 0.1);
+}
+
+.theme-orange {
+    --accent: #f97316;
+    --accent-hover: #ea580c;
+    --accent-surface: rgba(249, 115, 22, 0.1);
+}
+
+.theme-pink {
+    --accent: #ec4899;
+    --accent-hover: #db2777;
+    --accent-surface: rgba(236, 72, 153, 0.1);
+}
+
+/* Font size adjustments */
+:root.font-size-small {
+    --font-size-xs: 0.625rem;   /* 10px */
+    --font-size-sm: 0.75rem;    /* 12px */
+    --font-size-md: 0.875rem;   /* 14px */
+    --font-size-lg: 1rem;       /* 16px */
+    --font-size-xl: 1.125rem;   /* 18px */
+    --font-size-xxl: 1.25rem;   /* 20px */
+}
+
+:root.font-size-large {
+    --font-size-xs: 0.875rem;   /* 14px */
+    --font-size-sm: 1rem;       /* 16px */
+    --font-size-md: 1.125rem;   /* 18px */
+    --font-size-lg: 1.25rem;    /* 20px */
+    --font-size-xl: 1.5rem;     /* 24px */
+    --font-size-xxl: 1.75rem;   /* 28px */
+}
+
+/* Animation durations */
+:root.reduce-motion,
+@media (prefers-reduced-motion) {
+    *, *::before, *::after {
+        animation-duration: 0.001s !important;
+        transition-duration: 0.001s !important;
+    }
+}

@@ -1,0 +1,73 @@
+.path-breadcrumb {
+    flex: 1;
+    height: 32px;
+    padding: 0 var(--space-md);
+    border-radius: var(--radius-md);
+    background-color: var(--background-tertiary);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    cursor: text;
+    transition: background-color var(--transition-fast);
+}
+
+.path-breadcrumb:hover {
+    background-color: var(--surface-hover);
+}
+
+.breadcrumb-segments {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none; /* Hide scrollbar in Firefox */
+}
+
+.breadcrumb-segments::-webkit-scrollbar {
+    display: none; /* Hide scrollbar in Chrome/Safari/Edge */
+}
+
+.segment-button {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    background-color: transparent;
+    cursor: pointer;
+    transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.segment-button:hover {
+    color: var(--text-primary);
+    background-color: var(--surface-hover);
+}
+
+.segment-button.current {
+    color: var(--accent);
+    font-weight: var(--font-weight-medium);
+}
+
+.segment-divider {
+    color: var(--text-tertiary);
+    margin: 0 var(--space-xxs);
+}
+
+.path-input {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    outline: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .path-breadcrumb {
+        flex: 1;
+        min-width: 0;
+    }
+}
