@@ -101,8 +101,8 @@ pub async fn open_directory(path: String) -> Result<String, String> {
             .metadata()
             .map_err(|err| format!("Failed to get metadata: {}", err))?;
 
-        let (subfile_count, subdir_count) =
-            count_subfiles_and_subdirectories(path_of_entry.to_str().unwrap());
+        /*let (subfile_count, subdir_count) =
+            count_subfiles_and_subdirectories(path_of_entry.to_str().unwrap());*/
 
         if file_type.is_dir() {
             directories.push(models::Directory {
@@ -111,9 +111,9 @@ pub async fn open_directory(path: String) -> Result<String, String> {
                 is_symlink: path_of_entry.is_symlink(),
                 access_rights_as_string: get_access_permission_string(metadata.permissions(), true),
                 access_rights_as_number: get_access_permission_number(metadata.permissions(), true),
-                size_in_bytes: get_directory_size_in_bytes(path_of_entry.to_str().unwrap()),
-                sub_file_count: subfile_count,
-                sub_dir_count: subdir_count,
+                size_in_bytes: 1,
+                sub_file_count: 1,
+                sub_dir_count: 1,
                 created: format_system_time(metadata.created().unwrap()),
                 last_modified: format_system_time(metadata.modified().unwrap()),
                 accessed: format_system_time(metadata.accessed().unwrap()),
@@ -1046,5 +1046,27 @@ mod tests_file_system_operation_commands {
             "Content 2",
             "Extracted content 2 should match"
         );
+    }
+
+    #[tokio::test]
+    async fn open_home_directory_test() {
+        
+        //get time for measurement
+        let current_time = std::time::Instant::now();
+
+        // Get the home directory
+        let dir = String::from("/home/marco");
+
+        // Call the function to open the home directory
+        let result = open_directory(dir).await;
+        
+        //print execution time
+        let elapsed_time = current_time.elapsed();
+        println!("Execution time: {:?}", elapsed_time);
+                
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to open home directory: {:?}", result);
+         
+
     }
 }
