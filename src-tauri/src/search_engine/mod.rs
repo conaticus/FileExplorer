@@ -1,10 +1,6 @@
 mod models;
-mod autocomplete_engine;
 
-mod lru_chache;
 mod adaptive_radix_trie;
-mod context_aware_ranking;
-mod fuzzy;
 mod fast_fuzzy;
 mod fast_fuzzy_v2;
 mod lru_cache_v2;
@@ -23,8 +19,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub enum Entry {
     FILE(FileSe),
-    DIRECTORY(DirectorySe),
-}
+    DIRECTORY(DirectorySe), }
 
 pub fn start_indexing_home_dir() -> Vec<Entry> {
     let home_dir = home_dir().unwrap_or_default();
