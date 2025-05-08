@@ -7,7 +7,6 @@ use crate::search_engine::fuzzy::FuzzySearchIndex;
 use crate::search_engine::lru_chache::AutocompleteLRUCache;
 use crate::search_engine::context_aware_ranking::ContextAwareRanker;
 
-#[allow(dead_code)]
 pub struct AutocompleteEngine {
     radix_trie: AdaptiveRadixTrie,
     fuzzy_index: FuzzySearchIndex,
@@ -17,7 +16,6 @@ pub struct AutocompleteEngine {
     last_update: SystemTime,
 }
 
-#[allow(dead_code)]
 impl AutocompleteEngine {
     pub fn suggest(&self, query: &str, limit: usize) -> Vec<PathBuf> {
         // First try search_recursive which is more comprehensive - finds the query anywhere in the path
@@ -71,15 +69,11 @@ impl AutocompleteEngine {
     }
 }
 
-
-#[allow(dead_code)]
 // Thread-safe wrapper
 pub struct ThreadSafeAutocomplete {
     engine: Arc<RwLock<AutocompleteEngine>>,
 }
 
-
-#[allow(dead_code)]
 impl ThreadSafeAutocomplete {
     pub fn new() -> Self {
         let current_dir = PathBuf::from("/");
@@ -442,7 +436,6 @@ impl ThreadSafeAutocomplete {
     }
 }
 
-#[allow(dead_code)]
 // Metadata about a path for detailed results
 pub struct PathMetadata {
     frequency: u32,
@@ -450,7 +443,6 @@ pub struct PathMetadata {
     score: f64,
 }
 
-#[allow(dead_code)]
 // Statistics about the autocomplete index
 pub struct IndexStats {
     indexed_path_count: usize,
@@ -458,7 +450,6 @@ pub struct IndexStats {
     last_update: SystemTime,
 }
 
-#[allow(dead_code)]
 // Add additional methods to our ranker to support the new functionality
 impl ContextAwareRanker {
     // Get frequency of a path
@@ -565,7 +556,6 @@ impl ContextAwareRanker {
     }
 }
 
-#[allow(dead_code)]
 #[cfg(test)]
 mod tests_autocomplete {
     use super::*;
