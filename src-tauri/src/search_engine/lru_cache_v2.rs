@@ -293,3 +293,202 @@ where
         new_cache
     }
 }
+
+mod tests_lru_cache_v2 {
+    use super::*;
+    use crate::log_info;
+    use std::time::Instant;
+    use std::thread::sleep;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_basic_operations() {
+        let mut cache: LruPathCache<String, String> = LruPathCache::new(3);
+
+        assert!(cache.is_empty());
+        assert_eq!(cache.len(), 0);
+
+        // Test insertion
+        cache.insert("key1".to_string(), "value1".to_string());
+        cache.insert("key2".to_string(), "value2".to_string());
+
+        assert_eq!(cache.len(), 2);
+        assert!(!cache.is_empty());
+
+        // Test retrieval
+        assert_eq!(cache.get(&"key1".to_string()), Some("value1".to_string()));
+        assert_eq!(cache.get(&"key2".to_string()), Some("value2".to_string()));
+        assert_eq!(cache.get(&"key3".to_string()), None);
+
+        // Test LRU behavior (capacity limit)
+        cache.insert("key3".to_string(), "value3".to_string());
+        cache.insert("key4".to_string(), "value4".to_string());
+
+        // key1 should be evicted since it's the least recently used
+        assert_eq!(cache.len(), 3);
+        assert_eq!(cache.get(&"key1".to_string()), None);
+        assert_eq!(cache.get(&"key2".to_string()), Some("value2".to_string()));
+
+        // Test removal
+        assert!(cache.remove(&"key3".to_string()));
+        assert_eq!(cache.len(), 2);
+        assert_eq!(cache.get(&"key3".to_string()), None);
+
+        // Test clear
+        cache.clear();
+        assert!(cache.is_empty());
+        assert_eq!(cache.len(), 0);
+    }
+
+    #[test]
+    fn test_ttl_expiration() {
+        let ttl = Duration::from_millis(100);
+        let mut cache = LruPathCache::with_ttl(5, ttl);
+
+        cache.insert("key1".to_string(), "value1".to_string());
+        assert_eq!(cache.get(&"key1".to_string()), Some("value1".to_string()));
+
+        // Wait for the entry to expire
+        sleep(ttl + Duration::from_millis(10));
+
+        // The entry should have expired
+        assert_eq!(cache.get(&"key1".to_string()), None);
+
+        // Test purge_expired
+        cache.insert("key2".to_string(), "value2".to_string());
+        cache.insert("key3".to_string(), "value3".to_string());
+
+        sleep(ttl + Duration::from_millis(10));
+
+        // Add a fresh entry
+        cache.insert("key4".to_string(), "value4".to_string());
+
+        // key2 and key3 should expire, but key4 should remain
+        let purged = cache.purge_expired();
+        assert_eq!(purged, 2);
+        assert_eq!(cache.len(), 1);
+        assert_eq!(cache.get(&"key4".to_string()), Some("value4".to_string()));
+    }
+
+    #[test]
+    fn test_clone() {
+        let mut original = LruPathCache::new(3);
+        original.insert("key1".to_string(), "value1".to_string());
+        original.insert("key2".to_string(), "value2".to_string());
+
+        let mut cloned = original.clone();
+
+        assert_eq!(cloned.get(&"key1".to_string()), Some("value1".to_string()));
+        assert_eq!(cloned.get(&"key2".to_string()), Some("value2".to_string()));
+        assert_eq!(cloned.len(), 2);
+    }
+
+    #[test]
+    fn benchmark_path_retrieval() {
+        // Create paths similar to what might be cached in a file explorer
+        let base_path = PathBuf::from("C:/Users/username/Documents");
+        let mut cache = LruPathCache::new(1000);
+
+        // Populate cache with sample paths
+        for i in 0..500 {
+            let path = base_path.join(format!("folder_{}", i));
+            let metadata = format!("size: {}, modified: 2023-01-01", i * 1000);
+            cache.insert(path.to_string_lossy().to_string(), metadata);
+        }
+
+        log_info!("Starting path retrieval benchmark");
+
+        // Benchmark getting existing paths
+        let start = Instant::now();
+        for i in 0..500 {
+            let path = base_path.join(format!("folder_{}", i));
+            let _ = cache.get(&path.to_string_lossy().to_string());
+        }
+        let elapsed = start.elapsed();
+
+        let avg_retrieval_time = elapsed.as_nanos() as f64 / 500.0;
+        log_info!(&format!("Average retrieval time for existing paths: {:.2} ns", avg_retrieval_time));
+
+        // Benchmark getting non-existent paths
+        let start = Instant::now();
+        for i in 1000..1500 {
+            let path = base_path.join(format!("folder_{}", i));
+            let _ = cache.get(&path.to_string_lossy().to_string());
+        }
+        let elapsed = start.elapsed();
+
+        let avg_miss_time = elapsed.as_nanos() as f64 / 500.0;
+        log_info!(&format!("Average retrieval time for non-existent paths: {:.2} ns", avg_miss_time));
+    }
+
+    #[test]
+    fn benchmark_cache_size_impact() {
+        log_info!("Benchmarking impact of cache size on retrieval performance");
+
+        let sizes = [100, 1000, 10000];
+
+        for &size in &sizes {
+            let mut cache = LruPathCache::new(size);
+
+            // Fill the cache to capacity
+            for i in 0..size {
+                let path = format!("/path/to/file_{}", i);
+                cache.insert(path.clone(), format!("metadata_{}", i));
+            }
+
+            // Measure retrieval time (mixed hits and misses)
+            let start = Instant::now();
+            for i in size/2..(size/2 + 1000).min(size + 500) {
+                let path = format!("/path/to/file_{}", i);
+                let _ = cache.get(&path);
+            }
+            let elapsed = start.elapsed();
+
+            log_info!(&format!("Cache size {}: 1000 lookups took {:?} (avg: {:.2} ns/lookup)",
+                    size,
+                    elapsed,
+                    elapsed.as_nanos() as f64 / 1000.0));
+        }
+    }
+
+    #[test]
+    fn benchmark_lru_behavior() {
+        log_info!("Benchmarking LRU eviction behavior");
+
+        let mut cache = LruPathCache::new(100);
+
+        // Fill cache
+        for i in 0..100 {
+            cache.insert(format!("key_{}", i), format!("value_{}", i));
+        }
+
+        // Access first 20 items to make them recently used
+        for i in 0..20 {
+            let _ = cache.get(&format!("key_{}", i));
+        }
+
+        // Insert 20 new items, which should evict the least recently used
+        let start = Instant::now();
+        for i in 100..120 {
+            cache.insert(format!("key_{}", i), format!("value_{}", i));
+        }
+        let elapsed = start.elapsed();
+
+        log_info!(&format!("Time to insert 20 items with eviction: {:?}", elapsed));
+
+        // Verify the first 20 items are still there (recently used)
+        for i in 0..20 {
+            assert!(cache.get(&format!("key_{}", i)).is_some());
+        }
+
+        // Verify some of the middle items were evicted
+        let mut evicted_count = 0;
+        for i in 20..100 {
+            if cache.get(&format!("key_{}", i)).is_none() {
+                evicted_count += 1;
+            }
+        }
+
+        log_info!(&format!("Evicted {} items from the middle range", evicted_count));
+    }
+}
