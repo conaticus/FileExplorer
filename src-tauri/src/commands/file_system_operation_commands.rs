@@ -1,8 +1,5 @@
 use crate::{log_info, models};
-use crate::models::{
-    count_subfiles_and_subdirectories, format_system_time, get_access_permission_number,
-    get_access_permission_string, get_directory_size_in_bytes, Entries,
-};
+use crate::models::{count_subdirectories, count_subfiles, count_subfiles_and_subdirectories, format_system_time, get_access_permission_number, get_access_permission_string, get_directory_size_in_bytes, Entries};
 use std::fs;
 use std::fs::read_dir;
 use std::io::Write;
@@ -112,8 +109,8 @@ pub async fn open_directory(path: String) -> Result<String, String> {
                 access_rights_as_string: get_access_permission_string(metadata.permissions(), true),
                 access_rights_as_number: get_access_permission_number(metadata.permissions(), true),
                 size_in_bytes: 0,
-                sub_file_count: 0,
-                sub_dir_count: 0,
+                sub_file_count: count_subfiles(path_of_entry.to_str().unwrap()),
+                sub_dir_count: count_subdirectories(path_of_entry.to_str().unwrap()),
                 created: metadata.created().map_or("1970-01-01 00:00:00".to_string(), |time| format_system_time(time)),
                 last_modified: metadata.modified().map_or("1970-01-01 00:00:00".to_string(), |time| format_system_time(time)),
                 accessed: metadata.accessed().map_or("1970-01-01 00:00:00".to_string(), |time| format_system_time(time)),

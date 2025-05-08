@@ -258,13 +258,87 @@ pub fn count_subfiles_and_subdirectories(path: &str) -> (usize, usize) {
     let mut file_count = 0;
     let mut dir_count = 0;
 
-    for entry in WalkDir::new(path).into_iter().filter_map(Result::ok) {
-        if entry.path().is_file() {
-            file_count += 1;
-        } else if entry.path().is_dir() {
-            dir_count += 1;
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.filter_map(Result::ok) {
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_file() {
+                    file_count += 1;
+                } else if file_type.is_dir() {
+                    dir_count += 1;
+                }
+            }
         }
     }
 
     (file_count, dir_count)
+}
+
+/// This function counts only the number of files in a given path.
+/// It only counts immediate files in the directory (non-recursive).
+///
+/// # Parameters
+/// - `path`: The path of the directory to count the files for.
+///
+/// # Returns
+/// The number of files in the directory.
+///
+/// # Example
+/// ```rust
+/// use crate::models::directory_entries_helper::count_subfiles;
+/// 
+/// fn main() {
+///   let path = "/path/to/directory";
+///   let file_count = count_subfiles(path);
+///   println!("Files: {}", file_count);
+/// }
+/// ```
+pub fn count_subfiles(path: &str) -> usize {
+    let mut file_count = 0;
+
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.filter_map(Result::ok) {
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_file() {
+                    file_count += 1;
+                }
+            }
+        }
+    }
+
+    file_count
+}
+
+/// This function counts only the number of directories in a given path.
+/// It only counts immediate subdirectories (non-recursive).
+///
+/// # Parameters
+/// - `path`: The path of the directory to count the subdirectories for.
+///
+/// # Returns
+/// The number of subdirectories in the directory.
+///
+/// # Example
+/// ```rust
+/// use crate::models::directory_entries_helper::count_subdirectories;
+/// 
+/// fn main() {
+///   let path = "/path/to/directory";
+///   let dir_count = count_subdirectories(path);
+///   println!("Directories: {}", dir_count);
+/// }
+/// ```
+pub fn count_subdirectories(path: &str) -> usize {
+    let mut dir_count = 0;
+
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.filter_map(Result::ok) {
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_dir() {
+                    dir_count += 1;
+                }
+            }
+        }
+    }
+
+    dir_count
 }
