@@ -1,456 +1,437 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { invoke } from "@tauri-apps/api/core";
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { useHistory } from './HistoryProvider';
 
-// Erstellen eines Kontexts für den Dateisystemzugriff
-export const FileSystemContext = createContext();
+// Create file system context
+const FileSystemContext = createContext({
+    currentDirData: null,
+    isLoading: false,
+    selectedItems: [],
+    volumes: [],
+    error: null,
+    loadDirectory: () => {},
+    openFile: () => {},
+    createFile: () => {},
+    createDirectory: () => {},
+    renameItem: () => {},
+    moveToTrash: () => {},
+    selectItem: () => {},
+    selectMultiple: () => {},
+    clearSelection: () => {},
+    zipItems: () => {},
+    unzipItem: () => {},
+    loadVolumes: () => {},
+});
 
-export const FileSystemProvider = ({ children }) => {
-    const [rootFolders, setRootFolders] = useState([]);
-    const [dataSources, setDataSources] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
+export default function FileSystemProvider({ children }) {
+    const [currentDirData, setCurrentDirData] = useState(null);
+    const [isLoading, setIsLoading] = useState(true); // Starten Sie mit isLoading=true
+    const [selectedItems, setSelectedItems] = useState([]);
+    const [volumes, setVolumes] = useState([]);
     const [error, setError] = useState(null);
+    const { navigateTo, currentPath } = useHistory();
 
-    // Lade die Stammordner beim Start
-    useEffect(() => {
-        loadRootFolders();
-        loadDataSources();
+    // Load system volumes information
+    const loadVolumes = useCallback(async () => {
+        try {
+            const volumesJson = await invoke('get_system_volumes_information_as_json');
+            const volumesData = JSON.parse(volumesJson);
+            setVolumes(volumesData);
+            return volumesData; // Zurückgeben zur weiteren Verwendung
+        } catch (err) {
+            console.error('Failed to load volumes:', err);
+            setError(`Failed to load volumes: ${err.message || err}`);
+            // Fallback to mock data for development
+            const mockVolumes = [
+                {
+                    volume_name: "Local Disk (C:)",
+                    mount_point: "C:\\",
+                    file_system: "NTFS",
+                    size: 500107862016,
+                    available_space: 158148874240,
+                    is_removable: false,
+                    total_written_bytes: 0,
+                    total_read_bytes: 0
+                }
+            ];
+            setVolumes(mockVolumes);
+            return mockVolumes;
+        }
     }, []);
 
-    // Lade die Stammordner
-    const loadRootFolders = async () => {
+    // Load directory contents
+    // Verbesserte loadDirectory-Funktion mit robuster Fehlerbehandlung
+    const loadDirectory = useCallback(async (path) => {
+        if (!path) {
+            console.error("Cannot load directory: path is empty");
+            setIsLoading(false);
+            return false;
+        }
+
+        console.log(`Attempting to load directory: ${path}`);
         setIsLoading(true);
         setError(null);
 
         try {
-            // [Backend Integration] - Stammordner vom Backend abrufen
-            // /* BACKEND_INTEGRATION: Stammordner laden */
+            // Setze ein Timeout für den Fall, dass die Operation hängen bleibt
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error(`Directory loading timed out: ${path}`)), 10000);
+            });
 
-            // Beispieldaten für Windows
-            const mockRootFolders = [
-                { name: 'Desktop', path: 'C:/Users/User/Desktop', type: 'directory', icon: 'desktop' },
-                { name: 'Dokumente', path: 'C:/Users/User/Documents', type: 'directory', icon: 'documents' },
-                { name: 'Downloads', path: 'C:/Users/User/Downloads', type: 'directory', icon: 'downloads' },
-                { name: 'Musik', path: 'C:/Users/User/Music', type: 'directory', icon: 'music' },
-                { name: 'Bilder', path: 'C:/Users/User/Pictures', type: 'directory', icon: 'pictures' },
-                { name: 'Videos', path: 'C:/Users/User/Videos', type: 'directory', icon: 'videos' },
-            ];
+            // Versuche das Verzeichnis zu laden
+            const loadPromise = invoke('open_directory', { path });
 
-            setRootFolders(mockRootFolders);
+            // Verwende Promise.race, um entweder das Ergebnis zu erhalten oder nach Timeout abzubrechen
+            const dirContent = await Promise.race([loadPromise, timeoutPromise]);
+
+            if (!dirContent) {
+                throw new Error(`Empty response from open_directory: ${path}`);
+            }
+
+            try {
+                const dirData = JSON.parse(dirContent);
+                setCurrentDirData(dirData);
+                navigateTo(path);
+                console.log(`Successfully loaded directory: ${path}`);
+                return true;
+            } catch (parseError) {
+                throw new Error(`Failed to parse directory data: ${parseError.message}`);
+            }
         } catch (err) {
-            console.error('Error loading root folders:', err);
-            setError('Fehler beim Laden der Stammordner');
+            console.error(`Failed to load directory: ${path}`, err);
+            setError(`Failed to load directory: ${err.message || err}`);
+            return false;
         } finally {
+            // Stelle sicher, dass isLoading auf jeden Fall auf false gesetzt wird
             setIsLoading(false);
         }
-    };
+    }, [navigateTo]);
 
-    // Lade die Datenquellen
-    const loadDataSources = async () => {
+// Verbesserte getDefaultDirectory-Funktion
+    const getDefaultDirectory = useCallback(async () => {
+        // Setze isLoading auf true, um den Ladezustand anzuzeigen
         setIsLoading(true);
-        setError(null);
 
         try {
-            // [Backend Integration] - Datenquellen vom Backend abrufen
-            // /* BACKEND_INTEGRATION: Datenquellen laden */
+            // 1. Versuche zuerst, die Volumes zu laden
+            console.log("Attempting to load volumes...");
+            const volumesList = await loadVolumes();
 
-            // Beispieldaten für Windows
-            const mockDataSources = [
-                { name: 'Lokaler Datenträger (C:)', path: 'C:/', type: 'drive', icon: 'drive', totalSpace: '256 GB', freeSpace: '120 GB' },
-                { name: 'Daten (D:)', path: 'D:/', type: 'drive', icon: 'drive', totalSpace: '1 TB', freeSpace: '750 GB' },
-            ];
+            if (volumesList && volumesList.length > 0) {
+                console.log(`Found volumes, using first mount point: ${volumesList[0].mount_point}`);
+                return volumesList[0].mount_point;
+            }
 
-            setDataSources(mockDataSources);
-        } catch (err) {
-            console.error('Error loading data sources:', err);
-            setError('Fehler beim Laden der Datenquellen');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+            console.warn('No volumes available, trying common paths instead');
 
-    // Füge eine neue Datenquelle hinzu
-    const addDataSource = async (path) => {
-        setIsLoading(true);
-        setError(null);
+            // 2. Liste gängiger Pfade für verschiedene Betriebssysteme
+            //const commonPaths = ['/', 'C:\\', '/home', '/Users', '/tmp', '/var', '/opt'];
+            const commonPaths = ['C:\\', '/Users', '/home'];
 
-        try {
-            // [Backend Integration] - Datenquelle zum Backend hinzufügen
-            // /* BACKEND_INTEGRATION: Datenquelle hinzufügen */
-
-            // Beispieldaten
-            const newDataSource = {
-                name: path.split('/').pop(),
-                path: path,
-                type: 'custom',
-                icon: 'folder',
-            };
-
-            setDataSources([...dataSources, newDataSource]);
-
-            return { success: true, dataSource: newDataSource };
-        } catch (err) {
-            console.error('Error adding data source:', err);
-            setError('Fehler beim Hinzufügen der Datenquelle');
-            return { success: false, error: err.message };
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Entferne eine Datenquelle
-    const removeDataSource = async (path) => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // [Backend Integration] - Datenquelle aus dem Backend entfernen
-            // /* BACKEND_INTEGRATION: Datenquelle entfernen */
-
-            setDataSources(dataSources.filter(ds => ds.path !== path));
-
-            return { success: true };
-        } catch (err) {
-            console.error('Error removing data source:', err);
-            setError('Fehler beim Entfernen der Datenquelle');
-            return { success: false, error: err.message };
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Abrufen der Elemente in einem Verzeichnis
-    const listDirectory = async (path) => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // [Backend Integration] - Verzeichnisinhalt vom Backend abrufen
-            // /* BACKEND_INTEGRATION: Verzeichnisinhalt laden */
-
-            // Beispieldaten
-            const mockItems = [
-                { name: 'Dokument1.docx', path: `${path}/Dokument1.docx`, type: 'file', size: '25 KB', modified: '2023-01-15T10:30:00Z' },
-                { name: 'Tabelle.xlsx', path: `${path}/Tabelle.xlsx`, type: 'file', size: '156 KB', modified: '2023-02-20T14:45:00Z' },
-                { name: 'Präsentation.pptx', path: `${path}/Präsentation.pptx`, type: 'file', size: '2.3 MB', modified: '2023-03-10T09:15:00Z' },
-                { name: 'Ordner1', path: `${path}/Ordner1`, type: 'directory', modified: '2023-01-05T11:20:00Z' },
-                { name: 'Ordner2', path: `${path}/Ordner2`, type: 'directory', modified: '2023-02-12T16:40:00Z' },
-                { name: 'Bilder', path: `${path}/Bilder`, type: 'directory', modified: '2023-03-05T13:10:00Z' },
-                { name: 'test.txt', path: `${path}/test.txt`, type: 'file', size: '2 KB', modified: '2023-04-01T08:00:00Z' },
-                { name: 'config.json', path: `${path}/config.json`, type: 'file', size: '4 KB', modified: '2023-04-02T09:30:00Z' },
-            ];
-
-            return mockItems;
-        } catch (err) {
-            console.error(`Error listing directory ${path}:`, err);
-            setError(`Fehler beim Laden des Verzeichnisses: ${err.message}`);
-            throw err;
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Lesen einer Datei
-    const readFile = async (path) => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // [Backend Integration] - Datei vom Backend lesen
-            // /* BACKEND_INTEGRATION: Datei lesen */
-
-            // Beispielinhalt
-            const content = `Dies ist der Inhalt der Datei ${path}`;
-
-            return content;
-        } catch (err) {
-            console.error(`Error reading file ${path}:`, err);
-            setError(`Fehler beim Lesen der Datei: ${err.message}`);
-            throw err;
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Erstellen einer Datei
-    const createFile = async (path, content = '') => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // [Backend Integration] - Datei im Backend erstellen
-            // /* BACKEND_INTEGRATION: Datei erstellen */
-
-            return { success: true, path };
-        } catch (err) {
-            console.error(`Error creating file ${path}:`, err);
-            setError(`Fehler beim Erstellen der Datei: ${err.message}`);
-            return { success: false, error: err.message };
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Erstellen eines Ordners
-    const createDirectory = async (path) => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // [Backend Integration] - Ordner im Backend erstellen
-            // /* BACKEND_INTEGRATION: Ordner erstellen */
-
-            return { success: true, path };
-        } catch (err) {
-            console.error(`Error creating directory ${path}:`, err);
-            setError(`Fehler beim Erstellen des Ordners: ${err.message}`);
-            return { success: false, error: err.message };
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Löschen einer Datei oder eines Ordners
-    const deleteItem = async (path) => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // [Backend Integration] - Element im Backend löschen
-            // /* BACKEND_INTEGRATION: Element löschen */
-
-            return { success: true };
-        } catch (err) {
-            console.error(`Error deleting item ${path}:`, err);
-            setError(`Fehler beim Löschen: ${err.message}`);
-            return { success: false, error: err.message };
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Umbenennen einer Datei oder eines Ordners
-    const renameItem = async (oldPath, newName) => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // [Backend Integration] - Element im Backend umbenennen
-            // /* BACKEND_INTEGRATION: Element umbenennen */
-
-            // Neuen Pfad erstellen
-            const pathParts = oldPath.split('/');
-            pathParts.pop();
-            const newPath = [...pathParts, newName].join('/');
-
-            return { success: true, oldPath, newPath };
-        } catch (err) {
-            console.error(`Error renaming item ${oldPath} to ${newName}:`, err);
-            setError(`Fehler beim Umbenennen: ${err.message}`);
-            return { success: false, error: err.message };
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Kopieren einer Datei oder eines Ordners
-    const copyItem = async (sourcePath, destinationPath) => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // [Backend Integration] - Element im Backend kopieren
-            // /* BACKEND_INTEGRATION: Element kopieren */
-
-            return { success: true, sourcePath, destinationPath };
-        } catch (err) {
-            console.error(`Error copying item ${sourcePath} to ${destinationPath}:`, err);
-            setError(`Fehler beim Kopieren: ${err.message}`);
-            return { success: false, error: err.message };
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Verschieben einer Datei oder eines Ordners
-    const moveItem = async (sourcePath, destinationPath) => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // [Backend Integration] - Element im Backend verschieben
-            // /* BACKEND_INTEGRATION: Element verschieben */
-
-            return { success: true, sourcePath, destinationPath };
-        } catch (err) {
-            console.error(`Error moving item ${sourcePath} to ${destinationPath}:`, err);
-            setError(`Fehler beim Verschieben: ${err.message}`);
-            return { success: false, error: err.message };
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Eigenschaften einer Datei oder eines Ordners abrufen
-    const getItemProperties = async (path) => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // [Backend Integration] - Eigenschaften vom Backend abrufen
-            // /* BACKEND_INTEGRATION: Eigenschaften abrufen */
-
-            // Beispieldaten
-            const properties = {
-                name: path.split('/').pop(),
-                path: path,
-                type: path.includes('.') ? 'file' : 'directory',
-                size: '1.2 MB',
-                created: new Date().toISOString(),
-                modified: new Date().toISOString(),
-                accessed: new Date().toISOString(),
-                attributes: {
-                    readonly: false,
-                    hidden: false,
-                    system: false,
+            // 3. Prüfe jeden Pfad einzeln
+            for (const path of commonPaths) {
+                console.log(`Checking if path is accessible: ${path}`);
+                try {
+                    // Verwende einen separaten try-catch für jeden Pfad
+                    const result = await invoke('open_directory', { path });
+                    if (result) {
+                        console.log(`Successfully found accessible path: ${path}`);
+                        return path;
+                    }
+                } catch (e) {
+                    console.log(`Path ${path} not accessible`);
+                    // Fehler ignorieren und mit dem nächsten Pfad fortfahren
                 }
-            };
+            }
 
-            return properties;
-        } catch (err) {
-            console.error(`Error getting properties for ${path}:`, err);
-            setError(`Fehler beim Abrufen der Eigenschaften: ${err.message}`);
-            throw err;
+            // 4. Hartcodierter Fallback als letzte Möglichkeit
+            console.warn('All paths failed, using hardcoded default');
+            return '/';
+        } catch (error) {
+            console.error('Error in getDefaultDirectory:', error);
+            return '/';
         } finally {
+            // Stelle sicher, dass ein Ladeindikator nicht nur wegen dieser Funktion aktiv bleibt
+            // setIsLoading(false); -- Dies sollte in loadDirectory gesetzt werden, nicht hier
+        }
+    }, [loadVolumes]);
+
+// Verbesserte initializeFirstDirectory-Funktion
+    const initializeFirstDirectory = useCallback(async () => {
+        console.log("Initializing first directory...");
+
+        // 1. Start mit einem Timeout-Mechanismus
+        let timeoutId = setTimeout(() => {
+            console.error("Directory initialization timed out");
+            setIsLoading(false);
+            setError("Failed to initialize directory within the time limit");
+        }, 10000);
+
+        try {
+            // 2. Versuche ein Standardverzeichnis zu bekommen
+            const defaultDir = await getDefaultDirectory();
+            console.log(`Got default directory: ${defaultDir}`);
+
+            // 3. Versuche das Verzeichnis zu laden
+            const success = await loadDirectory(defaultDir);
+
+            if (!success) {
+                // 4. Wenn der erste Versuch fehlschlägt, versuche absolute Fallback-Pfade
+                console.warn("First directory load failed, trying fallbacks...");
+                const fallbacks = ['/', 'C:\\', '/tmp'];
+                //const fallbacks = ['C:\\', '/Users', '/home'];
+
+                for (const fallback of fallbacks) {
+                    if (fallback !== defaultDir) {
+                        console.log(`Trying fallback directory: ${fallback}`);
+                        if (await loadDirectory(fallback)) {
+                            console.log(`Successfully loaded fallback directory: ${fallback}`);
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Failed to initialize directory:', err);
+            setError('Failed to load any directory. Please check file system permissions.');
+        } finally {
+            // Cleanup Timeout und stelle sicher, dass der Ladezustand beendet wird
+            clearTimeout(timeoutId);
             setIsLoading(false);
         }
-    };
+    }, [getDefaultDirectory, loadDirectory]);
 
-    // Suche nach Dateien und Ordnern
-    const searchFiles = async (query, path = null, recursive = true) => {
+// Rufe initializeFirstDirectory nur einmal beim Laden auf
+    useEffect(() => {
+        // Nur initialisieren, wenn noch kein Verzeichnis geladen wurde
+        if (!currentDirData && !currentPath) {
+            console.log("No directory data or current path, initializing first directory...");
+            initializeFirstDirectory();
+        } else {
+            console.log("Directory already loaded or path set, skipping initialization");
+        }
+    }, [initializeFirstDirectory, currentDirData, currentPath]);
+
+// Reagiere auf Navigation/currentPath Änderungen
+    useEffect(() => {
+        if (currentPath) {
+            console.log(`Current path changed to: ${currentPath}, loading directory...`);
+            loadDirectory(currentPath);
+        }
+    }, [currentPath, loadDirectory]);
+
+    // Open a file
+    const openFile = useCallback(async (filePath) => {
         setIsLoading(true);
         setError(null);
 
         try {
-            // [Backend Integration] - Suche im Backend durchführen
-            // /* BACKEND_INTEGRATION: Suche durchführen */
-
-            // Beispieldaten
-            const searchResults = [
-                { name: `Dokument-${query}.docx`, path: `/path/to/Dokument-${query}.docx`, type: 'file', size: '25 KB', modified: '2023-01-15T10:30:00Z' },
-                { name: `Tabelle-${query}.xlsx`, path: `/path/to/Tabelle-${query}.xlsx`, type: 'file', size: '156 KB', modified: '2023-02-20T14:45:00Z' },
-                { name: query, path: `/path/to/${query}`, type: 'directory', modified: '2023-01-05T11:20:00Z' },
-                { name: `${query}-test.txt`, path: `/path/to/${query}-test.txt`, type: 'file', size: '2 KB', modified: '2023-04-01T08:00:00Z' },
-            ];
-
-            return searchResults;
+            await invoke('open_file', { filePath });
         } catch (err) {
-            console.error(`Error searching for ${query}:`, err);
-            setError(`Fehler bei der Suche: ${err.message}`);
-            throw err;
+            console.error(`Failed to open file: ${filePath}`, err);
+            setError(`Failed to open file: ${err.message || err}`);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
 
-    // Template-Funktionen
-    const saveAsTemplate = async (path, templateName) => {
+    // Create a new file
+    const createFile = useCallback(async (folderPath, fileName) => {
         setIsLoading(true);
         setError(null);
 
         try {
-            // [Backend Integration] - Template im Backend speichern
-            // /* BACKEND_INTEGRATION: Template speichern */
+            await invoke('create_file', {
+                folderPathAbs: folderPath,
+                fileName
+            });
 
-            return { success: true, templateName };
+            // Reload directory to show the new file
+            await loadDirectory(folderPath);
         } catch (err) {
-            console.error(`Error saving template for ${path}:`, err);
-            setError(`Fehler beim Speichern des Templates: ${err.message}`);
-            return { success: false, error: err.message };
+            console.error(`Failed to create file: ${fileName}`, err);
+            setError(`Failed to create file: ${err.message || err}`);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [loadDirectory]);
 
-    const getTemplates = async () => {
+    // Create a new directory
+    const createDirectory = useCallback(async (folderPath, directoryName) => {
         setIsLoading(true);
         setError(null);
 
         try {
-            // [Backend Integration] - Templates vom Backend abrufen
-            // /* BACKEND_INTEGRATION: Templates laden */
+            await invoke('create_directory', {
+                folderPathAbs: folderPath,
+                directoryName
+            });
 
-            // Beispieldaten
-            const templates = [
-                { name: 'Dokumentvorlage', path: '/templates/document-template', type: 'file', created: '2023-01-15T10:30:00Z' },
-                { name: 'Projektordner', path: '/templates/project-folder', type: 'directory', created: '2023-02-20T14:45:00Z' },
-            ];
-
-            return templates;
+            // Reload directory to show the new directory
+            await loadDirectory(folderPath);
         } catch (err) {
-            console.error('Error getting templates:', err);
-            setError('Fehler beim Abrufen der Templates');
-            throw err;
+            console.error(`Failed to create directory: ${directoryName}`, err);
+            setError(`Failed to create directory: ${err.message || err}`);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [loadDirectory]);
 
-    const applyTemplate = async (templatePath, destinationPath) => {
+    // Rename an item (file or directory)
+    const renameItem = useCallback(async (oldPath, newPath) => {
         setIsLoading(true);
         setError(null);
 
         try {
-            // [Backend Integration] - Template im Backend anwenden
-            // /* BACKEND_INTEGRATION: Template anwenden */
+            await invoke('rename', { oldPath, newPath });
 
-            return { success: true, destinationPath };
+            // Extract directory path from the old path to reload
+            const dirPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
+            await loadDirectory(dirPath);
         } catch (err) {
-            console.error(`Error applying template ${templatePath} to ${destinationPath}:`, err);
-            setError(`Fehler beim Anwenden des Templates: ${err.message}`);
-            return { success: false, error: err.message };
+            console.error(`Failed to rename item: ${oldPath}`, err);
+            setError(`Failed to rename item: ${err.message || err}`);
         } finally {
             setIsLoading(false);
         }
+    }, [loadDirectory]);
+
+    // Move item to trash
+    const moveToTrash = useCallback(async (path) => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            await invoke('move_to_trash', { path });
+
+            // Extract directory path to reload
+            const dirPath = path.substring(0, path.lastIndexOf('/'));
+            await loadDirectory(dirPath);
+
+            // Clear selection if the deleted item was selected
+            setSelectedItems(prev => prev.filter(item => !item.path.startsWith(path)));
+        } catch (err) {
+            console.error(`Failed to move item to trash: ${path}`, err);
+            setError(`Failed to move item to trash: ${err.message || err}`);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [loadDirectory]);
+
+    // Zip selected items
+    const zipItems = useCallback(async (sourcePaths, destinationPath = null) => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            await invoke('zip', {
+                sourcePaths,
+                destinationPath
+            });
+
+            // Reload current directory to show the new zip file
+            if (currentPath) {
+                await loadDirectory(currentPath);
+            }
+        } catch (err) {
+            console.error('Failed to create zip:', err);
+            setError(`Failed to create zip: ${err.message || err}`);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [currentPath, loadDirectory]);
+
+    // Unzip an item
+    const unzipItem = useCallback(async (zipPath, destinationPath = null) => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            await invoke('unzip', {
+                zipPaths: [zipPath],
+                destinationPath
+            });
+
+            // Reload current directory to show the extracted files
+            if (currentPath) {
+                await loadDirectory(currentPath);
+            }
+        } catch (err) {
+            console.error(`Failed to extract zip: ${zipPath}`, err);
+            setError(`Failed to extract zip: ${err.message || err}`);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [currentPath, loadDirectory]);
+
+    // Select an item
+    const selectItem = useCallback((item, isMultiSelect = false) => {
+        setSelectedItems(prevSelected => {
+            // Check if the item is already selected
+            const isAlreadySelected = prevSelected.some(
+                selected => selected.path === item.path
+            );
+
+            if (isAlreadySelected) {
+                // If multi-select, toggle selection
+                return isMultiSelect
+                    ? prevSelected.filter(selected => selected.path !== item.path)
+                    : [item]; // Otherwise, make it the only selection
+            } else {
+                // Add to selection for multi-select, replace for single select
+                return isMultiSelect ? [...prevSelected, item] : [item];
+            }
+        });
+    }, []);
+
+    // Select multiple items at once
+    const selectMultiple = useCallback((items) => {
+        setSelectedItems(items);
+    }, []);
+
+    // Clear selection
+    const clearSelection = useCallback(() => {
+        setSelectedItems([]);
+    }, []);
+
+    // Load volumes on mount
+    useEffect(() => {
+        loadVolumes();
+    }, [loadVolumes]);
+
+    // Reload current directory when navigating back/forward
+    useEffect(() => {
+        if (currentPath) {
+            loadDirectory(currentPath);
+        }
+    }, [currentPath, loadDirectory]);
+
+    const contextValue = {
+        currentDirData,
+        isLoading,
+        selectedItems,
+        volumes,
+        error,
+        loadDirectory,
+        openFile,
+        createFile,
+        createDirectory,
+        renameItem,
+        moveToTrash,
+        selectItem,
+        selectMultiple,
+        clearSelection,
+        zipItems,
+        unzipItem,
+        loadVolumes,
     };
 
     return (
-        <FileSystemContext.Provider
-            value={{
-                rootFolders,
-                dataSources,
-                isLoading,
-                error,
-                loadRootFolders,
-                loadDataSources,
-                addDataSource,
-                removeDataSource,
-                listDirectory,
-                readFile,
-                createFile,
-                createDirectory,
-                deleteItem,
-                renameItem,
-                copyItem,
-                moveItem,
-                getItemProperties,
-                searchFiles,
-                saveAsTemplate,
-                getTemplates,
-                applyTemplate,
-            }}
-        >
+        <FileSystemContext.Provider value={contextValue}>
             {children}
         </FileSystemContext.Provider>
     );
-};
+}
 
-// Custom Hook für einfachen Zugriff auf den FileSystem-Kontext
-export const useFileSystem = () => {
-    const context = useContext(FileSystemContext);
-    if (context === undefined) {
-        throw new Error('useFileSystem must be used within a FileSystemProvider');
-    }
-    return context;
-};
-
-export default FileSystemProvider;
+// Custom hook for using the file system context
+export const useFileSystem = () => useContext(FileSystemContext);

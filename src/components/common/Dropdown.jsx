@@ -1,175 +1,178 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Icon from './Icon';
+import './common.css';
 
 /**
- * Dropdown-Komponente für Auswahllisten und Menüs
- *
- * @param {Object} props - Die Komponenten-Props
- * @param {React.ReactNode} props.trigger - Auslöser-Element für das Dropdown
- * @param {React.ReactNode[]} props.children - Inhalt des Dropdowns
- * @param {string} [props.position='bottom-start'] - Position des Dropdown-Menüs (bottom-start, bottom-end, top-start, top-end)
- * @param {boolean} [props.isFullWidth=false] - Ob das Dropdown die volle Breite ausfüllen soll
- * @param {string} [props.className] - Zusätzliche CSS-Klassen
- * @param {Function} [props.onOpen] - Callback, wenn das Dropdown geöffnet wird
- * @param {Function} [props.onClose] - Callback, wenn das Dropdown geschlossen wird
+ * Dropdown component
+ * @param {Object} props - Component props
+ * @param {React.ReactNode} props.trigger - Element that triggers the dropdown
+ * @param {Array} props.items - Array of dropdown items
+ * @param {string} [props.align='left'] - Dropdown alignment (left, right)
+ * @param {string} [props.width] - Custom width for the dropdown
+ * @param {boolean} [props.closeOnClick=true] - Whether to close dropdown when an item is clicked
+ * @param {Function} [props.onOpen] - Callback when dropdown opens
+ * @param {Function} [props.onClose] - Callback when dropdown closes
+ * @param {string} [props.className] - Additional CSS class names
+ * @returns {React.ReactElement} Dropdown component
  */
 const Dropdown = ({
                       trigger,
-                      children,
-                      position = 'bottom-start',
-                      isFullWidth = false,
-                      className = '',
+                      items = [],
+                      align = 'left',
+                      width,
+                      closeOnClick = true,
                       onOpen,
                       onClose,
+                      className = '',
+                      ...rest
                   }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
-    // Positioniere das Dropdown-Menü basierend auf der gewählten Position
-    const getPositionStyles = () => {
-        switch (position) {
-            case 'bottom-start':
-                return { top: '100%', left: 0 };
-            case 'bottom-end':
-                return { top: '100%', right: 0 };
-            case 'top-start':
-                return { bottom: '100%', left: 0 };
-            case 'top-end':
-                return { bottom: '100%', right: 0 };
-            default:
-                return { top: '100%', left: 0 };
-        }
-    };
-
-    // CSS-Klassen für das Dropdown
-    const dropdownClasses = [
-        'dropdown',
-        isOpen ? 'dropdown-open' : '',
-        isFullWidth ? 'dropdown-full-width' : '',
-        className
-    ].filter(Boolean).join(' ');
-
-    // Öffne das Dropdown
-    const openDropdown = () => {
-        setIsOpen(true);
-        if (onOpen) onOpen();
-    };
-
-    // Schließe das Dropdown
-    const closeDropdown = () => {
-        setIsOpen(false);
-        if (onClose) onClose();
-    };
-
-    // Toggle das Dropdown
+    // Toggle dropdown open/closed
     const toggleDropdown = () => {
-        if (isOpen) {
-            closeDropdown();
-        } else {
-            openDropdown();
-        }
+        if (!isOpen && onOpen) onOpen();
+        if (isOpen && onClose) onClose();
+        setIsOpen(!isOpen);
     };
 
-    // Behandle Klicks außerhalb des Dropdowns
+    // Close dropdown when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-                closeDropdown();
+                if (isOpen && onClose) onClose();
+                setIsOpen(false);
             }
         };
 
-        // Behandle Escape-Taste zum Schließen
-        const handleEscapeKey = (event) => {
-            if (event.key === 'Escape') {
-                closeDropdown();
-            }
-        };
-
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-            document.addEventListener('keydown', handleEscapeKey);
-        }
+        document.addEventListener('mousedown', handleClickOutside);
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('keydown', handleEscapeKey);
         };
-    }, [isOpen]);
+    }, [isOpen, onClose]);
+
+    // Close dropdown when Escape key is pressed
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape' && isOpen) {
+                if (onClose) onClose();
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen, onClose]);
+
+    // Handle item click
+    const handleItemClick = (item) => {
+        if (item.onClick) {
+            item.onClick();
+        }
+
+        if (closeOnClick) {
+            if (onClose) onClose();
+            setIsOpen(false);
+        }
+    };
+
+    // Build class name based on props
+    const dropdownClasses = [
+        'dropdown',
+        className
+    ].filter(Boolean).join(' ');
+
+    const menuClasses = [
+        'dropdown-menu',
+        `dropdown-align-${align}`,
+        isOpen ? 'dropdown-open' : ''
+    ].filter(Boolean).join(' ');
+
+    const menuStyle = width ? { width } : {};
 
     return (
-        <div className={dropdownClasses} ref={dropdownRef}>
+        <div className={dropdownClasses} ref={dropdownRef} {...rest}>
             <div className="dropdown-trigger" onClick={toggleDropdown}>
                 {trigger}
             </div>
 
             {isOpen && (
-                <div
-                    className="dropdown-menu"
-                    style={{
-                        ...getPositionStyles(),
-                        width: isFullWidth ? '100%' : 'auto'
-                    }}
-                >
-                    {children}
-                </div>
+                <ul className={menuClasses} style={menuStyle}>
+                    {items.map((item, index) => {
+                        // Handle separator
+                        if (item.type === 'separator') {
+                            return <li key={`separator-${index}`} className="dropdown-separator" />;
+                        }
+
+                        // Handle header
+                        if (item.type === 'header') {
+                            return (
+                                <li key={`header-${index}`} className="dropdown-header">
+                                    {item.label}
+                                </li>
+                            );
+                        }
+
+                        // Regular dropdown item
+                        return (
+                            <li key={item.id || `item-${index}`}>
+                                <button
+                                    className={`dropdown-item ${item.className || ''} ${item.disabled ? 'disabled' : ''}`}
+                                    onClick={() => handleItemClick(item)}
+                                    disabled={item.disabled}
+                                >
+                                    {item.icon && (
+                                        <span className="dropdown-item-icon">
+                      <Icon name={item.icon} size="small" />
+                    </span>
+                                    )}
+
+                                    <span className="dropdown-item-label">{item.label}</span>
+
+                                    {item.shortcut && (
+                                        <span className="dropdown-item-shortcut">{item.shortcut}</span>
+                                    )}
+
+                                    {item.submenu && (
+                                        <span className="dropdown-item-caret">
+                      <Icon name="chevron-right" size="small" />
+                    </span>
+                                    )}
+                                </button>
+
+                                {/* Render submenu if exists and is open */}
+                                {item.submenu && item.isOpen && (
+                                    <ul className="dropdown-submenu">
+                                        {item.submenu.map((subItem, subIndex) => (
+                                            <li key={subItem.id || `subitem-${subIndex}`}>
+                                                <button
+                                                    className={`dropdown-item ${subItem.className || ''} ${subItem.disabled ? 'disabled' : ''}`}
+                                                    onClick={() => handleItemClick(subItem)}
+                                                    disabled={subItem.disabled}
+                                                >
+                                                    {subItem.icon && (
+                                                        <span className="dropdown-item-icon">
+                              <Icon name={subItem.icon} size="small" />
+                            </span>
+                                                    )}
+
+                                                    <span className="dropdown-item-label">{subItem.label}</span>
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ul>
             )}
         </div>
     );
-};
-
-/**
- * Dropdown-Element-Komponente für einzelne Menüelemente
- */
-export const DropdownItem = ({
-                                 children,
-                                 icon,
-                                 onClick,
-                                 isDisabled = false,
-                                 className = ''
-                             }) => {
-    const itemClasses = [
-        'dropdown-item',
-        isDisabled ? 'dropdown-item-disabled' : '',
-        className
-    ].filter(Boolean).join(' ');
-
-    // Rendere das Icon basierend auf dem SVG-Pfad
-    const renderIcon = () => {
-        if (!icon) return null;
-
-        return (
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                width="16"
-                height="16"
-                className="dropdown-item-icon"
-            >
-                <path d={icon} />
-            </svg>
-        );
-    };
-
-    return (
-        <div
-            className={itemClasses}
-            onClick={isDisabled ? undefined : onClick}
-        >
-            {icon && renderIcon()}
-            <span className="dropdown-item-text">{children}</span>
-        </div>
-    );
-};
-
-/**
- * Dropdown-Separator-Komponente für die visuelle Trennung von Menüelementen
- */
-export const DropdownSeparator = () => {
-    return <div className="dropdown-separator"></div>;
 };
 
 export default Dropdown;

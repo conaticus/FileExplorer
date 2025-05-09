@@ -1,18 +1,11 @@
-use crate::filesystem::models;
-use crate::filesystem::models::{
-    count_subfiles_and_subdirectories, format_system_time, get_access_permission_number,
-    get_access_permission_string, get_directory_size_in_bytes, Entries,
-};
+use crate::{log_info, models};
+use crate::models::{count_subdirectories, count_subfiles, count_subfiles_and_subdirectories, format_system_time, get_access_permission_number, get_access_permission_string, get_directory_size_in_bytes, Entries};
 use std::fs;
 use std::fs::read_dir;
+use std::io::Write;
 use std::path::Path;
-use std::sync::Mutex;
-use once_cell::sync::Lazy;
-
-pub static PATH_FOR_ACTION: Lazy<Mutex<Option<String>>> = Lazy::new(|| {
-    Mutex::new(None)
-});
-
+use zip::ZipWriter;
+use zip::write::FileOptions;
 
 /// Opens a file at the given path and returns its contents as a string.
 /// Should only be used for text files.
@@ -79,6 +72,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 /// ```
 #[tauri::command]
 pub async fn open_directory(path: String) -> Result<String, String> {
+    log_info!("Directory started successfully.");
     let path_obj = Path::new(&path);
 
     // Check if path exists
@@ -104,8 +98,8 @@ pub async fn open_directory(path: String) -> Result<String, String> {
             .metadata()
             .map_err(|err| format!("Failed to get metadata: {}", err))?;
 
-        let (subfile_count, subdir_count) =
-            count_subfiles_and_subdirectories(path_of_entry.to_str().unwrap());
+        /*let (subfile_count, subdir_count) =
+            count_subfiles_and_subdirectories(path_of_entry.to_str().unwrap());*/
 
         if file_type.is_dir() {
             directories.push(models::Directory {
@@ -113,13 +107,13 @@ pub async fn open_directory(path: String) -> Result<String, String> {
                 path: path_of_entry.to_str().unwrap().to_string(),
                 is_symlink: path_of_entry.is_symlink(),
                 access_rights_as_string: get_access_permission_string(metadata.permissions(), true),
-                access_rights_as_number: get_access_permission_number(metadata.permissions()),
-                size_in_bytes: get_directory_size_in_bytes(path_of_entry.to_str().unwrap()),
-                sub_file_count: subfile_count,
-                sub_dir_count: subdir_count,
-                created: format_system_time(metadata.created().unwrap()),
-                last_modified: format_system_time(metadata.modified().unwrap()),
-                accessed: format_system_time(metadata.accessed().unwrap()),
+                access_rights_as_number: get_access_permission_number(metadata.permissions(), true),
+                size_in_bytes: 0,
+                sub_file_count: count_subfiles(path_of_entry.to_str().unwrap()),
+                sub_dir_count: count_subdirectories(path_of_entry.to_str().unwrap()),
+                created: metadata.created().map_or("1970-01-01 00:00:00".to_string(), |time| format_system_time(time)),
+                last_modified: metadata.modified().map_or("1970-01-01 00:00:00".to_string(), |time| format_system_time(time)),
+                accessed: metadata.accessed().map_or("1970-01-01 00:00:00".to_string(), |time| format_system_time(time)),
             });
         } else if file_type.is_file() {
             files.push(models::File {
@@ -130,11 +124,11 @@ pub async fn open_directory(path: String) -> Result<String, String> {
                     metadata.permissions(),
                     false,
                 ),
-                access_rights_as_number: get_access_permission_number(metadata.permissions()),
+                access_rights_as_number: get_access_permission_number(metadata.permissions(), false),
                 size_in_bytes: metadata.len(),
-                created: format_system_time(metadata.created().unwrap()),
-                last_modified: format_system_time(metadata.modified().unwrap()),
-                accessed: format_system_time(metadata.accessed().unwrap()),
+                created: metadata.created().map_or("1970-01-01 00:00:00".to_string(), |time| format_system_time(time)),
+                last_modified: metadata.modified().map_or("1970-01-01 00:00:00".to_string(), |time| format_system_time(time)),
+                accessed: metadata.accessed().map_or("1970-01-01 00:00:00".to_string(), |time| format_system_time(time)),
             });
         }
     }
@@ -361,10 +355,187 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
         Ok(size)
     }
 }
+/// Zips files and directories to a destination zip file.
+/// If only one source path is provided and no destination is specified, creates a zip file with the same name.
+/// For multiple source paths, the destination path must be specified.
+///
+/// # Arguments
+/// * `source_paths` - Vector of paths to files/directories to be zipped
+/// * `destination_path` - Optional destination path for the zip file
+///
+/// # Returns
+/// * `Ok(())` - If the zip file was successfully created
+/// * `Err(String)` - If there was an error during the zipping process
+///
+/// # Example
+/// ```rust
+/// // Single file/directory with auto destination
+/// let result = zip(vec!["/path/to/file.txt"], None).await;
+/// 
+/// // Multiple files to specific destination
+/// let result = zip(
+///     vec!["/path/to/file1.txt", "/path/to/dir1"],
+///     Some("/path/to/archive.zip")
+/// ).await;
+/// ```
+#[tauri::command]
+pub async fn zip(source_paths: Vec<String>, destination_path: Option<String>) -> Result<(), String> {
+    if source_paths.is_empty() {
+        return Err("No source paths provided".to_string());
+    }
+
+    // If single source and no destination, use source name with .zip
+    let zip_path = if source_paths.len() == 1 && destination_path.is_none() {
+        Path::new(&source_paths[0]).with_extension("zip")
+    } else if let Some(dest) = destination_path {
+        Path::new(&dest).to_path_buf()
+    } else {
+        return Err("Destination path required for multiple sources".to_string());
+    };
+
+    // Create zip file
+    let zip_file = fs::File::create(&zip_path)
+        .map_err(|e| format!("Failed to create zip file: {}", e))?;
+
+    let mut zip = ZipWriter::new(zip_file);
+    let options: FileOptions<()> = FileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .unix_permissions(0o755);
+
+    // Process each source path
+    for source_path in source_paths {
+        let source = Path::new(&source_path);
+        if !source.exists() {
+            return Err(format!("Source path does not exist: {}", source_path));
+        }
+
+        let base_name = source.file_name()
+            .ok_or_else(|| "Invalid source name".to_string())?
+            .to_str()
+            .ok_or_else(|| "Invalid characters in source name".to_string())?;
+
+        if source.is_file() {
+            zip.start_file(base_name, options)
+                .map_err(|e| format!("Error adding file to zip: {}", e))?;
+            let content = fs::read(source)
+                .map_err(|e| format!("Error reading file: {}", e))?;
+            zip.write_all(&content)
+                .map_err(|e| format!("Error writing to zip: {}", e))?;
+        } else if source.is_dir() {
+            for entry in walkdir::WalkDir::new(source) {
+                let entry = entry.map_err(|e| format!("Error reading directory: {}", e))?;
+                let path = entry.path();
+
+                if path.is_file() {
+                    let relative = path.strip_prefix(source)
+                        .map_err(|e| format!("Error creating relative path: {}", e))?;
+                    let name = format!("{}/{}", base_name, relative.to_str()
+                        .ok_or_else(|| "Invalid characters in path".to_string())?
+                        .replace('\\', "/"));
+
+                    zip.start_file(&name, options)
+                        .map_err(|e| format!("Error adding file to zip: {}", e))?;
+                    let content = fs::read(path)
+                        .map_err(|e| format!("Error reading file: {}", e))?;
+                    zip.write_all(&content)
+                        .map_err(|e| format!("Error writing to zip: {}", e))?;
+                }
+            }
+        }
+    }
+
+    zip.finish().map_err(|e| format!("Error finalizing zip file: {}", e))?;
+    Ok(())
+}
+
+/// Extracts zip files to specified destinations.
+/// If extracting a single zip file without a specified destination,
+/// extracts to a directory with the same name as the zip file.
+///
+/// # Arguments
+/// * `zip_paths` - Vector of paths to zip files
+/// * `destination_path` - Optional destination directory for extraction
+///
+/// # Returns
+/// * `Ok(())` - If all zip files were successfully extracted
+/// * `Err(String)` - If there was an error during extraction
+///
+/// # Example
+/// ```rust
+/// // Single zip with auto destination
+/// let result = unzip(vec!["/path/to/archive.zip"], None).await;
+/// 
+/// // Multiple zips to specific destination
+/// let result = unzip(
+///     vec!["/path/to/zip1.zip", "/path/to/zip2.zip"],
+///     Some("/path/to/extracted")
+/// ).await;
+/// ```
+#[tauri::command]
+pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> Result<(), String> {
+    if zip_paths.is_empty() {
+        return Err("No zip files provided".to_string());
+    }
+
+    for zip_path in zip_paths.clone() {
+        let zip_path = Path::new(&zip_path);
+        if !zip_path.exists() {
+            return Err(format!("Zip file does not exist: {}", zip_path.display()));
+        }
+
+        // Determine extraction path for this zip
+        let extract_path = if zip_paths.len() == 1 && destination_path.is_none() {
+            // For single zip without destination, use zip name without extension
+            zip_path.with_extension("")
+        } else if let Some(dest) = &destination_path {
+            // For multiple zips or specified destination, create subdirectory for each zip
+            let zip_name = zip_path.file_stem()
+                .ok_or_else(|| "Invalid zip filename".to_string())?;
+            Path::new(dest).join(zip_name)
+        } else {
+            return Err("Destination path required for multiple zip files".to_string());
+        };
+
+        // Create extraction directory
+        fs::create_dir_all(&extract_path)
+            .map_err(|e| format!("Failed to create extraction directory: {}", e))?;
+
+        // Open and extract zip file
+        let file = fs::File::open(zip_path)
+            .map_err(|e| format!("Failed to open zip file: {}", e))?;
+        let mut archive = zip::ZipArchive::new(file)
+            .map_err(|e| format!("Failed to read zip archive: {}", e))?;
+
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)
+                .map_err(|e| format!("Failed to read zip entry: {}", e))?;
+            let outpath = extract_path.join(file.mangled_name());
+
+            if file.name().ends_with('/') {
+                fs::create_dir_all(&outpath)
+                    .map_err(|e| format!("Failed to create directory '{}': {}", outpath.display(), e))?;
+            } else {
+                if let Some(parent) = outpath.parent() {
+                    if !parent.exists() {
+                        fs::create_dir_all(parent)
+                            .map_err(|e| format!("Failed to create parent directory '{}': {}", parent.display(), e))?;
+                    }
+                }
+                let mut outfile = fs::File::create(&outpath)
+                    .map_err(|e| format!("Failed to create file '{}': {}", outpath.display(), e))?;
+                std::io::copy(&mut file, &mut outfile)
+                    .map_err(|e| format!("Failed to write file '{}': {}", outpath.display(), e))?;
+            }
+        }
+    }
+
+    Ok(())
+}
 
 #[cfg(test)]
-mod tests {
+mod tests_file_system_operation_commands {
     use super::*;
+    use tempfile::tempdir;
 
     #[tokio::test]
     async fn open_file_test() {
@@ -722,5 +893,177 @@ mod tests {
         assert!(file_in_dir_path.exists(), "Original file in directory should still exist");
         assert!(subdir_path.exists(), "Original subdirectory should still exist");
         assert!(file_in_subdir_path.exists(), "Original file in subdirectory should still exist");
+    }
+
+    #[tokio::test]
+    async fn zip_single_file_test() {
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+        let test_file_path = temp_dir.path().join("test_file.txt");
+
+        // Create and write to test file
+        fs::write(&test_file_path, "Test content").expect("Failed to write test file");
+        assert!(test_file_path.exists(), "Test file should exist before zipping");
+
+        // Zip the file
+        let result = zip(vec![test_file_path.to_str().unwrap().to_string()], None).await;
+        assert!(result.is_ok(), "Failed to zip file: {:?}", result);
+
+        // Check if zip file was created
+        let zip_path = test_file_path.with_extension("zip");
+        assert!(zip_path.exists(), "Zip file should exist after operation");
+
+        // Verify zip contents
+        let zip_file = fs::File::open(&zip_path).expect("Failed to open zip file");
+        let mut archive = zip::ZipArchive::new(zip_file).expect("Failed to read zip archive");
+        assert_eq!(archive.len(), 1, "Zip should contain exactly one file");
+        
+        let file = archive.by_index(0).expect("Failed to read file from zip");
+        assert_eq!(file.name(), "test_file.txt", "Incorrect filename in zip");
+    }
+
+    #[tokio::test]
+    async fn zip_multiple_files_test() {
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+        
+        // Create test files
+        let file1_path = temp_dir.path().join("file1.txt");
+        let file2_path = temp_dir.path().join("file2.txt");
+        fs::write(&file1_path, "Content 1").expect("Failed to write file1");
+        fs::write(&file2_path, "Content 2").expect("Failed to write file2");
+
+        // Create destination zip path
+        let zip_path = temp_dir.path().join("multiple_files.zip");
+
+        // Zip multiple files
+        let result = zip(
+            vec![
+                file1_path.to_str().unwrap().to_string(),
+                file2_path.to_str().unwrap().to_string()
+            ],
+            Some(zip_path.to_str().unwrap().to_string())
+        ).await;
+
+        assert!(result.is_ok(), "Failed to zip multiple files: {:?}", result);
+        assert!(zip_path.exists(), "Zip file should exist after operation");
+
+        // Verify zip contents
+        let zip_file = fs::File::open(&zip_path).expect("Failed to open zip file");
+        let mut archive = zip::ZipArchive::new(zip_file).expect("Failed to read zip archive");
+        assert_eq!(archive.len(), 2, "Zip should contain exactly two files");
+        
+        let mut file_names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+        file_names.sort();
+
+        assert!(file_names.contains(&"file1.txt".to_string()), "file1.txt missing from zip");
+        assert!(file_names.contains(&"file2.txt".to_string()), "file2.txt missing from zip");
+    }
+
+    #[tokio::test]
+    async fn unzip_single_file_test() {
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+        
+        // Create a test zip file
+        let zip_path = temp_dir.path().join("test.zip");
+        let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
+        
+        zip.start_file::<_, ()>("test.txt", FileOptions::default()).unwrap();
+        zip.write_all(b"Hello, World!").unwrap();
+        zip.finish().unwrap();
+
+        // Test extraction without specifying destination
+        let result = unzip(
+            vec![zip_path.to_str().unwrap().to_string()],
+            None
+        ).await;
+
+        assert!(result.is_ok(), "Failed to extract zip: {:?}", result);
+        
+        // Verify extracted contents
+        let extract_path = zip_path.with_extension("");
+        let test_file = extract_path.join("test.txt");
+        
+        assert!(test_file.exists(), "Extracted test.txt should exist");
+        assert_eq!(
+            fs::read_to_string(test_file).unwrap(),
+            "Hello, World!",
+            "Extracted content should match"
+        );
+    }
+
+    #[tokio::test]
+    async fn unzip_multiple_files_test() {
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+        
+        // Create test zip files
+        let zip1_path = temp_dir.path().join("test1.zip");
+        let zip2_path = temp_dir.path().join("test2.zip");
+
+        // Create content for first zip
+        let mut zip1 = zip::ZipWriter::new(fs::File::create(&zip1_path).unwrap());
+        zip1.start_file::<_, ()>("file1.txt", FileOptions::default()).unwrap();
+        zip1.write_all(b"Content 1").unwrap();
+        zip1.finish().unwrap();
+
+        // Create content for second zip
+        let mut zip2 = zip::ZipWriter::new(fs::File::create(&zip2_path).unwrap());
+        zip2.start_file::<_, ()>("file2.txt", FileOptions::default()).unwrap();
+        zip2.write_all(b"Content 2").unwrap();
+        zip2.finish().unwrap();
+
+        // Create extraction directory
+        let extract_path = temp_dir.path().join("extracted_multiple");
+
+        // Test multiple extraction
+        let result = unzip(
+            vec![
+                zip1_path.to_str().unwrap().to_string(),
+                zip2_path.to_str().unwrap().to_string()
+            ],
+            Some(extract_path.to_str().unwrap().to_string())
+        ).await;
+
+        assert!(result.is_ok(), "Failed to extract multiple zips: {:?}", result);
+        
+        // Verify extracted contents
+        let file1 = extract_path.join("test1").join("file1.txt");
+        let file2 = extract_path.join("test2").join("file2.txt");
+        
+        assert!(file1.exists(), "Extracted file1.txt should exist");
+        assert!(file2.exists(), "Extracted file2.txt should exist");
+        
+        assert_eq!(
+            fs::read_to_string(file1).unwrap(),
+            "Content 1",
+            "Extracted content 1 should match"
+        );
+        assert_eq!(
+            fs::read_to_string(file2).unwrap(),
+            "Content 2",
+            "Extracted content 2 should match"
+        );
+    }
+
+    #[tokio::test]
+    async fn open_home_directory_test() {
+
+        //get time for measurement
+        let current_time = std::time::Instant::now();
+
+        // Get the home directory
+        let dir = String::from("/home/marco");
+
+        // Call the function to open the home directory
+        let result = open_directory(dir).await;
+
+        //print execution time
+        let elapsed_time = current_time.elapsed();
+        println!("Execution time: {:?}", elapsed_time);
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to open home directory: {:?}", result);
+
+
     }
 }

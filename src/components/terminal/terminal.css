@@ -1,0 +1,125 @@
+.terminal-container {
+    height: 240px;
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', 'Monaco', 'Consolas', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--border);
+}
+
+.terminal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--space-md);
+    height: 32px;
+    background-color: #181825;
+    border-bottom: 1px solid #313244;
+}
+
+.terminal-title {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.terminal-controls {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.terminal-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-circle);
+    background-color: transparent;
+    color: #a6adc8;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.terminal-control:hover {
+    background-color: #313244;
+    color: #cdd6f4;
+}
+
+.terminal-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: var(--space-md);
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.terminal-line {
+    margin-bottom: 4px;
+}
+
+.terminal-system {
+    color: #89b4fa;
+}
+
+.terminal-output {
+    color: #cdd6f4;
+}
+
+.terminal-error {
+    color: #f38ba8;
+}
+
+.terminal-prompt {
+    color: #a6e3a1;
+    user-select: none;
+}
+
+.terminal-input-line {
+    display: flex;
+    align-items: center;
+}
+
+.terminal-input {
+    flex-grow: 1;
+    background: transparent;
+    border: none;
+    color: #cdd6f4;
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+    caret-color: #f5e0dc;
+    padding: 0;
+}
+
+/* Custom scrollbar for terminal */
+.terminal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.terminal-content::-webkit-scrollbar-track {
+    background: #181825;
+}
+
+.terminal-content::-webkit-scrollbar-thumb {
+    background: #313244;
+    border-radius: var(--radius-md);
+}
+
+.terminal-content::-webkit-scrollbar-thumb:hover {
+    background: #45475a;
+}
+
+/* Icon placeholders */
+.icon-minus {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
+    width: 12px;
+    height: 12px;
+}
+
+.icon-x {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E");
+    width: 12px;
+    height: 12px;
+}

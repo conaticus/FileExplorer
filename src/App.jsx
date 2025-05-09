@@ -1,10 +1,11 @@
 import React from 'react';
 import ThemeProvider from './providers/ThemeProvider';
 import AppStateProvider from './providers/AppStateProvider';
+import HistoryProvider from './providers/HistoryProvider';
 import FileSystemProvider from './providers/FileSystemProvider';
 import SettingsProvider from './providers/SettingsProvider';
+import ContextMenuProvider from './providers/ContextMenuProvider';
 import MainLayout from './layouts/MainLayout';
-import './styles/modern.css';
 
 // Simple fallback for error cases
 function ErrorFallback() {
@@ -63,16 +64,24 @@ class App extends React.Component {
             return <ErrorFallback />;
         }
 
-        // Render normal application
+        // Render normal application with all providers
+        // The order of providers is important:
+        // - ThemeProvider should be outermost as other components may depend on theme variables
+        // - HistoryProvider should come before FileSystemProvider since navigation depends on history
+        // - ContextMenuProvider should come after FileSystemProvider to access selected items
         return (
-            <div className="app-container" style={{ width: '100%', height: '100vh' }}>
+            <div className="app-container">
                 <ThemeProvider>
                     <AppStateProvider>
-                        <FileSystemProvider>
-                            <SettingsProvider>
-                                <MainLayout />
-                            </SettingsProvider>
-                        </FileSystemProvider>
+                        <HistoryProvider>
+                            <FileSystemProvider>
+                                <SettingsProvider>
+                                    <ContextMenuProvider>
+                                        <MainLayout />
+                                    </ContextMenuProvider>
+                                </SettingsProvider>
+                            </FileSystemProvider>
+                        </HistoryProvider>
                     </AppStateProvider>
                 </ThemeProvider>
             </div>

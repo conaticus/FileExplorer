@@ -1,19 +1,22 @@
-import React, { useEffect } from 'react';
-import Button from './Button';
+import React, { useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
+import Icon from './Icon';
+import './common.css';
 
 /**
- * Modal-Komponente für Dialoge und Popup-Fenster
- *
- * @param {Object} props - Die Komponenten-Props
- * @param {boolean} props.isOpen - Ob das Modal geöffnet ist
- * @param {Function} props.onClose - Callback zum Schließen des Modals
- * @param {string} props.title - Titel des Modals
- * @param {React.ReactNode} props.children - Inhalt des Modals
- * @param {React.ReactNode} [props.footer] - Optionaler Footer-Inhalt
- * @param {string} [props.size='medium'] - Größe des Modals (small, medium, large)
- * @param {boolean} [props.closeOnClickOutside=true] - Ob das Modal beim Klick außerhalb geschlossen werden soll
- * @param {boolean} [props.showCloseButton=true] - Ob der Schließen-Button angezeigt werden soll
- * @param {string} [props.className] - Zusätzliche CSS-Klassen
+ * Modal component
+ * @param {Object} props - Component props
+ * @param {boolean} props.isOpen - Whether the modal is open
+ * @param {Function} props.onClose - Function to call when modal should close
+ * @param {string} [props.title] - Modal title
+ * @param {React.ReactNode} props.children - Modal content
+ * @param {React.ReactNode} [props.footer] - Modal footer content
+ * @param {string} [props.size='md'] - Modal size (sm, md, lg, xl, full)
+ * @param {boolean} [props.closeOnEsc=true] - Whether to close modal on Escape key
+ * @param {boolean} [props.closeOnOverlayClick=true] - Whether to close modal when clicking the overlay
+ * @param {boolean} [props.showCloseButton=true] - Whether to show the close button
+ * @param {string} [props.className] - Additional CSS class names
+ * @returns {React.ReactElement|null} Modal component or null if closed
  */
 const Modal = ({
                    isOpen,
@@ -21,159 +24,123 @@ const Modal = ({
                    title,
                    children,
                    footer,
-                   size = 'medium',
-                   closeOnClickOutside = true,
+                   size = 'md',
+                   closeOnEsc = true,
+                   closeOnOverlayClick = true,
                    showCloseButton = true,
                    className = '',
+                   ...rest
                }) => {
-    // Blockiere das Scrollen im Hintergrund, wenn das Modal geöffnet ist
-    useEffect(() => {
-        if (isOpen) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'auto';
-        }
+    const modalRef = useRef(null);
 
-        return () => {
-            document.body.style.overflow = 'auto';
-        };
-    }, [isOpen]);
-
-    // Schließe das Modal mit der Escape-Taste
+    // Close modal when Escape key is pressed
     useEffect(() => {
         const handleKeyDown = (event) => {
-            if (event.key === 'Escape' && isOpen) {
+            if (closeOnEsc && event.key === 'Escape' && isOpen) {
                 onClose();
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose]);
+        if (isOpen) {
+            document.addEventListener('keydown', handleKeyDown);
+            // Prevent scrolling of the body when modal is open
+            document.body.style.overflow = 'hidden';
+        }
 
-    // Wenn das Modal nicht geöffnet ist, rendere nichts
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            // Restore scrolling when modal is closed
+            document.body.style.overflow = '';
+        };
+    }, [isOpen, onClose, closeOnEsc]);
+
+    // Focus the modal when it opens
+    useEffect(() => {
+        if (isOpen && modalRef.current) {
+            // Save the currently focused element
+            const previouslyFocused = document.activeElement;
+
+            // Focus the modal
+            modalRef.current.focus();
+
+            // Restore focus when modal closes
+            return () => {
+                if (previouslyFocused) {
+                    previouslyFocused.focus();
+                }
+            };
+        }
+    }, [isOpen]);
+
+    // Handle overlay click
+    const handleOverlayClick = (event) => {
+        if (
+            closeOnOverlayClick &&
+            modalRef.current &&
+            !modalRef.current.contains(event.target)
+        ) {
+            onClose();
+        }
+    };
+
+    // Don't render anything if modal is closed
     if (!isOpen) return null;
 
-    // CSS-Klassen für das Modal
+    // Build class names
     const modalClasses = [
         'modal',
         `modal-${size}`,
         className
     ].filter(Boolean).join(' ');
 
-    // Behandle Klicks auf den Hintergrund
-    const handleBackdropClick = (e) => {
-        if (closeOnClickOutside && e.target === e.currentTarget) {
-            onClose();
-        }
-    };
+    // Create portal to render modal at the body level
+    return ReactDOM.createPortal(
+        <div className="modal-overlay" onClick={handleOverlayClick}>
+            <div
+                className={modalClasses}
+                ref={modalRef}
+                tabIndex={-1}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={title ? 'modal-title' : undefined}
+                {...rest}
+            >
+                {/* Modal Header */}
+                {(title || showCloseButton) && (
+                    <div className="modal-header">
+                        {title && (
+                            <h2 className="modal-title" id="modal-title">
+                                {title}
+                            </h2>
+                        )}
 
-    return (
-        <div className="modal-backdrop" onClick={handleBackdropClick}>
-            <div className={modalClasses} onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h2 className="modal-title">{title}</h2>
-                    {showCloseButton && (
-                        <button
-                            className="modal-close-button"
-                            onClick={onClose}
-                            aria-label="Schließen"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                width="18"
-                                height="18"
+                        {showCloseButton && (
+                            <button
+                                className="modal-close"
+                                onClick={onClose}
+                                aria-label="Close modal"
                             >
-                                <path d="M18 6L6 18M6 6l12 12" />
-                            </svg>
-                        </button>
-                    )}
-                </div>
+                                <Icon name="x" />
+                            </button>
+                        )}
+                    </div>
+                )}
 
-                <div className="modal-body">
+                {/* Modal Content */}
+                <div className="modal-content">
                     {children}
                 </div>
 
+                {/* Modal Footer */}
                 {footer && (
                     <div className="modal-footer">
                         {footer}
                     </div>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body
     );
-};
-
-/**
- * Standard-Footer für Modals mit Abbrechen- und Bestätigen-Buttons
- */
-export const ModalFooter = ({
-                                onCancel,
-                                onConfirm,
-                                cancelText = 'Abbrechen',
-                                confirmText = 'Bestätigen',
-                                confirmVariant = 'primary',
-                                isConfirmDisabled = false,
-                                isConfirmLoading = false,
-                            }) => {
-    return (
-        <>
-            <Button
-                variant="tertiary"
-                onClick={onCancel}
-            >
-                {cancelText}
-            </Button>
-            <Button
-                variant={confirmVariant}
-                onClick={onConfirm}
-                isDisabled={isConfirmDisabled}
-                icon={isConfirmLoading ? 'M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83' : undefined}
-            >
-                {confirmText}
-            </Button>
-        </>
-    );
-};
-
-/**
- * Hilfsfunktion zum Erstellen eines Bestätigungsdialogs
- */
-export const createConfirmDialog = ({
-                                        title = 'Bestätigen',
-                                        message,
-                                        confirmText = 'Bestätigen',
-                                        cancelText = 'Abbrechen',
-                                        confirmVariant = 'primary',
-                                        onConfirm,
-                                        onCancel,
-                                    }) => {
-    // Diese Funktion erstellt ein Modal und rendert es dynamisch
-    // In einer realen Implementierung würde hier ein separater Modal-Provider verwendet
-
-    // Beispiel für die Nutzung im Code:
-    console.log('createConfirmDialog wurde aufgerufen mit:', {
-        title,
-        message,
-        confirmText,
-        cancelText,
-        confirmVariant,
-        onConfirm,
-        onCancel,
-    });
-
-    // Alert als Fallback
-    if (window.confirm(message)) {
-        onConfirm?.();
-    } else {
-        onCancel?.();
-    }
 };
 
 export default Modal;

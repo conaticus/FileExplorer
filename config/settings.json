@@ -1,0 +1,10 @@
+{
+  "darkmode": false,
+  "custom_themes": [],
+  "default_theme": "",
+  "default_themes_path": "",
+  "default_folder_path_on_opening": "",
+  "default_checksum_hash": "SHA256",
+  "logging_level": "Full",
+  "abs_file_path_buf": "/Users/lauritzwiebusch/WebstormProjects/FileExplorer/config/settings.json"
+}

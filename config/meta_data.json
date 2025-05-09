@@ -1,0 +1,29 @@
+{
+  "version": "0.1.0",
+  "abs_file_path_buf": "/Users/lauritzwiebusch/WebstormProjects/FileExplorer/config/meta_data.json",
+  "abs_file_path_for_settings_json": "/Users/lauritzwiebusch/WebstormProjects/FileExplorer/config/settings.json",
+  "abs_folder_path_buf_for_templates": "/Users/lauritzwiebusch/WebstormProjects/FileExplorer/config/templates",
+  "template_paths": [],
+  "all_volumes_with_information": [
+    {
+      "volume_name": "Macintosh HD",
+      "mount_point": "/",
+      "file_system": "apfs",
+      "size": 494384795648,
+      "available_space": 46101285008,
+      "is_removable": false,
+      "total_written_bytes": 444091572224,
+      "total_read_bytes": 1807292014592
+    },
+    {
+      "volume_name": "Macintosh HD",
+      "mount_point": "/System/Volumes/Data",
+      "file_system": "apfs",
+      "size": 494384795648,
+      "available_space": 46101285008,
+      "is_removable": false,
+      "total_written_bytes": 444091572224,
+      "total_read_bytes": 1807292149760
+    }
+  ]
+}

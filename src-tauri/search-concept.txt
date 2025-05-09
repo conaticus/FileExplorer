@@ -1,0 +1,190 @@
+use std::collections::{HashMap, HashSet};
+
+#[derive(Default)]
+struct TrieNode {
+children: HashMap<String, TrieNode>,
+is_end_of_path: bool,
+full_path: Option<String>, // Store the full path
+}
+
+impl TrieNode {
+fn new() -> Self {
+TrieNode {
+children: HashMap::new(),
+is_end_of_path: false,
+full_path: None,
+}
+}
+}
+
+struct PathTrie {
+root: TrieNode,
+filename_map: HashMap<String, HashSet<String>>, // Maps filenames to full paths
+}
+
+impl PathTrie {
+fn new() -> Self {
+PathTrie {
+root: TrieNode::new(),
+filename_map: HashMap::new(),
+}
+}
+
+    // Insert a full path into the Trie and update the filename map
+    fn insert(&mut self, path: &str) {
+        let mut node = &mut self.root;
+        let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+
+        for segment in &segments {
+            node = node.children.entry(segment.to_string()).or_insert_with(TrieNode::new);
+        }
+
+        node.is_end_of_path = true;
+        node.full_path = Some(path.to_string());
+
+        // Add the filename to the filename map
+        if let Some(filename) = segments.last() {
+            self.filename_map
+                .entry(filename.to_string())
+                .or_insert_with(HashSet::new)
+                .insert(path.to_string());
+        }
+    }
+
+    // Search for a filename and return all matching full paths
+    fn search_filename(&self, filename: &str) -> Option<&HashSet<String>> {
+        self.filename_map.get(filename)
+    }
+
+    // Search for paths that contain a given substring
+    fn search_path_contains(&self, substring: &str) -> Vec<String> {
+        let mut results = Vec::new();
+        self.search_path_contains_recursive(&self.root, substring, &mut results);
+        results
+    }
+
+    fn search_path_contains_recursive(&self, node: &TrieNode, substring: &str, results: &mut Vec<String>) {
+        if let Some(path) = &node.full_path {
+            if path.contains(substring) {
+                results.push(path.clone());
+            }
+        }
+
+        for child in node.children.values() {
+            self.search_path_contains_recursive(child, substring, results);
+        }
+    }
+
+    // Search for filenames that partially match a pattern
+    fn search_filename_contains(&self, pattern: &str) -> Vec<String> {
+        let mut results = Vec::new();
+
+        for (filename, paths) in &self.filename_map {
+            if filename.contains(pattern) {
+                for path in paths {
+                    results.push(path.clone());
+                }
+            }
+        }
+
+        results
+    }
+
+    // General search function that searches both folders and filenames
+    fn search(&self, query: &str) -> Vec<String> {
+        let mut results = HashSet::new();
+
+        // Search in paths
+        for path in self.search_path_contains(query) {
+            results.insert(path);
+        }
+
+        // Search in filenames
+        for path in self.search_filename_contains(query) {
+            results.insert(path);
+        }
+
+        results.into_iter().collect()
+    }
+}
+
+fn main() {
+let mut trie = PathTrie::new();
+
+    // Insert some initial paths
+    trie.insert("/test/file100.txt");
+    trie.insert("/test/images/file.txt");
+    trie.insert("/test/documents/notes.txt");
+    trie.insert("/projects/rust/code.rs");
+    trie.insert("/projects/python/script.py");
+    trie.insert("/user/downloads/data.csv");
+
+    // Measure time to insert files
+    let insert_start_time = std::time::Instant::now();
+
+    // Insert files with incrementing filenames
+    for i in 1..=10_000 {
+        trie.insert(&format!("/test/documents/file{}.txt", i));
+    }
+
+    let insert_duration = insert_start_time.elapsed();
+    println!("Time taken to insert 10,000 files: {:?}", insert_duration);
+    println!("Size of filename map: {}", trie.filename_map.len());
+
+    // 1. Search for exact filename
+    let search_file_name = "file100.txt";
+    println!("\n--- Searching for exact filename: {} ---", search_file_name);
+    let search_start_time = std::time::Instant::now();
+    if let Some(paths) = trie.search_filename(search_file_name) {
+        println!("Found {} paths for filename '{}':", paths.len(), search_file_name);
+        for path in paths {
+            println!("{}", path);
+        }
+    } else {
+        println!("No paths found for filename '{}'", search_file_name);
+    }
+    let duration = search_start_time.elapsed();
+    println!("Time taken: {:?}", duration);
+
+    // 2. Search for paths containing a folder name
+    let folder_search = "documents";
+    println!("\n--- Searching for paths containing folder: {} ---", folder_search);
+    let folder_search_time = std::time::Instant::now();
+    let folder_results = trie.search_path_contains(folder_search);
+    println!("Found {} paths containing '{}':", folder_results.len(), folder_search);
+    for path in folder_results.iter().take(5) {
+        println!("{}", path);
+    }
+    if folder_results.len() > 5 {
+        println!("... and {} more", folder_results.len() - 5);
+    }
+    let folder_duration = folder_search_time.elapsed();
+    println!("Time taken: {:?}", folder_duration);
+
+    // 3. Search for filenames containing a pattern
+    let pattern_search = "file";
+    println!("\n--- Searching for filenames containing: {} ---", pattern_search);
+    let pattern_search_time = std::time::Instant::now();
+    let pattern_results = trie.search_filename_contains(pattern_search);
+    println!("Found {} files containing '{}' in their name:", pattern_results.len(), pattern_search);
+    for path in pattern_results.iter().take(5) {
+        println!("{}", path);
+    }
+    if pattern_results.len() > 5 {
+        println!("... and {} more", pattern_results.len() - 5);
+    }
+    let pattern_duration = pattern_search_time.elapsed();
+    println!("Time taken: {:?}", pattern_duration);
+
+    // 4. General search (both folders and filenames)
+    let general_search = "rust";
+    println!("\n--- General search for: {} ---", general_search);
+    let general_search_time = std::time::Instant::now();
+    let general_results = trie.search(general_search);
+    println!("Found {} results for '{}':", general_results.len(), general_search);
+    for path in &general_results {
+        println!("{}", path);
+    }
+    let general_duration = general_search_time.elapsed();
+    println!("Time taken: {:?}", general_duration);
+}

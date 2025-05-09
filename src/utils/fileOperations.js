@@ -1,308 +1,195 @@
-/**
- * Dienstprogramm für Dateioperationen
- */
-
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from '@tauri-apps/api';
 
 /**
- * Erstellt eine Datei im angegebenen Pfad mit dem angegebenen Inhalt
- *
- * @param {string} path - Pfad der zu erstellenden Datei
- * @param {string} content - Inhalt der Datei
- * @returns {Promise<{ success: boolean, path: string, error?: string }>} Ergebnis der Operation
+ * Open a file with the default application.
+ * @param {string} filePath - The path to the file to open.
+ * @returns {Promise<void>}
  */
-export const createFile = async (path, content = '') => {
-    try {
-        // [Backend Integration] - Datei im Backend erstellen
-        // /* BACKEND_INTEGRATION: Datei erstellen */
-
-        await invoke('create_file', { path, content });
-
-        return { success: true, path };
-    } catch (error) {
-        console.error(`Error creating file ${path}:`, error);
-        return { success: false, path, error: error.message || String(error) };
-    }
+export const openFile = async (filePath) => {
+    return invoke('open_file', { file_path: filePath });
 };
 
 /**
- * Erstellt einen Ordner im angegebenen Pfad
- *
- * @param {string} path - Pfad des zu erstellenden Ordners
- * @returns {Promise<{ success: boolean, path: string, error?: string }>} Ergebnis der Operation
+ * Create a new file in the specified folder.
+ * @param {string} folderPath - The absolute path to the folder where the file will be created.
+ * @param {string} fileName - The name of the file to create.
+ * @returns {Promise<void>}
  */
-export const createDirectory = async (path) => {
-    try {
-        // [Backend Integration] - Ordner im Backend erstellen
-        // /* BACKEND_INTEGRATION: Ordner erstellen */
-
-        await invoke('create_directory', { path });
-
-        return { success: true, path };
-    } catch (error) {
-        console.error(`Error creating directory ${path}:`, error);
-        return { success: false, path, error: error.message || String(error) };
-    }
+export const createFile = async (folderPath, fileName) => {
+    return invoke('create_file', {
+        folder_path_abs: folderPath,
+        file_name: fileName
+    });
 };
 
 /**
- * Löscht eine Datei oder einen Ordner
- *
- * @param {string} path - Pfad des zu löschenden Elements
- * @param {boolean} [recursive=true] - Ob Ordner rekursiv gelöscht werden sollen
- * @returns {Promise<{ success: boolean, error?: string }>} Ergebnis der Operation
+ * Create a new directory in the specified folder.
+ * @param {string} folderPath - The absolute path to the folder where the directory will be created.
+ * @param {string} directoryName - The name of the directory to create.
+ * @returns {Promise<void>}
  */
-export const deleteItem = async (path, recursive = true) => {
-    try {
-        // [Backend Integration] - Element im Backend löschen
-        // /* BACKEND_INTEGRATION: Element löschen */
-
-        await invoke('delete_item', { path, recursive });
-
-        return { success: true };
-    } catch (error) {
-        console.error(`Error deleting item ${path}:`, error);
-        return { success: false, error: error.message || String(error) };
-    }
+export const createDirectory = async (folderPath, directoryName) => {
+    return invoke('create_directory', {
+        folder_path_abs: folderPath,
+        directory_name: directoryName
+    });
 };
 
 /**
- * Benennt eine Datei oder einen Ordner um
- *
- * @param {string} oldPath - Aktueller Pfad des Elements
- * @param {string} newName - Neuer Name des Elements (ohne Pfad)
- * @returns {Promise<{ success: boolean, oldPath: string, newPath: string, error?: string }>} Ergebnis der Operation
+ * Rename a file or directory.
+ * @param {string} oldPath - The current absolute path of the file or directory.
+ * @param {string} newPath - The new absolute path for the file or directory.
+ * @returns {Promise<void>}
  */
-export const renameItem = async (oldPath, newName) => {
-    try {
-        // Erstelle den neuen Pfad
-        const separator = oldPath.includes('\\') ? '\\' : '/';
-        const pathParts = oldPath.split(separator);
-        pathParts.pop(); // Entferne den alten Namen
-        const newPath = [...pathParts, newName].join(separator);
-
-        // [Backend Integration] - Element im Backend umbenennen
-        // /* BACKEND_INTEGRATION: Element umbenennen */
-
-        await invoke('rename_item', { oldPath, newPath });
-
-        return { success: true, oldPath, newPath };
-    } catch (error) {
-        console.error(`Error renaming item ${oldPath} to ${newName}:`, error);
-        return { success: false, oldPath, newPath: '', error: error.message || String(error) };
-    }
+export const renameItem = async (oldPath, newPath) => {
+    return invoke('rename', { old_path: oldPath, new_path: newPath });
 };
 
 /**
- * Kopiert eine Datei oder einen Ordner
- *
- * @param {string} sourcePath - Quellpfad des Elements
- * @param {string} destinationPath - Zielpfad des Elements
- * @param {boolean} [overwrite=false] - Ob bestehende Dateien überschrieben werden sollen
- * @returns {Promise<{ success: boolean, sourcePath: string, destinationPath: string, error?: string }>} Ergebnis der Operation
+ * Move a file or directory to the trash.
+ * @param {string} path - The absolute path to the file or directory to move to trash.
+ * @returns {Promise<void>}
  */
-export const copyItem = async (sourcePath, destinationPath, overwrite = false) => {
-    try {
-        // [Backend Integration] - Element im Backend kopieren
-        // /* BACKEND_INTEGRATION: Element kopieren */
-
-        await invoke('copy_item', { sourcePath, destinationPath, overwrite });
-
-        return { success: true, sourcePath, destinationPath };
-    } catch (error) {
-        console.error(`Error copying item ${sourcePath} to ${destinationPath}:`, error);
-        return {
-            success: false,
-            sourcePath,
-            destinationPath,
-            error: error.message || String(error)
-        };
-    }
+export const moveToTrash = async (path) => {
+    return invoke('move_to_trash', { path });
 };
 
 /**
- * Verschiebt eine Datei oder einen Ordner
- *
- * @param {string} sourcePath - Quellpfad des Elements
- * @param {string} destinationPath - Zielpfad des Elements
- * @param {boolean} [overwrite=false] - Ob bestehende Dateien überschrieben werden sollen
- * @returns {Promise<{ success: boolean, sourcePath: string, destinationPath: string, error?: string }>} Ergebnis der Operation
+ * Load the contents of a directory.
+ * @param {string} path - The absolute path to the directory to load.
+ * @returns {Promise<Object>} - An object containing directories and files.
  */
-export const moveItem = async (sourcePath, destinationPath, overwrite = false) => {
-    try {
-        // [Backend Integration] - Element im Backend verschieben
-        // /* BACKEND_INTEGRATION: Element verschieben */
-
-        await invoke('move_item', { sourcePath, destinationPath, overwrite });
-
-        return { success: true, sourcePath, destinationPath };
-    } catch (error) {
-        console.error(`Error moving item ${sourcePath} to ${destinationPath}:`, error);
-        return {
-            success: false,
-            sourcePath,
-            destinationPath,
-            error: error.message || String(error)
-        };
-    }
+export const loadDirectory = async (path) => {
+    const dirContent = await invoke('open_directory', { path });
+    return JSON.parse(dirContent);
 };
 
 /**
- * Liest den Inhalt einer Datei
- *
- * @param {string} path - Pfad der zu lesenden Datei
- * @returns {Promise<{ success: boolean, content: string, error?: string }>} Ergebnis der Operation
+ * Get system volumes information.
+ * @returns {Promise<Array>} - An array of volume objects.
  */
-export const readFile = async (path) => {
-    try {
-        // [Backend Integration] - Datei im Backend lesen
-        // /* BACKEND_INTEGRATION: Datei lesen */
-
-        const content = await invoke('read_file', { path });
-
-        return { success: true, content };
-    } catch (error) {
-        console.error(`Error reading file ${path}:`, error);
-        return { success: false, content: '', error: error.message || String(error) };
-    }
+export const getSystemVolumes = async () => {
+    const volumesJson = await invoke('get_system_volumes_information_as_json');
+    return JSON.parse(volumesJson);
 };
 
 /**
- * Schreibt Inhalt in eine Datei
- *
- * @param {string} path - Pfad der zu schreibenden Datei
- * @param {string} content - Zu schreibender Inhalt
- * @returns {Promise<{ success: boolean, error?: string }>} Ergebnis der Operation
+ * Zip one or more files or directories.
+ * @param {Array<string>} sourcePaths - Array of paths to files/directories to zip.
+ * @param {string|null} destinationPath - Optional destination path for the zip file.
+ * @returns {Promise<void>}
  */
-export const writeFile = async (path, content) => {
-    try {
-        // [Backend Integration] - In Datei im Backend schreiben
-        // /* BACKEND_INTEGRATION: In Datei schreiben */
-
-        await invoke('write_file', { path, content });
-
-        return { success: true };
-    } catch (error) {
-        console.error(`Error writing to file ${path}:`, error);
-        return { success: false, error: error.message || String(error) };
-    }
+export const zipItems = async (sourcePaths, destinationPath = null) => {
+    return invoke('zip', {
+        source_paths: sourcePaths,
+        destination_path: destinationPath
+    });
 };
 
 /**
- * Listet den Inhalt eines Verzeichnisses auf
- *
- * @param {string} path - Pfad des Verzeichnisses
- * @param {boolean} [includeHidden=false] - Ob versteckte Dateien einbezogen werden sollen
- * @returns {Promise<Array<Object>>} Liste der Elemente im Verzeichnis
+ * Extract a zip file.
+ * @param {string} zipPath - Path to the zip file to extract.
+ * @param {string|null} destinationPath - Optional destination path for extraction.
+ * @returns {Promise<void>}
  */
-export const listDirectory = async (path, includeHidden = false) => {
-    try {
-        // [Backend Integration] - Verzeichnisinhalt vom Backend abrufen
-        // /* BACKEND_INTEGRATION: Verzeichnisinhalt laden */
-
-        const items = await invoke('list_directory', { path, includeHidden });
-        return items;
-    } catch (error) {
-        console.error(`Error listing directory ${path}:`, error);
-        throw error;
-    }
+export const unzipItem = async (zipPath, destinationPath = null) => {
+    return invoke('unzip', {
+        zip_paths: [zipPath],
+        destination_path: destinationPath
+    });
 };
 
 /**
- * Ruft die Eigenschaften eines Elements ab
- *
- * @param {string} path - Pfad des Elements
- * @returns {Promise<Object>} Eigenschaften des Elements
+ * Get available templates.
+ * @returns {Promise<Array<string>>} - An array of template paths.
  */
-export const getItemProperties = async (path) => {
-    try {
-        // [Backend Integration] - Eigenschaften vom Backend abrufen
-        // /* BACKEND_INTEGRATION: Eigenschaften abrufen */
-
-        const properties = await invoke('get_item_properties', { path });
-        return properties;
-    } catch (error) {
-        console.error(`Error getting properties for ${path}:`, error);
-        throw error;
-    }
+export const getTemplatePaths = async () => {
+    const templatesJson = await invoke('get_template_paths_as_json');
+    return JSON.parse(templatesJson);
 };
 
 /**
- * Sucht nach Dateien und Ordnern
- *
- * @param {string} query - Suchanfrage
- * @param {string} [path=null] - Pfad, in dem gesucht werden soll (null für überall)
- * @param {boolean} [recursive=true] - Ob rekursiv gesucht werden soll
- * @param {Object} [options] - Weitere Suchoptionen
- * @returns {Promise<Array<Object>>} Liste der gefundenen Elemente
+ * Add a template.
+ * @param {string} templatePath - Path to the file or directory to add as a template.
+ * @returns {Promise<string>} - Success message.
  */
-export const searchFiles = async (query, path = null, recursive = true, options = {}) => {
-    try {
-        // [Backend Integration] - Suche im Backend durchführen
-        // /* BACKEND_INTEGRATION: Suche durchführen */
-
-        const results = await invoke('search_files', { query, path, recursive, options });
-        return results;
-    } catch (error) {
-        console.error(`Error searching for ${query}:`, error);
-        throw error;
-    }
+export const addTemplate = async (templatePath) => {
+    return invoke('add_template', { template_path: templatePath });
 };
 
 /**
- * Speichert ein Element als Template
- *
- * @param {string} path - Pfad des zu speichernden Elements
- * @param {Object} templateData - Daten für das Template
- * @returns {Promise<{ success: boolean, templateName: string, error?: string }>} Ergebnis der Operation
+ * Use a template.
+ * @param {string} templatePath - Path to the template to use.
+ * @param {string} destPath - Destination path where to apply the template.
+ * @returns {Promise<string>} - Success message.
  */
-export const saveAsTemplate = async (path, templateData) => {
-    try {
-        // [Backend Integration] - Template im Backend speichern
-        // /* BACKEND_INTEGRATION: Template speichern */
-
-        await invoke('save_as_template', { path, templateData });
-
-        return { success: true, templateName: templateData.name };
-    } catch (error) {
-        console.error(`Error saving template for ${path}:`, error);
-        return { success: false, templateName: '', error: error.message || String(error) };
-    }
+export const useTemplate = async (templatePath, destPath) => {
+    return invoke('use_template', {
+        template_path: templatePath,
+        dest_path: destPath
+    });
 };
 
 /**
- * Wendet ein Template an
- *
- * @param {string} templatePath - Pfad des Templates
- * @param {string} destinationPath - Zielpfad für die Anwendung
- * @returns {Promise<{ success: boolean, destinationPath: string, error?: string }>} Ergebnis der Operation
+ * Remove a template.
+ * @param {string} templatePath - Path to the template to remove.
+ * @returns {Promise<string>} - Success message.
  */
-export const applyTemplate = async (templatePath, destinationPath) => {
-    try {
-        // [Backend Integration] - Template im Backend anwenden
-        // /* BACKEND_INTEGRATION: Template anwenden */
-
-        await invoke('apply_template', { templatePath, destinationPath });
-
-        return { success: true, destinationPath };
-    } catch (error) {
-        console.error(`Error applying template ${templatePath} to ${destinationPath}:`, error);
-        return { success: false, destinationPath, error: error.message || String(error) };
-    }
+export const removeTemplate = async (templatePath) => {
+    return invoke('remove_template', { template_path: templatePath });
 };
 
-export default {
-    createFile,
-    createDirectory,
-    deleteItem,
-    renameItem,
-    copyItem,
-    moveItem,
-    readFile,
-    writeFile,
-    listDirectory,
-    getItemProperties,
-    searchFiles,
-    saveAsTemplate,
-    applyTemplate
+/**
+ * Generate a hash for a file.
+ * @param {string} path - Path to the file to hash.
+ * @returns {Promise<string>} - The generated hash.
+ */
+export const generateHash = async (path) => {
+    return invoke('gen_hash_and_return_string', { path });
+};
+
+/**
+ * Check if the clipboard has file paths.
+ * @returns {Promise<boolean>} - Whether the clipboard has file paths.
+ */
+export const hasClipboardFiles = async () => {
+    // This is a mock since we don't have a direct Tauri API for this
+    // In a real implementation, this would check the system clipboard
+    return Promise.resolve(false);
+};
+
+/**
+ * Copy files to the clipboard.
+ * @param {Array<string>} paths - Array of file/directory paths to copy.
+ * @returns {Promise<void>}
+ */
+export const copyFilesToClipboard = async (paths) => {
+    // This is a mock since we don't have a direct Tauri API for this
+    // In a real implementation, this would interact with the system clipboard
+    console.log('Copied to clipboard:', paths);
+    return Promise.resolve();
+};
+
+/**
+ * Cut files to the clipboard.
+ * @param {Array<string>} paths - Array of file/directory paths to cut.
+ * @returns {Promise<void>}
+ */
+export const cutFilesToClipboard = async (paths) => {
+    // This is a mock since we don't have a direct Tauri API for this
+    // In a real implementation, this would interact with the system clipboard
+    console.log('Cut to clipboard:', paths);
+    return Promise.resolve();
+};
+
+/**
+ * Paste files from the clipboard.
+ * @param {string} destinationPath - Destination directory path.
+ * @returns {Promise<void>}
+ */
+export const pasteFilesFromClipboard = async (destinationPath) => {
+    // This is a mock since we don't have a direct Tauri API for this
+    // In a real implementation, this would interact with the system clipboard
+    console.log('Pasting to:', destinationPath);
+    return Promise.resolve();
 };
