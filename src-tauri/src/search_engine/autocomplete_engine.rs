@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
 
-use crate::search_engine::adaptive_radix_trie::AdaptiveRadixTrie;
+use crate::search_engine::adaptive_radix_trie::{AdaptiveRadixNode, AdaptiveRadixTrie};
 use crate::search_engine::fuzzy::FuzzySearchIndex;
 use crate::search_engine::lru_chache::AutocompleteLRUCache;
 use crate::search_engine::context_aware_ranking::ContextAwareRanker;
@@ -130,7 +130,7 @@ impl ThreadSafeAutocomplete {
                 }
 
                 // Add to radix trie with adaptive segmentation
-                let _ = engine.radix_trie.insert(&path_str, path.to_path_buf());
+                engine.radix_trie.insert(&path_str, path.to_path_buf());
 
                 // Add to fuzzy index
                 engine.fuzzy_index.index_path(path);
@@ -154,7 +154,7 @@ impl ThreadSafeAutocomplete {
                 let path_str = path.to_string_lossy().to_string();
 
                 // Remove from radix trie
-                let _ = engine.radix_trie.remove(&path_str);
+                engine.radix_trie.remove(&path_str);
 
                 // Remove from fuzzy index
                 engine.fuzzy_index.remove_path(path);
@@ -193,14 +193,14 @@ impl ThreadSafeAutocomplete {
                 // Process removals first
                 for path in &paths_to_remove {
                     let path_str = path.to_string_lossy().to_string();
-                    let _ = engine.radix_trie.remove(&path_str);
+                    engine.radix_trie.remove(&path_str);
                     engine.fuzzy_index.remove_path(path);
                 }
 
                 // Then process additions
                 for path in &paths_to_add {
                     let path_str = path.to_string_lossy().to_string();
-                    let _ = engine.radix_trie.insert(&path_str, path.to_path_buf());
+                    engine.radix_trie.insert(&path_str, path.to_path_buf());
                     engine.fuzzy_index.index_path(path);
                 }
 
@@ -484,7 +484,7 @@ impl ContextAwareRanker {
     }
 
     // New method to rank results considering current directory context
-    pub fn rank_results_with_context(&self, results: Vec<PathBuf>, current_dir: &Path) -> Vec<PathBuf> {
+    pub fn rank_results_with_context(&self, mut results: Vec<PathBuf>, current_dir: &Path) -> Vec<PathBuf> {
         // Score and sort the results
         let mut scored_results: Vec<(PathBuf, f64)> = results
             .into_iter()
@@ -559,8 +559,12 @@ impl ContextAwareRanker {
 #[cfg(test)]
 mod tests_autocomplete {
     use super::*;
-    use std::time::Instant;
+    use std::sync::Arc;
+    use std::thread;
+    use std::time::{Duration, Instant};
+    use tempfile::tempdir;
     use crate::{log_info, log_error};
+    use crate::search_engine::generate_test_data;
 
     // Helper function to get or generate test data path - with smaller dataset
     fn get_test_data_path() -> PathBuf {
