@@ -1,10 +1,4 @@
-mod autocomplete_engine;
 mod models;
-
-mod adaptive_radix_trie;
-mod context_aware_ranking;
-mod fuzzy;
-mod lru_chache;
 
 use crate::search_engine::models::directory_se::DirectorySe;
 use models::file_se::FileSe;
