@@ -75,9 +75,12 @@ where
             // Update last accessed time
             node.last_accessed = Instant::now();
 
-            // Move to front of list (most recently used)
-            self.detach_node(node_ptr);
-            self.prepend_node(node_ptr);
+            // Optimization: Skip detach/prepend if already at head
+            if self.head != Some(node_ptr) {
+                // Move to front of list (most recently used)
+                self.detach_node(node_ptr);
+                self.prepend_node(node_ptr);
+            }
 
             Some(node.value.clone())
         } else {
