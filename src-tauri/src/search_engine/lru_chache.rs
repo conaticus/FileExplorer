@@ -57,6 +57,7 @@ impl<K: Hash + Eq + Clone, V: Clone> LRUCache<K, V> {
         self.cache.insert(key, (value, self.position_map.len() - 1));
     }
 
+    #[allow(dead_code)]
     pub fn update(&mut self, key: &K, value: V) -> bool {
         if self.cache.contains_key(key) {
             if let Some((val, _pos)) = self.cache.get_mut(key) {
@@ -105,6 +106,7 @@ pub struct ThreadSafeLRUCache<K, V> {
     cache: Arc<RwLock<LRUCache<K, V>>>,
 }
 
+#[allow(dead_code)]
 impl<K: Hash + Eq + Clone, V: Clone> ThreadSafeLRUCache<K, V> {
     pub fn new(capacity: usize) -> Self {
         Self {
@@ -131,7 +133,7 @@ impl<K: Hash + Eq + Clone, V: Clone> ThreadSafeLRUCache<K, V> {
             Ok(mut cache) => {
                 cache.insert(key, value);
                 Ok(())
-            },
+            }
             Err(_) => Err("Failed to acquire write lock on LRU cache".to_string()),
         }
     }
@@ -208,6 +210,7 @@ impl AutocompleteLRUCache {
         }
     }
 
+    #[allow(dead_code)]
     pub fn clone(&self) -> Self {
         Self {
             cache: self.cache.clone(),
@@ -225,10 +228,10 @@ impl AutocompleteLRUCache {
 
 #[cfg(test)]
 mod tests_lru_cache {
+    use super::*;
+    use crate::{log_error, log_info};
     use std::sync::Barrier;
     use std::thread;
-    use crate::{log_info, log_error};
-    use super::*;
 
     // Basic LRUCache tests
     #[test]
@@ -380,9 +383,10 @@ mod tests_lru_cache {
                         0 => {
                             // Insert
                             if let Err(e) = cache_clone.insert(key.clone(), value) {
-                                log_error!(format!("Thread {} failed to insert {}: {}", i, key, e).as_str());
+                                log_error!(format!("Thread {} failed to insert {}: {}", i, key, e)
+                                    .as_str());
                             }
-                        },
+                        }
                         1 => {
                             // Get
                             let result = cache_clone.get(&key);
@@ -390,19 +394,21 @@ mod tests_lru_cache {
                                 // This is not necessarily an error, as other threads may have caused eviction
                                 log_info!(format!("Thread {} couldn't find {}", i, key).as_str());
                             }
-                        },
+                        }
                         2 => {
                             // Update
                             if let Err(e) = cache_clone.update(&key, value * 2) {
-                                log_error!(format!("Thread {} failed to update {}: {}", i, key, e).as_str());
+                                log_error!(format!("Thread {} failed to update {}: {}", i, key, e)
+                                    .as_str());
                             }
-                        },
+                        }
                         3 => {
                             // Remove
                             if let Err(e) = cache_clone.remove(&key) {
-                                log_error!(format!("Thread {} failed to remove {}: {}", i, key, e).as_str());
+                                log_error!(format!("Thread {} failed to remove {}: {}", i, key, e)
+                                    .as_str());
                             }
-                        },
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -448,7 +454,9 @@ mod tests_lru_cache {
             PathBuf::from("/path/to/file5.js"),
             PathBuf::from("/path/to/file6.js"),
         ];
-        cache.cache_suggestions("javascript", results3.clone()).unwrap();
+        cache
+            .cache_suggestions("javascript", results3.clone())
+            .unwrap();
 
         // Test retrieving suggestions
         assert_eq!(cache.get_suggestions("rust"), Some(results1.clone()));
@@ -482,13 +490,14 @@ mod tests_lru_cache {
     }
 }
 
+#[allow(dead_code, unused_imports)]
 #[cfg(test)]
 mod benchmarks_lru_cache {
+    use super::*;
+    use crate::log_info;
     use std::sync::Barrier;
     use std::thread;
     use std::time::Instant;
-    use super::*;
-    use crate::log_info;
 
     #[cfg(feature = "bench")]
     #[test]
@@ -503,8 +512,16 @@ mod benchmarks_lru_cache {
         }
         let duration = start.elapsed();
 
-        log_info!(format!("LRU cache insertion of {} items took: {:?}", iterations, duration).as_str());
-        log_info!(format!("Average insertion time: {:?} per item", duration / iterations as u32).as_str());
+        log_info!(format!(
+            "LRU cache insertion of {} items took: {:?}",
+            iterations, duration
+        )
+        .as_str());
+        log_info!(format!(
+            "Average insertion time: {:?} per item",
+            duration / iterations as u32
+        )
+        .as_str());
     }
 
     #[test]
@@ -530,7 +547,11 @@ mod benchmarks_lru_cache {
         let duration = start.elapsed();
 
         log_info!(format!("LRU cache {} gets (hits) took: {:?}", iterations, duration).as_str());
-        log_info!(format!("Average get (hit) time: {:?} per item", duration / iterations as u32).as_str());
+        log_info!(format!(
+            "Average get (hit) time: {:?} per item",
+            duration / iterations as u32
+        )
+        .as_str());
     }
 
     #[test]
@@ -554,8 +575,16 @@ mod benchmarks_lru_cache {
         }
         let duration = start.elapsed();
 
-        log_info!(format!("LRU cache {} gets (misses) took: {:?}", iterations, duration).as_str());
-        log_info!(format!("Average get (miss) time: {:?} per item", duration / iterations as u32).as_str());
+        log_info!(format!(
+            "LRU cache {} gets (misses) took: {:?}",
+            iterations, duration
+        )
+        .as_str());
+        log_info!(format!(
+            "Average get (miss) time: {:?} per item",
+            duration / iterations as u32
+        )
+        .as_str());
     }
 
     #[test]
@@ -580,7 +609,11 @@ mod benchmarks_lru_cache {
         let duration = start.elapsed();
 
         log_info!(format!("LRU cache {} updates took: {:?}", iterations, duration).as_str());
-        log_info!(format!("Average update time: {:?} per item", duration / iterations as u32).as_str());
+        log_info!(format!(
+            "Average update time: {:?} per item",
+            duration / iterations as u32
+        )
+        .as_str());
     }
 
     #[test]
@@ -615,22 +648,22 @@ mod benchmarks_lru_cache {
                             // Insert
                             let key = format!("thread_key{}", i);
                             let _ = cache_clone.insert(key, i as i32);
-                        },
+                        }
                         1 => {
                             // Get
                             let key = format!("key{}", i * 10);
                             let _ = cache_clone.get(&key);
-                        },
+                        }
                         2 => {
                             // Update
                             let key = format!("key{}", i * 5);
                             let _ = cache_clone.update(&key, i as i32 * 2);
-                        },
+                        }
                         3 => {
                             // Remove
                             let key = format!("key{}", i * 7);
                             let _ = cache_clone.remove(&key);
-                        },
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -650,10 +683,16 @@ mod benchmarks_lru_cache {
         let duration = start.elapsed();
         let total_operations = threads_count * iterations;
 
-        log_info!(format!("Thread-safe LRU cache {} concurrent operations took: {:?}",
-            total_operations, duration).as_str());
-        log_info!(format!("Average concurrent operation time: {:?} per operation",
-            duration / total_operations as u32).as_str());
+        log_info!(format!(
+            "Thread-safe LRU cache {} concurrent operations took: {:?}",
+            total_operations, duration
+        )
+        .as_str());
+        log_info!(format!(
+            "Average concurrent operation time: {:?} per operation",
+            duration / total_operations as u32
+        )
+        .as_str());
     }
 
     #[test]
@@ -679,7 +718,15 @@ mod benchmarks_lru_cache {
         }
         let duration = start.elapsed();
 
-        log_info!(format!("Autocomplete LRU cache {} gets took: {:?}", iterations, duration).as_str());
-        log_info!(format!("Average get suggestion time: {:?} per item", duration / iterations as u32).as_str());
+        log_info!(format!(
+            "Autocomplete LRU cache {} gets took: {:?}",
+            iterations, duration
+        )
+        .as_str());
+        log_info!(format!(
+            "Average get suggestion time: {:?} per item",
+            duration / iterations as u32
+        )
+        .as_str());
     }
 }

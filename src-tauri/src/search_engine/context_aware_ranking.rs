@@ -86,6 +86,7 @@ impl ContextAwareRanker {
         }
     }
 
+    #[allow(dead_code)]
     pub fn rank_results(&self, paths: Vec<PathBuf>) -> Vec<PathBuf> {
         let recency_data = if let Ok(data) = self.recency_data.read() {
             data.clone()
@@ -99,25 +100,22 @@ impl ContextAwareRanker {
             HashMap::new()
         };
 
-        let mut scored_paths: Vec<(PathBuf, f64)> = paths.into_iter()
+        let mut scored_paths: Vec<(PathBuf, f64)> = paths
+            .into_iter()
             .map(|path| {
-                let recency_score = self.calculate_recency_score(
-                    recency_data.get(&path).cloned()
-                );
+                let recency_score = self.calculate_recency_score(recency_data.get(&path).cloned());
 
-                let frequency_score = self.calculate_frequency_score(
-                    frequency_data.get(&path).cloned().unwrap_or(0)
-                );
+                let frequency_score =
+                    self.calculate_frequency_score(frequency_data.get(&path).cloned().unwrap_or(0));
 
                 let proximity_score = self.calculate_proximity_score(&path);
 
                 let extension_score = self.calculate_extension_score(&path);
 
-                let total_score =
-                    (recency_score * self.factors.recency_weight) +
-                        (frequency_score * self.factors.frequency_weight) +
-                        (proximity_score * self.factors.proximity_weight) +
-                        extension_score;
+                let total_score = (recency_score * self.factors.recency_weight)
+                    + (frequency_score * self.factors.frequency_weight)
+                    + (proximity_score * self.factors.proximity_weight)
+                    + extension_score;
 
                 (path, total_score)
             })
@@ -148,8 +146,8 @@ impl ContextAwareRanker {
 
                 // Clamp between 0 and max_recency_score
                 score.min(self.factors.max_recency_score).max(0.0)
-            },
-            None => 0.0
+            }
+            None => 0.0,
         }
     }
 
@@ -167,7 +165,8 @@ impl ContextAwareRanker {
         // Calculate proximity to current directory
         if path.starts_with(&self.current_directory) {
             // Check if it's directly in the current directory or in a subdirectory
-            let components_after_current = path.strip_prefix(&self.current_directory)
+            let components_after_current = path
+                .strip_prefix(&self.current_directory)
                 .map(|p| p.components().count())
                 .unwrap_or(0);
 
@@ -189,7 +188,9 @@ impl ContextAwareRanker {
                 let path_depth = path.components().count();
 
                 // Find common prefix
-                let common_prefix_len = self.current_directory.ancestors()
+                let common_prefix_len = self
+                    .current_directory
+                    .ancestors()
                     .filter(|ancestor| path.starts_with(ancestor))
                     .count();
 
@@ -256,21 +257,18 @@ mod tests_context_aware_ranking {
             let now = SystemTime::now();
 
             // File accessed very recently
-            recency_data.insert(
-                PathBuf::from("/test/directory/recent_file.rs"),
-                now
-            );
+            recency_data.insert(PathBuf::from("/test/directory/recent_file.rs"), now);
 
             // File accessed 1 hour ago
             recency_data.insert(
                 PathBuf::from("/test/directory/older_file.rs"),
-                now - Duration::from_secs(3600)
+                now - Duration::from_secs(3600),
             );
 
             // File accessed 1 day ago
             recency_data.insert(
                 PathBuf::from("/test/directory/old_file.rs"),
-                now - Duration::from_secs(86400)
+                now - Duration::from_secs(86400),
             );
         }
 
@@ -306,10 +304,22 @@ mod tests_context_aware_ranking {
         log_info!(format!("Hour ago score: {}", hour_ago_score).as_str());
         log_info!(format!("Day ago score: {}", day_ago_score).as_str());
 
-        assert!(recent_score > 0.9, "Recently accessed files should have high scores");
-        assert!(hour_ago_score < recent_score, "Older files should have lower scores");
-        assert!(day_ago_score < hour_ago_score, "Much older files should have even lower scores");
-        assert_eq!(none_score, 0.0, "Non-accessed files should have zero recency score");
+        assert!(
+            recent_score > 0.9,
+            "Recently accessed files should have high scores"
+        );
+        assert!(
+            hour_ago_score < recent_score,
+            "Older files should have lower scores"
+        );
+        assert!(
+            day_ago_score < hour_ago_score,
+            "Much older files should have even lower scores"
+        );
+        assert_eq!(
+            none_score, 0.0,
+            "Non-accessed files should have zero recency score"
+        );
     }
 
     #[test]
@@ -326,10 +336,22 @@ mod tests_context_aware_ranking {
         log_info!(format!("Medium frequency score: {}", med_freq_score).as_str());
         log_info!(format!("Low frequency score: {}", low_freq_score).as_str());
 
-        assert!(high_freq_score > med_freq_score, "Higher frequency should result in higher score");
-        assert!(med_freq_score > low_freq_score, "Medium frequency should score higher than low frequency");
-        assert!(low_freq_score > zero_freq_score, "Even low frequency should score higher than zero");
-        assert_eq!(zero_freq_score, 0.1, "Zero frequency should have a small baseline score");
+        assert!(
+            high_freq_score > med_freq_score,
+            "Higher frequency should result in higher score"
+        );
+        assert!(
+            med_freq_score > low_freq_score,
+            "Medium frequency should score higher than low frequency"
+        );
+        assert!(
+            low_freq_score > zero_freq_score,
+            "Even low frequency should score higher than zero"
+        );
+        assert_eq!(
+            zero_freq_score, 0.1,
+            "Zero frequency should have a small baseline score"
+        );
     }
 
     #[test]
@@ -352,10 +374,22 @@ mod tests_context_aware_ranking {
         log_info!(format!("Parent directory score: {}", parent_score).as_str());
         log_info!(format!("Distant directory score: {}", distant_score).as_str());
 
-        assert_eq!(current_dir_score, 1.0, "Files in current directory should have maximum proximity score");
-        assert!(subdir_score < current_dir_score, "Files in subdirectories should have lower score than current directory");
-        assert!(parent_score < current_dir_score, "Files in parent directory should have lower score than current directory");
-        assert!(distant_score < parent_score, "Files in distant directories should have the lowest scores");
+        assert_eq!(
+            current_dir_score, 1.0,
+            "Files in current directory should have maximum proximity score"
+        );
+        assert!(
+            subdir_score < current_dir_score,
+            "Files in subdirectories should have lower score than current directory"
+        );
+        assert!(
+            parent_score < current_dir_score,
+            "Files in parent directory should have lower score than current directory"
+        );
+        assert!(
+            distant_score < parent_score,
+            "Files in distant directories should have the lowest scores"
+        );
     }
 
     #[test]
@@ -376,8 +410,14 @@ mod tests_context_aware_ranking {
         log_info!(format!("Unknown file extension score: {}", unknown_score).as_str());
 
         assert_eq!(rust_score, 0.5, "Rust files should get 0.5 bonus (1.5-1.0)");
-        assert_eq!(text_score, -0.2, "Text files should get -0.2 penalty (0.8-1.0)");
-        assert_eq!(unknown_score, 0.0, "Unknown extensions should get neutral score");
+        assert_eq!(
+            text_score, -0.2,
+            "Text files should get -0.2 penalty (0.8-1.0)"
+        );
+        assert_eq!(
+            unknown_score, 0.0,
+            "Unknown extensions should get neutral score"
+        );
     }
 
     #[test]
@@ -390,8 +430,14 @@ mod tests_context_aware_ranking {
             let recency_data = ranker.recency_data.read().unwrap();
             let frequency_data = ranker.frequency_data.read().unwrap();
 
-            assert!(!recency_data.contains_key(&test_path), "Path should not have recency data initially");
-            assert!(!frequency_data.contains_key(&test_path), "Path should not have frequency data initially");
+            assert!(
+                !recency_data.contains_key(&test_path),
+                "Path should not have recency data initially"
+            );
+            assert!(
+                !frequency_data.contains_key(&test_path),
+                "Path should not have frequency data initially"
+            );
         }
 
         // Record an access
@@ -402,9 +448,19 @@ mod tests_context_aware_ranking {
             let recency_data = ranker.recency_data.read().unwrap();
             let frequency_data = ranker.frequency_data.read().unwrap();
 
-            assert!(recency_data.contains_key(&test_path), "Path should have recency data after access");
-            assert!(frequency_data.contains_key(&test_path), "Path should have frequency data after access");
-            assert_eq!(*frequency_data.get(&test_path).unwrap(), 1, "Frequency should be 1 after first access");
+            assert!(
+                recency_data.contains_key(&test_path),
+                "Path should have recency data after access"
+            );
+            assert!(
+                frequency_data.contains_key(&test_path),
+                "Path should have frequency data after access"
+            );
+            assert_eq!(
+                *frequency_data.get(&test_path).unwrap(),
+                1,
+                "Frequency should be 1 after first access"
+            );
         }
 
         // Record another access
@@ -413,11 +469,19 @@ mod tests_context_aware_ranking {
         // Verify updated frequency
         {
             let frequency_data = ranker.frequency_data.read().unwrap();
-            assert_eq!(*frequency_data.get(&test_path).unwrap(), 2, "Frequency should be 2 after second access");
+            assert_eq!(
+                *frequency_data.get(&test_path).unwrap(),
+                2,
+                "Frequency should be 2 after second access"
+            );
         }
 
-        log_info!(format!("Successfully recorded and verified {} accesses to {}",
-                         2, test_path.display()).as_str());
+        log_info!(format!(
+            "Successfully recorded and verified {} accesses to {}",
+            2,
+            test_path.display()
+        )
+        .as_str());
     }
 
     #[test]
@@ -442,14 +506,23 @@ mod tests_context_aware_ranking {
         }
 
         // The recent and frequent Rust files should be ranked higher
-        assert_eq!(ranked_paths[0], PathBuf::from("/test/directory/recent_file.rs"),
-                   "Recent file should be ranked highest due to recency weight");
-        assert_eq!(ranked_paths[1], PathBuf::from("/test/directory/frequent_file.rs"),
-                   "Frequent file should be ranked second due to frequency weight");
+        assert_eq!(
+            ranked_paths[0],
+            PathBuf::from("/test/directory/recent_file.rs"),
+            "Recent file should be ranked highest due to recency weight"
+        );
+        assert_eq!(
+            ranked_paths[1],
+            PathBuf::from("/test/directory/frequent_file.rs"),
+            "Frequent file should be ranked second due to frequency weight"
+        );
 
         // The distant text file should be ranked lower
-        assert_eq!(ranked_paths.last().unwrap(), &PathBuf::from("/other/path/distant_file.txt"),
-                   "Distant txt file should be ranked lowest due to distance and extension");
+        assert_eq!(
+            ranked_paths.last().unwrap(),
+            &PathBuf::from("/other/path/distant_file.txt"),
+            "Distant txt file should be ranked lowest due to distance and extension"
+        );
     }
 
     #[test]
@@ -461,10 +534,17 @@ mod tests_context_aware_ranking {
         // Update current directory
         ranker.update_current_directory(new_dir.clone());
 
-        log_info!(format!("Directory updated from {} to {}",
-                         initial_dir.display(), ranker.current_directory.display()).as_str());
+        log_info!(format!(
+            "Directory updated from {} to {}",
+            initial_dir.display(),
+            ranker.current_directory.display()
+        )
+        .as_str());
 
-        assert_eq!(ranker.current_directory, new_dir, "Current directory should be updated");
+        assert_eq!(
+            ranker.current_directory, new_dir,
+            "Current directory should be updated"
+        );
 
         // Check that proximity scoring changes with new directory
         let old_file = PathBuf::from("/test/directory/file.rs");
@@ -487,14 +567,24 @@ mod tests_context_aware_ranking {
         // Get recent paths
         let recent_paths = ranker.get_recent_paths(2);
 
-        assert_eq!(recent_paths.len(), 2, "Should return exactly 2 recent paths");
-        assert_eq!(recent_paths[0], PathBuf::from("/test/directory/recent_file.rs"),
-                   "Most recent path should be first");
+        assert_eq!(
+            recent_paths.len(),
+            2,
+            "Should return exactly 2 recent paths"
+        );
+        assert_eq!(
+            recent_paths[0],
+            PathBuf::from("/test/directory/recent_file.rs"),
+            "Most recent path should be first"
+        );
 
-        log_info!(format!("Retrieved {} recent paths: {} and {}",
-                         recent_paths.len(),
-                         recent_paths[0].display(),
-                         recent_paths[1].display()).as_str());
+        log_info!(format!(
+            "Retrieved {} recent paths: {} and {}",
+            recent_paths.len(),
+            recent_paths[0].display(),
+            recent_paths[1].display()
+        )
+        .as_str());
     }
 
     #[test]
@@ -504,14 +594,24 @@ mod tests_context_aware_ranking {
         // Get frequent paths
         let frequent_paths = ranker.get_frequent_paths(2);
 
-        assert_eq!(frequent_paths.len(), 2, "Should return exactly 2 frequent paths");
-        assert_eq!(frequent_paths[0], PathBuf::from("/test/directory/frequent_file.rs"),
-                   "Most frequent path should be first");
+        assert_eq!(
+            frequent_paths.len(),
+            2,
+            "Should return exactly 2 frequent paths"
+        );
+        assert_eq!(
+            frequent_paths[0],
+            PathBuf::from("/test/directory/frequent_file.rs"),
+            "Most frequent path should be first"
+        );
 
-        log_info!(format!("Retrieved {} frequent paths: {} and {}",
-                         frequent_paths.len(),
-                         frequent_paths[0].display(),
-                         frequent_paths[1].display()).as_str());
+        log_info!(format!(
+            "Retrieved {} frequent paths: {} and {}",
+            frequent_paths.len(),
+            frequent_paths[0].display(),
+            frequent_paths[1].display()
+        )
+        .as_str());
     }
 
     #[test]
@@ -534,18 +634,27 @@ mod tests_context_aware_ranking {
             let proximity_score = ranker.calculate_proximity_score(path);
             let extension_score = ranker.calculate_extension_score(path);
 
-            log_info!(format!("Score components for {}: recency={}, frequency={}, proximity={}, extension={}",
-                             path.display(), recency_score, frequency_score, proximity_score, extension_score).as_str());
+            log_info!(format!(
+                "Score components for {}: recency={}, frequency={}, proximity={}, extension={}",
+                path.display(),
+                recency_score,
+                frequency_score,
+                proximity_score,
+                extension_score
+            )
+            .as_str());
 
             // Verify the total score calculation
-            let expected_score =
-                (recency_score * ranker.factors.recency_weight) +
-                    (frequency_score * ranker.factors.frequency_weight) +
-                    (proximity_score * ranker.factors.proximity_weight) +
-                    extension_score;
+            let expected_score = (recency_score * ranker.factors.recency_weight)
+                + (frequency_score * ranker.factors.frequency_weight)
+                + (proximity_score * ranker.factors.proximity_weight)
+                + extension_score;
 
-            assert!((score - expected_score).abs() < f64::EPSILON,
-                    "Total score calculation should match the sum of weighted components");
+            assert!(
+                (score - expected_score).abs() < f64::EPSILON,
+                "Total score calculation should match the sum of weighted components"
+            );
         }
     }
 }
+

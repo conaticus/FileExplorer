@@ -2,11 +2,12 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
 
-use crate::search_engine::adaptive_radix_trie::{AdaptiveRadixNode, AdaptiveRadixTrie};
+use crate::search_engine::adaptive_radix_trie::AdaptiveRadixTrie;
 use crate::search_engine::fuzzy::FuzzySearchIndex;
 use crate::search_engine::lru_chache::AutocompleteLRUCache;
 use crate::search_engine::context_aware_ranking::ContextAwareRanker;
 
+#[allow(dead_code)]
 pub struct AutocompleteEngine {
     radix_trie: AdaptiveRadixTrie,
     fuzzy_index: FuzzySearchIndex,
@@ -16,6 +17,7 @@ pub struct AutocompleteEngine {
     last_update: SystemTime,
 }
 
+#[allow(dead_code)]
 impl AutocompleteEngine {
     pub fn suggest(&self, query: &str, limit: usize) -> Vec<PathBuf> {
         // First try search_recursive which is more comprehensive - finds the query anywhere in the path
@@ -69,11 +71,15 @@ impl AutocompleteEngine {
     }
 }
 
+
+#[allow(dead_code)]
 // Thread-safe wrapper
 pub struct ThreadSafeAutocomplete {
     engine: Arc<RwLock<AutocompleteEngine>>,
 }
 
+
+#[allow(dead_code)]
 impl ThreadSafeAutocomplete {
     pub fn new() -> Self {
         let current_dir = PathBuf::from("/");
@@ -130,7 +136,7 @@ impl ThreadSafeAutocomplete {
                 }
 
                 // Add to radix trie with adaptive segmentation
-                engine.radix_trie.insert(&path_str, path.to_path_buf());
+                let _ = engine.radix_trie.insert(&path_str, path.to_path_buf());
 
                 // Add to fuzzy index
                 engine.fuzzy_index.index_path(path);
@@ -154,7 +160,7 @@ impl ThreadSafeAutocomplete {
                 let path_str = path.to_string_lossy().to_string();
 
                 // Remove from radix trie
-                engine.radix_trie.remove(&path_str);
+                let _ = engine.radix_trie.remove(&path_str);
 
                 // Remove from fuzzy index
                 engine.fuzzy_index.remove_path(path);
@@ -193,14 +199,14 @@ impl ThreadSafeAutocomplete {
                 // Process removals first
                 for path in &paths_to_remove {
                     let path_str = path.to_string_lossy().to_string();
-                    engine.radix_trie.remove(&path_str);
+                    let _ = engine.radix_trie.remove(&path_str);
                     engine.fuzzy_index.remove_path(path);
                 }
 
                 // Then process additions
                 for path in &paths_to_add {
                     let path_str = path.to_string_lossy().to_string();
-                    engine.radix_trie.insert(&path_str, path.to_path_buf());
+                    let _ = engine.radix_trie.insert(&path_str, path.to_path_buf());
                     engine.fuzzy_index.index_path(path);
                 }
 
@@ -436,6 +442,7 @@ impl ThreadSafeAutocomplete {
     }
 }
 
+#[allow(dead_code)]
 // Metadata about a path for detailed results
 pub struct PathMetadata {
     frequency: u32,
@@ -443,6 +450,7 @@ pub struct PathMetadata {
     score: f64,
 }
 
+#[allow(dead_code)]
 // Statistics about the autocomplete index
 pub struct IndexStats {
     indexed_path_count: usize,
@@ -450,6 +458,7 @@ pub struct IndexStats {
     last_update: SystemTime,
 }
 
+#[allow(dead_code)]
 // Add additional methods to our ranker to support the new functionality
 impl ContextAwareRanker {
     // Get frequency of a path
@@ -484,7 +493,7 @@ impl ContextAwareRanker {
     }
 
     // New method to rank results considering current directory context
-    pub fn rank_results_with_context(&self, mut results: Vec<PathBuf>, current_dir: &Path) -> Vec<PathBuf> {
+    pub fn rank_results_with_context(&self, results: Vec<PathBuf>, current_dir: &Path) -> Vec<PathBuf> {
         // Score and sort the results
         let mut scored_results: Vec<(PathBuf, f64)> = results
             .into_iter()
@@ -556,15 +565,12 @@ impl ContextAwareRanker {
     }
 }
 
+#[allow(dead_code)]
 #[cfg(test)]
 mod tests_autocomplete {
     use super::*;
-    use std::sync::Arc;
-    use std::thread;
-    use std::time::{Duration, Instant};
-    use tempfile::tempdir;
+    use std::time::Instant;
     use crate::{log_info, log_error};
-    use crate::search_engine::generate_test_data;
 
     // Helper function to get or generate test data path - with smaller dataset
     fn get_test_data_path() -> PathBuf {
