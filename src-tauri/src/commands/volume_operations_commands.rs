@@ -31,6 +31,20 @@ pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
             total_read_bytes: disk.usage().total_read_bytes,
         });
     }
+    
+    for i in 0..volume_information_vec.len() {
+        for j in i + 1..volume_information_vec.len() {
+            // Check if the volume names are the same and delete the one with the longer name
+            if volume_information_vec[i].volume_name == volume_information_vec[j].volume_name {
+                if volume_information_vec[i].mount_point.len() > volume_information_vec[j].mount_point.len() { 
+                    volume_information_vec.remove(i);
+                } else {
+                    volume_information_vec.remove(j);
+                }
+            }
+        }
+    }
+    
     volume_information_vec
 }
 
