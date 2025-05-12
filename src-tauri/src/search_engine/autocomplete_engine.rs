@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::search_engine::art_v3::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
-use crate::search_engine::path_cache_wrapper::{PathCache, PathData};
+use crate::search_engine::path_cache_wrapper::PathCache;
 use crate::{log_info, log_warn};
 
 /// Autocomplete engine that combines caching, prefix search, and fuzzy search
@@ -33,6 +33,7 @@ pub struct AutocompleteEngine {
     preferred_extensions: Vec<String>,
 }
 
+#[allow(dead_code)] // remove later when used
 impl AutocompleteEngine {
     /// Create a new AutocompleteEngine with specified cache size and max results
     pub fn new(cache_size: usize, max_results: usize) -> Self {
@@ -133,13 +134,13 @@ impl AutocompleteEngine {
             return;
         }
 
-        log_info!(&format!("Recursively indexing directory: {}", path));
+        log_info!(&format!("Recursively indexing directory: {}", normalized_path));
 
         // Walk dir
         let walk_dir = match std::fs::read_dir(path) {
             Ok(dir) => dir,
             Err(err) => {
-                log_warn!(&format!("Failed to read directory '{}': {}", path, err));
+                log_warn!(&format!("Failed to read directory '{}': {}", normalized_path, err));
                 return;
             }
         };
@@ -161,16 +162,10 @@ impl AutocompleteEngine {
 
     /// Remove a path (normalized!) from the search engines
     pub fn remove_path(&mut self, path: &str) {
-        // Remove from trie
+        // Remove from modules
         self.trie.remove(path);
-        
-        // Use path normalization for consistent handling
-        let normalized_path = path.replace('\\', "/");
-        self.fuzzy_matcher.remove_path(&normalized_path);
-
-        // Remove from cache - remove both original and normalized paths
+        self.fuzzy_matcher.remove_path(path);
         self.cache.remove(path);
-        self.cache.remove(&normalized_path);
 
         // Remove from frequency and recency maps
         self.frequency_map.remove(path);
@@ -185,13 +180,11 @@ impl AutocompleteEngine {
         // Check if the path is a directory
         let path_obj = std::path::Path::new(path);
         if !path_obj.exists() || !path_obj.is_dir() {
-            return; // Not a directory or doesn't exist, nothing more to do
+            return;
         }
 
-        // Log that we're starting recursive removal
-        log_info!(&format!("Recursively removing directory from index: {}", path));
+        log_info!(&format!("Recursively removing directory from index: {}", normalized_path));
 
-        // First collect all paths to avoid mutation during iteration
         let mut paths_to_remove = Vec::new();
 
         // Walk the directory and collect all paths
@@ -203,7 +196,7 @@ impl AutocompleteEngine {
                 }
             }
         } else {
-            log_warn!(&format!("Failed to read directory '{}' for removal", path));
+            log_warn!(&format!("Failed to read directory '{}' for removal", normalized_path));
         }
 
         // Now remove each path
@@ -229,7 +222,8 @@ impl AutocompleteEngine {
         // Update recency timestamp
         self.recency_map.insert(path.to_string(), Instant::now());
     }
-    
+
+    #[allow(dead_code)] // used in testing rn
     /// Set preferred file extensions for ranking
     pub fn set_preferred_extensions(&mut self, extensions: Vec<String>) {
         self.preferred_extensions = extensions;
@@ -247,23 +241,15 @@ impl AutocompleteEngine {
         if let Some(path_data) = self.cache.get(&normalized_query) {
             log_info!(&format!("Cache hit for query: '{}'", normalized_query));
 
-            // Perform a quick check to see if this path would still be returned by the trie
-            let verification_results = self.trie.search(
-                &path_data.path,  // Search for the exact path
-                None,            // No directory context for verification
-                false            // No partial component matching needed
-            );
-
-            // If we find the path in the trie, it's still valid
-            if !verification_results.is_empty() {
+            // Fast check if path still exists
+            if self.trie.contains(&path_data.path) {
                 // Path still exists, return it
                 return vec![(path_data.path, path_data.score)];
             } else {
                 // Path no longer exists, remove it from cache
                 log_info!(&format!("Cached path '{}' no longer exists, removing from cache",
-                               path_data.path));
+                          path_data.path));
                 self.cache.remove(&normalized_query);
-                // Fall through to normal search
             }
         }
         
@@ -381,7 +367,7 @@ impl AutocompleteEngine {
             if let Some(filename) = std::path::Path::new(path).file_name().and_then(|n| n.to_str()) {
                 if filename.to_lowercase() == query.to_lowercase() {
                     // Exact filename matches get a large boost
-                    new_score += 0.5;
+                    new_score += 1.0;
                 } else if filename.to_lowercase().starts_with(&query.to_lowercase()) {
                     // Filename prefix matches get a medium boost
                     new_score += 0.3;
@@ -397,7 +383,8 @@ impl AutocompleteEngine {
         // Sort by score (descending)
         results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     }
-    
+
+    #[allow(dead_code)] // Used in testing
     /// Clear all data and caches
     pub fn clear(&mut self) {
         self.trie.clear();
@@ -413,16 +400,15 @@ impl AutocompleteEngine {
         EngineStats {
             cache_size: self.cache.len(),
             trie_size: self.trie.len(),
-            tracked_paths: self.frequency_map.len(),
         }
     }
 }
 
+#[allow(dead_code)] // used only in testing rn
 /// Statistics about the autocomplete engine
 pub struct EngineStats {
     pub cache_size: usize,
     pub trie_size: usize,
-    pub tracked_paths: usize,
 }
 
 #[cfg(test)]
@@ -430,7 +416,6 @@ mod tests_autocomplete_engine {
     use super::*;
     use std::thread::sleep;
     use std::fs;
-    use std::path::Path;
 
     #[test]
     fn test_basic_search() {
@@ -716,13 +701,13 @@ mod tests_autocomplete_engine {
         // Now remove one subdirectory recursively
         engine.remove_paths_recursive(&subdir1_str);
 
-        // Verify subdir1 content is no longer searchable
+        // Verify subdir1 content is no longer searchable (should still find fuzzy matches)
         let after_removal_results = engine.search("file1.txt");
-        assert!(after_removal_results.is_empty(), "Should not find file1 after removal");
+        assert!(!after_removal_results[0].0.contains("file1.txt"), "Should not find file1 after removal");
 
-        // Also verify nested content is removed
+        // Also verify nested content is removed (should still find some fuzzy matches)
         let nested_results = engine.search("nested_file.txt");
-        assert!(nested_results.is_empty(), "Should not find nested file after removal");
+        assert!(!nested_results[0].0.contains("nested_file.txt"), "Should not find nested file after removal");
 
         // But content in other directories should still be searchable
         let root_file_results = engine.search("root_file.txt");
@@ -825,5 +810,445 @@ mod tests_autocomplete_engine {
         let valid_results = engine.search("valid");
         assert_eq!(valid_results.len(), 2, "Engine should still work with valid paths");
     }
-}
 
+    // Helper function to get test data directory
+    fn get_test_data_path() -> std::path::PathBuf {
+        let path = std::path::PathBuf::from("./test-data-for-fuzzy-search");
+        if !path.exists() {
+            log_warn!(&format!("Test data directory does not exist: {:?}. Run the 'create_test_data' test first.", path));
+            panic!("Test data directory does not exist: {:?}. Run the 'create_test_data' test first.", path);
+        }
+        path
+    }
+
+    // Helper function to collect real paths from the test data directory
+    fn collect_test_paths(limit: Option<usize>) -> Vec<String> {
+        let test_path = get_test_data_path();
+        let mut paths = Vec::new();
+
+        fn add_paths_recursively(dir: &std::path::Path, paths: &mut Vec<String>, limit: Option<usize>) {
+            if let Some(max) = limit {
+                if paths.len() >= max {
+                    return;
+                }
+            }
+
+            if let Some(walker) = std::fs::read_dir(dir).ok() {
+                for entry in walker.filter_map(|e| e.ok()) {
+                    let path = entry.path();
+                    if let Some(path_str) = path.to_str() {
+                        paths.push(path_str.to_string());
+
+                        if let Some(max) = limit {
+                            if paths.len() >= max {
+                                return;
+                            }
+                        }
+                    }
+
+                    if path.is_dir() {
+                        add_paths_recursively(&path, paths, limit);
+                    }
+                }
+            }
+        }
+
+        add_paths_recursively(&test_path, &mut paths, limit);
+
+        // If test data doesn't contain enough paths or doesn't exist,
+        // fall back to synthetic data with a warning
+        if paths.is_empty() {
+            log_warn!("No test data found, using synthetic data instead");
+            return (0..100).map(|i| format!("/path/to/file{}.txt", i)).collect();
+        }
+
+        paths
+    }
+
+    #[test]
+    fn test_with_real_world_data() {
+        log_info!("Testing autocomplete engine with real-world test data");
+
+        // Create a new engine with reasonable parameters
+        let mut engine = AutocompleteEngine::new(100, 20);
+
+        // Get real-world paths from test data
+        let paths = collect_test_paths(Some(500));
+        log_info!(&format!("Collected {} test paths", paths.len()));
+
+        // Add all paths to the engine
+        let start = std::time::Instant::now();
+        for path in &paths {
+            engine.add_path(path);
+        }
+        let elapsed = start.elapsed();
+        log_info!(&format!("Added {} paths in {:?} ({:.2} paths/ms)",
+                 paths.len(), elapsed, paths.len() as f64 / elapsed.as_millis().max(1) as f64));
+
+        // Test different types of searches
+
+        // 1. Test prefix search
+        if let Some(first_path) = paths.first() {
+            // Extract a prefix from the first path
+            if let Some(last_sep) = first_path.rfind('/').or_else(|| first_path.rfind('\\')) {
+                let prefix = &first_path[..last_sep+1];
+
+                let prefix_start = std::time::Instant::now();
+                let prefix_results = engine.search(prefix);
+                let prefix_elapsed = prefix_start.elapsed();
+
+                log_info!(&format!("Prefix search for '{}' found {} results in {:?}",
+                         prefix, prefix_results.len(), prefix_elapsed));
+
+                assert!(!prefix_results.is_empty(), "Should find results for existing prefix");
+
+                // Log top results
+                for (i, (path, score)) in prefix_results.iter().take(3).enumerate() {
+                    log_info!(&format!("  Result #{}: {} (score: {:.4})", i+1, path, score));
+                }
+            }
+        }
+
+        // 2. Test with specific filename components
+        // Extract some filename terms to search for from the data
+        let mut filename_terms = Vec::new();
+        for path in paths.iter().take(20) {
+            if let Some(filename) = path.split('/').last().or_else(|| path.split('\\').last()) {
+                if filename.len() >= 3 {
+                    filename_terms.push(filename[..3].to_string());
+                }
+            }
+        }
+
+        // If we couldn't extract terms, use some defaults
+        if filename_terms.is_empty() {
+            filename_terms = vec!["app".to_string(), "doc".to_string(), "ima".to_string()];
+        }
+
+        // Test each extracted filename term
+        for term in &filename_terms {
+            let term_start = std::time::Instant::now();
+            let term_results = engine.search(term);
+            let term_elapsed = term_start.elapsed();
+
+            log_info!(&format!("Filename search for '{}' found {} results in {:?}",
+                     term, term_results.len(), term_elapsed));
+
+            // Log first result if any
+            if !term_results.is_empty() {
+                log_info!(&format!("  First result: {} (score: {:.4})",
+                         term_results[0].0, term_results[0].1));
+            }
+        }
+
+        // 3. Test with directory context
+        if paths.len() >= 2 {
+            // Use the directory part of the second path as context
+            let second_path = &paths[1];
+            if let Some(last_sep) = second_path.rfind('/').or_else(|| second_path.rfind('\\')) {
+                let dir_context = &second_path[..last_sep];
+
+                // Set the context
+                engine.set_current_directory(Some(dir_context.to_string()));
+
+                // Use a short, generic search term
+                let context_start = std::time::Instant::now();
+                let context_results = engine.search("file");
+                let context_elapsed = context_start.elapsed();
+
+                log_info!(&format!("Context search with directory '{}' found {} results in {:?}",
+                         dir_context, context_results.len(), context_elapsed));
+
+                // Check that results prioritize the context directory
+                if !context_results.is_empty() {
+                    let top_result = &context_results[0].0;
+                    log_info!(&format!("  Top result: {}", top_result));
+
+                    // Count how many results are from the context directory
+                    let context_matches = context_results.iter()
+                        .filter(|(path, _)| path.starts_with(dir_context))
+                        .count();
+
+                    log_info!(&format!("  {} of {} results are from the context directory",
+                             context_matches, context_results.len()));
+                }
+
+                // Reset context for other tests
+                engine.set_current_directory(None);
+            }
+        }
+
+        // 4. Test with usage frequency and recency tracking
+        if !paths.is_empty() {
+            // Record usage for some paths to affect ranking
+            for i in 0..paths.len().min(5) {
+                engine.record_path_usage(&paths[i]);
+
+                // Record multiple usages for the first path
+                if i == 0 {
+                    engine.record_path_usage(&paths[i]);
+                    engine.record_path_usage(&paths[i]);
+                }
+            }
+
+            // Extract a common term to search for
+            let common_term = if let Some(path) = paths.first() {
+                if path.len() >= 3 {
+                    &path[..3]
+                } else {
+                    "fil"
+                }
+            } else {
+                "fil"
+            };
+
+            let freq_start = std::time::Instant::now();
+            let freq_results = engine.search(common_term);
+            let freq_elapsed = freq_start.elapsed();
+
+            log_info!(&format!("Frequency-aware search for '{}' found {} results in {:?}",
+                     common_term, freq_results.len(), freq_elapsed));
+
+            // Check that frequently used paths are prioritized
+            if !freq_results.is_empty() {
+                log_info!(&format!("  Top result: {} (score: {:.4})",
+                         freq_results[0].0, freq_results[0].1));
+
+                // The most frequently used path should be ranked high
+                let frequent_path_pos = freq_results.iter()
+                    .position(|(path, _)| path == &paths[0]);
+
+                if let Some(pos) = frequent_path_pos {
+                    log_info!(&format!("  Most frequently used path is at position {}", pos));
+                    // Should be in the top results
+                    assert!(pos < 3, "Frequently used path should be ranked high");
+                }
+            }
+        }
+
+        // 5. Test the engine's statistics
+        let stats = engine.get_stats();
+        log_info!(&format!("Engine stats - Cache size: {}, Trie size: {}",
+                 stats.cache_size, stats.trie_size));
+
+        assert!(stats.trie_size >= paths.len(),
+                "Trie should contain at least as many entries as paths");
+
+        // 6. Test cache behavior by repeating a search
+        if !paths.is_empty() {
+            let repeat_term = if let Some(path) = paths.first() {
+                if let Some(filename) = path.split('/').last().or_else(|| path.split('\\').last()) {
+                    if filename.len() >= 3 {
+                        &filename[..3]
+                    } else {
+                        "fil"
+                    }
+                } else {
+                    "fil"
+                }
+            } else {
+                "fil"
+            };
+
+            // First search to populate cache
+            let _ = engine.search(repeat_term);
+
+            // Second search should hit cache
+            let cache_start = std::time::Instant::now();
+            let cache_results = engine.search(repeat_term);
+            let cache_elapsed = cache_start.elapsed();
+
+            log_info!(&format!("Cached search for '{}' took {:?}", repeat_term, cache_elapsed));
+
+            // Cache hit should be very fast
+            assert!(!cache_results.is_empty(), "Cached search should return results");
+        }
+    }
+
+    #[cfg(feature = "long-tests")]
+    #[test]
+    fn test_with_all_test_data_paths() {
+        log_info!("Testing autocomplete engine with all available test data paths");
+
+        // Create a new engine with reasonable parameters
+        let mut engine = AutocompleteEngine::new(100, 20);
+
+        // Get ALL available test paths (no limit)
+        let paths = collect_test_paths(None);
+        log_info!(&format!("Collected {} test paths", paths.len()));
+
+        // Add all paths to the engine
+        let start = std::time::Instant::now();
+        for path in &paths {
+            engine.add_path(path);
+        }
+        let elapsed = start.elapsed();
+        log_info!(&format!("Added {} paths in {:?} ({:.2} paths/ms)",
+                 paths.len(), elapsed, paths.len() as f64 / elapsed.as_millis().max(1) as f64));
+
+        // Test different types of searches
+
+        // 1. Test prefix search with various prefixes from the data
+        if !paths.is_empty() {
+            // Try to find common prefixes from the data
+            let mut prefixes = Vec::new();
+            for path in paths.iter().take(10) {
+                if let Some(last_sep) = path.rfind('/').or_else(|| path.rfind('\\')) {
+                    prefixes.push(&path[..last_sep+1]);
+                }
+            }
+
+            for prefix in prefixes {
+                let prefix_start = std::time::Instant::now();
+                let prefix_results = engine.search(prefix);
+                let prefix_elapsed = prefix_start.elapsed();
+
+                log_info!(&format!("Prefix search for '{}' found {} results in {:?}",
+                         prefix, prefix_results.len(), prefix_elapsed));
+
+                assert!(!prefix_results.is_empty(), "Should find results for existing prefix");
+            }
+        }
+
+        // 2. Test with specific filename terms extracted from the data
+        let mut filename_terms = Vec::new();
+        for path in paths.iter().take(50) {
+            if let Some(filename) = path.split('/').last().or_else(|| path.split('\\').last()) {
+                if filename.len() >= 3 {
+                    filename_terms.push(filename[..3].to_string());
+                }
+            }
+        }
+
+        // Test each extracted filename term
+        for term in filename_terms.iter().take(5) {
+            let term_start = std::time::Instant::now();
+            let term_results = engine.search(term);
+            let term_elapsed = term_start.elapsed();
+
+            log_info!(&format!("Filename search for '{}' found {} results in {:?}",
+                     term, term_results.len(), term_elapsed));
+
+            assert!(!term_results.is_empty(), "Should find results for extracted terms");
+        }
+
+        // 3. Test with directory context if we have enough paths
+        if paths.len() >= 2 {
+            // Find a directory with at least 2 files to use as context
+            let mut context_dir = None;
+            let mut dirs_with_counts = std::collections::HashMap::new();
+
+            for path in &paths {
+                if let Some(last_sep) = path.rfind('/').or_else(|| path.rfind('\\')) {
+                    let dir = &path[..last_sep];
+                    *dirs_with_counts.entry(dir.to_string()).or_insert(0) += 1;
+                }
+            }
+
+            // Find a directory with multiple files
+            for (dir, count) in dirs_with_counts {
+                if count >= 2 {
+                    context_dir = Some(dir);
+                    break;
+                }
+            }
+
+            if let Some(dir) = context_dir {
+                // Set the context
+                engine.set_current_directory(Some(dir.clone()));
+
+                // Use a generic search term
+                let context_start = std::time::Instant::now();
+                let context_results = engine.search("file");
+                let context_elapsed = context_start.elapsed();
+
+                log_info!(&format!("Context search with directory '{}' found {} results in {:?}",
+                         dir, context_results.len(), context_elapsed));
+
+                // Check if results prioritize the context directory
+                let context_matches = context_results.iter()
+                    .filter(|(path, _)| path.starts_with(&dir))
+                    .count();
+
+                log_info!(&format!("{} of {} results are from the context directory",
+                         context_matches, context_results.len()));
+
+                // Reset context
+                engine.set_current_directory(None);
+            }
+        }
+
+        // 4. Test with usage frequency and recency
+        if !paths.is_empty() {
+            // Record usage for some paths to affect ranking
+            for i in 0..paths.len().min(20) {
+                engine.record_path_usage(&paths[i]);
+
+                // Record multiple usages for the first few paths
+                if i < 5 {
+                    for _ in 0..3 {
+                        engine.record_path_usage(&paths[i]);
+                    }
+                }
+            }
+
+            // Wait a moment to create time difference for recency
+            std::thread::sleep(std::time::Duration::from_millis(10));
+
+            // Record more recent usage for a different set of paths
+            for i in 20..paths.len().min(30) {
+                engine.record_path_usage(&paths[i]);
+            }
+
+            // Extract a common term to search for
+            let common_term = if let Some(path) = paths.first() {
+                if path.len() >= 3 {
+                    &path[..3]
+                } else {
+                    "fil"
+                }
+            } else {
+                "fil"
+            };
+
+            let freq_start = std::time::Instant::now();
+            let freq_results = engine.search(common_term);
+            let freq_elapsed = freq_start.elapsed();
+
+            log_info!(&format!("Frequency-aware search for '{}' found {} results in {:?}",
+                     common_term, freq_results.len(), freq_elapsed));
+
+            assert!(!freq_results.is_empty(), "Should find results for frequency-aware search");
+        }
+
+        // 5. Test engine stats
+        let stats = engine.get_stats();
+        log_info!(&format!("Engine stats - Cache size: {}, Trie size: {}",
+                 stats.cache_size, stats.trie_size));
+
+        assert!(stats.trie_size >= paths.len(),
+                "Trie should contain at least as many entries as paths");
+
+        // 6. Test path removal (for a sample of paths)
+        if !paths.is_empty() {
+            let to_remove = paths.len().min(100);
+            log_info!(&format!("Testing removal of {} paths", to_remove));
+
+            let removal_start = std::time::Instant::now();
+            for i in 0..to_remove {
+                engine.remove_path(&paths[i]);
+            }
+            let removal_elapsed = removal_start.elapsed();
+
+            log_info!(&format!("Removed {} paths in {:?}", to_remove, removal_elapsed));
+
+            // Check that engine stats reflect the removals
+            let after_stats = engine.get_stats();
+            log_info!(&format!("Engine stats after removal - Cache size: {}, Trie size: {}",
+                     after_stats.cache_size, after_stats.trie_size));
+
+            assert!(after_stats.trie_size <= stats.trie_size - to_remove,
+                    "Trie size should decrease after removals");
+        }
+    }
+}

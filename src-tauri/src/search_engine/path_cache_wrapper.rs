@@ -15,6 +15,7 @@ pub struct PathData {
 }
 
 impl PathCache {
+    #[cfg(test)]
     pub fn new(capacity: usize) -> Self {
         Self {
             inner: LruPathCache::new(capacity),
@@ -47,6 +48,7 @@ impl PathCache {
         self.inner.len()
     }
 
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }

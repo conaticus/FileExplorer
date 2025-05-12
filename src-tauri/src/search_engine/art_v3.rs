@@ -1,7 +1,6 @@
 use std::collections::HashMap;
-use crate::{log_info, log_warn};
+use crate::log_warn;
 
-/// Adaptive Radix Trie (ART) optimized for file path storage and retrieval
 pub struct ART {
     root: Option<Box<Node>>,
     // Number of paths stored
@@ -9,7 +8,7 @@ pub struct ART {
     max_results: usize,
 }
 
-/// Node structure for the ART
+#[allow(dead_code)] // remove later when used
 struct Node {
     /// Character represented by this node
     character: Option<char>,
@@ -21,11 +20,8 @@ struct Node {
     is_terminal: bool,
 }
 
+#[allow(dead_code)] // remove later when used
 impl ART {
-    /// Creates a new Adaptive Radix Trie with a specified maximum number of results
-    ///
-    /// # Arguments
-    /// * `max_results` - Maximum number of results to return from searches
     pub fn new(max_results: usize) -> Self {
         ART {
             root: None,
@@ -34,11 +30,6 @@ impl ART {
         }
     }
 
-    /// Inserts a file path into the trie with an associated score
-    ///
-    /// # Arguments
-    /// * `path` - The file path to insert
-    /// * `score` - Score associated with this path for result ranking
     pub fn insert(&mut self, path: &str, score: f32) -> bool {
         let normalized_path = self.normalize_path(path);
         let chars: Vec<char> = normalized_path.chars().collect();
@@ -105,13 +96,6 @@ impl ART {
         Self::insert_internal(chars, index + 1, next_node, score)
     }
 
-    /// Finds all paths that start with the given prefix
-    ///
-    /// # Arguments
-    /// * `prefix` - The prefix to search for
-    ///
-    /// # Returns
-    /// A vector of tuples containing matching paths and their scores
     pub fn find_completions(&self, prefix: &str) -> Vec<(String, f32)> {
         let mut results = Vec::new();
 
@@ -152,13 +136,6 @@ impl ART {
         results
     }
 
-    /// Helper method that collects all completions from a given node
-    /// preserving the path context for accurate reconstruction
-    ///
-    /// # Arguments
-    /// * `node` - Current node in traversal
-    /// * `prefix` - Path accumulated so far
-    /// * `results` - Collection of results being built
     fn collect_completions_with_parent_char(&self, node: &Node, prefix: String, results: &mut Vec<(String, f32)>) {
         // If this node represents a complete path, add it to results
         if node.is_terminal {
@@ -175,15 +152,6 @@ impl ART {
         }
     }
 
-    //// Finds completions with optional current directory context
-    ///
-    /// # Arguments
-    /// * `query` - The search query string
-    /// * `current_dir` - Optional current directory context
-    /// * `allow_partial_components` - Whether to match partial components
-    ///
-    /// # Returns
-    /// A vector of tuples containing matching paths and their scores
     pub fn search(&self, query: &str, current_dir: Option<&str>, allow_partial_components: bool) -> Vec<(String, f32)> {
         // If query is empty, return empty results
         if query.is_empty() {
@@ -307,11 +275,6 @@ impl ART {
         results.retain(|(path, _)| seen_paths.insert(path.clone()));
     }
 
-    /// Removes a path from the trie.
-    /// Returns true if the path was found and removed, false otherwise.
-    ///
-    /// # Arguments
-    /// * `path` - The file path to remove
     pub fn remove(&mut self, path: &str) -> bool {
         // Handle empty trie case
         if self.root.is_none() {
@@ -343,10 +306,6 @@ impl ART {
         removed
     }
 
-    /// Internal recursive method to remove a path from the trie
-    /// Returns a tuple:
-    /// - First element: true if the path was removed, false otherwise
-    /// - Second element: true if the current node should be removed, false otherwise
     fn remove_internal(chars: &[char], index: usize, node: &mut Node) -> (bool, bool) {
         // If we've reached the end of the path
         if index == chars.len() {
@@ -456,12 +415,38 @@ impl ART {
 
         trimmed
     }
+
+    /// Fast check if a path exists in the trie
+    pub fn contains(&self, path: &str) -> bool {
+        if self.root.is_none() {
+            return false;
+        }
+
+        let normalized = self.normalize_path(path);
+        if normalized.is_empty() {
+            return false;
+        }
+
+        let mut current = self.root.as_ref().unwrap().as_ref();
+
+        for ch in normalized.chars() {
+            match current.children.get(&ch) {
+                Some(child) => current = child,
+                None => return false, // Path prefix not found
+            }
+        }
+
+        // We've traversed the entire path, check if it's a terminal node
+        current.is_terminal
+    }
 }
 
 #[cfg(test)]
 mod tests_art_v3 {
     use super::*;
-    use std::time::{Duration, Instant};
+    use std::time::Instant;
+    #[cfg(feature = "long-tests")]
+    use std::time::Duration;
     use std::path::{Path, PathBuf, MAIN_SEPARATOR};
     use crate::{log_info, log_warn};
 
@@ -568,18 +553,6 @@ mod tests_art_v3 {
         trimmed
     }
 
-    // Helper function to measure and log execution time
-    fn measure_time<F, T>(name: &str, f: F) -> T
-    where
-        F: FnOnce() -> T
-    {
-        let start = Instant::now();
-        let result = f();
-        let elapsed = start.elapsed();
-        log_info!(&format!("Time for {}: {:?}", name, elapsed));
-        result
-    }
-
     // Basic functionality tests
     #[test]
     fn test_basic_insert_and_find() {
@@ -619,7 +592,7 @@ mod tests_art_v3 {
     #[test]
     fn test_empty_trie() {
         log_info!("Testing empty trie behavior");
-        let mut trie = ART::new(5);
+        let trie = ART::new(5);
 
         assert_eq!(trie.len(), 0);
         assert!(trie.is_empty());
@@ -1240,7 +1213,7 @@ mod tests_art_v3 {
             let mut prefix_counts: Vec<(String, usize)> = common_dirs.into_iter().collect();
             prefix_counts.sort_by(|a, b| b.1.cmp(&a.1));
 
-            for (prefix, count) in prefix_counts.into_iter().take(5) {
+            for (prefix, _count) in prefix_counts.into_iter().take(5) {
                 prefixes.push(prefix);
             }
 
@@ -1337,7 +1310,7 @@ mod tests_art_v3 {
         log_info!(&format!("Collected {} test paths", path_count));
 
         // If we don't have enough paths, generate more synthetic ones
-        let mut all_paths = paths.clone();
+        let all_paths = paths.clone();
 
         // 2. Create ART and insert all paths
         let start_insert = Instant::now();

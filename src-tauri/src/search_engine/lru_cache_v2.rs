@@ -165,6 +165,7 @@ where
         self.map.len()
     }
 
+    #[allow(dead_code)] // used in wrapper so remove later
     // Returns true if the cache is empty
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
