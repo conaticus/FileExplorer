@@ -436,10 +436,8 @@ mod tests_fast_fuzzy_v2 {
     use super::*;
     use std::time::Instant;
     use std::path::PathBuf;
-    use crate::search_engine::fast_fuzzy::generate_test_data;
     use std::time::Duration;
-    use std::fs;
-    use crate::{log_info, log_error, log_warn};
+    use crate::{log_info, log_warn};
 
     // Helper function for benchmarking
     fn run_benchmark<F, R>(name: &str, iterations: usize, f: F) -> (R, Duration)
@@ -454,7 +452,7 @@ mod tests_fast_fuzzy_v2 {
         let start = Instant::now();
         let mut result = None;
 
-        for i in 0..iterations {
+        for _i in 0..iterations {
             result = Some(f());
         }
 
@@ -1221,10 +1219,9 @@ mod tests_fast_fuzzy_v2 {
     #[test]
     #[ignore] // Only run when needed to generate test data
     fn create_test_data() {
-        use std::env;
 
         let base_path = PathBuf::from("./test-data-for-fuzzy-search");
-        match generate_test_data(base_path) {
+        match super::super::generate_test_data(base_path) {
             Ok(path) => log_info!(&format!("Test data generated successfully at {:?}", path)),
             Err(e) => panic!("Failed to generate test data: {}", e),
         }

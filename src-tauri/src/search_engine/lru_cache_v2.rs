@@ -297,6 +297,7 @@ where
     }
 }
 
+#[cfg(test)]
 mod tests_lru_cache_v2 {
     use super::*;
     use crate::log_info;

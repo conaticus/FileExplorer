@@ -1,11 +1,8 @@
 mod models;
-
-mod adaptive_radix_trie;
-mod fast_fuzzy;
 mod fast_fuzzy_v2;
 mod lru_cache_v2;
 mod path_cache_wrapper;
-mod adaptive_radix_trie_v2;
+mod art_v3;
 
 use std::path::PathBuf;
 use home::home_dir;
