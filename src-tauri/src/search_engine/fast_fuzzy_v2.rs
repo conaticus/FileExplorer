@@ -54,6 +54,42 @@ impl PathMatcher {
         self.extract_and_index_trigrams(path, path_index);
     }
 
+    pub fn remove_path(&mut self, path: &str) -> bool {
+        // Find the index of the path in our paths vector
+        if let Some(path_idx) = self.paths.iter().position(|p| p == path) {
+            let path_idx = path_idx as u32;
+
+            // Remove path from paths vector
+            self.paths.remove(path_idx as usize);
+
+            // Update trigram index: remove the path and adjust indices
+            for values in self.trigram_index.values_mut() {
+                // Remove the target path_idx
+                values.retain(|&idx| idx != path_idx);
+
+                // Decrement indices for paths that come after the removed one
+                for idx in values.iter_mut() {
+                    if *idx > path_idx {
+                        *idx -= 1;
+                    }
+                }
+            }
+
+            // Clean up empty trigram entries
+            self.trigram_index.retain(|_, values| !values.is_empty());
+
+            // Update path cache if enabled
+            #[cfg(feature = "path_cache")]
+            {
+                self.path_component_cache.clear(); // Simple approach: just clear the cache
+            }
+
+            true
+        } else {
+            false
+        }
+    }
+
     // Optimized trigram extraction working directly on bytes
     #[inline]
     fn extract_and_index_trigrams(&mut self, text: &str, path_idx: u32) {
@@ -552,6 +588,35 @@ mod tests_fast_fuzzy_v2 {
         assert_eq!(matcher.paths.len(), 1);
         assert_eq!(matcher.paths[0], "/test/path.txt");
         assert!(!matcher.trigram_index.is_empty());
+    }
+
+    #[test]
+    fn test_remove_path() {
+        let mut matcher = PathMatcher::new();
+
+        matcher.add_path("/test/path1.txt");
+        matcher.add_path("/test/path2.txt");
+        matcher.add_path("/test/path3.txt");
+
+        assert_eq!(matcher.paths.len(), 3);
+
+        // Remove a path
+        let removed = matcher.remove_path("/test/path2.txt");
+        assert!(removed);
+
+        // Check that the path was removed
+        assert_eq!(matcher.paths.len(), 2);
+        assert_eq!(matcher.paths[0], "/test/path1.txt");
+        assert_eq!(matcher.paths[1], "/test/path3.txt");
+
+        // Verify search still works
+        let results = matcher.search("path", 10);
+        assert_eq!(results.len(), 2);
+
+        // Verify removing a non-existent path returns false
+        let removed = matcher.remove_path("/test/nonexistent.txt");
+        assert!(!removed);
+        assert_eq!(matcher.paths.len(), 2);
     }
 
     #[test]

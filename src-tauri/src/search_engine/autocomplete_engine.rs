@@ -85,9 +85,8 @@ impl AutocompleteEngine {
         // Remove from trie
         self.trie.remove(path);
         
-        // For fuzzy matcher, we would ideally remove it, but the current API 
-        // doesn't support removal, so we'll have to rebuild the index periodically
-        
+        self.fuzzy_matcher.remove_path(path);
+
         // Remove from cache
         self.cache.remove(path);
         
@@ -116,14 +115,31 @@ impl AutocompleteEngine {
         if query.is_empty() {
             return Vec::new();
         }
-        
+
         let normalized_query = query.trim().to_string();
-        
-        // 1. Check cache first
+
+        // 1. Check cache first but validate the path still exists
         if let Some(path_data) = self.cache.get(&normalized_query) {
             log_info!(&format!("Cache hit for query: '{}'", normalized_query));
-            // Return cached results
-            return vec![(path_data.path, path_data.score)];
+
+            // Perform a quick check to see if this path would still be returned by the trie
+            let verification_results = self.trie.search(
+                &path_data.path,  // Search for the exact path
+                None,            // No directory context for verification
+                false            // No partial component matching needed
+            );
+
+            // If we find the path in the trie, it's still valid
+            if !verification_results.is_empty() {
+                // Path still exists, return it
+                return vec![(path_data.path, path_data.score)];
+            } else {
+                // Path no longer exists, remove it from cache
+                log_info!(&format!("Cached path '{}' no longer exists, removing from cache",
+                               path_data.path));
+                self.cache.remove(&normalized_query);
+                // Fall through to normal search
+            }
         }
         
         log_info!(&format!("Cache miss for query: '{}'", normalized_query));
