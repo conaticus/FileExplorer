@@ -175,6 +175,138 @@ impl ART {
         }
     }
 
+    //// Finds completions with optional current directory context
+    ///
+    /// # Arguments
+    /// * `query` - The search query string
+    /// * `current_dir` - Optional current directory context
+    /// * `allow_partial_components` - Whether to match partial components
+    ///
+    /// # Returns
+    /// A vector of tuples containing matching paths and their scores
+    pub fn search(&self, query: &str, current_dir: Option<&str>, allow_partial_components: bool) -> Vec<(String, f32)> {
+        // If query is empty, return empty results
+        if query.is_empty() {
+            return Vec::new();
+        }
+
+        let mut results = Vec::new();
+
+        // Case 1: Direct prefix search (standard behavior)
+        let direct_matches = self.find_completions(query);
+        results.extend(direct_matches);
+
+        // Case 2: If current directory is provided, search within that context
+        if let Some(dir) = current_dir {
+            let normalized_dir = self.normalize_path(dir);
+            let combined_path = if normalized_dir.ends_with('/') {
+                format!("{}{}", normalized_dir, query)
+            } else {
+                format!("{}/{}", normalized_dir, query)
+            };
+
+            let context_matches = self.find_completions(&combined_path);
+            results.extend(context_matches);
+        }
+
+        // Case 3: If partial component matching is enabled, search for components
+        if allow_partial_components {
+            self.find_component_matches(query, current_dir, &mut results);
+        }
+
+        // Sort by score and deduplicate (keep highest score version of duplicates)
+        self.sort_and_deduplicate_results(&mut results);
+
+        // Limit to max results
+        if results.len() > self.max_results {
+            results.truncate(self.max_results);
+        }
+
+        results
+    }
+
+    /// Finds paths where any component matches the query
+    fn find_component_matches(&self, query: &str, current_dir: Option<&str>, results: &mut Vec<(String, f32)>) {
+        // Skip if root is None
+        if self.root.is_none() {
+            return;
+        }
+
+        let normalized_query = self.normalize_path(query);
+
+        // Don't process empty queries
+        if normalized_query.is_empty() {
+            return;
+        }
+
+        // Normalize current directory path if provided
+        let normalized_dir = current_dir.map(|dir| self.normalize_path(dir));
+
+        // Get all paths in the trie (only if needed - this is expensive!)
+        let mut all_paths = Vec::new();
+        if let Some(root) = &self.root {
+            // Start collection from the root node
+            self.collect_all_paths(root.as_ref(), String::new(), &mut all_paths);
+        }
+
+        // Find paths where any component contains the query
+        for (path, score) in all_paths {
+            // Skip paths that don't match the current directory context
+            if let Some(ref dir) = normalized_dir {
+                // Only consider paths that are under the current directory
+                if !path.starts_with(dir) && !path.starts_with(&format!("{}/", dir)) {
+                    continue;
+                }
+            }
+
+            let components: Vec<&str> = path.split('/').collect();
+
+            // Check if any component contains or starts with the query
+            for component in components {
+                if component.contains(&normalized_query) {
+                    // Reduce score slightly for partial component matches
+                    // that aren't at the start of the component
+                    let adjusted_score = if component.starts_with(&normalized_query) {
+                        score * 0.95 // Small penalty for component prefix match
+                    } else {
+                        score * 0.9  // Bigger penalty for substring match
+                    };
+
+                    results.push((path.clone(), adjusted_score));
+                    break; // Only count each path once
+                }
+            }
+        }
+    }
+
+    /// Collect all paths in the trie
+    /// Takes a reference to Node (not Box<Node>)
+    fn collect_all_paths(&self, node: &Node, current_path: String, results: &mut Vec<(String, f32)>) {
+        // If this node is terminal, add the current path to results
+        if node.is_terminal {
+            if let Some(score) = node.score {
+                results.push((current_path.clone(), score));
+            }
+        }
+
+        // Traverse all children
+        for (ch, child) in &node.children {
+            let mut next_path = current_path.clone();
+            next_path.push(*ch);
+            self.collect_all_paths(child, next_path, results);
+        }
+    }
+
+    /// Sort results by score and remove duplicates
+    fn sort_and_deduplicate_results(&self, results: &mut Vec<(String, f32)>) {
+        // Sort descending by score
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Deduplicate keeping highest score for each path
+        let mut seen_paths = std::collections::HashSet::new();
+        results.retain(|(path, _)| seen_paths.insert(path.clone()));
+    }
+
     /// Removes a path from the trie.
     /// Returns true if the path was found and removed, false otherwise.
     ///
@@ -1021,6 +1153,38 @@ mod tests_art_v3 {
         assert!(trie.insert(&long_path, 1.0));
         let completions = trie.find_completions(&normalize_path("/very/long"));
         assert_eq!(completions.len(), 1);
+    }
+
+    #[test]
+    fn test_search_with_current_directory() {
+        let mut trie = ART::new(10);
+
+        // Insert test paths
+        trie.insert("home/user/documents/important.txt", 1.0);
+        trie.insert("home/user/pictures/vacation.jpg", 0.9);
+        trie.insert("home/other/documents/report.pdf", 0.8);
+
+        // Test 1: Direct prefix search
+        let results1 = trie.search("home", None, false);
+        assert_eq!(results1.len(), 3);
+
+        // Test 2: Search with current directory context
+        let results2 = trie.search("doc", Some("home/user"), true);
+        assert_eq!(results2.len(), 1, "Should only find documents in home/user");
+        assert_eq!(results2[0].0, "home/user/documents/important.txt");
+
+        // Test 3: Search with different current directory context
+        let results3 = trie.search("doc", Some("home/other"), true);
+        assert_eq!(results3.len(), 1, "Should only find documents in home/other");
+        assert_eq!(results3[0].0, "home/other/documents/report.pdf");
+
+        // Test 4: Partial component matching without directory context
+        let results4 = trie.search("doc", None, true);
+        assert_eq!(results4.len(), 2, "Should find all paths with 'doc' component");
+
+        // Test 5: Search for component that's not in the path
+        let results5 = trie.search("missing", Some("home/user"), true);
+        assert_eq!(results5.len(), 0, "Should find no results for non-existent component");
     }
 
     #[test]

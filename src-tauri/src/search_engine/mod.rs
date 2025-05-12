@@ -3,14 +3,13 @@ mod fast_fuzzy_v2;
 mod lru_cache_v2;
 mod path_cache_wrapper;
 mod art_v3;
+mod autocomplete_engine;
 
 use std::path::PathBuf;
-use home::home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs::read_dir;
 use crate::search_engine::models::directory_se::DirectorySe;
 use models::file_se::FileSe;
-use crate::search_engine::models::directory_se::DirectorySe;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
