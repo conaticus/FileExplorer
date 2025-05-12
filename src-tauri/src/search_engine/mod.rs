@@ -3,7 +3,7 @@ mod fast_fuzzy_v2;
 mod lru_cache_v2;
 mod path_cache_wrapper;
 mod art_v3;
-mod autocomplete_engine;
+pub mod autocomplete_engine;
 
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
