@@ -1,9 +1,15 @@
 use std::time::Duration;
+use std::sync::{Arc, Mutex};
 use crate::search_engine::lru_cache_v2::LruPathCache;
 
 pub struct PathCache {
-    inner: LruPathCache<String, PathData>,
+    // Wrap the non-Send LruPathCache in a thread-safe container
+    inner: Arc<Mutex<LruPathCache<String, PathData>>>,
 }
+
+// Make PathCache explicitly Send+Sync
+unsafe impl Send for PathCache {}
+unsafe impl Sync for PathCache {}
 
 #[derive(Clone)]
 pub struct PathData {
@@ -18,47 +24,72 @@ impl PathCache {
     #[cfg(test)]
     pub fn new(capacity: usize) -> Self {
         Self {
-            inner: LruPathCache::new(capacity),
+            inner: Arc::new(Mutex::new(LruPathCache::new(capacity))),
         }
     }
 
     pub fn with_ttl(capacity: usize, ttl: Duration) -> Self {
         Self {
-            inner: LruPathCache::with_ttl(capacity, ttl),
+            inner: Arc::new(Mutex::new(LruPathCache::with_ttl(capacity, ttl))),
         }
     }
 
     pub fn get(&mut self, path: &str) -> Option<PathData> {
-        self.inner.get(&path.to_string())
+        if let Ok(mut cache) = self.inner.lock() {
+            cache.get(&path.to_string())
+        } else {
+            // If we can't get the lock, return None
+            None
+        }
     }
 
     pub fn insert(&mut self, path: String, score: f32) {
-        let data = PathData {
-            path: path.clone(),
-            score,
-        };
-        self.inner.insert(path, data);
+        if let Ok(mut cache) = self.inner.lock() {
+            let data = PathData {
+                path: path.clone(),
+                score,
+            };
+            cache.insert(path, data);
+        }
     }
 
     pub fn remove(&mut self, path: &str) -> bool {
-        self.inner.remove(&path.to_string())
+        if let Ok(mut cache) = self.inner.lock() {
+            cache.remove(&path.to_string())
+        } else {
+            false
+        }
     }
 
     pub fn len(&self) -> usize {
-        self.inner.len()
+        if let Ok(cache) = self.inner.lock() {
+            cache.len()
+        } else {
+            0
+        }
     }
 
     #[cfg(test)]
     pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
+        if let Ok(cache) = self.inner.lock() {
+            cache.is_empty()
+        } else {
+            true
+        }
     }
 
     pub fn clear(&mut self) {
-        self.inner.clear();
+        if let Ok(mut cache) = self.inner.lock() {
+            cache.clear();
+        }
     }
 
     pub fn purge_expired(&mut self) -> usize {
-        self.inner.purge_expired()
+        if let Ok(mut cache) = self.inner.lock() {
+            cache.purge_expired()
+        } else {
+            0
+        }
     }
 }
 

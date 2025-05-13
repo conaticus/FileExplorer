@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::search_engine::art_v3::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
@@ -31,6 +32,9 @@ pub struct AutocompleteEngine {
     
     /// Preferred file extensions (ranked higher)
     preferred_extensions: Vec<String>,
+    
+    /// Flag to signal that indexing should stop
+    stop_indexing: AtomicBool,
 }
 
 #[allow(dead_code)] // remove later when used
@@ -52,6 +56,7 @@ impl AutocompleteEngine {
                 "json".to_string(), "png".to_string(), "jpg".to_string(),
                 "mp4".to_string(), "mp3".to_string()
             ],
+            stop_indexing: AtomicBool::new(false),
         }
     }
 
@@ -123,7 +128,25 @@ impl AutocompleteEngine {
         self.cache.purge_expired();
     }
 
+    /// Signal the engine to stop indexing
+    pub fn stop_indexing(&mut self) {
+        self.stop_indexing.store(true, Ordering::SeqCst);
+    }
+
+    /// Reset the stop indexing flag
+    pub fn reset_stop_flag(&mut self) {
+        self.stop_indexing.store(false, Ordering::SeqCst);
+    }
+
+    /// Check if indexing should stop
+    pub fn should_stop_indexing(&self) -> bool {
+        self.stop_indexing.load(Ordering::SeqCst)
+    }
+
     pub fn add_paths_recursive(&mut self, path: &str) {
+        // Reset stop flag at the beginning of a new indexing operation
+        self.reset_stop_flag();
+        
         let normalized_path = self.normalize_path(&path);
         // Add the path itself first
         self.add_path(&normalized_path);
@@ -146,6 +169,12 @@ impl AutocompleteEngine {
         };
 
         for entry in walk_dir.filter_map(Result::ok) {
+            // Check if we should stop indexing
+            if self.should_stop_indexing() {
+                log_info!(&format!("Indexing of '{}' stopped prematurely", normalized_path));
+                return;
+            }
+            
             let entry_path = entry.path();
             let normalized_entry_path = self.normalize_path(&entry_path.to_string_lossy());
             if let Some(normalized_entry_str) = Some(normalized_entry_path) {
@@ -155,6 +184,11 @@ impl AutocompleteEngine {
                 // If it's a directory, recurse
                 if entry_path.is_dir() {
                     self.add_paths_recursive(&normalized_entry_str);
+                    
+                    // Check again after recursion in case we need to stop
+                    if self.should_stop_indexing() {
+                        return;
+                    }
                 }
             }
         }
@@ -222,8 +256,7 @@ impl AutocompleteEngine {
         // Update recency timestamp
         self.recency_map.insert(path.to_string(), Instant::now());
     }
-
-    #[allow(dead_code)] // used in testing rn
+    
     /// Set preferred file extensions for ranking
     pub fn set_preferred_extensions(&mut self, extensions: Vec<String>) {
         self.preferred_extensions = extensions;
@@ -354,7 +387,7 @@ impl AutocompleteEngine {
                 let ext = extension.to_lowercase();
                 if self.preferred_extensions.contains(&ext) {
                     // Preferred file types get a boost
-                    new_score += 0.15;
+                    new_score += 0.25;
                 }
                 
                 // Extra boost if the query contains the extension
