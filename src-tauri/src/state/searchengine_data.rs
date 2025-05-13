@@ -297,7 +297,7 @@ impl SearchEngineState  {
     pub fn search_by_extension(&self, query: &str, extensions: Vec<String>) -> Result<Vec<(String, f32)>, String> {
         let mut data = self.data.lock().unwrap();
         let mut engine = self.engine.lock().unwrap();
-        
+
         // Check if engine is busy
         if matches!(data.status, SearchEngineStatus::Indexing) {
             return Err("Engine is currently indexing".to_string());
@@ -306,60 +306,43 @@ impl SearchEngineState  {
         if matches!(data.status, SearchEngineStatus::Searching) {
             return Err("Engine is currently searching".to_string());
         }
-        
+
         // Update state
         data.status = SearchEngineStatus::Searching;
         data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
-        
+
         // Set current directory context if available
         if let Some(current_dir) = &data.config.current_directory {
             engine.set_current_directory(Some(current_dir.clone()));
         }
-        
+
         // Store original preferred extensions
         let original_extensions = data.config.preferred_extensions.clone();
-        
-        // Create a new preferred extensions list with the specified extensions first
-        let mut new_extensions = Vec::new();
-        
-        // Add the prioritized extensions first, in the order they were specified
-        for ext in &extensions {
-            if !new_extensions.contains(ext) {
-                new_extensions.push(ext.clone());
-            }
-        }
-        
-        // Add the original extensions that weren't already added
-        for ext in &original_extensions {
-            if !new_extensions.contains(ext) {
-                new_extensions.push(ext.clone());
-            }
-        }
-        
-        // Set the new preferred extensions in the engine
-        engine.set_preferred_extensions(new_extensions);
-        
+
+        // Completely override the preferred extensions with the provided ones
+        engine.set_preferred_extensions(extensions);
+
         // Perform search
         let start_time = Instant::now();
         let results = engine.search(query);
         let search_time = start_time.elapsed();
-        
+
         // Reset the original preferred extensions
         engine.set_preferred_extensions(original_extensions);
-        
+
         // Update metrics
         data.metrics.total_searches += 1;
-        
+
         // Calculate average search time
         if let Some(avg_time) = data.metrics.average_search_time_ms {
             data.metrics.average_search_time_ms = Some(
-                (avg_time * (data.metrics.total_searches - 1) as f32 + search_time.as_millis() as f32) 
+                (avg_time * (data.metrics.total_searches - 1) as f32 + search_time.as_millis() as f32)
                 / data.metrics.total_searches as f32
             );
         } else {
             data.metrics.average_search_time_ms = Some(search_time.as_millis() as f32);
         }
-        
+
         // Track recent searches (add to front, limit to 10)
         if !query.is_empty() && !data.recent_activity.recent_searches.contains(&query.to_string()) {
             data.recent_activity.recent_searches.insert(0, query.to_string());
@@ -367,13 +350,13 @@ impl SearchEngineState  {
                 data.recent_activity.recent_searches.pop();
             }
         }
-        
+
         // Update state
         data.status = SearchEngineStatus::Idle;
-        
+
         Ok(results)
     }
-    
+
     // Method to update indexing progress
     pub fn update_indexing_progress(&self, indexed: usize, total: usize, current_path: Option<String>) {
         let mut data = self.data.lock().unwrap();
@@ -683,49 +666,49 @@ mod tests_searchengine_state {
         
         // Wait for indexing thread to complete
         handle.join().unwrap();
-        
+
         // Check that indexing was properly cancelled
         let data = state.data.lock().unwrap();
         assert_eq!(data.status, SearchEngineStatus::Cancelled);
     }
-    
+
     #[test]
     fn test_cancel_indexing() {
         let state = SearchEngineState::new();
         let test_dir = get_test_dir_for_indexing();
-        
+
         // Ensure there are enough files to index by adding paths first
         let paths = collect_test_paths(Some(10000));
         for path in &paths {
             let _ = state.add_path(path);
         }
-        
+
         // Start indexing in a separate thread
         let state_clone = state.clone();
         let test_dir_clone = test_dir.clone();
         let indexing_thread = thread::spawn(move || {
             state_clone.start_indexing(test_dir_clone)
         });
-        
+
         // Give indexing time to start
         thread::sleep(Duration::from_millis(20));
-        
+
         // Cancel indexing (should delegate to stop_indexing)
         let cancel_result = state.cancel_indexing();
         assert!(cancel_result.is_ok(), "Should successfully cancel indexing");
-        
+
         // Wait for indexing thread to complete
         let _ = indexing_thread.join();
-        
+
         // Check final state
         let data = state.data.lock().unwrap();
         assert_eq!(data.status, SearchEngineStatus::Cancelled);
     }
-    
+
     #[test]
     fn test_search() {
         let state = SearchEngineState::new();
-        
+
         // Get paths and add them directly to the engine
         let paths = collect_test_paths(Some(100));
         for path in &paths {
@@ -751,30 +734,30 @@ mod tests_searchengine_state {
         } else {
             "file".to_string()
         };
-        
+
         // Search using the term
         let search_result = state.search(&search_term);
         assert!(search_result.is_ok());
-        
+
         let results = search_result.unwrap();
         assert!(!results.is_empty(), "Should find matching files");
-        
+
         // Check that searches are recorded
         let data = state.data.lock().unwrap();
         assert!(!data.recent_activity.recent_searches.is_empty());
         assert!(data.metrics.total_searches > 0);
     }
-    
+
     #[test]
     fn test_multiple_searches() {
         let state = SearchEngineState::new();
-        
+
         // Get paths and add them directly to the engine
         let paths = collect_test_paths(Some(100));
         for path in &paths {
             let _ = state.add_path(path);
         }
-        
+
         // Extract some search terms from the paths
         let mut search_terms = Vec::new();
         for path in paths.iter().take(3) {
@@ -787,21 +770,21 @@ mod tests_searchengine_state {
                 }
             }
         }
-        
+
         // If we couldn't find enough terms, add some default ones
         while search_terms.len() < 3 {
             search_terms.push("file".to_string());
         }
-        
+
         // Perform multiple searches
         for term in &search_terms {
             let _ = state.search(term);
         }
-        
+
         // Check that recent searches are tracked in order
         let data = state.data.lock().unwrap();
         assert_eq!(data.recent_activity.recent_searches.len(), 3);
-        
+
         // Verify the order (newest first)
         if search_terms.len() >= 3 {
             assert_eq!(data.recent_activity.recent_searches[0], search_terms[2]);
@@ -822,65 +805,65 @@ mod tests_searchengine_state {
         for path in &paths {
             let _ = state.add_path(path);
         }
-        
+
         // Create a channel for thread synchronization
         let (tx, rx) = std::sync::mpsc::channel();
-        
+
         // Start indexing in a separate thread
         let state_clone = state.clone();
         let test_dir_clone = test_dir.clone();
-        
+
         let handle = thread::spawn(move || {
             // Signal the main thread before starting indexing
             tx.send(()).unwrap();
-            
+
             // Start indexing - this will take time with 10,000 paths to search through
             state_clone.start_indexing(test_dir_clone).unwrap();
         });
-        
+
         // Wait for indexing thread to signal it's ready
         rx.recv().unwrap();
-        
+
         // Explicitly set status to Indexing to ensure test consistency
         {
             let mut data = state.data.lock().unwrap();
             data.status = SearchEngineStatus::Indexing;
         }
-        
+
         // Allow a moment for the lock to be released
         thread::sleep(Duration::from_millis(10));
-        
+
         // Try to search while indexing - should return an error
         let search_result = state.search("file");
         assert!(search_result.is_err(), "Search should fail during indexing");
         assert!(search_result.unwrap_err().contains("indexing"), "Error should mention indexing");
-        
+
         // Try to start another indexing operation - should stop the previous one and start new
         let second_index_result = state.start_indexing(subdir.clone());
         assert!(second_index_result.is_ok(), "Starting new indexing should succeed");
-        
+
         // Wait for original indexing thread to complete
         handle.join().unwrap();
-        
+
         // Check that we're now indexing the new directory
         {
             let data = state.data.lock().unwrap();
             assert_eq!(data.index_folder, subdir);
         }
     }
-    
+
     #[test]
     fn test_directory_context_for_search() {
         let state = SearchEngineState::new();
-        
+
         // Get paths from test data
         let paths = collect_test_paths(Some(200));
-        
+
         // Add paths directly to the engine
         for path in &paths {
             let _ = state.add_path(path);
         }
-        
+
         // Find a directory to use as context
         let dir_context = if let Some(first_path) = paths.first() {
             let path_buf = PathBuf::from(first_path);
@@ -892,113 +875,113 @@ mod tests_searchengine_state {
         } else {
             get_test_data_path().to_string_lossy().to_string()
         };
-        
+
         // Set current directory context
         let config = SearchEngineConfig {
             current_directory: Some(dir_context.clone()),
             ..SearchEngineConfig::default()
         };
         let _ = state.update_config(config);
-        
+
         // Search for a generic term
         let search_result = state.search("file");
         assert!(search_result.is_ok());
-        
+
         let results = search_result.unwrap();
-        
+
         // Results from the current directory should be ranked higher
         if !results.is_empty() {
             let top_result = &results[0].0;
             log_info!(&format!("Top result: {} for context dir: {}", top_result, dir_context));
-            
+
             // Count results from context directory
             let context_matches = results.iter()
                 .filter(|(path, _)| path.starts_with(&dir_context))
                 .count();
-            
-            log_info!(&format!("{} of {} results are from context directory", 
+
+            log_info!(&format!("{} of {} results are from context directory",
                     context_matches, results.len()));
-            
-            assert!(context_matches > 0, 
+
+            assert!(context_matches > 0,
                    "At least some results should be from context directory");
         }
     }
-    
+
     #[test]
     fn test_sequential_indexing() {
         let state = SearchEngineState::new();
-        
+
         // Get two subdirectories for sequential indexing
         let (subdir1, subdir2) = get_test_subdirs();
-        
+
         // Add some test files to both directories to ensure they have content
         let file1 = subdir1.join("testfile1.txt");
         let file2 = subdir2.join("testfile2.txt");
-        
+
         let _ = fs::write(&file1, "Test content 1");
         let _ = fs::write(&file2, "Test content 2");
-        
+
         // Index first directory
         let _ = state.start_indexing(subdir1.clone());
-        
+
         // Allow indexing to complete
         thread::sleep(Duration::from_millis(200));
-        
+
         // Search for the first file
         let search1 = state.search("testfile1");
         assert!(search1.is_ok());
         let results1 = search1.unwrap();
         let has_file1 = results1.iter().any(|(path, _)| path.contains("testfile1"));
         assert!(has_file1, "Should find testfile1 after indexing first directory");
-        
+
         // Now index second directory
         let _ = state.start_indexing(subdir2.clone());
-        
+
         // Allow indexing to complete
         thread::sleep(Duration::from_millis(200));
-        
+
         // Search for the second file
         let search2 = state.search("testfile2");
         assert!(search2.is_ok());
         let results2 = search2.unwrap();
         let has_file2 = results2.iter().any(|(path, _)| path.contains("testfile2"));
         assert!(has_file2, "Should find testfile2 after indexing second directory");
-        
+
         // First file should no longer be found (or at least not ranked highly)
         let search1_again = state.search("testfile1");
         assert!(search1_again.is_ok());
         let results1_again = search1_again.unwrap();
         let still_has_file1 = results1_again.iter().any(|(path, _)| path.contains("testfile1"));
         assert!(!still_has_file1, "Should not find testfile1 after switching indexes");
-        
+
         // Clean up test files
         let _ = fs::remove_file(file1);
         let _ = fs::remove_file(file2);
     }
-    
+
     #[test]
     fn test_empty_search_query() {
         let state = SearchEngineState::new();
-        
+
         // Add some test paths
         let paths = collect_test_paths(Some(50));
         for path in &paths {
             let _ = state.add_path(path);
         }
-        
+
         // Search with empty query
         let empty_search = state.search("");
         assert!(empty_search.is_ok());
-        
+
         // Should return empty results
         let results = empty_search.unwrap();
         assert!(results.is_empty());
     }
-    
+
     #[test]
     fn test_update_indexing_progress() {
         let state = SearchEngineState::new();
-        
+
         // Set initial state for testing progress updates
         let start_time = chrono::Utc::now().timestamp_millis() as u64;
         {
@@ -1006,45 +989,45 @@ mod tests_searchengine_state {
             data.progress.start_time = Some(start_time);
             data.status = SearchEngineStatus::Indexing;
         }
-        
+
         // Update progress manually
         state.update_indexing_progress(50, 100, Some("/path/to/current/file.txt".to_string()));
-        
+
         // Check progress data
         let data = state.data.lock().unwrap();
         assert_eq!(data.progress.files_indexed, 50);
         assert_eq!(data.progress.files_discovered, 100);
         assert_eq!(data.progress.percentage_complete, 50.0);
         assert_eq!(data.progress.current_path, Some("/path/to/current/file.txt".to_string()));
-        
+
         // Only check if estimated_time_remaining exists, as the exact value will vary
         assert!(data.progress.estimated_time_remaining.is_some());
     }
-    
+
     #[test]
     fn test_get_stats() {
         let state = SearchEngineState::new();
-        
+
         // Get initial stats
         let initial_stats = state.get_stats();
         assert_eq!(initial_stats.trie_size, 0);
-        
+
         // Add paths
         let paths = collect_test_paths(Some(20));
         for path in &paths {
             let _ = state.add_path(path);
         }
-        
+
         // Get stats after adding paths
         let after_stats = state.get_stats();
         assert!(after_stats.trie_size > 0, "Trie should contain indexed paths");
         assert!(after_stats.trie_size >= paths.len(), "Trie should contain all indexed paths");
     }
-    
+
     #[test]
     fn test_update_config() {
         let state = SearchEngineState::new();
-        
+
         // Create a custom configuration
         let custom_config = SearchEngineConfig {
             max_results: 30,
@@ -1054,11 +1037,11 @@ mod tests_searchengine_state {
             cache_size: 500,
             current_directory: Some("/home/user".to_string()),
         };
-        
+
         // Update the configuration
         let result = state.update_config(custom_config.clone());
         assert!(result.is_ok());
-        
+
         // Check that configuration was updated
         let data = state.data.lock().unwrap();
         assert_eq!(data.config.max_results, 30);
@@ -1067,182 +1050,182 @@ mod tests_searchengine_state {
         assert_eq!(data.config.cache_size, 500);
         assert_eq!(data.config.current_directory, Some("/home/user".to_string()));
     }
-    
+
     #[test]
     fn test_add_and_remove_path() {
         let state = SearchEngineState::new();
-        
+
         // Add a path
         let result = state.add_path("/test/path.txt");
         assert!(result.is_ok());
-        
+
         // Search for the path
         let search_result = state.search("path.txt");
         assert!(search_result.is_ok());
-        
+
         let results = search_result.unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].0, "/test/path.txt");
-        
+
         // Remove the path
         let remove_result = state.remove_path("/test/path.txt");
         assert!(remove_result.is_ok());
-        
+
         // Search again - should not find the path
         let search_again = state.search("path.txt");
         assert!(search_again.is_ok());
-        
+
         let empty_results = search_again.unwrap();
         assert!(empty_results.is_empty() || !empty_results[0].0.contains("/test/path.txt"));
     }
-    
+
     #[test]
     fn test_start_indexing_invalid_path() {
         let state = SearchEngineState::new();
-        
+
         // Try to index an invalid path
         let invalid_path = PathBuf::from("/path/that/does/not/exist");
         let result = state.start_indexing(invalid_path);
-        
+
         // Should still return Ok since the error is handled internally
         assert!(result.is_ok());
-        
+
         // But the status should be Failed or Idle
         thread::sleep(Duration::from_millis(50)); // Wait for status update
         let data = state.data.lock().unwrap();
         assert!(matches!(data.status, SearchEngineStatus::Failed | SearchEngineStatus::Idle));
     }
-    
+
     #[test]
     fn test_stop_indexing_when_not_indexing() {
         let state = SearchEngineState::new();
-        
+
         // Set state to Idle to ensure we're not indexing
         {
             let mut data = state.data.lock().unwrap();
             data.status = SearchEngineStatus::Idle;
         }
-        
+
         // Try to stop indexing when not indexing
         let result = state.stop_indexing();
-        
+
         // Should return an error
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("No indexing operation in progress"));
     }
-    
+
     #[test]
     fn test_thread_safety() {
         let state = Arc::new(SearchEngineState::new());
-        
+
         // Clone the state to pass to another thread
         let state_clone = Arc::clone(&state);
-        
+
         // Get a test directory
         let test_dir = get_test_dir_for_indexing();
         let test_dir_clone = test_dir.clone();
-        
+
         // Use many paths to ensure indexing takes significant time
         let paths = collect_test_paths(Some(10000));  // Increased to 10,000 paths
         for path in &paths {
             let _ = state.add_path(path);
         }
-        
+
         // Use a channel for synchronization
         let (tx, rx) = std::sync::mpsc::channel();
-        
+
         // Start indexing in another thread
         let indexing_thread = thread::spawn(move || {
             // Signal the main thread before starting indexing
             tx.send(()).unwrap();
-            
+
             // Start actual indexing - this will take time with many paths
             state_clone.start_indexing(test_dir_clone).unwrap();
         });
-        
+
         // Wait for signal that indexing is about to start
         rx.recv().unwrap();
-        
+
         // Explicitly set status to Indexing for test consistency
         {
             let mut data = state.data.lock().unwrap();
             data.status = SearchEngineStatus::Indexing;
         }
-        
+
         // Allow a moment for the lock to be released
         thread::sleep(Duration::from_millis(10));
-        
+
         // Verify we're in indexing state before continuing
         {
             let data = state.data.lock().unwrap();
-            assert_eq!(data.status, SearchEngineStatus::Indexing, 
+            assert_eq!(data.status, SearchEngineStatus::Indexing,
                       "Engine should be in Indexing state before search");
         }
-        
+
         // Try to search from the main thread - should return an error while indexing
         let search_result = state.search("document");
-        assert!(search_result.is_err(), 
+        assert!(search_result.is_err(),
                "Search should fail with an error when engine is indexing");
-        assert!(search_result.unwrap_err().contains("indexing"), 
+        assert!(search_result.unwrap_err().contains("indexing"),
                "Error should state that engine is indexing");
-        
+
         // Wait for indexing to complete
         let _ = indexing_thread.join();
-        
+
         // Set status back to Idle to allow successful search
         {
             let mut data = state.data.lock().unwrap();
             data.status = SearchEngineStatus::Idle;
         }
-        
+
         // Now search should work
         let after_search = state.search("document");
         assert!(after_search.is_ok(), "Search should succeed after indexing is complete");
     }
-    
+
     #[test]
     fn test_clone_implementation() {
         let state = SearchEngineState::new();
-        
+
         // Test that we can clone the state
         let cloned_state = state.clone();
-        
+
         // Test that the cloned state operates independently
         // by modifying the original state's data
         {
             let mut data = state.data.lock().unwrap();
             data.status = SearchEngineStatus::Searching;
         }
-        
+
         // The cloned state should see the change since they share the same Arc<Mutex<>>
         {
             let data = cloned_state.data.lock().unwrap();
             assert_eq!(data.status, SearchEngineStatus::Searching);
         }
     }
-    
+
     #[test]
     fn test_interactive_search_scenarios() {
         // This test simulates a user interacting with the search engine
         let state = SearchEngineState::new();
         let paths = collect_test_paths(Some(10000));
-        
+
         // Add paths to the engine
         for path in &paths {
             state.add_path(path).expect("Failed to add path");
         }
-        
+
         // Scenario 1: User performs a search, then refines it with more specific terms
         let initial_search = state.search("do").expect("Search failed");
         log_info!(&format!("Initial search for 'do' found {} results", initial_search.len()));
-        
+
         let refined_search = state.search("doc").expect("Search failed");
         log_info!(&format!("Refined search for 'doc' found {} results", refined_search.len()));
-        
+
         // Refined search should be more specific
-        assert!(refined_search.len() <= initial_search.len(), 
+        assert!(refined_search.len() <= initial_search.len(),
                 "Refined search should return fewer or equal results");
-        
+
         // Scenario 2: User changes context directory between searches
         if paths.len() >= 2 {
             // Find two different directories in the paths
@@ -1258,7 +1241,7 @@ mod tests_searchengine_state {
                     }
                 }
             }
-            
+
             if dirs.len() >= 2 {
                 // First search with initial directory context
                 let config1 = SearchEngineConfig {
@@ -1266,20 +1249,20 @@ mod tests_searchengine_state {
                     ..SearchEngineConfig::default()
                 };
                 state.update_config(config1).expect("Failed to update config");
-                
+
                 let search1 = state.search("file").expect("Search failed");
                 log_info!(&format!("Search in '{}' found {} results", dirs[0], search1.len()));
-                
+
                 // Second search with different directory context
                 let config2 = SearchEngineConfig {
                     current_directory: Some(dirs[1].clone()),
                     ..SearchEngineConfig::default()
                 };
                 state.update_config(config2).expect("Failed to update config");
-                
+
                 let search2 = state.search("file").expect("Search failed");
                 log_info!(&format!("Search in '{}' found {} results", dirs[1], search2.len()));
-                
+
                 // The result rankings should be different based on context
                 if !search1.is_empty() && !search2.is_empty() {
                     assert!(search1[0].0 != search2[0].0 || search1[0].1 != search2[0].1,
@@ -1287,42 +1270,42 @@ mod tests_searchengine_state {
                 }
             }
         }
-        
+
         // Scenario 3: Test search performance after multiple searches (caching effects)
         let perf_term = "fi"; // Short common term likely to be in many paths
-        
+
         // First search - no cache
         let first_start = std::time::Instant::now();
         let _ = state.search(perf_term).expect("Search failed");
         let first_elapsed = first_start.elapsed();
-        
+
         // Second search - should use cache and be faster
         let second_start = std::time::Instant::now();
         let _ = state.search(perf_term).expect("Search failed");
         let second_elapsed = second_start.elapsed();
-        
-        log_info!(&format!("First search took {:?}, second search took {:?}", 
+
+        log_info!(&format!("First search took {:?}, second search took {:?}",
                  first_elapsed, second_elapsed));
-        
+
         // Get metrics to verify searches were recorded
         let data = state.data.lock().unwrap();
         log_info!(&format!("Total searches: {}", data.metrics.total_searches));
         log_info!(&format!("Recent searches: {:?}", data.recent_activity.recent_searches));
-        
+
         assert!(data.metrics.total_searches >= 3, "Should have recorded multiple searches");
-        assert!(data.recent_activity.recent_searches.contains(&perf_term.to_string()), 
+        assert!(data.recent_activity.recent_searches.contains(&perf_term.to_string()),
                 "Recent searches should include performance test term");
     }
-    
+
     #[test]
     fn test_with_real_world_data() {
         log_info!("Testing SearchEngineState with real-world test data");
         let state = SearchEngineState::new();
-        
+
         // Get real-world paths from test data (limit to 500 for performance)
         let paths = collect_test_paths(Some(500));
         log_info!(&format!("Collected {} test paths", paths.len()));
-        
+
         // Add paths directly to the engine
         let start = std::time::Instant::now();
         for path in &paths {
@@ -1331,12 +1314,12 @@ mod tests_searchengine_state {
         let elapsed = start.elapsed();
         log_info!(&format!("Added {} paths in {:?} ({:.2} paths/ms)",
                  paths.len(), elapsed, paths.len() as f64 / elapsed.as_millis().max(1) as f64));
-        
+
         // Get stats after adding paths
         let stats = state.get_stats();
         log_info!(&format!("Engine stats after adding paths - Cache size: {}, Trie size: {}",
                  stats.cache_size, stats.trie_size));
-        
+
         // Extract a test query from the paths
         let test_query = if let Some(path) = paths.first() {
             if let Some(filename) = path.split('/').last().or_else(|| path.split('\\').last()) {
@@ -1351,48 +1334,48 @@ mod tests_searchengine_state {
         } else {
             "fi"
         };
-        
+
         // Perform search
         let search_start = std::time::Instant::now();
         let results = state.search(test_query).expect("Search failed");
         let search_elapsed = search_start.elapsed();
-        
+
         log_info!(&format!("Search for '{}' found {} results in {:?}",
                  test_query, results.len(), search_elapsed));
-        
+
         assert!(!results.is_empty(), "Should find results with real-world data");
-        
+
         // Log top results
         for (i, (path, score)) in results.iter().take(3).enumerate() {
             log_info!(&format!("  Result #{}: {} (score: {:.4})", i+1, path, score));
         }
-        
+
         // Test with directory context
         if let Some(path) = paths.first() {
             if let Some(last_sep) = path.rfind('/').or_else(|| path.rfind('\\')) {
                 let dir_context = &path[..last_sep];
-                
+
                 // Set the context
                 let config = SearchEngineConfig {
                     current_directory: Some(dir_context.to_string()),
                     ..SearchEngineConfig::default()
                 };
                 state.update_config(config).expect("Failed to update config");
-                
+
                 // Search again with context
                 let context_results = state.search(test_query).expect("Context search failed");
-                
+
                 log_info!(&format!("Context search with directory '{}' found {} results",
                          dir_context, context_results.len()));
-                
+
                 // Count how many results are from the context directory
                 let context_matches = context_results.iter()
                     .filter(|(path, _)| path.starts_with(dir_context))
                     .count();
-                
+
                 log_info!(&format!("  {} of {} results are from the context directory",
                          context_matches, context_results.len()));
-                
+
                 assert!(context_matches > 0, "Results should include paths from context directory");
             }
         }
@@ -1417,16 +1400,16 @@ mod tests_searchengine_state {
 
         // Search with preference for pdf extension only
         let pdf_results = state.search_by_extension("document", vec!["pdf".to_string()]).unwrap();
-        
+
         // Search with multiple extension preferences in order (txt first, then pdf)
         let txt_pdf_results = state.search_by_extension(
-            "document", 
+            "document",
             vec!["txt".to_string()]
         ).unwrap();
-        
+
         // Search with different order of extensions (pdf first, then txt)
         let pdf_txt_results = state.search_by_extension(
-            "document", 
+            "document",
             vec!["pdf".to_string(), "txt".to_string()]
         ).unwrap();
 
@@ -1435,14 +1418,14 @@ mod tests_searchengine_state {
             assert_eq!(txt_results[0].0, "/test/document.txt", "TXT document should be first with txt extension preference");
             assert_eq!(pdf_results[0].0, "/test/document.pdf", "PDF document should be first with pdf extension preference");
         }
-        
+
         // Verify that multiple extension preferences work in order
         if !txt_pdf_results.is_empty() && !pdf_txt_results.is_empty() {
             // When txt is first priority, txt document should be first
             assert_eq!(txt_pdf_results[0].0, "/test/document.txt", "TXT document should be first when txt is first priority");
             // When pdf is first priority, pdf document should be first
             assert_eq!(pdf_txt_results[0].0, "/test/document.pdf", "PDF document should be first when pdf is first priority");
-            
+
             // The second item should be the second prioritized extension
             if txt_pdf_results.len() >= 2 && pdf_txt_results.len() >= 2 {
                 assert_eq!(txt_pdf_results[1].0, "/test/document.pdf", "PDF document should be second when pdf is second priority");
@@ -1458,14 +1441,14 @@ mod tests_searchengine_state {
         // Test search for a non-existent extension
         let nonexistent_results = state.search_by_extension("document", vec!["nonexistent".to_string()]).unwrap();
         assert_eq!(regular_results.len(), nonexistent_results.len(), "Should still find all documents with non-existent extension");
-        
+
         // Test with empty extensions list (should use default preferences)
         let empty_ext_results = state.search_by_extension("document", vec![]).unwrap();
         assert_eq!(regular_results.len(), empty_ext_results.len(), "Should find all documents with empty extensions list");
-        
+
         // Results should match regular search results when no extensions are specified
         if !regular_results.is_empty() && !empty_ext_results.is_empty() {
-            assert_eq!(regular_results[0].0, empty_ext_results[0].0, 
+            assert_eq!(regular_results[0].0, empty_ext_results[0].0,
                       "Top result should match regular search when no extensions specified");
         }
     }
