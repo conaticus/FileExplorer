@@ -262,6 +262,11 @@ impl AutocompleteEngine {
         self.preferred_extensions = extensions;
     }
     
+    /// Get the currently set preferred extensions
+    pub fn get_preferred_extensions(&self) -> &Vec<String> {
+        &self.preferred_extensions
+    }
+    
     /// Search for path completions using the engine's combined strategy
     pub fn search(&mut self, query: &str) -> Vec<(String, f32)> {
         if query.is_empty() {
@@ -385,9 +390,17 @@ impl AutocompleteEngine {
                 .and_then(|e| e.to_str()) 
             {
                 let ext = extension.to_lowercase();
-                if self.preferred_extensions.contains(&ext) {
-                    // Preferred file types get a boost
-                    new_score += 0.25;
+                
+                // Check if it's in preferred extensions list
+                if let Some(position) = self.preferred_extensions.iter().position(|e| e.to_lowercase() == ext) {
+                    // Give higher boost to extensions that appear earlier in the list
+                    let position_factor = 1.0 - (position as f32 / self.preferred_extensions.len().max(1) as f32);
+                    // Stronger boost (up to 2.0 for first extension)
+                    new_score += 2.0 * position_factor;
+                    
+                    // Log this boost for debugging
+                    log_info!(&format!("Boosting score for {} with extension {} by {:.2}", 
+                             path, ext, 2.0 * position_factor));
                 }
                 
                 // Extra boost if the query contains the extension
@@ -502,7 +515,7 @@ mod tests_autocomplete_engine {
         engine.record_path_usage("/path/b.txt");  // Used once
         
         // Wait a bit to create a recency difference
-        sleep(Duration::from_millis(10));
+        sleep(Duration::from_millis(50));
         
         // Record newer usage for b.txt
         engine.record_path_usage("/path/b.txt");

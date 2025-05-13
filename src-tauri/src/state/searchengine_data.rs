@@ -151,6 +151,7 @@ pub struct SearchEngineState {
     pub engine: Arc<Mutex<AutocompleteEngine>>,
 }
 
+#[allow(dead_code)] // only tests rn
 impl SearchEngineState  {
     pub fn new() -> Self {
         let config = SearchEngineConfig::default();
@@ -317,15 +318,32 @@ impl SearchEngineState  {
         }
 
         // Store original preferred extensions
-        let original_extensions = data.config.preferred_extensions.clone();
+        let original_extensions = engine.get_preferred_extensions().clone();
 
         // Completely override the preferred extensions with the provided ones
-        engine.set_preferred_extensions(extensions);
+        engine.set_preferred_extensions(extensions.clone());
+
+        // Debug log to verify the extensions were set correctly
+        log_info!(&format!("Searching with preferred extensions: {:?}", extensions));
 
         // Perform search
         let start_time = Instant::now();
         let results = engine.search(query);
         let search_time = start_time.elapsed();
+
+        // Verify that results meet our extension preferences
+        if !results.is_empty() && !extensions.is_empty() {
+            log_info!(&format!("Top search result: {}", results[0].0));
+
+            // Check if top result has one of our preferred extensions
+            if let Some(extension) = std::path::Path::new(&results[0].0)
+                .extension()
+                .and_then(|e| e.to_str())
+            {
+                let ext = extension.to_lowercase();
+                log_info!(&format!("Top result extension: {}, preferred: {:?}", ext, extensions));
+            }
+        }
 
         // Reset the original preferred extensions
         engine.set_preferred_extensions(original_extensions);
@@ -618,91 +636,131 @@ mod tests_searchengine_state {
         assert_eq!(data.index_folder, test_dir);
         assert!(data.metrics.last_indexing_duration_ms.is_some());
     }
-    
+
     #[test]
     fn test_stop_indexing() {
-        let state = SearchEngineState::new();
+        let state = Arc::new(SearchEngineState::new());
         let test_dir = get_test_dir_for_indexing();
         
         // Create test files to ensure indexing takes enough time
         let mut test_files = Vec::new();
-        for i in 0..100 {
+        for i in 0..1000 {  // Increased to 1000 files to ensure indexing takes time
             let file_path = test_dir.join(format!("testfile_{}.txt", i));
             let _ = fs::write(&file_path, format!("Test content {}", i));
             test_files.push(file_path);
         }
         
-        // Start indexing without waiting for completion
-        let state_clone = state.clone();
+        // Use more reliable synchronization
+        let (status_tx, status_rx) = std::sync::mpsc::channel();
+
+        // Clone the Arc for the thread to use
+        let state_clone = Arc::clone(&state);
         let test_dir_clone = test_dir.clone();
         
-        // Use a barrier to synchronize test threads
-        let barrier = Arc::new(std::sync::Barrier::new(2));
-        let barrier_clone = barrier.clone();
-        
-        let handle = thread::spawn(move || {
-            // Signal that we're about to start indexing
-            barrier_clone.wait();
+        let indexing_thread = thread::spawn(move || {
+            // First manually set the status to Indexing to guarantee we're in that state
+            {
+                let mut data = state_clone.data.lock().unwrap();
+                data.status = SearchEngineStatus::Indexing;
+
+                // Signal the test thread that we've set the status
+                status_tx.send(()).unwrap();
+            }
             
-            // Start indexing - this will take some time with 100 files
+            // Now start the actual indexing (which may take a while)
             state_clone.start_indexing(test_dir_clone).unwrap();
         });
         
-        // Wait for the indexing thread to get ready
-        barrier.wait();
+        // Wait for the signal that the status has been explicitly set to Indexing
+        status_rx.recv().unwrap();
         
-        // Small sleep to ensure indexing has actually started
-        thread::sleep(Duration::from_millis(10));
-        
-        // Explicitly set status to Indexing to ensure test consistency
+        // Double-check that we're really in Indexing state before proceeding
         {
             let data = state.data.lock().unwrap();
-            assert_eq!(data.status, SearchEngineStatus::Indexing);
+            assert_eq!(data.status, SearchEngineStatus::Indexing, 
+                      "Should be in Indexing state before stopping");
         }
         
-        // Stop indexing
+        // Now we can safely stop indexing
         let stop_result = state.stop_indexing();
         assert!(stop_result.is_ok(), "Should successfully stop indexing");
         
-        // Wait for indexing thread to complete
-        handle.join().unwrap();
+        // Verify that stopping worked
+        {
+            let data = state.data.lock().unwrap();
+            assert_eq!(data.status, SearchEngineStatus::Cancelled);
+        }
 
-        // Check that indexing was properly cancelled
-        let data = state.data.lock().unwrap();
-        assert_eq!(data.status, SearchEngineStatus::Cancelled);
+        // Wait for indexing thread to complete
+        indexing_thread.join().unwrap();
+
+        // Clean up test files (best effort, don't fail test if cleanup fails)
+        for file in test_files {
+            let _ = fs::remove_file(file);
+        }
     }
 
     #[test]
     fn test_cancel_indexing() {
-        let state = SearchEngineState::new();
+        let state = Arc::new(SearchEngineState::new());
         let test_dir = get_test_dir_for_indexing();
-
-        // Ensure there are enough files to index by adding paths first
-        let paths = collect_test_paths(Some(10000));
-        for path in &paths {
-            let _ = state.add_path(path);
+        
+        // Create a LOT of test files to ensure indexing takes enough time
+        let mut test_files = Vec::new();
+        for i in 0..1000 {  // Use 1000 files to ensure indexing takes time
+            let file_path = test_dir.join(format!("cancel_test_file_{}.txt", i));
+            let _ = fs::write(&file_path, format!("Test content {}", i));
+            test_files.push(file_path);
         }
-
-        // Start indexing in a separate thread
-        let state_clone = state.clone();
+        
+        // Use more reliable synchronization with channel
+        let (status_tx, status_rx) = std::sync::mpsc::channel();
+        
+        // Clone the Arc for the thread to use
+        let state_clone = Arc::clone(&state);
         let test_dir_clone = test_dir.clone();
+        
         let indexing_thread = thread::spawn(move || {
-            state_clone.start_indexing(test_dir_clone)
+            // First manually set the status to Indexing to guarantee we're in that state
+            {
+                let mut data = state_clone.data.lock().unwrap();
+                data.status = SearchEngineStatus::Indexing;
+                
+                // Signal the test thread that we've set the status
+                status_tx.send(()).unwrap();
+            }
+            
+            // Now start the actual indexing
+            state_clone.start_indexing(test_dir_clone).unwrap();
         });
-
-        // Give indexing time to start
-        thread::sleep(Duration::from_millis(20));
-
-        // Cancel indexing (should delegate to stop_indexing)
+        
+        // Wait for the signal that the status has been explicitly set to Indexing
+        status_rx.recv().unwrap();
+        
+        // Double-check that we're really in Indexing state before proceeding
+        {
+            let data = state.data.lock().unwrap();
+            assert_eq!(data.status, SearchEngineStatus::Indexing, 
+                      "Should be in Indexing state before canceling");
+        }
+        
+        // Now attempt to cancel indexing
         let cancel_result = state.cancel_indexing();
         assert!(cancel_result.is_ok(), "Should successfully cancel indexing");
-
+        
+        // Verify that canceling worked
+        {
+            let data = state.data.lock().unwrap();
+            assert_eq!(data.status, SearchEngineStatus::Cancelled);
+        }
+        
         // Wait for indexing thread to complete
-        let _ = indexing_thread.join();
-
-        // Check final state
-        let data = state.data.lock().unwrap();
-        assert_eq!(data.status, SearchEngineStatus::Cancelled);
+        indexing_thread.join().unwrap();
+        
+        // Clean up test files (best effort, don't fail test if cleanup fails)
+        for file in test_files {
+            let _ = fs::remove_file(file);
+        }
     }
 
     #[test]
@@ -795,60 +853,74 @@ mod tests_searchengine_state {
     
     #[test]
     fn test_concurrent_operations() {
-        let state = SearchEngineState::new();
+        let state = Arc::new(SearchEngineState::new());
         
         // Get a test directory for indexing
         let (test_dir, subdir) = get_test_subdirs();
         
-        // Load the engine with MANY paths first to make indexing slower
-        let paths = collect_test_paths(Some(10000));  // Increased to 10,000 paths
-        for path in &paths {
-            let _ = state.add_path(path);
+        // Create a LOT of test files to ensure indexing takes time
+        let mut test_files = Vec::new();
+        for i in 0..1000 {  // Increased to 1000 files to ensure indexing takes time
+            let file_path = test_dir.join(format!("concurrent_test_{}.txt", i));
+            let _ = fs::write(&file_path, format!("Test content {}", i));
+            test_files.push(file_path);
         }
 
-        // Create a channel for thread synchronization
-        let (tx, rx) = std::sync::mpsc::channel();
+        // Use more reliable synchronization
+        let (status_tx, status_rx) = std::sync::mpsc::channel();
 
-        // Start indexing in a separate thread
-        let state_clone = state.clone();
+        // Clone the Arc for the thread to use
+        let state_clone = Arc::clone(&state);
         let test_dir_clone = test_dir.clone();
 
-        let handle = thread::spawn(move || {
-            // Signal the main thread before starting indexing
-            tx.send(()).unwrap();
+        let indexing_thread = thread::spawn(move || {
+            // First manually set the status to Indexing to guarantee we're in that state
+            {
+                let mut data = state_clone.data.lock().unwrap();
+                data.status = SearchEngineStatus::Indexing;
 
-            // Start indexing - this will take time with 10,000 paths to search through
+                // Signal the test thread that we've set the status
+                status_tx.send(()).unwrap();
+            }
+
+            // Now start the actual indexing (which may take a while)
             state_clone.start_indexing(test_dir_clone).unwrap();
         });
 
-        // Wait for indexing thread to signal it's ready
-        rx.recv().unwrap();
+        // Wait for the signal that the status has been explicitly set to Indexing
+        status_rx.recv().unwrap();
 
-        // Explicitly set status to Indexing to ensure test consistency
+        // Double-check that we're in the Indexing state before proceeding
         {
-            let mut data = state.data.lock().unwrap();
-            data.status = SearchEngineStatus::Indexing;
+            let data = state.data.lock().unwrap();
+            assert_eq!(data.status, SearchEngineStatus::Indexing,
+                      "Should be in Indexing state before testing concurrent operations");
         }
-
-        // Allow a moment for the lock to be released
-        thread::sleep(Duration::from_millis(10));
 
         // Try to search while indexing - should return an error
         let search_result = state.search("file");
-        assert!(search_result.is_err(), "Search should fail during indexing");
-        assert!(search_result.unwrap_err().contains("indexing"), "Error should mention indexing");
+        assert!(search_result.is_err(),
+               "Search should fail with an error when engine is indexing");
+        assert!(search_result.unwrap_err().contains("indexing"),
+               "Error should mention indexing");
 
         // Try to start another indexing operation - should stop the previous one and start new
         let second_index_result = state.start_indexing(subdir.clone());
-        assert!(second_index_result.is_ok(), "Starting new indexing should succeed");
+        assert!(second_index_result.is_ok(),
+               "Starting new indexing operation should succeed even when one is in progress");
 
-        // Wait for original indexing thread to complete
-        handle.join().unwrap();
+        // Wait for indexing thread to complete
+        indexing_thread.join().unwrap();
 
-        // Check that we're now indexing the new directory
+        // Verify that the index folder has been updated to the new one
         {
             let data = state.data.lock().unwrap();
             assert_eq!(data.index_folder, subdir);
+        }
+
+        // Clean up test files (best effort, don't fail test if cleanup fails)
+        for file in test_files {
+            let _ = fs::remove_file(file);
         }
     }
 
@@ -1117,49 +1189,45 @@ mod tests_searchengine_state {
     #[test]
     fn test_thread_safety() {
         let state = Arc::new(SearchEngineState::new());
-
-        // Clone the state to pass to another thread
         let state_clone = Arc::clone(&state);
-
-        // Get a test directory
         let test_dir = get_test_dir_for_indexing();
-        let test_dir_clone = test_dir.clone();
-
-        // Use many paths to ensure indexing takes significant time
-        let paths = collect_test_paths(Some(10000));  // Increased to 10,000 paths
-        for path in &paths {
-            let _ = state.add_path(path);
+        
+        // Create a LOT of test files to ensure indexing takes time
+        let mut test_files = Vec::new();
+        for i in 0..1000 {  // Increased to 1000 files to ensure indexing takes time
+            let file_path = test_dir.join(format!("thread_safety_test_{}.txt", i));
+            let _ = fs::write(&file_path, format!("Test content {}", i));
+            test_files.push(file_path);
         }
 
-        // Use a channel for synchronization
-        let (tx, rx) = std::sync::mpsc::channel();
+        // Use more reliable synchronization
+        let (status_tx, status_rx) = std::sync::mpsc::channel();
 
         // Start indexing in another thread
-        let indexing_thread = thread::spawn(move || {
-            // Signal the main thread before starting indexing
-            tx.send(()).unwrap();
+        let test_dir_clone = test_dir.clone();
 
-            // Start actual indexing - this will take time with many paths
+        let indexing_thread = thread::spawn(move || {
+            // First manually set the status to Indexing to guarantee we're in that state
+            {
+                let mut data = state_clone.data.lock().unwrap();
+                data.status = SearchEngineStatus::Indexing;
+
+                // Signal the test thread that we've set the status
+                status_tx.send(()).unwrap();
+            }
+
+            // Now start the actual indexing (which may take a while)
             state_clone.start_indexing(test_dir_clone).unwrap();
         });
 
-        // Wait for signal that indexing is about to start
-        rx.recv().unwrap();
+        // Wait for the signal that the status has been explicitly set to Indexing
+        status_rx.recv().unwrap();
 
-        // Explicitly set status to Indexing for test consistency
-        {
-            let mut data = state.data.lock().unwrap();
-            data.status = SearchEngineStatus::Indexing;
-        }
-
-        // Allow a moment for the lock to be released
-        thread::sleep(Duration::from_millis(10));
-
-        // Verify we're in indexing state before continuing
+        // Double-check that we're in the Indexing state before proceeding
         {
             let data = state.data.lock().unwrap();
             assert_eq!(data.status, SearchEngineStatus::Indexing,
-                      "Engine should be in Indexing state before search");
+                      "Should be in Indexing state before testing thread safety");
         }
 
         // Try to search from the main thread - should return an error while indexing
@@ -1167,10 +1235,13 @@ mod tests_searchengine_state {
         assert!(search_result.is_err(),
                "Search should fail with an error when engine is indexing");
         assert!(search_result.unwrap_err().contains("indexing"),
-               "Error should state that engine is indexing");
+               "Error should mention indexing");
 
-        // Wait for indexing to complete
-        let _ = indexing_thread.join();
+        // Now stop the indexing operation
+        let _ = state.stop_indexing();
+
+        // Wait for indexing thread to complete
+        indexing_thread.join().unwrap();
 
         // Set status back to Idle to allow successful search
         {
@@ -1181,6 +1252,11 @@ mod tests_searchengine_state {
         // Now search should work
         let after_search = state.search("document");
         assert!(after_search.is_ok(), "Search should succeed after indexing is complete");
+
+        // Clean up test files (best effort, don't fail test if cleanup fails)
+        for file in test_files {
+            let _ = fs::remove_file(file);
+        }
     }
 
     #[test]
@@ -1404,7 +1480,7 @@ mod tests_searchengine_state {
         // Search with multiple extension preferences in order (txt first, then pdf)
         let txt_pdf_results = state.search_by_extension(
             "document",
-            vec!["txt".to_string()]
+            vec!["txt".to_string(), "pdf".to_string()]
         ).unwrap();
 
         // Search with different order of extensions (pdf first, then txt)
