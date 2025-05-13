@@ -9,6 +9,7 @@ use std::io::Write;
 use std::path::Path;
 use zip::write::FileOptions;
 use zip::ZipWriter;
+use crate::error_handling::{Error, ErrorCode};
 
 /// Opens a file at the given path and returns its contents as a string.
 /// Should only be used for text files.
@@ -37,7 +38,8 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 
     // Check if path exists
     if !path_obj.exists() {
-        return Err(format!("File does not exist: {}", path));
+        //return Err(format!("File does not exist: {}", path));
+        return Err(Error::new(ErrorCode::NotFound, format!("File does not exist: {}", path)).to_json());
     }
 
     // Check if path is a file
@@ -626,6 +628,39 @@ mod tests_file_system_operation_commands {
             result.unwrap(),
             "Hello, world!\n",
             "File contents do not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_open_file_test_path_not_exists() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_file_test.txt");
+
+        // Open the file and read its contents
+        let result = open_file(test_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_err(), "Failed to open file: {:?}", result);
+        assert!(
+            result.clone().unwrap_err().contains("File does not exist"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.clone().unwrap_err().contains("404"),
+            "Error message does not match expected value"
+        );
+
+
+        assert!(
+            result.unwrap_err().contains("NotFound"),
+            "Error message does not match expected value"
         );
     }
 

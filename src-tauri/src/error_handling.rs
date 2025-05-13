@@ -1,18 +1,15 @@
 use serde::{Deserialize, Serialize};
 
-
-/*
-//Hier gehört noch was hin XD
+#[derive(Debug, Serialize, Deserialize)]
 pub enum ErrorCode {
     NotFound,
     Unauthorized,
     InternalError,
 }
- */
 
-/*
+
 impl ErrorCode {
-    pub fn code(&self) -> u16 {
+    pub fn get_code_as_u16(&self) -> u16 {
         match self {
             ErrorCode::NotFound => 404,
             ErrorCode::Unauthorized => 401,
@@ -20,14 +17,7 @@ impl ErrorCode {
         }
     }
 
-    pub fn message(&self) -> &'static str {
-        match self {
-            ErrorCode::NotFound => "Not Found",
-            ErrorCode::Unauthorized => "Unauthorized",
-            ErrorCode::InternalError => "Internal Server Error",
-        }
-    }
-
+    #[allow(dead_code)]
     pub fn from_code(code: u16) -> Option<ErrorCode> {
         match code {
             404 => Some(ErrorCode::NotFound),
@@ -39,18 +29,17 @@ impl ErrorCode {
 
 }
 
-//Hier gehört noch was hin XD
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Error {
-    code: ErrorCode,
-    message_from_code: String,
+    code: u16,
+    message_from_code: ErrorCode,
     custom_message: String,
 }
 impl Error {
     pub fn new(code: ErrorCode, message: String) -> Self {
-       let message_from_code = code.message();
         Self {
-            code,
-            message_from_code: message_from_code.to_string(),
+            code: code.get_code_as_u16(),
+            message_from_code: code,
             custom_message: message,
         }
     }
@@ -64,59 +53,23 @@ impl Error {
     //TODO a method which is called pub fn to _json(&self) -> String 
     
     //methode sollte dann so aussehen um den error aufzurufen 
-    Err(Error::new(ErrorCode::NotFound, "File not found".to_string()).to_json())   
+    //Err(Error::new(ErrorCode::NotFound, "File not found".to_string()).to_json())   
     
     //oder
-    Err(Error::new(ErrorCode::NotFound, format!("File not found: {}", file_path)).to_json())   
+    //Err(Error::new(ErrorCode::NotFound, format!("File not found: {}", file_path)).to_json())   
 
- */
-
-#[derive(Debug, Serialize, Deserialize)]
-enum ErrorCodes {
-    NotFound = 404,
-    PermissionDenied = 403,
-    Unknown = 500,
-}
+ 
 
 
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Error {
-    code: ErrorCodes,
-    message: String,
-}
-
-impl Error {
-    fn new(code: ErrorCodes, message: &str) -> Self {
-        
-        Self {
-            code,
-            message: message.to_string(),
-        }
-    }
-
-    fn to_json(&self) -> String {
-        serde_json::to_string(&self).unwrap()
-    }
-}
-
-
-// chatgpt fragen nach custom contructor durch fn new,
-// automatisch im error ein neues Feld, welches automatisch mit der Zahl initialisiert wird
-
-
+//tests noch abändern
 #[cfg(test)]
 mod error_handling_tests {
-    use crate::error_handling::{Error, ErrorCodes};
+    use crate::error_handling::{Error, ErrorCode};
 
     #[test]
     pub fn test() {
-        //& string ist problematisch weil die referenz zu dem string nicht mehr existiert wenn die methode beendet ist
-        let error = Error::new(ErrorCodes::NotFound, "File not found");
-        let json_error = error.to_json();
-        let _x = ErrorCodes::NotFound as u16;
-        println!("Error in JSON format: {}", json_error);
-        
+        let _x = Error::new(ErrorCode::NotFound, "File not found".to_string()).to_json();
+        println!("Error: {:?}", _x);
     }
-    
+
 }
