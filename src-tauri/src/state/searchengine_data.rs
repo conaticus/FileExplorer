@@ -121,6 +121,16 @@ impl From<EngineStats> for EngineStatsSerializable {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SearchEngineInfo {
+    pub status: SearchEngineStatus,
+    pub progress: IndexingProgress,
+    pub metrics: SearchEngineMetrics,
+    pub recent_activity: RecentActivity,
+    pub stats: EngineStatsSerializable,
+    pub last_updated: u64,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SearchEngine {
     pub status: SearchEngineStatus,
@@ -409,6 +419,24 @@ impl SearchEngineState  {
         EngineStatsSerializable::from(stats)
     }
     
+    pub fn get_search_engine_info(&self) -> SearchEngineInfo {
+        // Get data from state
+        let data = self.data.lock().unwrap();
+        
+        // Get stats from engine
+        let stats = self.get_stats();
+        
+        // Combine into a single struct
+        SearchEngineInfo {
+            status: data.status.clone(),
+            progress: data.progress.clone(),
+            metrics: data.metrics.clone(),
+            recent_activity: data.recent_activity.clone(),
+            stats,
+            last_updated: data.last_updated,
+        }
+    }
+    
     // Method to update configuration
     pub fn update_config(&self, config: SearchEngineConfig) -> Result<(), String> {
         let mut data = self.data.lock().unwrap();
@@ -440,6 +468,13 @@ impl SearchEngineState  {
     pub fn remove_path(&self, path: &str) -> Result<(), String> {
         let mut engine = self.engine.lock().unwrap();
         engine.remove_path(path);
+        Ok(())
+    }
+
+    // Method to remove multiple paths from the index
+    pub fn remove_paths_recursive(&self, path: &str) -> Result<(), String> {
+        let mut engine = self.engine.lock().unwrap();
+        engine.remove_paths_recursive(path);
         Ok(())
     }
     
