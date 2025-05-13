@@ -114,17 +114,18 @@ impl AutocompleteEngine {
     
     /// Add or update a path (normalized!) in the search engines
     pub fn add_path(&mut self, path: &str) {
+        let normalied_path = self.normalize_path(path);
         let mut score = 1.0;
         
         // Check if we have existing frequency data to adjust score
-        if let Some(freq) = self.frequency_map.get(path) {
+        if let Some(freq) = self.frequency_map.get(&normalied_path) {
             // Boost score for frequently accessed paths
             score += (*freq as f32) * 0.01;
         }
         
         // Update all modules and clean cache
-        self.trie.insert(path, score);
-        self.fuzzy_matcher.add_path(path);
+        self.trie.insert(&normalied_path, score);
+        self.fuzzy_matcher.add_path(&normalied_path);
         self.cache.purge_expired();
     }
 
@@ -147,9 +148,8 @@ impl AutocompleteEngine {
         // Reset stop flag at the beginning of a new indexing operation
         self.reset_stop_flag();
         
-        let normalized_path = self.normalize_path(&path);
         // Add the path itself first
-        self.add_path(&normalized_path);
+        self.add_path(path);
 
         // Check if the path is a directory
         let path_obj = std::path::Path::new(path);
@@ -157,13 +157,13 @@ impl AutocompleteEngine {
             return;
         }
 
-        log_info!(&format!("Recursively indexing directory: {}", normalized_path));
+        log_info!(&format!("Recursively indexing directory: {}", path));
 
         // Walk dir
         let walk_dir = match std::fs::read_dir(path) {
             Ok(dir) => dir,
             Err(err) => {
-                log_warn!(&format!("Failed to read directory '{}': {}", normalized_path, err));
+                log_warn!(&format!("Failed to read directory '{}': {}", path, err));
                 return;
             }
         };
@@ -171,19 +171,18 @@ impl AutocompleteEngine {
         for entry in walk_dir.filter_map(Result::ok) {
             // Check if we should stop indexing
             if self.should_stop_indexing() {
-                log_info!(&format!("Indexing of '{}' stopped prematurely", normalized_path));
+                log_info!(&format!("Indexing of '{}' stopped prematurely", path));
                 return;
             }
             
             let entry_path = entry.path();
-            let normalized_entry_path = self.normalize_path(&entry_path.to_string_lossy());
-            if let Some(normalized_entry_str) = Some(normalized_entry_path) {
+            if let Some(entry_str) = Some(entry_path.to_string_lossy().to_string()) {
                 // Add this path
-                self.add_path(&normalized_entry_str);
+                self.add_path(&entry_str);
 
                 // If it's a directory, recurse
                 if entry_path.is_dir() {
-                    self.add_paths_recursive(&normalized_entry_str);
+                    self.add_paths_recursive(&entry_str);
                     
                     // Check again after recursion in case we need to stop
                     if self.should_stop_indexing() {
@@ -196,20 +195,20 @@ impl AutocompleteEngine {
 
     /// Remove a path (normalized!) from the search engines
     pub fn remove_path(&mut self, path: &str) {
+        let normalized_path = self.normalize_path(path);
         // Remove from modules
-        self.trie.remove(path);
-        self.fuzzy_matcher.remove_path(path);
-        self.cache.remove(path);
+        self.trie.remove(&normalized_path);
+        self.fuzzy_matcher.remove_path(&normalized_path);
+        self.cache.remove(&normalized_path);
 
         // Remove from frequency and recency maps
-        self.frequency_map.remove(path);
-        self.recency_map.remove(path);
+        self.frequency_map.remove(&normalized_path);
+        self.recency_map.remove(&normalized_path);
     }
 
     pub fn remove_paths_recursive(&mut self, path: &str) {
-        let normalized_path = self.normalize_path(&path);
         // Remove the path itself first
-        self.remove_path(&normalized_path);
+        self.remove_path(path);
 
         // Check if the path is a directory
         let path_obj = std::path::Path::new(path);
@@ -217,7 +216,7 @@ impl AutocompleteEngine {
             return;
         }
 
-        log_info!(&format!("Recursively removing directory from index: {}", normalized_path));
+        log_info!(&format!("Recursively removing directory from index: {}", path));
 
         let mut paths_to_remove = Vec::new();
 
@@ -230,16 +229,15 @@ impl AutocompleteEngine {
                 }
             }
         } else {
-            log_warn!(&format!("Failed to read directory '{}' for removal", normalized_path));
+            log_warn!(&format!("Failed to read directory '{}' for removal", path));
         }
 
         // Now remove each path
         for path_to_remove in paths_to_remove {
-            let normalized_path = self.normalize_path(&path_to_remove);
             if std::path::Path::new(&path_to_remove).is_dir() {
-                self.remove_paths_recursive(&normalized_path);
+                self.remove_paths_recursive(&path_to_remove);
             } else {
-                self.remove_path(&normalized_path);
+                self.remove_path(&path_to_remove);
             }
         }
 

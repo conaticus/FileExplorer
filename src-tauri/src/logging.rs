@@ -397,6 +397,7 @@ mod tests_logging {
         let (logger, _temp_dir) = setup_test_logger();
         
         // Override the MAX_FILE_SIZE constant for this test with a smaller value
+        #[allow(dead_code)]
         const TEST_MAX_SIZE: u64 = 50000; // 50KB is enough for testing
         
         // Create a log file that exceeds our test max size
