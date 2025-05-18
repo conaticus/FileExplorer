@@ -15,8 +15,8 @@ const NODE48_MAX: usize = 48;
 const NODE256_MAX: usize = 256;
 type KeyType = u8;
 
-// --- Prefix is now just a Vec<u8> ---
-type Prefix = Vec<u8>;
+// --- Prefix is now SmallVec<[KeyType; 8]> ---
+type Prefix = SmallVec<[KeyType; 8]>;
 
 // --- Node definitions with SmallVec and Box<[Option<Box<ARTNode>>]> ---
 enum ARTNode {
@@ -77,7 +77,7 @@ impl ARTNode {
         }
     }
 
-    fn get_prefix_mut(&mut self) -> &mut Vec<KeyType> {
+    fn get_prefix_mut(&mut self) -> &mut Prefix {
         match self {
             ARTNode::Node4(n) => &mut n.prefix,
             ARTNode::Node16(n) => &mut n.prefix,
@@ -115,7 +115,7 @@ impl ARTNode {
         }
 
         // The common prefix stays in this node
-        let mut common_prefix = old_prefix[..mismatch_pos].to_vec();
+        let mut common_prefix: SmallVec<[KeyType; 8]> = old_prefix[..mismatch_pos].iter().copied().collect();
         mem::swap(self.get_prefix_mut(), &mut common_prefix);
 
         // The rest of the prefix (after mismatch_pos) goes to the new node
@@ -123,7 +123,7 @@ impl ARTNode {
 
         // If there is a remaining prefix, assign it to the new node
         if mismatch_pos < old_prefix.len() {
-            *new_node.get_prefix_mut() = old_prefix[mismatch_pos..].to_vec();
+            *new_node.get_prefix_mut() = old_prefix[mismatch_pos..].iter().copied().collect();
         }
 
         // Move terminal status and score to the new node
@@ -190,7 +190,7 @@ impl ARTNode {
 
         // Remove the first byte from the new node's prefix (since it's now the key)
         if !new_node.get_prefix().is_empty() {
-            let mut prefix = new_node.get_prefix().to_vec();
+            let mut prefix: SmallVec<[KeyType; 8]> = new_node.get_prefix().iter().copied().collect();
             prefix.remove(0);
             *new_node.get_prefix_mut() = prefix;
         }
@@ -489,7 +489,7 @@ struct Node256 {
 impl Node4 {
     fn new() -> Self {
         Node4 {
-            prefix: Vec::new(),
+            prefix: SmallVec::new(),
             is_terminal: false,
             score: None,
             keys: SmallVec::new(),
@@ -562,7 +562,7 @@ impl Node4 {
 impl Node16 {
     fn new() -> Self {
         Node16 {
-            prefix: Vec::new(),
+            prefix: SmallVec::new(),
             is_terminal: false,
             score: None,
             keys: SmallVec::new(),
@@ -635,7 +635,7 @@ impl Node16 {
 impl Node48 {
     fn new() -> Self {
         Node48 {
-            prefix: Vec::new(),
+            prefix: SmallVec::new(),
             is_terminal: false,
             score: None,
             child_index: [None; 256],
@@ -724,7 +724,7 @@ impl Node48 {
 impl Node256 {
     fn new() -> Self {
         Node256 {
-            prefix: Vec::new(),
+            prefix: SmallVec::new(),
             is_terminal: false,
             score: None,
             children: vec![None; NODE256_MAX].into_boxed_slice(),
@@ -1053,7 +1053,7 @@ impl ART {
         let mut stack = Vec::with_capacity(64);
         stack.push((node, prefix.len()));
 
-        while let Some((node, depth)) = stack.pop() {
+        while let Some((node, _depth)) = stack.pop() {
             // Append this node's prefix to the buffer
             let node_prefix = node.get_prefix();
             let start_len = path_buf.len();
@@ -1082,7 +1082,7 @@ impl ART {
         let mut stack = Vec::with_capacity(64);
         stack.push((node, 0usize));
 
-        while let Some((node, depth)) = stack.pop() {
+        while let Some((node, _depth)) = stack.pop() {
             let node_prefix = node.get_prefix();
             let start_len = path_buf.len();
             path_buf.extend_from_slice(node_prefix);
