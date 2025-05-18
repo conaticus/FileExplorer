@@ -1,7 +1,6 @@
 use std::cmp;
-use std::fmt::Debug;
 use std::mem;
-use crate::log_warn;
+use smallvec::SmallVec;
 
 pub struct ART {
     root: Option<Box<ARTNode>>,
@@ -14,122 +13,12 @@ const NODE4_MAX: usize = 4;
 const NODE16_MAX: usize = 16;
 const NODE48_MAX: usize = 48;
 const NODE256_MAX: usize = 256;
-
-// Use a small-size optimization for prefixes
-const INLINE_PREFIX_SIZE: usize = 8;
-
-// A byte is used to navigate between node types and operations
 type KeyType = u8;
 
-// Small-size optimization for prefixes
-#[derive(Clone)]
-enum PrefixStorage {
-    Inline {
-        data: [KeyType; INLINE_PREFIX_SIZE],
-        len: usize,
-    },
-    Heap(Vec<KeyType>),
-}
+// --- Prefix is now just a Vec<u8> ---
+type Prefix = Vec<u8>;
 
-impl PrefixStorage {
-    fn new() -> Self {
-        PrefixStorage::Inline {
-            data: [0; INLINE_PREFIX_SIZE],
-            len: 0,
-        }
-    }
-
-    fn from_slice(slice: &[KeyType]) -> Self {
-        if slice.len() <= INLINE_PREFIX_SIZE {
-            let mut data = [0; INLINE_PREFIX_SIZE];
-            data[..slice.len()].copy_from_slice(slice);
-            PrefixStorage::Inline {
-                data,
-                len: slice.len(),
-            }
-        } else {
-            PrefixStorage::Heap(slice.to_vec())
-        }
-    }
-
-    fn len(&self) -> usize {
-        match self {
-            PrefixStorage::Inline { len, .. } => *len,
-            PrefixStorage::Heap(vec) => vec.len(),
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    fn get(&self, index: usize) -> Option<KeyType> {
-        match self {
-            PrefixStorage::Inline { data, len } => {
-                if index < *len {
-                    Some(data[index])
-                } else {
-                    None
-                }
-            }
-            PrefixStorage::Heap(vec) => vec.get(index).copied(),
-        }
-    }
-
-    fn as_slice(&self) -> &[KeyType] {
-        match self {
-            PrefixStorage::Inline { data, len } => &data[..*len],
-            PrefixStorage::Heap(vec) => vec.as_slice(),
-        }
-    }
-
-    fn take_first(&mut self) -> Option<KeyType> {
-        if self.is_empty() {
-            return None;
-        }
-
-        match self {
-            PrefixStorage::Inline { data, len } => {
-                let first = data[0];
-                *len -= 1;
-                if *len > 0 {
-                    data.copy_within(1.., 0);
-                }
-                Some(first)
-            }
-            PrefixStorage::Heap(vec) => {
-                if vec.is_empty() {
-                    None
-                } else {
-                    Some(vec.remove(0))
-                }
-            }
-        }
-    }
-
-    fn truncate_front(&mut self, count: usize) {
-        match self {
-            PrefixStorage::Inline { data, len } => {
-                if count >= *len {
-                    *len = 0;
-                } else {
-                    data.copy_within(count.., 0);
-                    *len -= count;
-                }
-            }
-            PrefixStorage::Heap(vec) => {
-                if count >= vec.len() {
-                    vec.clear();
-                } else {
-                    vec.drain(0..count);
-                }
-            }
-        }
-    }
-}
-
-// ------------------ ARTNode Enum and Implementations ---------------
-
+// --- Node definitions with SmallVec and Box<[Option<Box<ARTNode>>]> ---
 enum ARTNode {
     Node4(Node4),
     Node16(Node16),
@@ -179,7 +68,7 @@ impl ARTNode {
         }
     }
 
-    fn get_prefix(&self) -> &PrefixStorage {
+    fn get_prefix(&self) -> &[KeyType] {
         match self {
             ARTNode::Node4(n) => &n.prefix,
             ARTNode::Node16(n) => &n.prefix,
@@ -188,7 +77,7 @@ impl ARTNode {
         }
     }
 
-    fn get_prefix_mut(&mut self) -> &mut PrefixStorage {
+    fn get_prefix_mut(&mut self) -> &mut Vec<KeyType> {
         match self {
             ARTNode::Node4(n) => &mut n.prefix,
             ARTNode::Node16(n) => &mut n.prefix,
@@ -197,7 +86,7 @@ impl ARTNode {
         }
     }
 
-    // Optimized prefix match that returns match length and whether it's exact
+    // Check for prefix match and return length of match
     fn check_prefix(&self, key: &[KeyType], depth: usize) -> (usize, bool) {
         let prefix = self.get_prefix();
 
@@ -205,68 +94,36 @@ impl ARTNode {
             return (0, true);
         }
 
-        // Calculate how many characters we can compare
-        let prefix_len = prefix.len();
-        let max_cmp = cmp::min(prefix_len, key.len() - depth);
-
-        // Fast path if the key is shorter than our prefix
-        if max_cmp < prefix_len {
-            return (max_cmp, false);
-        }
-
-        // Compare prefix bytes - using SIMD optimization when available
-        let prefix_slice = prefix.as_slice();
+        let max_len = cmp::min(prefix.len(), key.len() - depth);
         let mut i = 0;
 
-        // Manual unrolling for better performance
-        while i + 4 <= max_cmp {
-            let mut match_failed = false;
-            if prefix_slice[i] != key[depth + i] {
-                return (i, false);
-            }
-            if prefix_slice[i+1] != key[depth + i+1] {
-                return (i+1, false);
-            }
-            if prefix_slice[i+2] != key[depth + i+2] {
-                return (i+2, false);
-            }
-            if prefix_slice[i+3] != key[depth + i+3] {
-                return (i+3, false);
-            }
-            i += 4;
-        }
-
-        // Handle remaining characters
-        while i < max_cmp {
-            if prefix_slice[i] != key[depth + i] {
-                return (i, false);
-            }
+        // Compare prefix bytes
+        while i < max_len && prefix[i] == key[depth + i] {
             i += 1;
         }
 
-        (max_cmp, max_cmp == prefix_len)
+        (i, i == prefix.len())
     }
 
-    // Optimized split_prefix method
+    // Corrected split_prefix method
     fn split_prefix(&mut self, mismatch_pos: usize) {
-        // Fast path for no split needed
+        let old_prefix = self.get_prefix().to_vec();
+
         if mismatch_pos == 0 {
+            // Nothing to split
             return;
         }
 
-        // Get the current prefix
-        let old_prefix = self.get_prefix().as_slice().to_vec();
+        // The common prefix stays in this node
+        let mut common_prefix = old_prefix[..mismatch_pos].to_vec();
+        mem::swap(self.get_prefix_mut(), &mut common_prefix);
 
-        // Update this node's prefix to just the matched portion
-        let mut new_prefix = PrefixStorage::from_slice(&old_prefix[..mismatch_pos]);
-        mem::swap(self.get_prefix_mut(), &mut new_prefix);
-
-        // Create a new node for the rest of the prefix and the children
+        // The rest of the prefix (after mismatch_pos) goes to the new node
         let mut new_node = ARTNode::new_node4();
 
-        // If there's remaining prefix, add it to the new node
+        // If there is a remaining prefix, assign it to the new node
         if mismatch_pos < old_prefix.len() {
-            *new_node.get_prefix_mut() = PrefixStorage::from_slice(&old_prefix[mismatch_pos+1..]);
+            *new_node.get_prefix_mut() = old_prefix[mismatch_pos..].to_vec();
         }
 
         // Move terminal status and score to the new node
@@ -275,101 +132,123 @@ impl ARTNode {
         self.set_terminal(false);
         self.set_score(None);
 
-        // Get the split character (the character at the mismatch position)
-        let split_char = old_prefix[mismatch_pos];
+        // Move all children from current node to new node
+        match self {
+            ARTNode::Node4(n) => {
+                match &mut new_node {
+                    ARTNode::Node4(new_n) => {
+                        mem::swap(&mut n.children, &mut new_n.children);
+                        mem::swap(&mut n.keys, &mut new_n.keys);
+                    },
+                    _ => unreachable!(),
+                }
+            },
+            ARTNode::Node16(n) => {
+                if let ARTNode::Node4(new_n) = &mut new_node {
+                    for i in 0..n.keys.len() {
+                        if n.children[i].is_some() {
+                            let child = mem::replace(&mut n.children[i], None);
+                            new_n.add_child(n.keys[i], child);
+                        }
+                    }
+                }
+            },
+            ARTNode::Node48(n) => {
+                if let ARTNode::Node4(new_n) = &mut new_node {
+                    for i in 0..256 {
+                        if let Some(idx) = n.child_index[i] {
+                            if n.children[idx as usize].is_some() {
+                                let child = mem::replace(&mut n.children[idx as usize], None);
+                                new_n.add_child(i as u8, child);
+                            }
+                        }
+                    }
+                    n.child_index = [None; 256];
+                    n.size = 0;
+                }
+            },
+            ARTNode::Node256(n) => {
+                if let ARTNode::Node4(new_n) = &mut new_node {
+                    for i in 0..256 {
+                        if n.children[i].is_some() {
+                            let child = mem::replace(&mut n.children[i], None);
+                            new_n.add_child(i as u8, child);
+                        }
+                    }
+                    n.size = 0;
+                }
+            },
+        }
 
-        // Move all children from this node to the new node
-        self.move_children_to(&mut new_node);
+        // The first byte of the new node's prefix is the key for the child
+        let split_char = if !new_node.get_prefix().is_empty() {
+            new_node.get_prefix()[0]
+        } else {
+            // This should not happen in correct usage
+            0
+        };
 
+        // Remove the first byte from the new node's prefix (since it's now the key)
+        if !new_node.get_prefix().is_empty() {
+            let mut prefix = new_node.get_prefix().to_vec();
+            prefix.remove(0);
+            *new_node.get_prefix_mut() = prefix;
+        }
+
+        // Remove all children from self (already moved above)
         // Add the new node as a child under the split character
         self.add_child(split_char, Some(Box::new(new_node)));
     }
 
-    // Helper to move all children from self to another node
-    fn move_children_to(&mut self, target: &mut ARTNode) {
-        match (self, target) {
-            (ARTNode::Node4(n), ARTNode::Node4(target_n)) => {
-                // Direct swap of children arrays and metadata
-                mem::swap(&mut n.children, &mut target_n.children);
-                mem::swap(&mut n.keys, &mut target_n.keys);
-                mem::swap(&mut n.size, &mut target_n.size);
-            },
-            (ARTNode::Node16(n), ARTNode::Node4(target_n)) => {
-                // Transfer children to the target node (must be one by one)
-                for i in 0..n.size {
-                    if n.children[i].is_some() {
-                        let child = mem::replace(&mut n.children[i], None);
-                        target_n.add_child(n.keys[i], child);
-                    }
+    // Add a child or replace it if already exists, with node growth
+    fn add_child(&mut self, key: KeyType, mut child: Option<Box<ARTNode>>) -> bool {
+        let mut grown = false;
+        let added = match self {
+            ARTNode::Node4(n) => {
+                let added = n.add_child(key, child.take());
+                if !added && n.keys.len() >= NODE4_MAX {
+                    // Grow to Node16
+                    let mut grown_node = self.grow();
+                    grown = true;
+                    let added = grown_node.add_child(key, child);
+                    *self = grown_node;
+                    added
+                } else {
+                    added
                 }
-                n.size = 0;
             },
-            (ARTNode::Node48(n), ARTNode::Node4(target_n)) => {
-                // Transfer children to the target node
-                for i in 0..256 {
-                    if let Some(idx) = n.child_index[i] {
-                        if n.children[idx as usize].is_some() {
-                            let child = mem::replace(&mut n.children[idx as usize], None);
-                            target_n.add_child(i as u8, child);
-                        }
-                    }
+            ARTNode::Node16(n) => {
+                let added = n.add_child(key, child.take());
+                if !added && n.keys.len() >= NODE16_MAX {
+                    // Grow to Node48
+                    let mut grown_node = self.grow();
+                    grown = true;
+                    let added = grown_node.add_child(key, child);
+                    *self = grown_node;
+                    added
+                } else {
+                    added
                 }
-                n.child_index = [None; 256];
-                n.size = 0;
             },
-            (ARTNode::Node256(n), ARTNode::Node4(target_n)) => {
-                // Transfer children to the target node
-                for i in 0..256 {
-                    if n.children[i].is_some() {
-                        let child = mem::replace(&mut n.children[i], None);
-                        target_n.add_child(i as u8, child);
-                    }
+            ARTNode::Node48(n) => {
+                let added = n.add_child(key, child.take());
+                if !added && n.size >= NODE48_MAX {
+                    // Grow to Node256
+                    let mut grown_node = self.grow();
+                    grown = true;
+                    let added = grown_node.add_child(key, child);
+                    *self = grown_node;
+                    added
+                } else {
+                    added
                 }
-                n.size = 0;
             },
-            // Currently not handled: larger target node types
-            _ => {}
-        }
-    }
-
-    // Add a child with node growth if needed
-    fn add_child(&mut self, key: KeyType, child: Option<Box<ARTNode>>) -> bool {
-        // Try to add the child first
-        let add_result = match self {
-            ARTNode::Node4(n) => n.add_child(key, child.clone()),
-            ARTNode::Node16(n) => n.add_child(key, child.clone()),
-            ARTNode::Node48(n) => n.add_child(key, child.clone()),
-            ARTNode::Node256(n) => n.add_child(key, child.clone()),
+            ARTNode::Node256(n) => n.add_child(key, child),
         };
-
-        // If the node is full and we need to grow
-        if !add_result {
-            // Check if we need to grow
-            let need_grow = match self {
-                ARTNode::Node4(n) => n.size >= NODE4_MAX,
-                ARTNode::Node16(n) => n.size >= NODE16_MAX,
-                ARTNode::Node48(n) => n.size >= NODE48_MAX,
-                ARTNode::Node256(_) => false, // Node256 never needs to grow
-            };
-
-            if need_grow {
-                // Grow to the next size
-                let mut grown_node = self.grow();
-                // Try to add to the grown node
-                let result = grown_node.add_child(key, child);
-                // Replace self with the grown node
-                *self = grown_node;
-                result
-            } else {
-                false
-            }
-        } else {
-            true
-        }
+        added || grown
     }
 
-    // Find a child by key with inlining for performance
-    #[inline(always)]
+    // Find a child by key
     fn find_child(&self, key: KeyType) -> Option<&Box<ARTNode>> {
         match self {
             ARTNode::Node4(n) => n.find_child(key),
@@ -379,8 +258,7 @@ impl ARTNode {
         }
     }
 
-    // Find a child by key (mutable variant) with inlining
-    #[inline(always)]
+    // Find a child by key (mutable variant)
     fn find_child_mut(&mut self, key: KeyType) -> Option<&mut Option<Box<ARTNode>>> {
         match self {
             ARTNode::Node4(n) => n.find_child_mut(key),
@@ -390,29 +268,34 @@ impl ARTNode {
         }
     }
 
-    // Remove a child by key
+    // Remove a child by key, with node shrinking
     fn remove_child(&mut self, key: KeyType) -> Option<Box<ARTNode>> {
         let removed = match self {
             ARTNode::Node4(n) => n.remove_child(key),
             ARTNode::Node16(n) => {
                 let removed = n.remove_child(key);
-                // Only shrink if we actually removed something
-                if removed.is_some() && n.size <= NODE4_MAX {
-                    *self = self.shrink();
+                if n.keys.len() < NODE4_MAX {
+                    // Shrink to Node4
+                    let shrunk = self.shrink();
+                    *self = shrunk;
                 }
                 removed
             },
             ARTNode::Node48(n) => {
                 let removed = n.remove_child(key);
-                if removed.is_some() && n.size <= NODE16_MAX {
-                    *self = self.shrink();
+                if n.size < NODE16_MAX {
+                    // Shrink to Node16
+                    let shrunk = self.shrink();
+                    *self = shrunk;
                 }
                 removed
             },
             ARTNode::Node256(n) => {
                 let removed = n.remove_child(key);
-                if removed.is_some() && n.size <= NODE48_MAX {
-                    *self = self.shrink();
+                if n.size < NODE48_MAX {
+                    // Shrink to Node48
+                    let shrunk = self.shrink();
+                    *self = shrunk;
                 }
                 removed
             },
@@ -420,7 +303,7 @@ impl ARTNode {
         removed
     }
 
-    // Iterate over all children
+    // Iterate over all children (key and node)
     fn iter_children(&self) -> Vec<(KeyType, &Box<ARTNode>)> {
         match self {
             ARTNode::Node4(n) => n.iter_children(),
@@ -433,8 +316,8 @@ impl ARTNode {
     // Number of children
     fn num_children(&self) -> usize {
         match self {
-            ARTNode::Node4(n) => n.size,
-            ARTNode::Node16(n) => n.size,
+            ARTNode::Node4(n) => n.keys.len(),
+            ARTNode::Node16(n) => n.keys.len(),
             ARTNode::Node48(n) => n.size,
             ARTNode::Node256(n) => n.size,
         }
@@ -444,65 +327,51 @@ impl ARTNode {
     fn grow(&self) -> Self {
         match self {
             ARTNode::Node4(n) => {
-                // Node4 -> Node16
                 let mut n16 = Node16::new();
                 n16.prefix = n.prefix.clone();
                 n16.is_terminal = n.is_terminal;
                 n16.score = n.score;
-
-                // Copy all children
-                for i in 0..n.size {
+                for i in 0..n.keys.len() {
                     if let Some(child) = &n.children[i] {
-                        n16.keys[i] = n.keys[i];
-                        n16.children[i] = Some(Box::new(*child.clone()));
+                        n16.keys.push(n.keys[i]);
+                        n16.children.push(Some(Box::new((**child).clone())));
                     }
                 }
-                n16.size = n.size;
-
                 ARTNode::Node16(n16)
             },
             ARTNode::Node16(n) => {
-                // Node16 -> Node48
                 let mut n48 = Node48::new();
                 n48.prefix = n.prefix.clone();
                 n48.is_terminal = n.is_terminal;
                 n48.score = n.score;
-
-                // Copy all children
-                for i in 0..n.size {
+                let mut child_count = 0;
+                for i in 0..n.keys.len() {
                     if let Some(child) = &n.children[i] {
                         let key = n.keys[i] as usize;
-                        n48.children[i] = Some(Box::new(*child.clone()));
-                        n48.child_index[key] = Some(i as u8);
+                        n48.children[child_count] = Some(Box::new((**child).clone()));
+                        n48.child_index[key] = Some(child_count as u8);
+                        child_count += 1;
                     }
                 }
-                n48.size = n.size;
-
+                n48.size = child_count;
                 ARTNode::Node48(n48)
             },
             ARTNode::Node48(n) => {
-                // Node48 -> Node256
                 let mut n256 = Node256::new();
                 n256.prefix = n.prefix.clone();
                 n256.is_terminal = n.is_terminal;
                 n256.score = n.score;
-
-                // Copy all children
                 for i in 0..256 {
                     if let Some(idx) = n.child_index[i] {
                         if let Some(child) = &n.children[idx as usize] {
-                            n256.children[i] = Some(Box::new(*child.clone()));
+                            n256.children[i] = Some(Box::new((**child).clone()));
                         }
                     }
                 }
                 n256.size = n.size;
-
                 ARTNode::Node256(n256)
             },
-            ARTNode::Node256(_) => {
-                // Node256 is already the largest type
-                self.clone()
-            },
+            ARTNode::Node256(_) => self.clone(),
         }
     }
 
@@ -510,80 +379,58 @@ impl ARTNode {
     fn shrink(&self) -> Self {
         match self {
             ARTNode::Node16(n) => {
-                // Node16 -> Node4
                 let mut n4 = Node4::new();
                 n4.prefix = n.prefix.clone();
                 n4.is_terminal = n.is_terminal;
                 n4.score = n.score;
-
-                // Copy up to 4 children
-                let mut count = 0;
-                for i in 0..n.size {
-                    if count >= NODE4_MAX {
-                        break;
-                    }
-
+                for i in 0..n.keys.len().min(NODE4_MAX) {
                     if let Some(child) = &n.children[i] {
-                        n4.keys[count] = n.keys[i];
-                        n4.children[count] = Some(Box::new(*child.clone()));
-                        count += 1;
+                        n4.keys.push(n.keys[i]);
+                        n4.children.push(Some(Box::new((**child).clone())));
                     }
                 }
-                n4.size = count;
-
                 ARTNode::Node4(n4)
             },
             ARTNode::Node48(n) => {
-                // Node48 -> Node16
                 let mut n16 = Node16::new();
                 n16.prefix = n.prefix.clone();
                 n16.is_terminal = n.is_terminal;
                 n16.score = n.score;
-
-                // Collect all children
                 let mut count = 0;
                 for i in 0..256 {
                     if count >= NODE16_MAX {
                         break;
                     }
-
                     if let Some(idx) = n.child_index[i] {
                         if let Some(child) = &n.children[idx as usize] {
-                            n16.keys[count] = i as KeyType;
-                            n16.children[count] = Some(Box::new(*child.clone()));
+                            n16.keys.push(i as KeyType);
+                            n16.children.push(Some(Box::new((**child).clone())));
                             count += 1;
                         }
                     }
                 }
-                n16.size = count;
-
                 ARTNode::Node16(n16)
             },
             ARTNode::Node256(n) => {
-                // Node256 -> Node48
                 let mut n48 = Node48::new();
                 n48.prefix = n.prefix.clone();
                 n48.is_terminal = n.is_terminal;
                 n48.score = n.score;
-
-                // Collect up to 48 children
                 let mut count = 0;
                 for i in 0..256 {
                     if count >= NODE48_MAX {
                         break;
                     }
-
                     if let Some(child) = &n.children[i] {
-                        n48.children[count] = Some(Box::new(*child.clone()));
+                        n48.children[count] = Some(Box::new((**child).clone()));
                         n48.child_index[i] = Some(count as u8);
                         count += 1;
                     }
                 }
                 n48.size = count;
-
                 ARTNode::Node48(n48)
             },
-            _ => self.clone(), // Other node types aren't shrunk
+            _ => self.clone(),
         }
     }
 }
@@ -605,277 +452,178 @@ impl Clone for ARTNode {
 // Node4: Stores up to 4 children in a small array
 #[derive(Clone)]
 struct Node4 {
-    prefix: PrefixStorage,
+    prefix: Prefix,
     is_terminal: bool,
     score: Option<f32>,
-    keys: [KeyType; NODE4_MAX],
-    children: [Option<Box<ARTNode>>; NODE4_MAX],
+    keys: SmallVec<[KeyType; NODE4_MAX]>,
+    children: SmallVec<[Option<Box<ARTNode>>; NODE4_MAX]>,
+}
+
+struct Node16 {
+    prefix: Prefix,
+    is_terminal: bool,
+    score: Option<f32>,
+    keys: SmallVec<[KeyType; NODE16_MAX]>,
+    children: SmallVec<[Option<Box<ARTNode>>; NODE16_MAX]>,
+}
+
+// Only Node48 and Node256 have a size field
+struct Node48 {
+    prefix: Prefix,
+    is_terminal: bool,
+    score: Option<f32>,
+    child_index: [Option<u8>; 256],
+    children: Box<[Option<Box<ARTNode>>]>, // 48 slots
     size: usize,
 }
 
+struct Node256 {
+    prefix: Prefix,
+    is_terminal: bool,
+    score: Option<f32>,
+    children: Box<[Option<Box<ARTNode>>]>, // 256 slots
+    size: usize,
+}
+
+// --- Node4/Node16 implementations ---
 impl Node4 {
     fn new() -> Self {
         Node4 {
-            prefix: PrefixStorage::new(),
+            prefix: Vec::new(),
             is_terminal: false,
             score: None,
-            keys: [0; NODE4_MAX],
-            children: [None, None, None, None],
-            size: 0,
+            keys: SmallVec::new(),
+            children: SmallVec::new(),
         }
     }
 
-    // Add a child with optimized implementation
     fn add_child(&mut self, key: KeyType, child: Option<Box<ARTNode>>) -> bool {
-        // Fast path for replacement
-        for i in 0..self.size {
+        for i in 0..self.keys.len() {
             if self.keys[i] == key {
                 self.children[i] = child;
                 return true;
             }
         }
 
-        // Check if there's space
-        if self.size >= NODE4_MAX {
+        if self.keys.len() >= NODE4_MAX {
             return false;
         }
 
-        // Insertion sort to maintain order
-        let mut i = self.size;
-        // Use reverse scan for better likely cache behavior
+        let mut i = self.keys.len();
         while i > 0 && self.keys[i - 1] > key {
-            self.keys[i] = self.keys[i - 1];
-            self.children[i] = self.children[i - 1].take();
             i -= 1;
         }
 
-        // Insert the new child
-        self.keys[i] = key;
-        self.children[i] = child;
-        self.size += 1;
+        self.keys.insert(i, key);
+        self.children.insert(i, child);
         true
     }
 
-    // Find child with linear search (optimized for small arrays)
-    #[inline(always)]
     fn find_child(&self, key: KeyType) -> Option<&Box<ARTNode>> {
-        // Unrolled linear search for better performance
-        if self.size > 0 && self.keys[0] == key {
-            return self.children[0].as_ref();
-        }
-        if self.size > 1 && self.keys[1] == key {
-            return self.children[1].as_ref();
-        }
-        if self.size > 2 && self.keys[2] == key {
-            return self.children[2].as_ref();
-        }
-        if self.size > 3 && self.keys[3] == key {
-            return self.children[3].as_ref();
-        }
-        None
-    }
-
-    // Mutable child lookup
-    #[inline(always)]
-    fn find_child_mut(&mut self, key: KeyType) -> Option<&mut Option<Box<ARTNode>>> {
-        // Unrolled linear search
-        if self.size > 0 && self.keys[0] == key {
-            return Some(&mut self.children[0]);
-        }
-        if self.size > 1 && self.keys[1] == key {
-            return Some(&mut self.children[1]);
-        }
-        if self.size > 2 && self.keys[2] == key {
-            return Some(&mut self.children[2]);
-        }
-        if self.size > 3 && self.keys[3] == key {
-            return Some(&mut self.children[3]);
-        }
-        None
-    }
-
-    // Remove a child
-    fn remove_child(&mut self, key: KeyType) -> Option<Box<ARTNode>> {
-        // Find the child
-        let mut idx = None;
-        for i in 0..self.size {
+        for i in 0..self.keys.len() {
             if self.keys[i] == key {
-                idx = Some(i);
-                break;
+                return self.children[i].as_ref();
             }
         }
-
-        // If found, remove it
-        if let Some(i) = idx {
-            let removed = mem::replace(&mut self.children[i], None);
-
-            // Shift remaining children
-            for j in i..self.size-1 {
-                self.keys[j] = self.keys[j+1];
-                self.children[j] = self.children[j+1].take();
-            }
-
-            self.size -= 1;
-            removed
-        } else {
-            None
-        }
+        None
     }
 
-    // Iterate over children
+    fn find_child_mut(&mut self, key: KeyType) -> Option<&mut Option<Box<ARTNode>>> {
+        for i in 0..self.keys.len() {
+            if self.keys[i] == key {
+                return Some(&mut self.children[i]);
+            }
+        }
+        None
+    }
+
+    fn remove_child(&mut self, key: KeyType) -> Option<Box<ARTNode>> {
+        for i in 0..self.keys.len() {
+            if self.keys[i] == key {
+                let removed = self.children.remove(i);
+                self.keys.remove(i);
+                return removed;
+            }
+        }
+        None
+    }
+
     fn iter_children(&self) -> Vec<(KeyType, &Box<ARTNode>)> {
-        let mut result = Vec::with_capacity(self.size);
-        for i in 0..self.size {
+        let mut result = Vec::with_capacity(self.keys.len());
+        for i in 0..self.keys.len() {
             if let Some(child) = &self.children[i] {
                 result.push((self.keys[i], child));
             }
         }
         result
     }
-}
-
-// Node16: Stores up to 16 children with binary search
-#[derive(Clone)]
-struct Node16 {
-    prefix: PrefixStorage,
-    is_terminal: bool,
-    score: Option<f32>,
-    keys: [KeyType; NODE16_MAX],
-    children: [Option<Box<ARTNode>>; NODE16_MAX],
-    size: usize,
 }
 
 impl Node16 {
     fn new() -> Self {
-        // In Rust we must initialize fixed-size arrays
         Node16 {
-            prefix: PrefixStorage::new(),
+            prefix: Vec::new(),
             is_terminal: false,
             score: None,
-            keys: [0; NODE16_MAX],
-            children: unsafe {
-                // SAFETY: We're initializing all elements to None
-                let mut arr: [Option<Box<ARTNode>>; NODE16_MAX] = mem::zeroed();
-                for i in 0..NODE16_MAX {
-                    arr[i] = None;
-                }
-                arr
-            },
-            size: 0,
+            keys: SmallVec::new(),
+            children: SmallVec::new(),
         }
     }
 
-    // Add a child implementation
     fn add_child(&mut self, key: KeyType, child: Option<Box<ARTNode>>) -> bool {
-        // Fast path for key replacement
-        for i in 0..self.size {
+        for i in 0..self.keys.len() {
             if self.keys[i] == key {
                 self.children[i] = child;
                 return true;
             }
         }
 
-        // Check capacity
-        if self.size >= NODE16_MAX {
+        if self.keys.len() >= NODE16_MAX {
             return false;
         }
 
-        // Binary search would be more efficient for finding insertion position
-        // but for simplicity we'll use insertion sort since the array is already sorted
-        let mut i = self.size;
+        let mut i = self.keys.len();
         while i > 0 && self.keys[i - 1] > key {
-            self.keys[i] = self.keys[i - 1];
-            self.children[i] = self.children[i - 1].take();
             i -= 1;
         }
 
-        self.keys[i] = key;
-        self.children[i] = child;
-        self.size += 1;
+        self.keys.insert(i, key);
+        self.children.insert(i, child);
         true
     }
 
-    // Find a child using binary search
-    #[inline(always)]
     fn find_child(&self, key: KeyType) -> Option<&Box<ARTNode>> {
-        // Binary search
-        let mut l = 0;
-        let mut r = self.size;
-
-        while l < r {
-            let m = l + (r - l) / 2;
-            if self.keys[m] < key {
-                l = m + 1;
-            } else {
-                r = m;
+        for i in 0..self.keys.len() {
+            if self.keys[i] == key {
+                return self.children[i].as_ref();
             }
         }
-
-        if l < self.size && self.keys[l] == key {
-            self.children[l].as_ref()
-        } else {
-            None
-        }
+        None
     }
 
-    // Find a child by key (mutable variant)
-    #[inline(always)]
     fn find_child_mut(&mut self, key: KeyType) -> Option<&mut Option<Box<ARTNode>>> {
-        // Binary search
-        let mut l = 0;
-        let mut r = self.size;
-
-        while l < r {
-            let m = l + (r - l) / 2;
-            if self.keys[m] < key {
-                l = m + 1;
-            } else {
-                r = m;
+        for i in 0..self.keys.len() {
+            if self.keys[i] == key {
+                return Some(&mut self.children[i]);
             }
         }
-
-        if l < self.size && self.keys[l] == key {
-            Some(&mut self.children[l])
-        } else {
-            None
-        }
+        None
     }
 
-    // Remove a child by key
     fn remove_child(&mut self, key: KeyType) -> Option<Box<ARTNode>> {
-        // Binary search to find the child
-        let mut l = 0;
-        let mut r = self.size;
-
-        while l < r {
-            let m = l + (r - l) / 2;
-            if self.keys[m] < key {
-                l = m + 1;
-            } else {
-                r = m;
+        for i in 0..self.keys.len() {
+            if self.keys[i] == key {
+                let removed = self.children.remove(i);
+                self.keys.remove(i);
+                return removed;
             }
         }
-
-        if l < self.size && self.keys[l] == key {
-            let removed = mem::replace(&mut self.children[l], None);
-
-            // Shift all elements after the removed one
-            for j in l..self.size-1 {
-                self.keys[j] = self.keys[j+1];
-                self.children[j] = self.children[j+1].take();
-            }
-
-            self.size -= 1;
-            removed
-        } else {
-            None
-        }
+        None
     }
 
-    // Iterate over all children
     fn iter_children(&self) -> Vec<(KeyType, &Box<ARTNode>)> {
-        let mut result = Vec::with_capacity(self.size);
-        for i in 0..self.size {
+        let mut result = Vec::with_capacity(self.keys.len());
+        for i in 0..self.keys.len() {
             if let Some(child) = &self.children[i] {
                 result.push((self.keys[i], child));
             }
@@ -884,69 +632,38 @@ impl Node16 {
     }
 }
 
-// Node48: Uses a direct index array for fast access
-#[derive(Clone)]
-struct Node48 {
-    prefix: PrefixStorage,
-    is_terminal: bool,
-    score: Option<f32>,
-    // Index array: Points from byte value to position in children array
-    child_index: [Option<u8>; 256],
-    // Only non-null entries are stored in the children array
-    children: [Option<Box<ARTNode>>; NODE48_MAX],
-    size: usize,
-}
-
 impl Node48 {
     fn new() -> Self {
-        // Initialize child_index with None
-        let child_index = [None; 256];
-
         Node48 {
-            prefix: PrefixStorage::new(),
+            prefix: Vec::new(),
             is_terminal: false,
             score: None,
-            child_index,
-            children: unsafe {
-                // SAFETY: We're initializing all elements to None
-                let mut arr: [Option<Box<ARTNode>>; NODE48_MAX] = mem::zeroed();
-                for i in 0..NODE48_MAX {
-                    arr[i] = None;
-                }
-                arr
-            },
+            child_index: [None; 256],
+            children: vec![None; NODE48_MAX].into_boxed_slice(),
             size: 0,
         }
     }
 
-    // Add child implementation - optimized for O(1) access
     fn add_child(&mut self, key: KeyType, child: Option<Box<ARTNode>>) -> bool {
         let key_idx = key as usize;
 
-        // Check if key already exists
         if let Some(idx) = self.child_index[key_idx] {
-            // Replace existing child
             self.children[idx as usize] = child;
             return true;
         }
 
-        // Check capacity
         if self.size >= NODE48_MAX {
             return false;
         }
 
-        // Add new child to next available slot
         self.children[self.size] = child;
         self.child_index[key_idx] = Some(self.size as u8);
         self.size += 1;
         true
     }
 
-    // Find a child by key - O(1) operation
-    #[inline(always)]
     fn find_child(&self, key: KeyType) -> Option<&Box<ARTNode>> {
         let key_idx = key as usize;
-        // Direct array lookup - very fast
         if let Some(idx) = self.child_index[key_idx] {
             self.children[idx as usize].as_ref()
         } else {
@@ -954,11 +671,8 @@ impl Node48 {
         }
     }
 
-    // Find a child by key (mutable variant) - O(1) operation
-    #[inline(always)]
     fn find_child_mut(&mut self, key: KeyType) -> Option<&mut Option<Box<ARTNode>>> {
         let key_idx = key as usize;
-        // Direct array lookup
         if let Some(idx) = self.child_index[key_idx] {
             Some(&mut self.children[idx as usize])
         } else {
@@ -966,25 +680,19 @@ impl Node48 {
         }
     }
 
-    // Remove a child by key
     fn remove_child(&mut self, key: KeyType) -> Option<Box<ARTNode>> {
         let key_idx = key as usize;
 
-        // Try to find the child
         if let Some(idx) = self.child_index[key_idx] {
             let idx = idx as usize;
             let removed = mem::replace(&mut self.children[idx], None);
 
-            // Remove index mapping
             self.child_index[key_idx] = None;
 
-            // If the removed child wasn't the last one, move the last child to its position
             if idx < self.size - 1 && self.size > 1 {
-                // Find the key for the last child
                 for (k, &child_idx) in self.child_index.iter().enumerate() {
                     if let Some(ci) = child_idx {
                         if ci as usize == self.size - 1 {
-                            // Move last child to the freed position
                             self.children[idx] = self.children[self.size - 1].take();
                             self.child_index[k] = Some(idx as u8);
                             break;
@@ -1000,7 +708,6 @@ impl Node48 {
         }
     }
 
-    // Iterate over all children
     fn iter_children(&self) -> Vec<(KeyType, &Box<ARTNode>)> {
         let mut result = Vec::with_capacity(self.size);
         for i in 0..256 {
@@ -1014,36 +721,17 @@ impl Node48 {
     }
 }
 
-// Node256: Direct access for all possible byte values
-#[derive(Clone)]
-struct Node256 {
-    prefix: PrefixStorage,
-    is_terminal: bool,
-    score: Option<f32>,
-    // Uses the byte value directly as index (O(1) access)
-    children: [Option<Box<ARTNode>>; NODE256_MAX],
-    size: usize,
-}
-
 impl Node256 {
     fn new() -> Self {
         Node256 {
-            prefix: PrefixStorage::new(),
+            prefix: Vec::new(),
             is_terminal: false,
             score: None,
-            children: unsafe {
-                // SAFETY: We're initializing all elements to None
-                let mut arr: [Option<Box<ARTNode>>; NODE256_MAX] = mem::zeroed();
-                for i in 0..NODE256_MAX {
-                    arr[i] = None;
-                }
-                arr
-            },
+            children: vec![None; NODE256_MAX].into_boxed_slice(),
             size: 0,
         }
     }
 
-    // Add a child - direct array access
     fn add_child(&mut self, key: KeyType, child: Option<Box<ARTNode>>) -> bool {
         let key_idx = key as usize;
         let is_new = self.children[key_idx].is_none();
@@ -1054,22 +742,17 @@ impl Node256 {
             self.size += 1;
         }
 
-        true // Node256 can always add a child
+        true
     }
 
-    // Find a child - direct array access
-    #[inline(always)]
     fn find_child(&self, key: KeyType) -> Option<&Box<ARTNode>> {
         self.children[key as usize].as_ref()
     }
 
-    // Find a child (mutable) - direct array access
-    #[inline(always)]
     fn find_child_mut(&mut self, key: KeyType) -> Option<&mut Option<Box<ARTNode>>> {
         Some(&mut self.children[key as usize])
     }
 
-    // Remove a child
     fn remove_child(&mut self, key: KeyType) -> Option<Box<ARTNode>> {
         let key_idx = key as usize;
 
@@ -1094,6 +777,42 @@ impl Node256 {
     }
 }
 
+// Implement Clone for Node16, Node48, Node256
+impl Clone for Node16 {
+    fn clone(&self) -> Self {
+        Node16 {
+            prefix: self.prefix.clone(),
+            is_terminal: self.is_terminal,
+            score: self.score,
+            keys: self.keys.clone(),
+            children: self.children.iter().map(|c| c.as_ref().map(|n| Box::new((**n).clone()))).collect(),
+        }
+    }
+}
+impl Clone for Node48 {
+    fn clone(&self) -> Self {
+        Node48 {
+            prefix: self.prefix.clone(),
+            is_terminal: self.is_terminal,
+            score: self.score,
+            child_index: self.child_index,
+            children: self.children.iter().map(|c| c.as_ref().map(|n| Box::new((**n).clone()))).collect::<Vec<_>>().into_boxed_slice(),
+            size: self.size,
+        }
+    }
+}
+impl Clone for Node256 {
+    fn clone(&self) -> Self {
+        Node256 {
+            prefix: self.prefix.clone(),
+            is_terminal: self.is_terminal,
+            score: self.score,
+            children: self.children.iter().map(|c| c.as_ref().map(|n| Box::new((**n).clone()))).collect::<Vec<_>>().into_boxed_slice(),
+            size: self.size,
+        }
+    }
+}
+
 // ------------------ ART Implementation ------------------
 
 impl ART {
@@ -1105,32 +824,22 @@ impl ART {
         }
     }
 
-    // Fast path normalization using pre-calculated sizes
+    // Normalization - your existing implementation
     fn normalize_path(&self, path: &str) -> String {
         if path.is_empty() {
             return String::new();
         }
 
-        // Step 1: Handle escaped spaces - pre-allocate to avoid reallocations
-        let space_fixed = if path.contains("\\ ") {
-            path.replace("\\ ", " ")
-        } else {
-            path.to_string()
-        };
+        // Step 1: Handle escaped spaces
+        let space_fixed = path.replace("\\ ", " ");
 
         // Step 2: Handle platform-specific separators
-        let slash_fixed = if space_fixed.contains('\\') {
-            space_fixed.replace('\\', "/")
-        } else {
-            space_fixed
-        };
+        let slash_fixed = space_fixed.replace('\\', "/");
 
         // Step 3: Fix doubled slashes
         let mut normalized = slash_fixed;
-        if normalized.contains("//") {
-            while normalized.contains("//") {
-                normalized = normalized.replace("//", "/");
-            }
+        while normalized.contains("//") {
+            normalized = normalized.replace("//", "/");
         }
 
         // Step 4: Handle trailing slashes
@@ -1153,45 +862,32 @@ impl ART {
         trimmed
     }
 
-    // Optimized insert method with path existence check
+    // Insert method
     pub fn insert(&mut self, path: &str, score: f32) -> bool {
         let normalized = self.normalize_path(path);
         let path_bytes = normalized.as_bytes();
 
-        // Create root if it doesn't exist
         if self.root.is_none() {
             self.root = Some(Box::new(ARTNode::new_node4()));
-            // No need to check for existence in this case
-            let (changed, _new_path, new_root) = Self::insert_recursive(
-                self.root.take(),
-                path_bytes,
-                0,
-                score,
-                &mut self.path_count
-            );
-            self.root = new_root;
-            return changed;
         }
 
-        // Direct insert with path counting
-        let (changed, _new_path, new_root) = Self::insert_recursive(
-            self.root.take(),
-            path_bytes,
-            0,
-            score,
-            &mut self.path_count
-        );
+        let mut root = self.root.take();
+        let (changed, new_path, new_root) = Self::insert_recursive(root, path_bytes, 0, score);
         self.root = new_root;
+
+        if new_path {
+            self.path_count += 1;
+        }
+
         changed
     }
 
-    // Recursive insert helper method - improved to inline path count updates
+    // Recursive insert helper method - restructured to avoid double borrowing
     fn insert_recursive(
         mut node: Option<Box<ARTNode>>,
         key: &[u8],
         depth: usize,
-        score: f32,
-        path_count: &mut usize
+        score: f32
     ) -> (bool, bool, Option<Box<ARTNode>>) {
         if node.is_none() {
             node = Some(Box::new(ARTNode::new_node4()));
@@ -1199,20 +895,19 @@ impl ART {
 
         let mut node_ref = node.unwrap();
 
-        // Fast path: end of key
+        // Check if we've reached the end of the path
         if depth == key.len() {
             let mut changed = false;
             let mut new_path = false;
 
-            // If this node is not already terminal, it's a new path
+            // If the node wasn't terminal yet
             if !node_ref.is_terminal() {
                 node_ref.set_terminal(true);
                 new_path = true;
-                *path_count += 1; // Directly update path count
                 changed = true;
             }
 
-            // Update score if different
+            // If the score is different
             if node_ref.get_score() != Some(score) {
                 node_ref.set_score(Some(score));
                 changed = true;
@@ -1225,22 +920,21 @@ impl ART {
         let (match_len, exact_match) = node_ref.check_prefix(key, depth);
 
         if !exact_match {
-            // Prefix doesn't match - split the node
+            // Prefix doesn't match - we need to split the node
             node_ref.split_prefix(match_len);
         }
 
         // After the prefix - position in the key
         let next_depth = depth + match_len;
 
-        // Another fast path: end of key after prefix
         if next_depth == key.len() {
+            // We've reached the end of the path - mark as terminal
             let mut changed = false;
             let mut new_path = false;
 
             if !node_ref.is_terminal() {
                 node_ref.set_terminal(true);
                 new_path = true;
-                *path_count += 1; // Directly update path count
                 changed = true;
             }
 
@@ -1252,36 +946,39 @@ impl ART {
             return (changed, new_path, Some(node_ref));
         }
 
-        // Get next character in the path
+        // Next character in the path
         let c = key[next_depth];
 
-        // Check if we need to create a new child
+        // Look for matching child
         let need_new_child = node_ref.find_child_mut(c).is_none();
 
         if need_new_child {
-            // Create a new empty child
+            // No matching child - create a new one
             node_ref.add_child(c, None);
         }
 
-        // Continue with the child node
+        let mut child_new_path = false;
+        // Process the child (need to handle the case where node might grow)
         if let Some(child) = node_ref.find_child_mut(c) {
             let taken_child = child.take();
-            let (changed, _new_path, new_child) = Self::insert_recursive(
+            let (changed, new_path_in_child, new_child) = Self::insert_recursive(
                 taken_child,
                 key,
                 next_depth + 1,
-                score,
-                path_count // Pass path_count directly
+                score
             );
             *child = new_child;
-            return (changed, false, Some(node_ref));
+
+            child_new_path = new_path_in_child;
+
+            return (changed, child_new_path, Some(node_ref));
         }
 
         // Should never reach here
         (false, false, Some(node_ref))
     }
 
-    // Find completions using non-recursive traversal for speed
+    // find_completions - Corresponds to your search method
     pub fn find_completions(&self, prefix: &str) -> Vec<(String, f32)> {
         let mut results = Vec::new();
 
@@ -1293,127 +990,118 @@ impl ART {
         let prefix_bytes = normalized.as_bytes();
 
         // Find the node that matches the prefix
-        let mut current = self.root.as_ref().unwrap();
-        let mut node = current.as_ref();
-        let mut depth = 0;
+        if let Some((node, _depth)) = self.find_node_for_prefix(prefix_bytes) {
+            // Collect all paths from this node
+            self.collect_results(node, &normalized, &mut results);
 
-        // Navigate to the prefix node
-        while depth < prefix_bytes.len() {
-            // Check prefix match
-            let (match_len, exact_match) = node.check_prefix(prefix_bytes, depth);
-
-            if !exact_match {
-                // Prefix doesn't match - no results
-                return results;
+            // Sort and limit results
+            results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            if results.len() > self.max_results {
+                results.truncate(self.max_results);
             }
-
-            depth += match_len;
-
-            if depth == prefix_bytes.len() {
-                // We've reached the end of the prefix
-                break;
-            }
-
-            // Get next character
-            let c = prefix_bytes[depth];
-
-            // Find matching child
-            match node.find_child(c) {
-                Some(child) => {
-                    node = child.as_ref();
-                    depth += 1;
-                },
-                None => return results, // No matching child
-            }
-        }
-
-        // Collect all completions from the prefix node
-        self.collect_results(node, &normalized, &mut results);
-
-        // Sort results by score
-        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
-        // Limit results
-        if results.len() > self.max_results {
-            results.truncate(self.max_results);
         }
 
         results
     }
 
-    // Optimized results collection using Vec with capacity
+    // Finds the node that matches the given prefix
+    fn find_node_for_prefix(&self, prefix: &[u8]) -> Option<(&ARTNode, usize)> {
+        if self.root.is_none() || prefix.is_empty() {
+            return self.root.as_ref().map(|n| (n.as_ref(), 0));
+        }
+
+        let mut current = self.root.as_ref().unwrap();
+        let mut node = current.as_ref();
+        let mut depth = 0;
+
+        // Navigate through the tree to find the prefix
+        while depth < prefix.len() {
+            // Check prefix match
+            let (match_len, exact_match) = node.check_prefix(prefix, depth);
+
+            if !exact_match {
+                // Prefix doesn't fully match - no match
+                return None;
+            }
+
+            depth += match_len;
+
+            if depth == prefix.len() {
+                // We've traversed the complete prefix
+                return Some((node, depth));
+            }
+
+            // Next character in the prefix
+            let c = prefix[depth];
+
+            // Look for matching child
+            match node.find_child(c) {
+                Some(child) => {
+                    node = child.as_ref();
+                    depth += 1;
+                },
+                None => return None, // No matching child
+            }
+        }
+
+        Some((node, depth))
+    }
+
+    // Collects all results (paths) from a given node
     fn collect_results(&self, node: &ARTNode, prefix: &str, results: &mut Vec<(String, f32)>) {
-        // Stack-based traversal to avoid recursion
-        let mut stack = Vec::with_capacity(64); // Pre-allocate for likely depth
-        stack.push((node, prefix.to_string()));
-
-        while let Some((current, current_prefix)) = stack.pop() {
-            // If this node is terminal, add it to results
-            if current.is_terminal() {
-                if let Some(score) = current.get_score() {
-                    results.push((current_prefix.clone(), score));
-                }
-            }
-
-            // Process all children
-            for (key, child) in current.iter_children() {
-                let mut new_prefix = current_prefix.clone();
-                new_prefix.push(key as char);
-
-                // If the child has a compressed prefix, add it
-                let prefix_storage = child.get_prefix();
-                if !prefix_storage.is_empty() {
-                    for i in 0..prefix_storage.len() {
-                        if let Some(c) = prefix_storage.get(i) {
-                            new_prefix.push(c as char);
-                        }
-                    }
-                }
-
-                // Add the child to the stack
-                stack.push((child.as_ref(), new_prefix));
-            }
-        }
-    }
-
-    // Optimized implementation of collect_all_paths for component search
-    fn collect_all_paths(&self, node: &ARTNode, results: &mut Vec<(String, f32)>) {
-        // Use a stack-based approach to avoid recursion
+        let mut path_buf = prefix.as_bytes().to_vec();
         let mut stack = Vec::with_capacity(64);
-        stack.push((node, String::new()));
+        stack.push((node, prefix.len()));
 
-        while let Some((current, current_path)) = stack.pop() {
-            // If this node is terminal, add the current path to results
-            if current.is_terminal() {
-                if let Some(score) = current.get_score() {
-                    results.push((current_path.clone(), score));
+        while let Some((node, depth)) = stack.pop() {
+            // Append this node's prefix to the buffer
+            let node_prefix = node.get_prefix();
+            let start_len = path_buf.len();
+            path_buf.extend_from_slice(node_prefix);
+
+            if node.is_terminal() {
+                if let Some(score) = node.get_score() {
+                    // SAFETY: All inserted bytes are valid UTF-8 because original paths are valid UTF-8
+                    let s = unsafe { String::from_utf8_unchecked(path_buf.clone()) };
+                    results.push((s, score));
                 }
             }
-
-            // Process each child
-            for (key, child) in current.iter_children() {
-                let mut new_path = current_path.clone();
-
-                // Add the key character
-                new_path.push(key as char);
-
-                // If the child has a compressed prefix, add it
-                let prefix_storage = child.get_prefix();
-                if !prefix_storage.is_empty() {
-                    for i in 0..prefix_storage.len() {
-                        if let Some(c) = prefix_storage.get(i) {
-                            new_path.push(c as char);
-                        }
-                    }
-                }
-
-                // Add to stack for processing
-                stack.push((child.as_ref(), new_path));
+            for (key, child) in node.iter_children() {
+                path_buf.push(key);
+                stack.push((child.as_ref(), path_buf.len()));
             }
+
+            // Remove everything after start_len for the next iteration
+            path_buf.truncate(start_len);
         }
     }
 
-    // Optimized remove method
+    // Implementation of collect_all_paths for component search
+    fn collect_all_paths(&self, node: &ARTNode, results: &mut Vec<(String, f32)>) {
+        let mut path_buf = Vec::with_capacity(256);
+        let mut stack = Vec::with_capacity(64);
+        stack.push((node, 0usize));
+
+        while let Some((node, depth)) = stack.pop() {
+            let node_prefix = node.get_prefix();
+            let start_len = path_buf.len();
+            path_buf.extend_from_slice(node_prefix);
+
+            if node.is_terminal() {
+                if let Some(score) = node.get_score() {
+                    let s = unsafe { String::from_utf8_unchecked(path_buf.clone()) };
+                    results.push((s, score));
+                }
+            }
+            for (key, child) in node.iter_children() {
+                path_buf.push(key);
+                stack.push((child.as_ref(), path_buf.len()));
+            }
+            path_buf.truncate(start_len);
+        }
+    }
+
+    // remove - Removes a path from the trie
     pub fn remove(&mut self, path: &str) -> bool {
         if self.root.is_none() {
             return false;
@@ -1439,7 +1127,7 @@ impl ART {
         removed
     }
 
-    // Recursive removal helper method
+    // Recursive removal helper method - restructured to avoid double borrowing
     fn remove_recursive(
         node: Option<Box<ARTNode>>,
         key: &[u8],
@@ -1507,16 +1195,16 @@ impl ART {
         (false, false, Some(node_ref))
     }
 
-    // Optimized search with component matching
+    // Additional helper methods for search, length, is_empty, etc.
+
     pub fn search(&self, query: &str, current_dir: Option<&str>, allow_partial_components: bool) -> Vec<(String, f32)> {
+        // Here you can keep your existing search implementation,
+        // but adapted to the new ART structure
         let mut results = Vec::new();
 
         if query.is_empty() {
             return results;
         }
-
-        // Pre-allocate an estimated capacity
-        results.reserve(self.max_results * 2);
 
         // Case 1: Direct prefix search
         let direct_matches = self.find_completions(query);
@@ -1535,12 +1223,12 @@ impl ART {
             results.extend(context_matches);
         }
 
-        // Case 3: Partial component search - only if needed
-        if allow_partial_components && results.len() < self.max_results {
+        // Case 3: Partial component search
+        if allow_partial_components {
             self.find_component_matches(query, current_dir, &mut results);
         }
 
-        // Sort and deduplicate results
+        // Sort and deduplicate
         self.sort_and_deduplicate_results(&mut results);
 
         // Limit results
@@ -1551,8 +1239,9 @@ impl ART {
         results
     }
 
-    // Optimized component matching
+    // Additional methods like find_component_matches, sort_and_deduplicate_results
     fn find_component_matches(&self, query: &str, current_dir: Option<&str>, results: &mut Vec<(String, f32)>) {
+        // Similar to the existing implementation, but adapted to the ART structure
         if self.root.is_none() {
             return;
         }
@@ -1563,51 +1252,26 @@ impl ART {
             return;
         }
 
-        // If we already have enough results, don't do expensive component matching
-        if results.len() >= self.max_results {
-            return;
-        }
-
         let normalized_dir = current_dir.map(|dir| self.normalize_path(dir));
 
-        // Only collect paths if we need to - this is expensive!
-        let mut all_paths = Vec::with_capacity(self.path_count.min(1000));
+        // Collect all paths (expensive - only if needed)
+        let mut all_paths = Vec::new();
         if let Some(root) = &self.root {
             self.collect_all_paths(root.as_ref(), &mut all_paths);
         }
 
-        // Fast query match lookup
-        let query_bytes = normalized_query.as_bytes();
-
         for (path, score) in all_paths {
-            // Check directory context first to avoid unnecessary processing
+            // Check directory context
             if let Some(ref dir) = normalized_dir {
                 if !path.starts_with(dir) && !path.starts_with(&format!("{}/", dir)) {
                     continue;
                 }
             }
 
-            // Split path into components using a preallocated buffer
-            let mut components = Vec::with_capacity(10); // Most paths have fewer than 10 components
-            let mut start = 0;
+            // Check components
+            let components: Vec<&str> = path.split('/').collect();
 
-            for (i, &b) in path.as_bytes().iter().enumerate() {
-                if b == b'/' {
-                    if i > start {
-                        components.push(&path[start..i]);
-                    }
-                    start = i + 1;
-                }
-            }
-
-            // Add the last component
-            if start < path.len() {
-                components.push(&path[start..]);
-            }
-
-            // Check if any component contains the query
-            for component in &components {
-                // Fast case-sensitive check for query in component
+            for component in components {
                 if component.contains(&normalized_query) {
                     // Adjust score based on match type
                     let adjusted_score = if component.starts_with(&normalized_query) {
@@ -1617,27 +1281,22 @@ impl ART {
                     };
 
                     results.push((path.clone(), adjusted_score));
-                    break; // Only count each path once
+                    break;
                 }
             }
         }
     }
 
-    // Optimized sort and deduplicate
+    // Sort and deduplicate results
     fn sort_and_deduplicate_results(&self, results: &mut Vec<(String, f32)>) {
-        if results.is_empty() {
-            return;
-        }
+        // Can be taken from your existing implementation
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
-        // Sort by score (highest first)
-        results.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
-        // Deduplicate (keeping highest score for each path)
-        let mut seen_paths = std::collections::HashSet::with_capacity(results.len());
+        let mut seen_paths = std::collections::HashSet::new();
         results.retain(|(path, _)| seen_paths.insert(path.clone()));
     }
 
-    // Helper methods
+    // Additional helper methods
 
     pub fn len(&self) -> usize {
         self.path_count
@@ -1652,7 +1311,6 @@ impl ART {
         self.path_count = 0;
     }
 
-    // Fast path lookup
     pub fn contains(&self, path: &str) -> bool {
         if self.root.is_none() {
             return false;
@@ -1661,38 +1319,11 @@ impl ART {
         let normalized = self.normalize_path(path);
         let path_bytes = normalized.as_bytes();
 
-        let mut current = self.root.as_ref().unwrap().as_ref();
-        let mut depth = 0;
-
-        while depth < path_bytes.len() {
-            // Check prefix match
-            let (match_len, exact_match) = current.check_prefix(path_bytes, depth);
-
-            if !exact_match {
-                return false;
-            }
-
-            depth += match_len;
-
-            if depth == path_bytes.len() {
-                // Reached the end of the path
-                return current.is_terminal();
-            }
-
-            // Get next character
-            let c = path_bytes[depth];
-
-            // Find matching child
-            match current.find_child(c) {
-                Some(child) => {
-                    current = child.as_ref();
-                    depth += 1;
-                },
-                None => return false,
-            }
+        if let Some((node, depth)) = self.find_node_for_prefix(path_bytes) {
+            return depth == path_bytes.len() && node.is_terminal();
         }
 
-        current.is_terminal()
+        false
     }
 }
 

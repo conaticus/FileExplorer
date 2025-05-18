@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::search_engine::art_v3::ART;
+use crate::search_engine::art_v4::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
 use crate::search_engine::path_cache_wrapper::PathCache;
 use crate::{log_info, log_warn};
