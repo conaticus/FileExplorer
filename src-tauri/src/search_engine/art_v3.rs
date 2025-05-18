@@ -1300,7 +1300,7 @@ mod tests_art_v3 {
 
     #[cfg(feature = "long-tests")]
     #[test]
-    fn benchmark_prefix_search_with_all_paths() {
+    fn benchmark_prefix_search_with_all_paths_art_v3() {
         log_info!("Benchmarking prefix search with thousands of real-world paths");
 
         // 1. Collect all available paths

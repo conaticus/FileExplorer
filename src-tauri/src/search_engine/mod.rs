@@ -4,6 +4,7 @@ mod lru_cache_v2;
 mod path_cache_wrapper;
 mod art_v3;
 pub mod autocomplete_engine;
+mod art_v4;
 
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
