@@ -1,6 +1,7 @@
+use crate::error_handling::{Error, ErrorCode};
 use crate::models::{
-    count_subdirectories, count_subfiles, format_system_time,
-    get_access_permission_number, get_access_permission_string, Entries,
+    count_subdirectories, count_subfiles, format_system_time, get_access_permission_number,
+    get_access_permission_string, Entries,
 };
 use crate::{log_info, models};
 use std::fs;
@@ -9,7 +10,6 @@ use std::io::Write;
 use std::path::Path;
 use zip::write::FileOptions;
 use zip::ZipWriter;
-use crate::error_handling::{Error, ErrorCode};
 
 /// Opens a file at the given path and returns its contents as a string.
 /// Should only be used for text files.
@@ -38,17 +38,29 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 
     // Check if path exists
     if !path_obj.exists() {
-        //return Err(format!("File does not exist: {}", path));
-        return Err(Error::new(ErrorCode::NotFound, format!("File does not exist: {}", path)).to_json());
+        return Err(Error::new(
+            ErrorCode::NotFound,
+            format!("File does not exist: {}", path),
+        )
+        .to_json());
     }
 
     // Check if path is a file
     if !path_obj.is_file() {
-        return Err(format!("Path is not a file: {}", path));
+        return Err(
+            Error::new(ErrorCode::NotFound, format!("Path is not a file: {}", path)).to_json(),
+        );
     }
 
     // Read the file
-    fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))
+    //fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))
+    fs::read_to_string(path).map_err(|err| {
+        Error::new(
+            ErrorCode::InternalError,
+            format!("Failed to read file: {}", err),
+        )
+        .to_json()
+    })
 }
 
 /// Opens a directory at the given path and returns its contents as a json string.
@@ -82,29 +94,56 @@ pub async fn open_directory(path: String) -> Result<String, String> {
 
     // Check if path exists
     if !path_obj.exists() {
-        return Err(format!("Directory does not exist: {}", path));
+        return Err(Error::new(
+            ErrorCode::NotFound,
+            format!("Directory does not exist: {}", path),
+        )
+        .to_json());
     }
 
     // Check if path is a directory
     if !path_obj.is_dir() {
-        return Err(format!("Path is not a directory: {}", path));
+        return Err(Error::new(
+            ErrorCode::NotFound,
+            format!("Path is not a directory: {}", path),
+        )
+        .to_json());
     }
 
     let mut directories = Vec::new();
     let mut files = Vec::new();
 
-    for entry in read_dir(path_obj).map_err(|err| format!("Failed to read directory: {}", err))? {
-        let entry = entry.map_err(|err| format!("Failed to read entry: {}", err))?;
-        let file_type = entry
-            .file_type()
-            .map_err(|err| format!("Failed to get file type: {}", err))?;
-        let path_of_entry = entry.path();
-        let metadata = entry
-            .metadata()
-            .map_err(|err| format!("Failed to get metadata: {}", err))?;
+    for entry in read_dir(path_obj).map_err(|err| {
+        Error::new(
+            ErrorCode::InternalError,
+            format!("Failed to read directory: {}", err),
+        )
+        .to_json()
+    })? {
+        let entry = entry.map_err(|err| {
+            Error::new(
+                ErrorCode::InternalError,
+                format!("Failed to read entry: {}", err),
+            )
+            .to_json()
+        })?;
 
-        /*let (subfile_count, subdir_count) =
-        count_subfiles_and_subdirectories(path_of_entry.to_str().unwrap());*/
+        let file_type = entry.file_type().map_err(|err| {
+            Error::new(
+                ErrorCode::InternalError,
+                format!("Failed to get file type: {}", err),
+            )
+            .to_json()
+        })?;
+
+        let path_of_entry = entry.path();
+        let metadata = entry.metadata().map_err(|err| {
+            Error::new(
+                ErrorCode::InternalError,
+                format!("Failed to get metadata: {}", err),
+            )
+            .to_json()
+        })?;
 
         if file_type.is_dir() {
             directories.push(models::Directory {
@@ -168,8 +207,13 @@ pub async fn open_directory(path: String) -> Result<String, String> {
     let entries = Entries { directories, files };
 
     // Convert the Entries struct to a JSON string
-    let json = serde_json::to_string(&entries)
-        .map_err(|err| format!("Failed to serialize entries: {}", err))?;
+    let json = serde_json::to_string(&entries).map_err(|err| {
+        Error::new(
+            ErrorCode::InternalError,
+            format!("Failed to serialize entries: {}", err),
+        )
+        .to_json()
+    })?;
     Ok(json)
 }
 
@@ -196,10 +240,18 @@ pub async fn create_file(folder_path_abs: &str, file_name: &str) -> Result<(), S
     // Check if the folder path exists and is valid
     let path = Path::new(folder_path_abs);
     if !path.exists() {
-        return Err(format!("Directory does not exist: {}", folder_path_abs));
+        return Err(Error::new(
+            ErrorCode::NotFound,
+            format!("Directory does not exist: {}", folder_path_abs),
+        )
+        .to_json());
     }
     if !path.is_dir() {
-        return Err(format!("Path is no directory: {}", folder_path_abs));
+        return Err(Error::new(
+            ErrorCode::NotFound,
+            format!("Path is no directory: {}", folder_path_abs),
+        )
+        .to_json());
     }
 
     // Concatenate the folder path and filename
@@ -208,7 +260,11 @@ pub async fn create_file(folder_path_abs: &str, file_name: &str) -> Result<(), S
     // Create the file
     match fs::File::create(&file_path) {
         Ok(_) => Ok(()),
-        Err(err) => Err(format!("File could not be created: {}", err)),
+        Err(err) => Err(Error::new(
+            ErrorCode::NotFound,
+            format!("File could not be created: {}", folder_path_abs),
+        )
+        .to_json()),
     }
 }
 
@@ -646,7 +702,11 @@ mod tests_file_system_operation_commands {
         let result = open_file(test_path.to_str().unwrap()).await;
 
         // Verify that the operation was successful
-        assert!(result.is_err(), "Failed to open file: {:?}", result);
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
         assert!(
             result.clone().unwrap_err().contains("File does not exist"),
             "Error message does not match expected value"
@@ -657,9 +717,359 @@ mod tests_file_system_operation_commands {
             "Error message does not match expected value"
         );
 
-
         assert!(
             result.unwrap_err().contains("NotFound"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_open_file_test_path_is_not_a_file() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_file_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before reading");
+
+        // Open the file and read its contents
+        let result = open_file(temp_dir.path().to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+
+        assert!(
+            result.clone().unwrap_err().contains("Path is not a file"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_open_directory_test_directory_does_not_exist() {
+        use super::*;
+        use tempfile::tempdir;
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_directory_test.txt");
+
+        // Open the file and read its contents
+        let result = open_directory(test_path.to_str().unwrap().to_string()).await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+        assert!(
+            result
+                .clone()
+                .unwrap_err()
+                .contains("Directory does not exist"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_open_directory_test_path_is_not_a_directory() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_directory_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before reading");
+
+        // Open the file and read its contents
+        let result = open_directory(test_path.to_str().unwrap().to_string()).await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+        assert!(
+            result
+                .clone()
+                .unwrap_err()
+                .contains("Path is not a directory"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_open_directory_test_failed_to_read_directory() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_directory_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before reading");
+
+        // Open the file and read its contents
+        let result = open_directory(test_path.to_str().unwrap().to_string()).await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+        assert!(
+            result
+                .clone()
+                .unwrap_err()
+                .contains("Failed to read directory"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_open_directory_test_failed_to_read_entry() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_directory_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before reading");
+
+        // Open the file and read its contents
+        let result = open_directory(test_path.to_str().unwrap().to_string()).await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+        assert!(
+            result.clone().unwrap_err().contains("Failed to read entry"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_open_directory_test_failed_to_get_file_type() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_directory_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before reading");
+
+        // Open the file and read its contents
+        let result = open_directory(test_path.to_str().unwrap().to_string()).await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+        assert!(
+            result
+                .clone()
+                .unwrap_err()
+                .contains("Failed to get file type"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_open_directory_test_failed_to_get_metadata() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_directory_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before reading");
+
+        // Open the file and read its contents
+        let result = open_directory(test_path.to_str().unwrap().to_string()).await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+        assert!(
+            result
+                .clone()
+                .unwrap_err()
+                .contains("Failed to get metadata"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_open_directory_test_failed_to_serialize_entries() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_directory_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before reading");
+
+        // Open the file and read its contents
+        let result = open_directory(test_path.to_str().unwrap().to_string()).await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+        assert!(
+            result
+                .clone()
+                .unwrap_err()
+                .contains("Failed to serialize entries"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_create_file_test_directory_does_not_exist() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file path in the temporary directory
+        let test_path = temp_dir.path().join("create_file_test.txt");
+
+        // Call the function to create the file
+        let result = create_file(temp_dir.path().to_str().unwrap(), "create_file_test.txt").await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+        assert!(
+            result
+                .clone()
+                .unwrap_err()
+                .contains("Directory does not exist"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_write_file_test_path_is_no_directory() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file path in the temporary directory
+        let test_path = temp_dir.path().join("create_file_test.txt");
+
+        // Call the function to create the file
+        let result = create_file(temp_dir.path().to_str().unwrap(), "create_file_test.txt").await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+        assert!(
+            result.clone().unwrap_err().contains("Path is no directory"),
+            "Error message does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_to_create_directory_test_file_could_not_be_created() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file path in the temporary directory
+        let test_path = temp_dir.path().join("create_directory_test");
+
+        // Call the function to create the directory
+        let result =
+            create_directory(temp_dir.path().to_str().unwrap(), "create_directory_test").await;
+
+        // Verify that the operation was successful
+        assert!(
+            result.is_err(),
+            "Failed test (should throw an error): {:?}",
+            result
+        );
+        assert!(
+            result
+                .clone()
+                .unwrap_err()
+                .contains("File could not be created"),
             "Error message does not match expected value"
         );
     }
