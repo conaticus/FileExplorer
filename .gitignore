@@ -66,3 +66,25 @@
 /src-tauri/config
 /config
 app.log
+
+# Ignore test data
+/src-tauri/test-data*/
+
+
+# for the latex stuff
+/FileExplorerAusarbeitung/*.acn
+/FileExplorerAusarbeitung/*.acr
+/FileExplorerAusarbeitung/*.alg
+/FileExplorerAusarbeitung/*.aux
+/FileExplorerAusarbeitung/*.bcf
+/FileExplorerAusarbeitung/*.fdb_latexmk
+/FileExplorerAusarbeitung/*.fls
+/FileExplorerAusarbeitung/*.glg
+/FileExplorerAusarbeitung/*.glo
+/FileExplorerAusarbeitung/*.gls
+/FileExplorerAusarbeitung/*.ist
+/FileExplorerAusarbeitung/*.lof
+/FileExplorerAusarbeitung/*.log
+/FileExplorerAusarbeitung/*.out
+/FileExplorerAusarbeitung/*.xml
+/FileExplorerAusarbeitung/*.toc
