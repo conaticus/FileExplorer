@@ -2,7 +2,6 @@ mod models;
 mod fast_fuzzy_v2;
 mod lru_cache_v2;
 mod path_cache_wrapper;
-mod art_v3;
 pub mod autocomplete_engine;
 mod art_v4;
 

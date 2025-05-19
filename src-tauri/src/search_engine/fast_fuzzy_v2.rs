@@ -143,6 +143,9 @@ impl PathMatcher {
     }
 
     pub fn search(&self, query: &str, max_results: usize) -> Vec<(String, f32)> {
+        const MAX_SCORING_CANDIDATES: usize = 2000; // Tune this for your use case
+        // way better performance!!!!!
+        
         if query.is_empty() {
             return Vec::new();
         }
@@ -187,100 +190,75 @@ impl PathMatcher {
             return self.fallback_search(query, max_results);
         }
 
-        let mut results = Vec::with_capacity(total_hits.min(max_results * 2));
+        let mut candidates: Vec<(usize, u16)> = hit_counts
+            .iter()
+            .enumerate()
+            .filter(|&(_idx, &count)| count > 0)
+            .map(|(idx, &count)| (idx, count)) // <-- this line fixes it
+            .collect();
 
+        // Sort candidates by hit count descending (most trigrams in common first)
+        candidates.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+
+        // Take only the top N candidates to score
+        let candidates_to_score = candidates
+            .into_iter()
+            .take(MAX_SCORING_CANDIDATES)
+            .collect::<Vec<_>>();
+
+        let mut results = Vec::with_capacity(max_results * 2);
         // Track the first letter of the query for prioritization
         let query_first_char = query_lower.chars().next();
-
-        let query_lower = query.to_lowercase();
         let query_trigram_count = query_trigrams.len() as f32;
 
-        for word_idx in 0..path_bitmap.len() {
-            let mut word = path_bitmap[word_idx];
+        for (path_idx, hits) in candidates_to_score {
+            let path = &self.paths[path_idx];
+            let hits = hits as f32;
+            let path_lower = path.to_lowercase();
 
-            if word==0 {
-                continue;
+            let path_components: Vec<&str> = path.split('/').collect();
+            let filename = path_components.last().unwrap_or(&"");
+            let filename_lower = filename.to_lowercase();
+            let mut score = hits / query_trigram_count;
+
+            if filename_lower == query_lower {
+                score += 0.5;
+            } else if filename_lower.contains(&query_lower) {
+                score += 0.3;
+            } else if path_lower.contains(&query_lower) {
+                score += 0.2;
             }
 
-            while word != 0 {
-                let bit_idx = word.trailing_zeros() as usize;
-                let path_idx = word_idx * 32 + bit_idx;
-
-                if path_idx < self.paths.len() {
-                    let path = &self.paths[path_idx];
-                    let hits = hit_counts[path_idx] as f32;
-
-                    let path_lower = path.to_lowercase();
-
-                    // Check for exact filename matches first
-                    let path_components: Vec<&str> = path.split('/').collect();
-                    let filename = path_components.last().unwrap_or(&"");
-
-                    // Critical: Match the actual query term with proper case sensitivity
-                    // If this file contains the actual search term in its name, give it priority
-                    let filename_lower = filename.to_lowercase();
-
-                    let mut score = hits / query_trigram_count;
-
-                    if filename_lower == query_lower {
-                        score += 0.5; // Exact match bonus
+            if let Some(query_char) = query_first_char {
+                if let Some(filename_char) = filename_lower.chars().next() {
+                    if query_char == filename_char {
+                        score += 0.15;
                     }
-                    else if filename_lower.contains(&query_lower) {
-                        score += 0.3; // substring match
-                    }
-                    // Contains anywhere in path
-                    else if path_lower.contains(&query_lower) {
-                        score += 0.2; // General path substring match
-                    }
-
-                    // This ensures "LWORECASE" prioritizes files starting with 'l'
-                    if let Some(query_char) = query_first_char {
-                        if let Some(filename_char) = filename_lower.chars().next() {
-                            // If the first letter matches, give a significant boost
-                            if query_char == filename_char {
-                                score += 0.15; // bonus for first letter match
-                            }
-                        }
-                    }
-
-                    // Further bonus for file extension matches
-                    if let Some(dot_pos) = query_lower.find('.') {
-                        let query_ext = &query_lower[dot_pos..];
-                        if path.to_lowercase().ends_with(query_ext) {
-                            score += 0.1;
-                        }
-                    }
-
-
-
-                    // Apply position bias - paths with match near start get bonus
-                    if let Some(pos) = path_lower.find(&query_lower) {
-                        // Position bonus decreases as position increases
-                        let pos_factor = 1.0 - (pos as f32 / path.len() as f32).min(0.9);
-                        score += pos_factor * 0.1;
-                    }
-
-                    results.push((path.clone(), score));
                 }
-
-                // Clear the bit we just processed and continue
-                word &= !(1 << bit_idx);
             }
+
+            if let Some(dot_pos) = query_lower.find('.') {
+                let query_ext = &query_lower[dot_pos..];
+                if path_lower.ends_with(query_ext) {
+                    score += 0.1;
+                }
+            }
+
+            if let Some(pos) = path_lower.find(&query_lower) {
+                let pos_factor = 1.0 - (pos as f32 / path.len() as f32).min(0.9);
+                score += pos_factor * 0.1;
+            }
+
+            results.push((path.clone(), score));
         }
 
-        // Sort results by score
         results.sort_unstable_by(|a, b| {
-            // Primary sort by score (descending)
             let cmp = b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal);
             if cmp != std::cmp::Ordering::Equal {
                 return cmp;
             }
-
-            // Secondary sort: path length (ascending)
             a.0.len().cmp(&b.0.len())
         });
-
-        // Return top matches
         results.truncate(max_results);
 
         if results.is_empty() && query.len() >= 3 {
@@ -1237,6 +1215,7 @@ mod tests_fast_fuzzy_v2 {
 
     // Test performance on larger dataset
     #[test]
+    #[cfg(feature = "long-tests")]
     fn test_large_dataset_performance() {
         // Get the test data directory
         let test_path = get_test_data_path();
@@ -1289,6 +1268,306 @@ mod tests_fast_fuzzy_v2 {
         match super::super::generate_test_data(base_path) {
             Ok(path) => log_info!(&format!("Test data generated successfully at {:?}", path)),
             Err(e) => panic!("Failed to generate test data: {}", e),
+        }
+    }
+
+    #[cfg(feature = "long-tests")]
+    #[test]
+    fn benchmark_search_with_all_paths_path_matcher() {
+        log_info!("Benchmarking PathMatcher with thousands of real-world paths");
+
+        // 1. Collect all available paths
+        let paths = collect_test_paths(None); // Get all available paths
+        let path_count = paths.len();
+
+        log_info!(&format!("Collected {} test paths", path_count));
+
+        // Store all the original paths for verification
+        let all_paths = paths.clone();
+
+        // Helper function to generate guaranteed-to-match queries
+        fn extract_guaranteed_queries(paths: &[String], limit: usize) -> Vec<String> {
+            let mut queries = Vec::new();
+            let mut seen_queries = std::collections::HashSet::new();
+            
+            // Helper function to add unique queries
+            fn should_add_query(query: &str, seen: &mut std::collections::HashSet<String>) -> bool {
+                let normalized = query.trim_end_matches('/').to_string();
+                if !normalized.is_empty() && !seen.contains(&normalized) {
+                    seen.insert(normalized);
+                    return true;
+                }
+                false
+            }
+            
+            if paths.is_empty() {
+                return queries;
+            }
+            
+            // a. Extract directory prefixes from actual paths
+            for path in paths.iter().take(paths.len().min(100)) {
+                let components: Vec<&str> = path.split(|c| c == '/' || c == '\\').collect();
+                
+                // Full path prefixes
+                for i in 1..components.len() {
+                    if queries.len() >= limit { break; }
+                    
+                    let prefix = components[0..i].join("/");
+                    if !prefix.is_empty() {
+                        // Check and add the base prefix
+                        if should_add_query(&prefix, &mut seen_queries) {
+                            queries.push(prefix.clone());
+                        }
+                    }
+                    
+                    if queries.len() >= limit { break; }
+                }
+                
+                // b. Extract filename prefixes (for partial filename matches)
+                if queries.len() < limit {
+                    if let Some(last) = components.last() {
+                        if !last.is_empty() && last.len() > 2 {
+                            let first_chars = &last[..last.len().min(2)];
+                            if !first_chars.is_empty() {
+                                if should_add_query(first_chars, &mut seen_queries) {
+                                    queries.push(first_chars.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // c. Add specific test cases for fuzzy search patterns
+            if queries.len() < limit {
+                if paths.iter().any(|p| p.contains("test-data-for-fuzzy-search")) {
+                    // Add queries with various spelling patterns
+                    let test_queries = [
+                        "apple".to_string(),     // Common term in test data
+                        "aple".to_string(),      // Misspelled
+                        "bannana".to_string(),   // Common with misspelling
+                        "txt".to_string(),       // Common extension
+                        "orangge".to_string(),   // Common with misspelling
+                    ];
+                    
+                    for query in test_queries {
+                        if queries.len() >= limit { break; }
+                        if should_add_query(&query, &mut seen_queries) {
+                            queries.push(query);
+                        }
+                    }
+                    
+                    // Extract some specific filenames from test data
+                    if queries.len() < limit {
+                        for path in paths.iter() {
+                            if queries.len() >= limit { break; }
+                            if let Some(filename) = path.split('/').last() {
+                                if filename.len() > 3 {
+                                    let query = filename[..filename.len().min(4)].to_string();
+                                    if should_add_query(&query, &mut seen_queries) {
+                                        queries.push(query);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Add basic queries if needed
+            if queries.len() < 3 {
+                let basic_queries = [
+                    "file".to_string(),
+                    "doc".to_string(),
+                    "img".to_string(),
+                ];
+                
+                for query in basic_queries {
+                    if should_add_query(&query, &mut seen_queries) {
+                        queries.push(query);
+                    }
+                }
+            }
+            
+            // Limit the number of queries
+            if queries.len() > limit {
+                queries.truncate(limit);
+            }
+            
+            queries
+        }
+
+        // 2. Test with different batch sizes
+        let batch_sizes = [10, 100, 1000, 10000, all_paths.len()];
+
+        for &batch_size in &batch_sizes {
+            // Reset for this batch size
+            let subset_size = batch_size.min(all_paths.len());
+
+            // Create a fresh engine with only the needed paths
+            let mut subset_matcher = PathMatcher::new();
+            let start_insert_subset = std::time::Instant::now();
+
+            for i in 0..subset_size {
+                subset_matcher.add_path(&all_paths[i]);
+            }
+
+            let subset_insert_time = start_insert_subset.elapsed();
+            log_info!(&format!("\n=== BENCHMARK WITH {} PATHS ===", subset_size));
+            log_info!(&format!("Subset insertion time: {:?} ({:.2} paths/ms)",
+                        subset_insert_time,
+                        subset_size as f64 / subset_insert_time.as_millis().max(1) as f64));
+
+            // Generate test queries specifically for this subset
+            let subset_paths = all_paths.iter().take(subset_size).cloned().collect::<Vec<_>>();
+            let subset_queries = extract_guaranteed_queries(&subset_paths, 15);
+            
+            log_info!(&format!("Generated {} subset-specific queries", subset_queries.len()));
+
+            // Run a single warmup search to prime any caches
+            subset_matcher.search("file", 10);
+
+            // Run measurements on each test query
+            let mut total_time = std::time::Duration::new(0, 0);
+            let mut total_results = 0;
+            let mut times = Vec::new();
+            let mut fuzzy_counts = 0;
+
+            for query in &subset_queries {
+                // Measure search time
+                let start = std::time::Instant::now();
+                let completions = subset_matcher.search(query, 20);
+                let elapsed = start.elapsed();
+
+                total_time += elapsed;
+                total_results += completions.len();
+                times.push((query.clone(), elapsed, completions.len()));
+                
+                // Count fuzzy matches (any match not containing the exact query)
+                let fuzzy_matches = completions.iter()
+                    .filter(|(path, _)| !path.to_lowercase().contains(&query.to_lowercase()))
+                    .count();
+                fuzzy_counts += fuzzy_matches;
+
+                // Print top results for each search
+                //log_info!(&format!("Results for '{}' (found {})", query, completions.len()));
+                //for (i, (path, score)) in completions.iter().take(3).enumerate() {
+                //    log_info!(&format!("    #{}: '{}' (score: {:.3})", i+1, path, score));
+                //}
+                //if completions.len() > 3 {
+                //    log_info!(&format!("    ... and {} more results", completions.len() - 3));
+                //}
+            }
+
+            // Calculate and report statistics
+            let avg_time = if !subset_queries.is_empty() {
+                total_time / subset_queries.len() as u32
+            } else {
+                std::time::Duration::new(0, 0)
+            };
+
+            let avg_results = if !subset_queries.is_empty() {
+                total_results / subset_queries.len()
+            } else {
+                0
+            };
+            
+            let avg_fuzzy = if !subset_queries.is_empty() {
+                fuzzy_counts as f64 / subset_queries.len() as f64
+            } else {
+                0.0
+            };
+
+            log_info!(&format!("Ran {} searches", subset_queries.len()));
+            log_info!(&format!("Average search time: {:?}", avg_time));
+            log_info!(&format!("Average results per search: {}", avg_results));
+            log_info!(&format!("Average fuzzy matches per search: {:.1}", avg_fuzzy));
+            
+            // Sort searches by time and log
+            times.sort_by(|a, b| b.1.cmp(&a.1)); // Sort by time, slowest first
+
+            // Log the slowest searches
+            log_info!("Slowest searches:");
+            for (i, (query, time, count)) in times.iter().take(3).enumerate() {
+                log_info!(&format!("  #{}: '{:40}' - {:?} ({} results)",
+                    i+1, query, time, count));
+            }
+
+            // Log the fastest searches
+            log_info!("Fastest searches:");
+            for (i, (query, time, count)) in times.iter().rev().take(3).enumerate() {
+                log_info!(&format!("  #{}: '{:40}' - {:?} ({} results)",
+                    i+1, query, time, count));
+            }
+
+            // Test with different result counts
+            let mut by_result_count = Vec::new();
+            for &count in &[0, 1, 5, 10] {
+                let matching: Vec<_> = times.iter()
+                    .filter(|(_, _, c)| *c >= count)
+                    .collect();
+
+                if !matching.is_empty() {
+                    let total = matching.iter()
+                        .fold(std::time::Duration::new(0, 0), |sum, (_, time, _)| sum + *time);
+                    let avg = total / matching.len() as u32;
+
+                    by_result_count.push((count, avg, matching.len()));
+                }
+            }
+
+            log_info!("Average search times by result count:");
+            for (count, avg_time, num_searches) in by_result_count {
+                log_info!(&format!("  ≥ {:3} results: {:?} (from {} searches)",
+                    count, avg_time, num_searches));
+            }
+            
+            // Special test: Character edits for fuzzy matching
+            if !subset_queries.is_empty() {
+                let mut misspelled_queries = Vec::new();
+                
+                // Create misspelled versions of existing queries
+                for query in subset_queries.iter().take(3) {
+                    if query.len() >= 3 {
+                        // Character deletion
+                        let deletion = format!("{}{}", &query[..1], &query[2..]);
+                        misspelled_queries.push(deletion);
+                        
+                        // Character transposition (if possible)
+                        if query.len() >= 4 {
+                            let mut chars: Vec<char> = query.chars().collect();
+                            chars.swap(1, 2);
+                            misspelled_queries.push(chars.iter().collect::<String>());
+                        }
+                        
+                        // Character substitution
+                        let substitution = if query.contains('a') {
+                            query.replacen('a', "e", 1)
+                        } else if query.contains('e') {
+                            query.replacen('e', "a", 1)
+                        } else {
+                            format!("{}x{}", &query[..1], &query[2..])
+                        };
+                        misspelled_queries.push(substitution);
+                    }
+                }
+                
+                log_info!(&format!("Testing {} misspelled variations", misspelled_queries.len()));
+                
+                for misspelled in &misspelled_queries {
+                    let start = std::time::Instant::now();
+                    let results = subset_matcher.search(misspelled, 10);
+                    let elapsed = start.elapsed();
+                    
+                    log_info!(&format!("Misspelled '{}' found {} results in {:?}", 
+                             misspelled, results.len(), elapsed));
+                    
+                    if !results.is_empty() {
+                        log_info!(&format!("  Top result: {} (score: {:.3})", 
+                                 results[0].0, results[0].1));
+                    }
+                }
+            }
         }
     }
 }
