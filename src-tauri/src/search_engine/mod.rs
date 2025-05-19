@@ -193,10 +193,10 @@ pub fn generate_test_data(base_path: PathBuf) -> Result<PathBuf, std::io::Error>
 
     // Function to generate random strings based on a predefined set
     let generate_random_name = || -> String {
-        let charset: Vec<&str> = "banana, apple, orange, grape, watermelon, kiwi, mango, peach, cherry, \
-        strawberry, blueberry, raspberry, blackberry, lemon, lime, coconut, papaya, pineapple, tangerine, \
-        car, truck, motorcycle, bicycle, bus, train, airplane, helicopter, boat, ship, submarine, scooter, van, \
-        ambulance, taxi, firetruck, tractor, yacht, jetski, speedboat, racecar".split(",").collect::<Vec<_>>();
+        let charset: Vec<&str> = "banana,apple,orange,grape,watermelon,kiwi,mango,peach,cherry,\
+        strawberry,blueberry,raspberry,blackberry,lemon,lime,coconut,papaya,pineapple,tangerine,\
+        car,truck,motorcycle,bicycle,bus,train,airplane,helicopter,boat,ship,submarine,scooter,van,\
+        ambulance,taxi,firetruck,tractor,yacht,jetski,speedboat,racecar".split(",").collect::<Vec<_>>();
 
         let mut rng = thread_rng();
 
