@@ -1510,7 +1510,7 @@ mod tests_autocomplete_engine {
 
                 // Now do a second search to test cache
                 let cache_start = std::time::Instant::now();
-                let cached_results = subset_engine.search(query);
+                let _cached_results = subset_engine.search(query);
                 let cache_time = cache_start.elapsed();
                 
                 // If cache time is significantly faster, count as a cache hit

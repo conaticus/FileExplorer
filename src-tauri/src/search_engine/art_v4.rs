@@ -961,7 +961,7 @@ impl ART {
             // No matching child - create a new one
             node_ref.add_child(c, None);
         }
-        
+
         // Process the child (need to handle the case where node might grow)
         if let Some(child) = node_ref.find_child_mut(c) {
             let taken_child = child.take();
@@ -1025,7 +1025,7 @@ impl ART {
 
         Some((current, depth))
     }
-    
+
     // Rewritten to use an iterative approach to prevent stack overflow
     fn collect_all_paths(&self, node: &ARTNode, results: &mut Vec<(String, f32)>) {
         let mut stack = Vec::new();
@@ -2314,7 +2314,7 @@ mod tests_art_v4 {
 
         // Track unique normalized paths for accurate verification
         let mut unique_normalized_paths = std::collections::HashSet::new();
-        let mut temp_art = ART::new(1); // Temporary ART for normalization
+        let temp_art = ART::new(1); // Temporary ART for normalization
 
         for (i, path) in all_paths.iter().enumerate() {
             // Use varying scores based on position
@@ -2348,9 +2348,6 @@ mod tests_art_v4 {
         // Verify the final count matches expectation (accounting for duplicates)
         log_info!(&format!("Expected unique paths: {}, Actual in trie: {}",
                         unique_normalized_paths.len(), trie.len()));
-
-        // 3. Generate guaranteed-to-match test queries
-        let mut test_queries = Vec::new();
         
         // Create a function to generate a diverse set of queries that will have matches
         fn extract_guaranteed_queries(paths: &[String], limit: usize) -> Vec<String> {
@@ -2496,7 +2493,7 @@ mod tests_art_v4 {
         }
 
         // Use our function to generate guaranteed-to-match queries
-        test_queries = extract_guaranteed_queries(&all_paths, 15);
+        let test_queries = extract_guaranteed_queries(&all_paths, 15);
         
         log_info!(&format!("Generated {} guaranteed-to-match queries", test_queries.len()));
         
