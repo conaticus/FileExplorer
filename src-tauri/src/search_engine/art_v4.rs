@@ -876,7 +876,7 @@ impl ART {
             self.root = Some(Box::new(ARTNode::new_node4()));
         }
 
-        let mut root = self.root.take();
+        let root = self.root.take();
         let (changed, new_path, new_root) = Self::insert_recursive(root, path_bytes, 0, score);
         self.root = new_root;
 
@@ -961,8 +961,7 @@ impl ART {
             // No matching child - create a new one
             node_ref.add_child(c, None);
         }
-
-        let mut child_new_path = false;
+        
         // Process the child (need to handle the case where node might grow)
         if let Some(child) = node_ref.find_child_mut(c) {
             let taken_child = child.take();
@@ -974,9 +973,7 @@ impl ART {
             );
             *child = new_child;
 
-            child_new_path = new_path_in_child;
-
-            return (changed, child_new_path, Some(node_ref));
+            return (changed, new_path_in_child, Some(node_ref));
         }
 
         // Should never reach here
@@ -1028,60 +1025,7 @@ impl ART {
 
         Some((current, depth))
     }
-
-    // Rewritten collect_results to use an iterative approach and avoid stack overflow
-    fn collect_results(&self, node: &ARTNode, prefix: &str, results: &mut Vec<(String, f32)>) {
-        // Using a stack-based approach instead of recursion
-        let mut stack = Vec::new();
-        stack.push((node, prefix.to_string(), false)); // (node, current_path, processed_children)
-
-        while let Some((current_node, current_path, processed)) = stack.pop() {
-            if !processed {
-                // First visit - process this node
-                if current_node.is_terminal() {
-                    if let Some(score) = current_node.get_score() {
-                        // Add this node's path with its prefix
-                        let mut node_path = current_path.clone();
-                        let node_prefix = current_node.get_prefix();
-                        if !node_prefix.is_empty() {
-                            node_path.push_str(&String::from_utf8_lossy(node_prefix));
-                        }
-                        results.push((node_path, score));
-                    }
-                }
-
-                // Push this node back to process children later
-                stack.push((current_node, current_path.clone(), true));
-
-                // Then process all children (in reverse order because we're using a stack)
-                let children: Vec<_> = current_node.iter_children().into_iter().collect();
-                for (key, child) in children.into_iter().rev() {
-                    let mut child_path = current_path.clone();
-                    child_path.push(key as char);
-
-                    // Add the prefix of this child to the path
-                    let child_prefix = child.get_prefix();
-                    if !child_prefix.is_empty() {
-                        child_path.push_str(&String::from_utf8_lossy(child_prefix));
-                    }
-
-                    // If terminal, add to results
-                    if child.is_terminal() {
-                        if let Some(score) = child.get_score() {
-                            results.push((child_path.clone(), score));
-                        }
-                    }
-
-                    // Push this child to process its children
-                    if child.num_children() > 0 {
-                        stack.push((child, child_path, false));
-                    }
-                }
-            }
-            // If already processed, nothing to do - we've handled everything on the first visit
-        }
-    }
-
+    
     // Rewritten to use an iterative approach to prevent stack overflow
     fn collect_all_paths(&self, node: &ARTNode, results: &mut Vec<(String, f32)>) {
         let mut stack = Vec::new();
@@ -1119,91 +1063,6 @@ impl ART {
                 }
             }
             // If already processed, nothing to do - we've handled everything on the first visit
-        }
-    }
-
-    // Modified find_component_matches to better handle path matching for the component_split test
-    fn find_component_matches(&self, query: &str, current_dir: Option<&str>, results: &mut Vec<(String, f32)>) {
-        if self.root.is_none() || query.is_empty() {
-            return;
-        }
-
-        let normalized_query = self.normalize_path(query);
-        let normalized_dir = current_dir.map(|dir| self.normalize_path(dir));
-
-        // Special check for paths starting with "./test-data-for-fuzzy-search/"
-        // This specific path format is used in the component_split test
-        let is_test_data_path = normalized_query.starts_with("./test-data-for-fuzzy-search/");
-
-        // Collect all paths
-        let mut all_paths = Vec::new();
-        if let Some(root) = &self.root {
-            self.collect_all_paths(root.as_ref(), &mut all_paths);
-        }
-
-        // First try exact prefix matches
-        // For test data paths, we need to be careful with how we match prefixes
-        let mut has_exact_matches = false;
-        for (path, score) in &all_paths {
-            if path.starts_with(&normalized_query) {
-                // This is a direct prefix match
-                results.push((path.clone(), *score));
-                has_exact_matches = true;
-            } else if is_test_data_path && path.contains(&normalized_query) {
-                // For test data paths, also check for substring matches
-                // This helps with the component_split test
-                results.push((path.clone(), *score * 0.95));
-                has_exact_matches = true;
-            }
-        }
-
-        // If we found exact matches, we can skip the component-based matching
-        if has_exact_matches && is_test_data_path {
-            return;
-        }
-
-        // Then look for component-based matches
-        for (path, score) in all_paths {
-            // Skip if already added as an exact match
-            if results.iter().any(|(p, _)| p == &path) {
-                continue;
-            }
-
-            // Check directory context if applicable
-            if let Some(ref dir) = normalized_dir {
-                let dir_with_slash = if dir.ends_with('/') {
-                    dir.to_string()
-                } else {
-                    format!("{}/", dir)
-                };
-
-                if !path.starts_with(dir) && !path.starts_with(&dir_with_slash) {
-                    continue;
-                }
-            }
-
-            // Check for component matches
-            let components: Vec<&str> = path.split('/').collect();
-            let mut found_match = false;
-
-            for component in components {
-                if component.starts_with(&normalized_query) {
-                    // Direct prefix match on component
-                    results.push((path.clone(), score * 0.95));
-                    found_match = true;
-                    break;
-                } else if component.contains(&normalized_query) {
-                    // Substring match in component
-                    results.push((path.clone(), score * 0.9));
-                    found_match = true;
-                    break;
-                }
-            }
-
-            // If we didn't find a component match but the path contains the query
-            if !found_match && path.contains(&normalized_query) {
-                results.push((path.clone(), score * 0.85));
-            }
         }
     }
 
@@ -1303,10 +1162,10 @@ impl ART {
                 return results;
             }
         }
-        
+
         // Just accept the low results, because of fuzzy fallback search
         self.sort_and_deduplicate_results(&mut results, true);
-        
+
 
         // Limit results
         if results.len() > self.max_results {
@@ -1366,7 +1225,7 @@ impl ART {
         let path_bytes = normalized.as_bytes();
 
         // Perform recursive removal
-        let mut root = self.root.take();
+        let root = self.root.take();
         let (removed, should_remove, new_root) = Self::remove_recursive(root, path_bytes, 0);
 
         if should_remove {
@@ -1456,6 +1315,7 @@ impl ART {
         self.path_count
     }
 
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.path_count == 0
     }
