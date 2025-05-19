@@ -427,10 +427,10 @@ mod tests_lru_cache_v2 {
     }
 
     #[test]
-    fn benchmark_cache_size_impact() {
+    fn benchmark_cache_size_impact_lru_cache() {
         log_info!("Benchmarking impact of cache size on retrieval performance");
 
-        let sizes = [100, 1000, 10000];
+        let sizes = [100, 1000, 10000, 100000];
 
         for &size in &sizes {
             let mut cache = LruPathCache::new(size);
