@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api';
+import { invoke } from '@tauri-apps/api/core';
 import Button from '../common/Button';
 import IconButton from '../common/IconButton';
 import Modal from '../common/Modal';
@@ -7,7 +7,7 @@ import TemplateItem from './TemplateItem';
 import EmptyState from '../explorer/EmptyState';
 import { useHistory } from '../../providers/HistoryProvider';
 import { useFileSystem } from '../../providers/FileSystemProvider';
-import { getTemplatePaths, useTemplate, removeTemplate } from '../../utils/fileOperations';
+import { getTemplatePaths, useTemplate, removeTemplate, addTemplate } from '../../utils/fileOperations';
 import './templates.css';
 
 const TemplateList = ({ onClose }) => {
@@ -16,7 +16,9 @@ const TemplateList = ({ onClose }) => {
     const [error, setError] = useState(null);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [isUseModalOpen, setIsUseModalOpen] = useState(false);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [destinationPath, setDestinationPath] = useState('');
+    const [newTemplatePath, setNewTemplatePath] = useState('');
     const { currentPath } = useHistory();
     const { loadDirectory } = useFileSystem();
 
@@ -85,8 +87,8 @@ const TemplateList = ({ onClose }) => {
             // Close the modal
             setIsUseModalOpen(false);
 
-            // Optionally close the template list
-            if (onClose) onClose();
+            // Show success message
+            alert(`Template "${selectedTemplate.name}" applied successfully!`);
         } catch (err) {
             console.error('Failed to apply template:', err);
             setError('Failed to apply template. Please try again.');
@@ -107,16 +109,45 @@ const TemplateList = ({ onClose }) => {
     };
 
     // Add new template
-    const handleAddTemplate = async () => {
-        // This would normally open a file picker dialog
-        // For simplicity, we'll just log a message
-        console.log('Add new template...');
+    const handleAddTemplate = () => {
+        setNewTemplatePath('');
+        setIsAddModalOpen(true);
+    };
+
+    // Save new template
+    const saveNewTemplate = async () => {
+        if (!newTemplatePath.trim()) return;
+
+        try {
+            await addTemplate(newTemplatePath);
+
+            // Reload templates
+            const templatePaths = await getTemplatePaths();
+            setTemplates(templatePaths);
+
+            setIsAddModalOpen(false);
+            setNewTemplatePath('');
+
+            alert('Template added successfully!');
+        } catch (err) {
+            console.error('Failed to add template:', err);
+            alert(`Failed to add template: ${err.message || err}`);
+        }
     };
 
     return (
         <div className="template-list-container">
             <div className="template-list-header">
-                <h2>Templates</h2>
+                <div className="template-header-left">
+                    <h2>Templates</h2>
+                    <button
+                        className="template-close-btn"
+                        onClick={onClose}
+                        title="Close Templates"
+                    >
+                        <span className="icon icon-x"></span>
+                    </button>
+                </div>
                 <div className="template-list-actions">
                     <Button
                         variant="primary"
@@ -208,6 +239,48 @@ const TemplateList = ({ onClose }) => {
                         />
                         <div className="input-hint">
                             This is where the template will be applied.
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Modal for adding template */}
+            <Modal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                title="Add Template"
+                size="sm"
+                footer={
+                    <>
+                        <Button
+                            variant="ghost"
+                            onClick={() => setIsAddModalOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="primary"
+                            onClick={saveNewTemplate}
+                            disabled={!newTemplatePath.trim()}
+                        >
+                            Add Template
+                        </Button>
+                    </>
+                }
+            >
+                <div className="template-add-form">
+                    <div className="form-group">
+                        <label htmlFor="template-path">Template Path</label>
+                        <input
+                            type="text"
+                            id="template-path"
+                            className="input"
+                            value={newTemplatePath}
+                            onChange={(e) => setNewTemplatePath(e.target.value)}
+                            placeholder="Enter path to file or folder to save as template"
+                        />
+                        <div className="input-hint">
+                            Enter the full path to a file or folder that you want to save as a template.
                         </div>
                     </div>
                 </div>

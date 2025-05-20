@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import SidebarItem from './SidebarItem';
 
 const QuickAccess = ({ isCollapsed = false, onItemClick }) => {
     const [recentItems, setRecentItems] = useState([]);
 
     // Load recent locations from session storage
-    useEffect(() => {
+    const loadRecentItems = useCallback(() => {
         try {
             const savedHistory = JSON.parse(sessionStorage.getItem('fileExplorerHistory') || '[]');
 
@@ -17,7 +17,7 @@ const QuickAccess = ({ isCollapsed = false, onItemClick }) => {
             // Take the most recent 5 locations
             const recentLocations = uniqueLocations.slice(-5).reverse().map(path => {
                 // Extract the folder name from the path
-                const parts = path.split('/');
+                const parts = path.split(/[/\\]/);
                 const name = parts[parts.length - 1] || path;
 
                 return {
@@ -30,8 +30,44 @@ const QuickAccess = ({ isCollapsed = false, onItemClick }) => {
             setRecentItems(recentLocations);
         } catch (err) {
             console.error('Failed to load recent locations:', err);
+            setRecentItems([]);
         }
     }, []);
+
+    // Load recent items on mount
+    useEffect(() => {
+        loadRecentItems();
+    }, [loadRecentItems]);
+
+    // Listen for navigation changes to update quick access
+    useEffect(() => {
+        const handleNavigationChange = () => {
+            loadRecentItems();
+        };
+
+        const handleQuickAccessUpdate = () => {
+            loadRecentItems();
+        };
+
+        // Listen for custom events
+        window.addEventListener('navigation-changed', handleNavigationChange);
+        window.addEventListener('quick-access-updated', handleQuickAccessUpdate);
+
+        // Also listen for storage events in case history is updated from elsewhere
+        const handleStorageChange = (e) => {
+            if (e.key === 'fileExplorerHistory') {
+                loadRecentItems();
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+
+        return () => {
+            window.removeEventListener('navigation-changed', handleNavigationChange);
+            window.removeEventListener('quick-access-updated', handleQuickAccessUpdate);
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, [loadRecentItems]);
 
     // If there are no recent items, display a message
     if (recentItems.length === 0) {

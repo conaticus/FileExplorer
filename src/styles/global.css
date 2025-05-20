@@ -158,6 +158,7 @@ img, svg {
     display: flex;
     flex-grow: 1;
     overflow: hidden;
+    height: 100%;
 }
 
 .files-view {
