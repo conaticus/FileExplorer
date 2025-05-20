@@ -6,3 +6,4 @@ pub mod hash_commands;
 pub mod settings_commands;
 pub mod template_commands;
 mod command_exec_commands;
+pub mod search_engine_commands;

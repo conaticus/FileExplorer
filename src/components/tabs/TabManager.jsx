@@ -1,0 +1,200 @@
+import React, { useState, useEffect } from 'react';
+import { useHistory } from '../../providers/HistoryProvider';
+import { useFileSystem } from '../../providers/FileSystemProvider';
+import Button from '../common/Button';
+import IconButton from '../common/IconButton';
+import './tabs.css';
+
+const TabManager = ({ children }) => {
+    const [tabs, setTabs] = useState([]);
+    const [activeTabId, setActiveTabId] = useState(null);
+    const { currentPath } = useHistory();
+    const { loadDirectory } = useFileSystem();
+
+    // Initialize with current path
+    useEffect(() => {
+        if (currentPath && tabs.length === 0) {
+            const initialTab = {
+                id: generateTabId(),
+                title: getTabTitle(currentPath),
+                path: currentPath,
+                isActive: true
+            };
+            setTabs([initialTab]);
+            setActiveTabId(initialTab.id);
+        }
+    }, [currentPath, tabs.length]);
+
+    // Update active tab when path changes
+    useEffect(() => {
+        if (currentPath && activeTabId) {
+            setTabs(prevTabs =>
+                prevTabs.map(tab =>
+                    tab.id === activeTabId
+                        ? { ...tab, title: getTabTitle(currentPath), path: currentPath }
+                        : tab
+                )
+            );
+        }
+    }, [currentPath, activeTabId]);
+
+    const generateTabId = () => {
+        return 'tab_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    };
+
+    const getTabTitle = (path) => {
+        if (!path) return 'Home';
+        const segments = path.split(/[/\\]/).filter(Boolean);
+        return segments.length > 0 ? segments[segments.length - 1] : 'Root';
+    };
+
+    const createNewTab = () => {
+        const newTab = {
+            id: generateTabId(),
+            title: getTabTitle(currentPath),
+            path: currentPath,
+            isActive: false
+        };
+
+        setTabs(prevTabs => [...prevTabs, newTab]);
+        switchToTab(newTab.id);
+    };
+
+    const closeTab = (tabId, event) => {
+        event?.stopPropagation();
+
+        if (tabs.length <= 1) return; // Don't close the last tab
+
+        const tabIndex = tabs.findIndex(tab => tab.id === tabId);
+        const isActiveTab = tabId === activeTabId;
+
+        setTabs(prevTabs => prevTabs.filter(tab => tab.id !== tabId));
+
+        // If we closed the active tab, switch to another tab
+        if (isActiveTab) {
+            const remainingTabs = tabs.filter(tab => tab.id !== tabId);
+            if (remainingTabs.length > 0) {
+                // Switch to the tab to the right, or the last tab if we closed the rightmost one
+                const nextTabIndex = Math.min(tabIndex, remainingTabs.length - 1);
+                const nextTab = remainingTabs[nextTabIndex];
+                switchToTab(nextTab.id);
+            }
+        }
+    };
+
+    const switchToTab = async (tabId) => {
+        const tab = tabs.find(t => t.id === tabId);
+        if (!tab) return;
+
+        setActiveTabId(tabId);
+
+        // Load the directory for this tab
+        if (tab.path !== currentPath) {
+            try {
+                await loadDirectory(tab.path);
+            } catch (error) {
+                console.error('Failed to load directory for tab:', error);
+                // Optionally show an error or close the tab
+            }
+        }
+    };
+
+    const duplicateTab = (tabId) => {
+        const tab = tabs.find(t => t.id === tabId);
+        if (!tab) return;
+
+        const duplicatedTab = {
+            id: generateTabId(),
+            title: tab.title,
+            path: tab.path,
+            isActive: false
+        };
+
+        const tabIndex = tabs.findIndex(t => t.id === tabId);
+        const newTabs = [...tabs];
+        newTabs.splice(tabIndex + 1, 0, duplicatedTab);
+
+        setTabs(newTabs);
+        switchToTab(duplicatedTab.id);
+    };
+
+    const reorderTabs = (dragIndex, hoverIndex) => {
+        const newTabs = [...tabs];
+        const draggedTab = newTabs[dragIndex];
+        newTabs.splice(dragIndex, 1);
+        newTabs.splice(hoverIndex, 0, draggedTab);
+        setTabs(newTabs);
+    };
+
+    if (tabs.length === 0) {
+        return <div className="tab-manager-loading">Loading...</div>;
+    }
+
+    return (
+        <div className="tab-manager">
+            <div className="tab-bar">
+                <div className="tab-list">
+                    {tabs.map((tab, index) => (
+                        <div
+                            key={tab.id}
+                            className={`tab ${tab.id === activeTabId ? 'active' : ''}`}
+                            onClick={() => switchToTab(tab.id)}
+                            onContextMenu={(e) => {
+                                e.preventDefault();
+                                // Show context menu with options: duplicate, close, close others, etc.
+                            }}
+                            draggable
+                            onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', '');
+                                e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            onDragOver={(e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'move';
+                            }}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                // Handle tab reordering
+                                const dragIndex = tabs.findIndex(t => t.id === activeTabId);
+                                reorderTabs(dragIndex, index);
+                            }}
+                        >
+                            <div className="tab-content">
+                                <span className="tab-icon">
+                                    <span className="icon icon-folder"></span>
+                                </span>
+                                <span className="tab-title" title={tab.path}>
+                                    {tab.title}
+                                </span>
+                                {tabs.length > 1 && (
+                                    <button
+                                        className="tab-close"
+                                        onClick={(e) => closeTab(tab.id, e)}
+                                        aria-label="Close tab"
+                                    >
+                                        <span className="icon icon-x"></span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="tab-actions">
+                    <IconButton
+                        icon="plus"
+                        size="sm"
+                        tooltip="New tab"
+                        onClick={createNewTab}
+                    />
+                </div>
+            </div>
+
+            <div className="tab-content-area">
+                {children}
+            </div>
+        </div>
+    );
+};
+
+export default TabManager;

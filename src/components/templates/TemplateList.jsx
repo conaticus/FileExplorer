@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api';
+import { invoke } from '@tauri-apps/api/core';
 import Button from '../common/Button';
 import IconButton from '../common/IconButton';
 import Modal from '../common/Modal';

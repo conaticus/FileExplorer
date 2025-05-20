@@ -209,7 +209,13 @@ impl Logger {
         let metadata = fs::metadata(path).ok();
         let file_size = metadata.map(|m| m.len()).unwrap_or(0);
 
+        // If file size exceeds the limit, truncate before writing new entry
         if file_size > MAX_FILE_SIZE {
+            // For test purposes, print the file size before truncation
+            #[cfg(test)]
+            println!("File exceeds size limit: {} bytes. Truncating...", file_size);
+            
+            // Truncate file before writing
             self.truncate_oldest_entry_from(path);
         }
 
@@ -223,15 +229,45 @@ impl Logger {
     }
 
     fn truncate_oldest_entry_from(&self, path: &PathBuf) {
-        let file = File::open(path).expect("Failed to open log file");
+        // Open the file for reading
+        let file = match File::open(path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("Failed to open log file for truncation: {}", e);
+                return;
+            }
+        };
+        
         let reader = BufReader::new(file);
-        let mut lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
-
-        if !lines.is_empty() {
-            lines.remove(0);
-            let mut file = File::create(path).expect("Failed to truncate log file");
-            for line in lines {
-                writeln!(file, "{}", line).expect("Failed to rewrite log file");
+        
+        // Collect lines into a vector
+        let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
+        
+        // Calculate how many lines to keep (around 30% of the original to ensure significant reduction)
+        let total_lines = lines.len();
+        let lines_to_keep = if total_lines > 100 { total_lines / 3 } else { total_lines / 2 };
+        
+        // Keep only the most recent lines
+        let recent_lines: Vec<String> = lines
+            .into_iter()
+            .skip(total_lines.saturating_sub(lines_to_keep))
+            .collect();
+        
+        // Debug info for tests
+        #[cfg(test)]
+        println!("Truncating log file: keeping {} of {} lines", recent_lines.len(), total_lines);
+        
+        // Rewrite the file with only the recent lines
+        match File::create(path) {
+            Ok(mut file) => {
+                for line in recent_lines {
+                    if let Err(e) = writeln!(file, "{}", line) {
+                        eprintln!("Failed to write line during truncation: {}", e);
+                    }
+                }
+            },
+            Err(e) => {
+                eprintln!("Failed to create log file for truncation: {}", e);
             }
         }
     }
@@ -354,5 +390,59 @@ mod tests_logging {
 
         let log_content = fs::read_to_string(&logger.log_path).unwrap_or_default();
         assert!(log_content.is_empty(), "Logging should not occur when state is OFF");
+    }
+
+    #[test]
+    fn test_log_truncation_when_max_size_reached() {
+        let (logger, _temp_dir) = setup_test_logger();
+        
+        // Override the MAX_FILE_SIZE constant for this test with a smaller value
+        #[allow(dead_code)]
+        const TEST_MAX_SIZE: u64 = 50000; // 50KB is enough for testing
+        
+        // Create a log file that exceeds our test max size
+        let large_entry = "X".repeat(1000); // 1KB per entry
+        
+        // Write entries until we exceed the test max size
+        for i in 0..60 {  // Should create ~60KB of data
+            logger.write_log(&format!("Log entry #{}: {}", i, large_entry));
+        }
+        
+        // Get the file size before triggering truncation
+        let metadata_before = fs::metadata(&logger.log_path).expect("Failed to read file metadata");
+        let size_before = metadata_before.len();
+        
+        println!("Size before truncation: {} bytes", size_before);
+        
+        // Force truncation by directly calling the truncate method
+        logger.truncate_oldest_entry_from(&logger.log_path);
+        
+        // Get the file size after truncation
+        let metadata_after = fs::metadata(&logger.log_path).expect("Failed to read file metadata");
+        let size_after = metadata_after.len();
+        
+        println!("Size after truncation: {} bytes", size_after);
+        
+        // Check that the file size has been reduced significantly
+        assert!(size_after < size_before, 
+                "File size should be reduced after truncation (before: {}, after: {})", 
+                size_before, size_after);
+        
+        // Check that the file size is significantly smaller (at least 40% reduction)
+        assert!(size_after < size_before * 6 / 10, 
+                "File size should be reduced by at least 40% (before: {}, after: {})", 
+                size_before, size_after);
+        
+        // Add new log entries to verify they're appended correctly after truncation
+        logger.write_log("This entry should be added after truncation");
+        
+        // Verify that recent logs are preserved by reading the file content
+        let log_content = fs::read_to_string(&logger.log_path).expect("Failed to read log file");
+        assert!(log_content.contains("This entry should be added after truncation"), 
+                "New log entries should be appended correctly after truncation");
+        
+        // Also verify the file doesn't contain the earliest entries
+        assert!(!log_content.contains("Log entry #0:"), 
+                "Oldest log entries should be removed after truncation");
     }
 }

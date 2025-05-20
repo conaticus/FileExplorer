@@ -2,6 +2,9 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useTheme } from '../providers/ThemeProvider';
 import { useFileSystem } from '../providers/FileSystemProvider';
 import { useContextMenu } from '../providers/ContextMenuProvider';
+import { useHistory } from '../providers/HistoryProvider';
+
+// Core Components
 import Sidebar from '../components/sidebar/Sidebar';
 import PathBreadcrumb from '../components/explorer/PathBreadcrumb';
 import NavigationButtons from '../components/explorer/NavigationButtons';
@@ -9,9 +12,16 @@ import FileList from '../components/explorer/FileList';
 import SearchBar from '../components/search/SearchBar';
 import DetailsPanel from '../components/explorer/DetailsPanel';
 import ContextMenu from '../components/contextMenu/ContextMenu';
-import Terminal from '../components/terminal/Terminal';
 import ViewModes from '../components/explorer/ViewModes';
+
+//  Components
 import CreateFileButton from '../components/explorer/CreateFileButton';
+import Terminal from '../components/terminal/Terminal';
+import TabManager from '../components/tabs/TabManager';
+import GlobalSearch from '../components/search/GlobalSearch';
+import SettingsPanel from '../components/settings/SettingsPanel';
+import ThisPCView from '../components/thisPc/ThisPCView';
+import TemplateList from '../components/templates/TemplateList';
 
 import '../styles/layouts/mainLayout.css';
 
@@ -19,24 +29,47 @@ const MainLayout = () => {
     const { theme, toggleTheme } = useTheme();
     const { isLoading, currentDirData, selectedItems, loadDirectory, volumes } = useFileSystem();
     const { isOpen: isContextMenuOpen, position, items, closeContextMenu } = useContextMenu();
+    const { currentPath } = useHistory();
 
-    // State for UI components
+    // UI State
     const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
     const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-    const [viewMode, setViewMode] = useState('grid'); // 'list', 'grid', 'details'
+    const [viewMode, setViewMode] = useState('grid');
     const [searchValue, setSearchValue] = useState('');
     const [searchResults, setSearchResults] = useState(null);
+    const [currentView, setCurrentView] = useState('explorer'); // 'explorer', 'this-pc', 'templates'
 
-    // Load default location on first render (i.e., system volumes/This PC view)
+    // Modal states
+    const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+
+    // Load default location on first render
     useEffect(() => {
-        if (volumes.length > 0 && !currentDirData) {
-            // For development/testing, load first volume if available
-            const firstVolume = volumes[0];
-            if (firstVolume?.mount_point) {
-                loadDirectory(firstVolume.mount_point);
-            }
+        if (volumes.length > 0 && !currentDirData && !currentPath) {
+            // Show This PC view by default
+            setCurrentView('this-pc');
         }
-    }, [volumes, currentDirData, loadDirectory]);
+    }, [volumes, currentDirData, currentPath]);
+
+    // Listen for custom events
+    useEffect(() => {
+        const handleOpenTemplates = () => {
+            setIsTemplatesOpen(true);
+        };
+
+        const handleShowProperties = (e) => {
+            setIsDetailsPanelOpen(true);
+        };
+
+        document.addEventListener('open-templates', handleOpenTemplates);
+        document.addEventListener('show-properties', handleShowProperties);
+
+        return () => {
+            document.removeEventListener('open-templates', handleOpenTemplates);
+            document.removeEventListener('show-properties', handleShowProperties);
+        };
+    }, []);
 
     // Handle search
     const handleSearch = useCallback((value) => {
@@ -47,8 +80,7 @@ const MainLayout = () => {
             return;
         }
 
-        // In a real implementation, this would use the backend search API
-        // For now, filter the current directory data
+        // Simple local search for now
         if (currentDirData) {
             const filteredFiles = currentDirData.files.filter(file =>
                 file.name.toLowerCase().includes(value.toLowerCase())
@@ -65,18 +97,78 @@ const MainLayout = () => {
         }
     }, [currentDirData]);
 
-    // Toggle details panel
-    const toggleDetailsPanel = useCallback(() => {
-        setIsDetailsPanelOpen(prev => !prev);
+    // Handle keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Global search: Ctrl+Shift+F
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+                e.preventDefault();
+                setIsGlobalSearchOpen(true);
+            }
+
+            // Settings: Ctrl+,
+            if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+                e.preventDefault();
+                setIsSettingsOpen(true);
+            }
+
+            // New folder: Ctrl+Shift+N
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'N') {
+                e.preventDefault();
+                document.dispatchEvent(new CustomEvent('create-folder'));
+            }
+
+            // New file: Ctrl+N
+            if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !e.shiftKey) {
+                e.preventDefault();
+                document.dispatchEvent(new CustomEvent('create-file'));
+            }
+
+            // Toggle terminal: Ctrl+`
+            if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+                e.preventDefault();
+                setIsTerminalOpen(prev => !prev);
+            }
+
+            // This PC: Ctrl+Shift+C
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
+                e.preventDefault();
+                setCurrentView('this-pc');
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    // Toggle terminal
-    const toggleTerminal = useCallback(() => {
-        setIsTerminalOpen(prev => !prev);
-    }, []);
+    // Copy current path to clipboard
+    const copyCurrentPath = useCallback(async () => {
+        if (!currentPath) return;
 
-    // Get the data to display (search results or current directory)
-    const displayData = searchResults || currentDirData;
+        try {
+            await navigator.clipboard.writeText(currentPath);
+            // Show temporary notification
+            const notification = document.createElement('div');
+            notification.textContent = 'Path copied to clipboard';
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: var(--accent);
+                color: white;
+                padding: 12px 20px;
+                border-radius: 6px;
+                z-index: 10000;
+                animation: slideIn 0.3s ease-out;
+            `;
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                notification.remove();
+            }, 2000);
+        } catch (error) {
+            console.error('Failed to copy path:', error);
+        }
+    }, [currentPath]);
 
     // Clear search when changing directory
     useEffect(() => {
@@ -84,65 +176,32 @@ const MainLayout = () => {
         setSearchResults(null);
     }, [currentDirData]);
 
-    return (
-        <div className="main-layout">
-            {/* Sidebar */}
-            <Sidebar />
+    // Get the data to display
+    const displayData = searchResults || currentDirData;
 
-            {/* Main content area */}
-            <div className="content-area">
-                {/* Toolbar with navigation and actions */}
-                <div className="toolbar">
-                    <div className="toolbar-left">
-                        <NavigationButtons />
-                        <PathBreadcrumb />
-                    </div>
-                    <div className="toolbar-right">
-                        <SearchBar
-                            value={searchValue}
-                            onChange={handleSearch}
-                        />
-                        <ViewModes
-                            currentMode={viewMode}
-                            onChange={setViewMode}
-                        />
-                        <button
-                            className="icon-button"
-                            onClick={toggleDetailsPanel}
-                            aria-label={isDetailsPanelOpen ? "Hide details" : "Show details"}
-                            title={isDetailsPanelOpen ? "Hide details" : "Show details"}
-                        >
-                            <span className={`icon icon-details${isDetailsPanelOpen ? '-active' : ''}`}></span>
-                        </button>
-                        <button
-                            className="icon-button"
-                            onClick={toggleTerminal}
-                            aria-label={isTerminalOpen ? "Hide terminal" : "Show terminal"}
-                            title={isTerminalOpen ? "Hide terminal" : "Show terminal"}
-                        >
-                            <span className={`icon icon-terminal${isTerminalOpen ? '-active' : ''}`}></span>
-                        </button>
-                        <button
-                            className="icon-button"
-                            onClick={toggleTheme}
-                            aria-label={theme === 'light' ? "Switch to dark theme" : "Switch to light theme"}
-                            title={theme === 'light' ? "Switch to dark theme" : "Switch to light theme"}
-                        >
-                            <span className={`icon icon-${theme === 'light' ? 'moon' : 'sun'}`}></span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Main content with file list and optional details panel */}
-                <div className="main-content">
-                    {/* File list container */}
+    // Render main content based on current view
+    const renderMainContent = () => {
+        switch (currentView) {
+            case 'this-pc':
+                return <ThisPCView />;
+            case 'templates':
+                return <TemplateList onClose={() => setCurrentView('explorer')} />;
+            default:
+                return (
                     <div className="files-container">
-                        {/* Action bar (Create new file/folder, etc.) */}
                         <div className="action-bar">
                             <CreateFileButton />
+                            <div className="action-divider"></div>
+                            <button
+                                className="copy-path-button"
+                                onClick={copyCurrentPath}
+                                title="Copy current path"
+                            >
+                                <span className="icon icon-copy"></span>
+                                <span>Copy Path</span>
+                            </button>
                         </div>
 
-                        {/* File list view */}
                         <FileList
                             data={displayData}
                             isLoading={isLoading}
@@ -150,23 +209,117 @@ const MainLayout = () => {
                             isSearching={!!searchValue}
                         />
                     </div>
+                );
+        }
+    };
 
-                    {/* Details panel (when selected) */}
-                    {isDetailsPanelOpen && (
-                        <>
-                            <div className="panel-resize-handle"></div>
-                            <DetailsPanel
-                                item={selectedItems[0] || null}
-                                isMultipleSelection={selectedItems.length > 1}
+    return (
+        <div className="main-layout">
+            {/* Sidebar */}
+            <Sidebar />
+
+            {/* Main content area with tabs */}
+            <div className="content-area">
+                <TabManager>
+                    {/* Toolbar with navigation and actions */}
+                    <div className="toolbar">
+                        <div className="toolbar-left">
+                            <NavigationButtons />
+                            <PathBreadcrumb />
+                        </div>
+                        <div className="toolbar-center">
+                            <SearchBar
+                                value={searchValue}
+                                onChange={handleSearch}
+                                placeholder="Search in current folder"
                             />
-                        </>
-                    )}
-                </div>
+                        </div>
+                        <div className="toolbar-right">
+                            <button
+                                className="icon-button"
+                                onClick={() => setCurrentView('this-pc')}
+                                title="This PC"
+                                aria-label="This PC"
+                            >
+                                <span className="icon icon-computer"></span>
+                            </button>
 
-                {/* Terminal (when opened) */}
-                {isTerminalOpen && (
-                    <Terminal />
-                )}
+                            <button
+                                className="icon-button"
+                                onClick={() => setIsGlobalSearchOpen(true)}
+                                title="Global Search (Ctrl+Shift+F)"
+                                aria-label="Global Search"
+                            >
+                                <span className="icon icon-search-global"></span>
+                            </button>
+
+                            <ViewModes
+                                currentMode={viewMode}
+                                onChange={setViewMode}
+                            />
+
+                            <button
+                                className={`icon-button ${isDetailsPanelOpen ? 'active' : ''}`}
+                                onClick={() => setIsDetailsPanelOpen(!isDetailsPanelOpen)}
+                                title="Details Panel"
+                                aria-label="Toggle details panel"
+                            >
+                                <span className="icon icon-panel-right"></span>
+                            </button>
+
+                            <button
+                                className={`icon-button ${isTerminalOpen ? 'active' : ''}`}
+                                onClick={() => setIsTerminalOpen(!isTerminalOpen)}
+                                title="Terminal (Ctrl+`)"
+                                aria-label="Toggle terminal"
+                            >
+                                <span className="icon icon-terminal"></span>
+                            </button>
+
+                            <button
+                                className="icon-button"
+                                onClick={() => setIsSettingsOpen(true)}
+                                title="Settings (Ctrl+,)"
+                                aria-label="Settings"
+                            >
+                                <span className="icon icon-settings"></span>
+                            </button>
+
+                            <button
+                                className="icon-button"
+                                onClick={toggleTheme}
+                                title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
+                                aria-label="Toggle theme"
+                            >
+                                <span className={`icon icon-${theme === 'light' ? 'moon' : 'sun'}`}></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Main content with file list and optional details panel */}
+                    <div className="main-content">
+                        {renderMainContent()}
+
+                        {/* Details panel (when selected) */}
+                        {isDetailsPanelOpen && (
+                            <>
+                                <div className="panel-resize-handle"></div>
+                                <DetailsPanel
+                                    item={selectedItems[0] || null}
+                                    isMultipleSelection={selectedItems.length > 1}
+                                />
+                            </>
+                        )}
+                    </div>
+
+                    {/* Terminal (when opened) */}
+                    {isTerminalOpen && (
+                        <Terminal
+                            isOpen={isTerminalOpen}
+                            onToggle={() => setIsTerminalOpen(!isTerminalOpen)}
+                        />
+                    )}
+                </TabManager>
             </div>
 
             {/* Context menu */}
@@ -176,6 +329,21 @@ const MainLayout = () => {
                     items={items}
                     onClose={closeContextMenu}
                 />
+            )}
+
+            {/* Modals */}
+            <GlobalSearch
+                isOpen={isGlobalSearchOpen}
+                onClose={() => setIsGlobalSearchOpen(false)}
+            />
+
+            <SettingsPanel
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+            />
+
+            {isTemplatesOpen && (
+                <TemplateList onClose={() => setIsTemplatesOpen(false)} />
             )}
         </div>
     );
