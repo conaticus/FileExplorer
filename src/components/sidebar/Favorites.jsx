@@ -1,49 +1,58 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import SidebarItem from './SidebarItem';
 
 const Favorites = ({
-                       favorites = [],
                        isCollapsed = false,
                        onItemClick,
                        onRemove,
                        onAdd
                    }) => {
+    const [favorites, setFavorites] = useState([]);
 
-    // Listen for storage events to update favorites
+    // Load favorites from localStorage
+    const loadFavorites = useCallback(() => {
+        try {
+            const savedFavorites = JSON.parse(localStorage.getItem('fileExplorerFavorites') || '[]');
+            setFavorites(savedFavorites);
+        } catch (err) {
+            console.error('Failed to load favorites:', err);
+            setFavorites([]);
+        }
+    }, []);
+
+    // Load favorites on mount
+    useEffect(() => {
+        loadFavorites();
+    }, [loadFavorites]);
+
+    // Listen for storage events (from other tabs) and custom events (from current tab)
     useEffect(() => {
         const handleStorageChange = (e) => {
             if (e.key === 'fileExplorerFavorites') {
-                // Force a re-render by dispatching a custom event
-                window.dispatchEvent(new CustomEvent('favorites-updated'));
+                loadFavorites();
             }
         };
 
+        const handleFavoritesUpdate = () => {
+            loadFavorites();
+        };
+
+        // Listen for storage events from other tabs
         window.addEventListener('storage', handleStorageChange);
+
+        // Listen for custom events from the current tab
+        window.addEventListener('favorites-updated', handleFavoritesUpdate);
 
         return () => {
             window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('favorites-updated', handleFavoritesUpdate);
         };
-    }, []);
+    }, [loadFavorites]);
 
     // Handle context menu for favorites
     const handleContextMenu = (e, item) => {
         e.preventDefault();
 
-        const menu = [
-            {
-                label: 'Open',
-                icon: 'open',
-                action: () => onItemClick(item.path)
-            },
-            {
-                label: 'Remove from Favorites',
-                icon: 'x',
-                action: () => onRemove(item.path)
-            }
-        ];
-
-        // Simple context menu implementation
-        // In a full implementation, you'd use the ContextMenuProvider
         const choice = confirm('Remove from favorites?');
         if (choice) {
             onRemove(item.path);

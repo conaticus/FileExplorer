@@ -183,6 +183,10 @@
     height: 14px;
 }
 
+.sidebar-empty-state {
+    padding: 0 var(--space-md) var(--space-xs);
+}
+
 .sidebar-footer {
     display: flex;
     flex-direction: column;
@@ -231,7 +235,6 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 var(--space-md) var(--space-xs);
     margin: 0;
 }
 

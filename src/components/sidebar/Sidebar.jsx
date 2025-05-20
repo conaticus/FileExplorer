@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useHistory } from '../../providers/HistoryProvider';
+import { useContextMenu } from '../../providers/ContextMenuProvider';
 import SidebarItem from './SidebarItem';
 import Favorites from './Favorites';
 import QuickAccess from './QuickAccess';
@@ -9,21 +10,11 @@ import './sidebar.css';
 const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
     const { volumes, loadDirectory } = useFileSystem();
     const { currentPath } = useHistory();
+    const { removeFromFavorites } = useContextMenu();
     const [isCollapsed, setIsCollapsed] = useState(() => {
         return localStorage.getItem('sidebarCollapsed') === 'true';
     });
-    const [favorites, setFavorites] = useState([]);
     const [systemInfo, setSystemInfo] = useState(null);
-
-    // Load favorites from localStorage
-    useEffect(() => {
-        try {
-            const savedFavorites = JSON.parse(localStorage.getItem('fileExplorerFavorites') || '[]');
-            setFavorites(savedFavorites);
-        } catch (err) {
-            console.error('Failed to load favorites:', err);
-        }
-    }, []);
 
     // Load system info to get proper user directories
     useEffect(() => {
@@ -53,32 +44,45 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
         localStorage.setItem('sidebarCollapsed', newCollapsed.toString());
     };
 
-    // Add location to favorites
-    const addToFavorites = (location) => {
-        const newFavorites = [...favorites, location];
-        setFavorites(newFavorites);
-        localStorage.setItem('fileExplorerFavorites', JSON.stringify(newFavorites));
-    };
-
-    // Remove location from favorites
-    const removeFromFavorites = (path) => {
-        const newFavorites = favorites.filter(fav => fav.path !== path);
-        setFavorites(newFavorites);
-        localStorage.setItem('fileExplorerFavorites', JSON.stringify(newFavorites));
-    };
-
-    // Handle clicking on a sidebar item
+    // Handle clicking on a sidebar item with navigation history update
     const handleItemClick = (path) => {
-        // Record this navigation in quick access
+        // Update navigation history immediately
         try {
             const existingHistory = JSON.parse(sessionStorage.getItem('fileExplorerHistory') || '[]');
             const updatedHistory = [path, ...existingHistory.filter(p => p !== path)].slice(0, 10);
             sessionStorage.setItem('fileExplorerHistory', JSON.stringify(updatedHistory));
+
+            // Dispatch events to update quick access immediately
+            window.dispatchEvent(new CustomEvent('navigation-changed'));
+            window.dispatchEvent(new CustomEvent('quick-access-updated'));
         } catch (err) {
             console.error('Failed to update navigation history:', err);
         }
 
         loadDirectory(path);
+    };
+
+    // Add location to favorites
+    const addToFavorites = (location) => {
+        try {
+            const existingFavorites = JSON.parse(localStorage.getItem('fileExplorerFavorites') || '[]');
+            const newFavorites = [...existingFavorites, location];
+            localStorage.setItem('fileExplorerFavorites', JSON.stringify(newFavorites));
+
+            // Dispatch events to update favorites immediately
+            window.dispatchEvent(new CustomEvent('favorites-updated'));
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: 'fileExplorerFavorites',
+                newValue: JSON.stringify(newFavorites)
+            }));
+        } catch (error) {
+            console.error('Failed to add to favorites:', error);
+        }
+    };
+
+    // Remove location from favorites (using the one from context menu provider)
+    const handleRemoveFromFavorites = (path) => {
+        removeFromFavorites(path);
     };
 
     // Get user directories based on OS
@@ -105,7 +109,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                 { name: 'Downloads', path: `${homeDir}/Downloads`, icon: 'downloads' },
                 { name: 'Pictures', path: `${homeDir}/Pictures`, icon: 'pictures' },
                 { name: 'Music', path: `${homeDir}/Music`, icon: 'music' },
-                { name: 'Videos', path: `${homeDir}/Videos`, icon: 'videos' }
+                { name: 'Videos', path: `${homeDir}/Movies`, icon: 'videos' }
             );
         }
 
@@ -218,10 +222,9 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                         </div>
                     )}
                     <Favorites
-                        favorites={favorites}
                         isCollapsed={isCollapsed}
                         onItemClick={handleItemClick}
-                        onRemove={removeFromFavorites}
+                        onRemove={handleRemoveFromFavorites}
                         onAdd={addToFavorites}
                     />
                 </section>
