@@ -105,11 +105,11 @@ The repo can be found under [FileExplorer](https://github.com/CodeMarco05/FileEx
 
 ## ⚡ Performance
 
-Our benchmarks show extraordinary performance improvements over native solutions:
+Our benchmarks show extraordinary performance improvements over native solutions, based on 170 thousand paths:
 
 | Operation   | Fast File Explorer | Windows Explorer |
 | ----------- | :----------------: | :--------------: |
-| File search |       280ms        |    3min 45sec    |
+| File search |       5.06ms       |   (3min 45sec)   |
 
 ## 🤝 Contributing
 
