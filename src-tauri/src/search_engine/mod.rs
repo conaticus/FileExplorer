@@ -1,19 +1,18 @@
-mod autocomplete_engine;
 mod models;
+mod fast_fuzzy_v2;
+mod lru_cache_v2;
+mod path_cache_wrapper;
+pub mod autocomplete_engine;
+mod art_v4;
 
-mod adaptive_radix_trie;
-mod context_aware_ranking;
-mod fuzzy;
-mod lru_chache;
-
+use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
+use std::fs::read_dir;
 use crate::search_engine::models::directory_se::DirectorySe;
 use models::file_se::FileSe;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs::read_dir;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub enum Entry {
@@ -194,10 +193,10 @@ pub fn generate_test_data(base_path: PathBuf) -> Result<PathBuf, std::io::Error>
 
     // Function to generate random strings based on a predefined set
     let generate_random_name = || -> String {
-        let charset: Vec<&str> = "banana, apple, orange, grape, watermelon, kiwi, mango, peach, cherry, \
-        strawberry, blueberry, raspberry, blackberry, lemon, lime, coconut, papaya, pineapple, tangerine, \
-        car, truck, motorcycle, bicycle, bus, train, airplane, helicopter, boat, ship, submarine, scooter, van, \
-        ambulance, taxi, firetruck, tractor, yacht, jetski, speedboat, racecar".split(",").collect::<Vec<_>>();
+        let charset: Vec<&str> = "banana,apple,orange,grape,watermelon,kiwi,mango,peach,cherry,\
+        strawberry,blueberry,raspberry,blackberry,lemon,lime,coconut,papaya,pineapple,tangerine,\
+        car,truck,motorcycle,bicycle,bus,train,airplane,helicopter,boat,ship,submarine,scooter,van,\
+        ambulance,taxi,firetruck,tractor,yacht,jetski,speedboat,racecar".split(",").collect::<Vec<_>>();
 
         let mut rng = thread_rng();
 

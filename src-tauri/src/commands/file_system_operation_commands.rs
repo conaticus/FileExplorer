@@ -1163,27 +1163,4 @@ mod tests_file_system_operation_commands {
             "Extracted content 2 should match"
         );
     }
-
-    #[tokio::test]
-    async fn open_home_directory_test() {
-        //get time for measurement
-        let current_time = std::time::Instant::now();
-
-        // Get the home directory
-        let dir = String::from("/home/marco");
-
-        // Call the function to open the home directory
-        let result = open_directory(dir).await;
-
-        //print execution time
-        let elapsed_time = current_time.elapsed();
-        println!("Execution time: {:?}", elapsed_time);
-
-        // Verify that the operation was successful
-        assert!(
-            result.is_ok(),
-            "Failed to open home directory: {:?}",
-            result
-        );
-    }
 }

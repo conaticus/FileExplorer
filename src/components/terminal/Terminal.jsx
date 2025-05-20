@@ -1,32 +1,53 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useHistory } from '../../providers/HistoryProvider';
+import { useSettings } from '../../providers/SettingsProvider';
 import './terminal.css';
 
-const Terminal = () => {
+const Terminal = ({ isOpen, onToggle }) => {
     const [commandHistory, setCommandHistory] = useState([]);
     const [currentCommand, setCurrentCommand] = useState('');
     const [historyIndex, setHistoryIndex] = useState(-1);
+    const [isExecuting, setIsExecuting] = useState(false);
     const inputRef = useRef(null);
     const terminalRef = useRef(null);
     const { currentPath } = useHistory();
+    const { settings } = useSettings();
 
-    // Initial welcome message
+    const terminalHeight = settings.terminalHeight || 240;
+
+    // Initialize with welcome message
     useEffect(() => {
-        const welcomeMessage = {
-            type: 'system',
-            content: `Welcome to File Explorer Terminal
+        if (commandHistory.length === 0) {
+            const welcomeMessage = {
+                type: 'system',
+                content: `Fast File Explorer Terminal
+Current directory: ${currentPath || '/'}
 Type 'help' to see available commands.`,
-        };
-
-        setCommandHistory([welcomeMessage]);
-    }, []);
-
-    // Focus input on mount
-    useEffect(() => {
-        if (inputRef.current) {
-            inputRef.current.focus();
+                timestamp: new Date().toLocaleTimeString(),
+            };
+            setCommandHistory([welcomeMessage]);
         }
     }, []);
+
+    // Update terminal when path changes
+    useEffect(() => {
+        if (currentPath) {
+            const pathChangeMessage = {
+                type: 'system',
+                content: `Changed directory to: ${currentPath}`,
+                timestamp: new Date().toLocaleTimeString(),
+            };
+            setCommandHistory(prev => [...prev, pathChangeMessage]);
+        }
+    }, [currentPath]);
+
+    // Focus input when terminal opens
+    useEffect(() => {
+        if (isOpen && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isOpen]);
 
     // Scroll to bottom when command history changes
     useEffect(() => {
@@ -37,111 +58,248 @@ Type 'help' to see available commands.`,
 
     // Get terminal prompt
     const getPrompt = () => {
-        // Extract username and hostname for prompt (in a real implementation, these would come from system info)
         const username = 'user';
         const hostname = 'localhost';
-
-        // Format current path for display
         const pathDisplay = currentPath || '/';
-
         return `${username}@${hostname}:${pathDisplay}$`;
     };
 
+    // Execute command
+    const executeCommand = async (command) => {
+        setIsExecuting(true);
+
+        try {
+            const output = await invoke('execute_command', { command });
+            return {
+                type: 'output',
+                content: output || 'Command completed successfully.',
+            };
+        } catch (error) {
+            return {
+                type: 'error',
+                content: `Error: ${error.message || error}`,
+            };
+        } finally {
+            setIsExecuting(false);
+        }
+    };
+
+    // Handle built-in commands
+    const handleBuiltinCommand = async (command, args) => {
+        switch (command) {
+            case 'help':
+                return {
+                    type: 'output',
+                    content: `Available commands:
+  help                    - Show this help message
+  clear                   - Clear the terminal
+  ls, dir                 - List directory contents
+  pwd                     - Print working directory
+  cd <path>               - Change directory
+  echo <text>             - Print text
+  mkdir <name>            - Create directory
+  touch <name>            - Create file
+  cat <file>              - Display file contents
+  tree                    - Show directory tree
+  whoami                  - Show current user
+  date                    - Show current date and time
+  exit                    - Close the terminal
+  
+  You can also run system commands directly.`,
+                };
+
+            case 'clear':
+                setCommandHistory([]);
+                return null;
+
+            case 'pwd':
+                return {
+                    type: 'output',
+                    content: currentPath || '/',
+                };
+
+            case 'whoami':
+                return {
+                    type: 'output',
+                    content: 'user',
+                };
+
+            case 'date':
+                return {
+                    type: 'output',
+                    content: new Date().toString(),
+                };
+
+            case 'ls':
+            case 'dir':
+                try {
+                    const dirContent = await invoke('open_directory', { path: currentPath });
+                    const data = JSON.parse(dirContent);
+                    const items = [
+                        ...data.directories.map(dir => `${dir.name}/`),
+                        ...data.files.map(file => file.name)
+                    ];
+                    return {
+                        type: 'output',
+                        content: items.length > 0 ? items.join('  ') : 'Directory is empty',
+                    };
+                } catch (error) {
+                    return {
+                        type: 'error',
+                        content: `Cannot list directory: ${error.message || error}`,
+                    };
+                }
+
+            case 'tree':
+                // Simple tree implementation
+                try {
+                    const dirContent = await invoke('open_directory', { path: currentPath });
+                    const data = JSON.parse(dirContent);
+                    let tree = `${currentPath}\n`;
+
+                    data.directories.forEach((dir, index) => {
+                        const isLast = index === data.directories.length - 1 && data.files.length === 0;
+                        tree += `${isLast ? '└── ' : '├── '}${dir.name}/\n`;
+                    });
+
+                    data.files.forEach((file, index) => {
+                        const isLast = index === data.files.length - 1;
+                        tree += `${isLast ? '└── ' : '├── '}${file.name}\n`;
+                    });
+
+                    return {
+                        type: 'output',
+                        content: tree,
+                    };
+                } catch (error) {
+                    return {
+                        type: 'error',
+                        content: `Cannot generate tree: ${error.message || error}`,
+                    };
+                }
+
+            case 'echo':
+                return {
+                    type: 'output',
+                    content: args.join(' '),
+                };
+
+            case 'mkdir':
+                if (args.length === 0) {
+                    return {
+                        type: 'error',
+                        content: 'mkdir: missing operand',
+                    };
+                }
+                try {
+                    await invoke('create_directory', {
+                        folder_path_abs: currentPath,
+                        directory_name: args[0]
+                    });
+                    return {
+                        type: 'output',
+                        content: `Directory '${args[0]}' created successfully.`,
+                    };
+                } catch (error) {
+                    return {
+                        type: 'error',
+                        content: `mkdir: ${error.message || error}`,
+                    };
+                }
+
+            case 'touch':
+                if (args.length === 0) {
+                    return {
+                        type: 'error',
+                        content: 'touch: missing operand',
+                    };
+                }
+                try {
+                    await invoke('create_file', {
+                        folder_path_abs: currentPath,
+                        file_name: args[0]
+                    });
+                    return {
+                        type: 'output',
+                        content: `File '${args[0]}' created successfully.`,
+                    };
+                } catch (error) {
+                    return {
+                        type: 'error',
+                        content: `touch: ${error.message || error}`,
+                    };
+                }
+
+            case 'cat':
+                if (args.length === 0) {
+                    return {
+                        type: 'error',
+                        content: 'cat: missing operand',
+                    };
+                }
+                try {
+                    const filePath = `${currentPath}/${args[0]}`;
+                    const content = await invoke('open_file', { file_path: filePath });
+                    return {
+                        type: 'output',
+                        content: content,
+                    };
+                } catch (error) {
+                    return {
+                        type: 'error',
+                        content: `cat: ${error.message || error}`,
+                    };
+                }
+
+            case 'exit':
+                onToggle();
+                return {
+                    type: 'system',
+                    content: 'Terminal closed.',
+                };
+
+            default:
+                return null; // Not a built-in command
+        }
+    };
+
     // Handle command submission
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!currentCommand.trim()) return;
+        if (!currentCommand.trim() || isExecuting) return;
+
+        const command = currentCommand.trim();
+        const [cmd, ...args] = command.split(' ');
 
         // Add command to history
         const commandEntry = {
             type: 'command',
             prompt: getPrompt(),
-            content: currentCommand,
+            content: command,
+            timestamp: new Date().toLocaleTimeString(),
         };
 
-        // Process command (in a real implementation, this would interface with the backend)
+        setCommandHistory(prev => [...prev, commandEntry]);
+
+        // Process command
         let response;
 
-        const command = currentCommand.trim().toLowerCase();
-        const args = command.split(' ').slice(1);
+        // Check for built-in commands first
+        response = await handleBuiltinCommand(cmd.toLowerCase(), args);
 
-        switch (command.split(' ')[0]) {
-            case 'help':
-                response = {
-                    type: 'output',
-                    content: `Available commands:
-  help - Display this help message
-  clear - Clear the terminal
-  ls - List files and directories
-  pwd - Print working directory
-  cd [directory] - Change directory
-  echo [text] - Print text
-  exit - Close the terminal`,
-                };
-                break;
-
-            case 'clear':
-                // Clear all but the welcome message
-                setCommandHistory([commandHistory[0]]);
-                setCurrentCommand('');
-                setHistoryIndex(-1);
-                return;
-
-            case 'pwd':
-                response = {
-                    type: 'output',
-                    content: currentPath || '/',
-                };
-                break;
-
-            case 'ls':
-                // In a real implementation, this would show actual directory contents
-                response = {
-                    type: 'output',
-                    content: 'directory1/ directory2/ file1.txt file2.txt',
-                };
-                break;
-
-            case 'cd':
-                // In a real implementation, this would change the current directory
-                if (args.length === 0) {
-                    response = {
-                        type: 'error',
-                        content: 'cd: missing argument',
-                    };
-                } else {
-                    response = {
-                        type: 'output',
-                        content: `Changed directory to ${args[0]}`,
-                    };
-                }
-                break;
-
-            case 'echo':
-                response = {
-                    type: 'output',
-                    content: args.join(' '),
-                };
-                break;
-
-            case 'exit':
-                // In a real implementation, this would close the terminal
-                response = {
-                    type: 'system',
-                    content: 'Closing terminal...',
-                };
-                break;
-
-            default:
-                response = {
-                    type: 'error',
-                    content: `Command not found: ${command.split(' ')[0]}`,
-                };
+        // If not a built-in command, execute as system command
+        if (response === null && cmd.toLowerCase() !== 'clear') {
+            response = await executeCommand(command);
         }
 
-        // Update command history
-        setCommandHistory(prev => [...prev, commandEntry, response]);
+        // Add response to history
+        if (response) {
+            setCommandHistory(prev => [...prev, {
+                ...response,
+                timestamp: new Date().toLocaleTimeString(),
+            }]);
+        }
 
         // Reset command input
         setCurrentCommand('');
@@ -155,9 +313,10 @@ Type 'help' to see available commands.`,
 
     // Handle keyboard navigation through command history
     const handleKeyDown = (e) => {
+        if (isExecuting) return;
+
         if (e.key === 'ArrowUp') {
             e.preventDefault();
-
             const commandEntries = commandHistory.filter(entry => entry.type === 'command');
 
             if (commandEntries.length > 0) {
@@ -183,18 +342,40 @@ Type 'help' to see available commands.`,
                 setCurrentCommand('');
                 setHistoryIndex(-1);
             }
+        } else if (e.key === 'Tab') {
+            e.preventDefault();
+            // Simple auto-completion for common commands
+            const commonCommands = ['help', 'clear', 'ls', 'dir', 'pwd', 'cd', 'mkdir', 'touch', 'cat', 'tree', 'echo'];
+            const matches = commonCommands.filter(cmd => cmd.startsWith(currentCommand.toLowerCase()));
+
+            if (matches.length === 1) {
+                setCurrentCommand(matches[0] + ' ');
+            }
         }
     };
 
+    if (!isOpen) return null;
+
     return (
-        <div className="terminal-container">
+        <div className="enhanced-terminal" style={{ height: `${terminalHeight}px` }}>
             <div className="terminal-header">
-                <span className="terminal-title">Terminal</span>
+                <div className="terminal-title">
+                    <span className="icon icon-terminal"></span>
+                    <span>Terminal - {currentPath || '/'}</span>
+                </div>
                 <div className="terminal-controls">
-                    <button className="terminal-control" aria-label="Minimize">
-                        <span className="icon icon-minus"></span>
+                    <button
+                        className="terminal-control"
+                        onClick={() => setCommandHistory([])}
+                        title="Clear terminal"
+                    >
+                        <span className="icon icon-clear"></span>
                     </button>
-                    <button className="terminal-control" aria-label="Close">
+                    <button
+                        className="terminal-control"
+                        onClick={onToggle}
+                        title="Close terminal"
+                    >
                         <span className="icon icon-x"></span>
                     </button>
                 </div>
@@ -206,10 +387,15 @@ Type 'help' to see available commands.`,
                         key={index}
                         className={`terminal-line terminal-${entry.type}`}
                     >
-                        {entry.type === 'command' && (
-                            <span className="terminal-prompt">{entry.prompt} </span>
-                        )}
-                        <span className="terminal-text">{entry.content}</span>
+                        <div className="terminal-entry">
+                            {entry.type === 'command' && (
+                                <span className="terminal-prompt">{entry.prompt} </span>
+                            )}
+                            <pre className="terminal-text">{entry.content}</pre>
+                            {entry.timestamp && (
+                                <span className="terminal-timestamp">{entry.timestamp}</span>
+                            )}
+                        </div>
                     </div>
                 ))}
 
@@ -222,11 +408,17 @@ Type 'help' to see available commands.`,
                         value={currentCommand}
                         onChange={handleChange}
                         onKeyDown={handleKeyDown}
+                        disabled={isExecuting}
                         autoFocus
                         spellCheck="false"
                         autoComplete="off"
                         autoCapitalize="off"
                     />
+                    {isExecuting && (
+                        <span className="terminal-executing">
+                            <span className="spinner-small"></span>
+                        </span>
+                    )}
                 </form>
             </div>
         </div>
