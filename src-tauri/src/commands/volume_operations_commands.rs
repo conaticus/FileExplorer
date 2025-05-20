@@ -66,7 +66,7 @@ pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
         }
     }
 
-    // Second pass: collect non-skipped items
+    // Second pass: collect non-skipped items and remove boot volumes
     for (index, volume) in volume_information_vec.into_iter().enumerate() {
         if !skip_indices.contains(&index) {
             
