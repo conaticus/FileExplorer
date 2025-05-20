@@ -5,14 +5,24 @@ pub enum ErrorCode {
     NotFound,
     Unauthorized,
     InternalError,
+    ResourceNotFound,
+    NotImplementedForOS,
+    NotImplemented,
+    InvalidInput,
+    ResourceAlreadyExists,
 }
 
 
 impl ErrorCode {
     pub fn get_code_as_u16(&self) -> u16 {
         match self {
-            ErrorCode::NotFound => 404,
             ErrorCode::Unauthorized => 401,
+            ErrorCode::NotFound => 404,
+            ErrorCode::ResourceNotFound => 405,
+            ErrorCode::NotImplementedForOS => 406,
+            ErrorCode::NotImplemented => 407,
+            ErrorCode::InvalidInput => 408,
+            ErrorCode::ResourceAlreadyExists => 409,
             ErrorCode::InternalError => 500,
         }
     }
@@ -20,8 +30,13 @@ impl ErrorCode {
     #[allow(dead_code)]
     pub fn from_code(code: u16) -> Option<ErrorCode> {
         match code {
-            404 => Some(ErrorCode::NotFound),
             401 => Some(ErrorCode::Unauthorized),
+            404 => Some(ErrorCode::NotFound),
+            405 => Some(ErrorCode::ResourceNotFound),
+            406 => Some(ErrorCode::NotImplementedForOS),
+            407 => Some(ErrorCode::NotImplemented),
+            408 => Some(ErrorCode::InvalidInput),
+            409 => Some(ErrorCode::ResourceAlreadyExists),
             500 => Some(ErrorCode::InternalError),
             _ => None,
         }
