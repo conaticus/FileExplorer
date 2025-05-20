@@ -644,9 +644,8 @@ mod tests_file_system_operation_commands {
     }
 
     #[tokio::test]
-    async fn open_in_default_app_txt_test() {
-        use tempfile::tempdir;
-
+    #[cfg(feature = "open-file-in-app")]
+    async fn open_in_default_app_test() {
         let current_dir = env::current_dir().expect("Failed to get current directory");
         
         let file_extensions = vec!["txt", "pdf", "mp4", "jpg", "png", "html"];
@@ -663,7 +662,6 @@ mod tests_file_system_operation_commands {
             // Verify that the operation was successful
             assert!(result.is_ok(), "Failed to open file in default app: {:?}", result);
         }
-        
     }
     
 

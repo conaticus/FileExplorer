@@ -43,11 +43,12 @@ tauri-build = { version = "2.1", features = [] }  # Removed "log" feature
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
+open-file-in-app = []
 generate-test-data = []
 long-tests = []
 benchmarks = ["bench"]
 bench = []
-full = ["long-tests"]
+full = ["long-tests", "generate-test-data", "benchmarks", "open-file-in-app"]
 path_cache = []
 full-without-generate-test-data = ["long-tests"]
 
