@@ -9,16 +9,7 @@ pub mod models;
 mod logging;
 
 use tauri::ipc::Invoke;
-use crate::commands::{
-    file_system_operation_commands,
-    meta_data_commands,
-    volume_operations_commands,
-    hash_commands,
-    settings_commands,
-    template_commands,
-    search_engine_commands,
-    command_exec_commands  // Add the command execution module
-};
+use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands, hash_commands, settings_commands, template_commands, command_exec_commands, search_engine_commands};
 
 fn all_commands() -> fn(Invoke) -> bool {
     tauri::generate_handler![
@@ -61,7 +52,7 @@ fn all_commands() -> fn(Invoke) -> bool {
         template_commands::add_template,
         template_commands::use_template,
         template_commands::remove_template,
-
+        
         // Autocomplete commands
         search_engine_commands::search,
         search_engine_commands::search_with_extension,
@@ -71,6 +62,8 @@ fn all_commands() -> fn(Invoke) -> bool {
         search_engine_commands::remove_paths_recursive,
         search_engine_commands::clear_search_engine,
         search_engine_commands::get_search_engine_info,
+        
+        
     ]
 }
 
