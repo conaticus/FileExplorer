@@ -22,7 +22,7 @@ mod tests_search_commands {
     use super::*;
     
     #[tokio::test]
-    async fn test_search_command() {
+    async fn _search_command_test() {
         let result = _search_command("test".to_string()).await;
         assert!(result.is_ok());
         let search_result = result.unwrap();
@@ -30,7 +30,7 @@ mod tests_search_commands {
     }
     
     #[tokio::test]
-    async fn failed_to_search_command_because_of_search_term_is_empty() {
+    async fn failed_to_search_command_because_of_search_term_is_empty_test() {
         let result = _search_command("".to_string()).await;
 
         assert!(
