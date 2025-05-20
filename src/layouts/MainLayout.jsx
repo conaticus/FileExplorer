@@ -55,6 +55,7 @@ const MainLayout = () => {
     // Listen for custom events
     useEffect(() => {
         const handleOpenTemplates = () => {
+            setCurrentView('templates');
             setIsTemplatesOpen(true);
         };
 
@@ -62,14 +63,39 @@ const MainLayout = () => {
             setIsDetailsPanelOpen(true);
         };
 
+        const handleOpenThisPC = () => {
+            setCurrentView('this-pc');
+        };
+
+        const handleOpenSettings = () => {
+            setIsSettingsOpen(true);
+        };
+
+        const handleToggleTerminal = () => {
+            setIsTerminalOpen(prev => !prev);
+        };
+
         document.addEventListener('open-templates', handleOpenTemplates);
         document.addEventListener('show-properties', handleShowProperties);
+        document.addEventListener('open-this-pc', handleOpenThisPC);
+        document.addEventListener('open-settings', handleOpenSettings);
+        document.addEventListener('toggle-terminal', handleToggleTerminal);
 
         return () => {
             document.removeEventListener('open-templates', handleOpenTemplates);
             document.removeEventListener('show-properties', handleShowProperties);
+            document.removeEventListener('open-this-pc', handleOpenThisPC);
+            document.removeEventListener('open-settings', handleOpenSettings);
+            document.removeEventListener('toggle-terminal', handleToggleTerminal);
         };
     }, []);
+
+    // Switch to explorer view when navigating to a directory
+    useEffect(() => {
+        if (currentPath && currentView !== 'explorer') {
+            setCurrentView('explorer');
+        }
+    }, [currentPath]);
 
     // Handle search
     const handleSearch = useCallback((value) => {
@@ -130,10 +156,9 @@ const MainLayout = () => {
                 setIsTerminalOpen(prev => !prev);
             }
 
-            // This PC: Ctrl+Shift+C
-            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
-                e.preventDefault();
-                setCurrentView('this-pc');
+            // Escape to clear selection
+            if (e.key === 'Escape') {
+                document.dispatchEvent(new CustomEvent('clear-selection'));
             }
         };
 
@@ -185,21 +210,15 @@ const MainLayout = () => {
             case 'this-pc':
                 return <ThisPCView />;
             case 'templates':
-                return <TemplateList onClose={() => setCurrentView('explorer')} />;
+                return <TemplateList onClose={() => {
+                    setCurrentView('explorer');
+                    setIsTemplatesOpen(false);
+                }} />;
             default:
                 return (
                     <div className="files-container">
                         <div className="action-bar">
                             <CreateFileButton />
-                            <div className="action-divider"></div>
-                            <button
-                                className="copy-path-button"
-                                onClick={copyCurrentPath}
-                                title="Copy current path"
-                            >
-                                <span className="icon icon-copy"></span>
-                                <span>Copy Path</span>
-                            </button>
                         </div>
 
                         <FileList
@@ -216,7 +235,11 @@ const MainLayout = () => {
     return (
         <div className="main-layout">
             {/* Sidebar */}
-            <Sidebar />
+            <Sidebar
+                onTerminalToggle={() => setIsTerminalOpen(!isTerminalOpen)}
+                isTerminalOpen={isTerminalOpen}
+                currentView={currentView}
+            />
 
             {/* Main content area with tabs */}
             <div className="content-area">
@@ -225,25 +248,21 @@ const MainLayout = () => {
                     <div className="toolbar">
                         <div className="toolbar-left">
                             <NavigationButtons />
-                            <PathBreadcrumb />
-                        </div>
-                        <div className="toolbar-center">
-                            <SearchBar
-                                value={searchValue}
-                                onChange={handleSearch}
-                                placeholder="Search in current folder"
+                            <PathBreadcrumb
+                                onCopyPath={copyCurrentPath}
+                                isVisible={currentView === 'explorer'}
                             />
                         </div>
+                        <div className="toolbar-center">
+                            {currentView === 'explorer' && (
+                                <SearchBar
+                                    value={searchValue}
+                                    onChange={handleSearch}
+                                    placeholder="Search in current folder"
+                                />
+                            )}
+                        </div>
                         <div className="toolbar-right">
-                            <button
-                                className="icon-button"
-                                onClick={() => setCurrentView('this-pc')}
-                                title="This PC"
-                                aria-label="This PC"
-                            >
-                                <span className="icon icon-computer"></span>
-                            </button>
-
                             <button
                                 className="icon-button"
                                 onClick={() => setIsGlobalSearchOpen(true)}
@@ -253,10 +272,12 @@ const MainLayout = () => {
                                 <span className="icon icon-search-global"></span>
                             </button>
 
-                            <ViewModes
-                                currentMode={viewMode}
-                                onChange={setViewMode}
-                            />
+                            {currentView === 'explorer' && (
+                                <ViewModes
+                                    currentMode={viewMode}
+                                    onChange={setViewMode}
+                                />
+                            )}
 
                             <button
                                 className={`icon-button ${isDetailsPanelOpen ? 'active' : ''}`}
@@ -265,24 +286,6 @@ const MainLayout = () => {
                                 aria-label="Toggle details panel"
                             >
                                 <span className="icon icon-panel-right"></span>
-                            </button>
-
-                            <button
-                                className={`icon-button ${isTerminalOpen ? 'active' : ''}`}
-                                onClick={() => setIsTerminalOpen(!isTerminalOpen)}
-                                title="Terminal (Ctrl+`)"
-                                aria-label="Toggle terminal"
-                            >
-                                <span className="icon icon-terminal"></span>
-                            </button>
-
-                            <button
-                                className="icon-button"
-                                onClick={() => setIsSettingsOpen(true)}
-                                title="Settings (Ctrl+,)"
-                                aria-label="Settings"
-                            >
-                                <span className="icon icon-settings"></span>
                             </button>
 
                             <button
@@ -341,10 +344,6 @@ const MainLayout = () => {
                 isOpen={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
             />
-
-            {isTemplatesOpen && (
-                <TemplateList onClose={() => setIsTemplatesOpen(false)} />
-            )}
         </div>
     );
 };

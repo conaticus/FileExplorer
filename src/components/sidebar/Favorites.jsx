@@ -1,12 +1,55 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import SidebarItem from './SidebarItem';
 
 const Favorites = ({
                        favorites = [],
                        isCollapsed = false,
                        onItemClick,
-                       onRemove
+                       onRemove,
+                       onAdd
                    }) => {
+
+    // Listen for storage events to update favorites
+    useEffect(() => {
+        const handleStorageChange = (e) => {
+            if (e.key === 'fileExplorerFavorites') {
+                // Force a re-render by dispatching a custom event
+                window.dispatchEvent(new CustomEvent('favorites-updated'));
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, []);
+
+    // Handle context menu for favorites
+    const handleContextMenu = (e, item) => {
+        e.preventDefault();
+
+        const menu = [
+            {
+                label: 'Open',
+                icon: 'open',
+                action: () => onItemClick(item.path)
+            },
+            {
+                label: 'Remove from Favorites',
+                icon: 'x',
+                action: () => onRemove(item.path)
+            }
+        ];
+
+        // Simple context menu implementation
+        // In a full implementation, you'd use the ContextMenuProvider
+        const choice = confirm('Remove from favorites?');
+        if (choice) {
+            onRemove(item.path);
+        }
+    };
+
     // If there are no favorites, display a message
     if (favorites.length === 0) {
         if (isCollapsed) return null;
@@ -29,6 +72,7 @@ const Favorites = ({
                     path={item.path}
                     isCollapsed={isCollapsed}
                     onClick={() => onItemClick(item.path)}
+                    onContextMenu={(e) => handleContextMenu(e, item)}
                     actions={[
                         {
                             icon: 'x',

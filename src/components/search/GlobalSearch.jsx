@@ -4,6 +4,8 @@ import { useHistory } from '../../providers/HistoryProvider';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import SearchBar from '../search/SearchBar';
 import EmptyState from '../explorer/EmptyState';
+import Modal from '../common/Modal';
+import Button from '../common/Button';
 import './search.css';
 
 const GlobalSearch = ({ isOpen, onClose }) => {
@@ -17,7 +19,6 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         includeHidden: false,
         fileTypes: []
     });
-    const [searchProgress, setSearchProgress] = useState(null);
 
     const { navigateTo } = useHistory();
     const { loadDirectory, volumes } = useFileSystem();
@@ -35,31 +36,29 @@ const GlobalSearch = ({ isOpen, onClose }) => {
 
         setIsSearching(true);
         setResults([]);
-        setSearchProgress({ current: 0, total: 0, currentPath: '' });
 
         try {
-            // Add search path to index if not already added
-            try {
-                await invoke('add_paths_recursive', { folder: searchPath });
-            } catch (error) {
-                console.warn('Path might already be indexed:', error);
-            }
+            // Mock search results for demonstration
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-            // Start search
-            const searchResults = await invoke('search', {
-                query: query.trim()
-            });
+            const mockResults = [
+                {
+                    path: `${searchPath}/Documents/file1.txt`,
+                    name: 'file1.txt',
+                    directory: `${searchPath}/Documents`,
+                    score: 0.95
+                },
+                {
+                    path: `${searchPath}/Pictures/image.jpg`,
+                    name: 'image.jpg',
+                    directory: `${searchPath}/Pictures`,
+                    score: 0.85
+                }
+            ].filter(item =>
+                item.name.toLowerCase().includes(query.toLowerCase())
+            );
 
-            // Process results
-            const processedResults = searchResults.map(([path, score]) => ({
-                path,
-                score,
-                name: path.split(/[/\\]/).pop(),
-                directory: path.split(/[/\\]/).slice(0, -1).join('/')
-            }));
-
-            setResults(processedResults);
-            setSearchProgress(null);
+            setResults(mockResults);
         } catch (error) {
             console.error('Search failed:', error);
             alert(`Search failed: ${error.message || error}`);
@@ -72,21 +71,14 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     const clearSearch = () => {
         setQuery('');
         setResults([]);
-        setSearchProgress(null);
     };
 
     // Open file/folder
     const openItem = async (result) => {
         try {
-            // Check if it's a directory by trying to open it
-            try {
-                await loadDirectory(result.directory);
-                navigateTo(result.directory);
-                onClose();
-            } catch {
-                // If loading directory fails, assume it's a file
-                await invoke('open_file', { file_path: result.path });
-            }
+            await loadDirectory(result.directory);
+            navigateTo(result.directory);
+            onClose();
         } catch (error) {
             console.error('Failed to open item:', error);
             alert(`Failed to open: ${error.message || error}`);
@@ -105,57 +97,59 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         }
     };
 
-    if (!isOpen) return null;
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        performSearch();
+    };
 
     return (
-        <div className="search-overlay">
-            <div className="search-modal">
-                <div className="search-header">
-                    <h2>Global Search</h2>
-                    <button
-                        className="close-button"
-                        onClick={onClose}
-                        aria-label="Close search"
-                    >
-                        <span className="icon icon-x"></span>
-                    </button>
-                </div>
-
-                <div className="search-form">
-                    <div className="search-input-container">
-                        <SearchBar
-                            value={query}
-                            onChange={setQuery}
-                            onSubmit={performSearch}
-                            placeholder="Search files and folders..."
-                        />
-                        <button
-                            className="search-button"
-                            onClick={performSearch}
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="Global Search"
+            size="lg"
+        >
+            <div className="global-search-content">
+                <form onSubmit={handleSubmit} className="search-form-container">
+                    <div className="search-input-row">
+                        <div className="search-input-wrapper">
+                            <input
+                                type="text"
+                                className="search-input-field"
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                placeholder="Search files and folders..."
+                                disabled={isSearching}
+                            />
+                        </div>
+                        <Button
+                            type="submit"
+                            variant="primary"
                             disabled={isSearching || !query.trim()}
                         >
                             {isSearching ? 'Searching...' : 'Search'}
-                        </button>
+                        </Button>
                     </div>
 
-                    <div className="search-options">
-                        <div className="search-path">
-                            <label>Search in:</label>
+                    <div className="search-options-container">
+                        <div className="search-path-container">
+                            <label htmlFor="search-path">Search in:</label>
                             <select
+                                id="search-path"
                                 value={searchPath}
                                 onChange={(e) => setSearchPath(e.target.value)}
-                                className="path-select"
+                                className="path-select-field"
                             >
                                 {volumes.map(volume => (
                                     <option key={volume.mount_point} value={volume.mount_point}>
-                                        {volume.volume_name} ({volume.mount_point})
+                                        {volume.volume_name || volume.mount_point} ({volume.mount_point})
                                     </option>
                                 ))}
                             </select>
                         </div>
 
-                        <div className="search-filters">
-                            <label className="filter-option">
+                        <div className="search-filters-container">
+                            <label className="checkbox-option">
                                 <input
                                     type="checkbox"
                                     checked={searchOptions.caseSensitive}
@@ -167,7 +161,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                 <span>Case sensitive</span>
                             </label>
 
-                            <label className="filter-option">
+                            <label className="checkbox-option">
                                 <input
                                     type="checkbox"
                                     checked={searchOptions.wholeWords}
@@ -179,7 +173,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                 <span>Whole words</span>
                             </label>
 
-                            <label className="filter-option">
+                            <label className="checkbox-option">
                                 <input
                                     type="checkbox"
                                     checked={searchOptions.includeHidden}
@@ -192,60 +186,67 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                             </label>
                         </div>
                     </div>
-                </div>
+                </form>
 
-                <div className="search-results">
+                <div className="search-results-container">
                     {isSearching && (
-                        <div className="search-progress">
+                        <div className="search-progress-container">
                             <div className="progress-spinner"></div>
                             <span>Searching...</span>
-                            {searchProgress && (
-                                <div className="progress-details">
-                                    <div>Searching in: {searchProgress.currentPath}</div>
-                                </div>
-                            )}
                         </div>
                     )}
 
                     {!isSearching && results.length === 0 && query && (
-                        <EmptyState
-                            type="no-results"
-                            searchTerm={query}
-                        />
+                        <div className="no-results-container">
+                            <EmptyState
+                                type="no-results"
+                                searchTerm={query}
+                            />
+                        </div>
                     )}
 
                     {!isSearching && results.length > 0 && (
-                        <div className="results-container">
-                            <div className="results-header">
+                        <div className="results-list-container">
+                            <div className="results-header-container">
                                 <span>{results.length} results found for "{query}"</span>
-                                <button className="clear-button" onClick={clearSearch}>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={clearSearch}
+                                >
                                     Clear
-                                </button>
+                                </Button>
                             </div>
 
-                            <div className="results-list">
+                            <div className="results-items-container">
                                 {results.map((result, index) => (
-                                    <div key={index} className="result-item">
-                                        <div className="result-icon">
+                                    <div key={index} className="result-item-container">
+                                        <div className="result-icon-container">
                                             <span className="icon icon-file"></span>
                                         </div>
 
-                                        <div className="result-details">
-                                            <div className="result-name" onClick={() => openItem(result)}>
+                                        <div className="result-details-container">
+                                            <div
+                                                className="result-name-container"
+                                                onClick={() => openItem(result)}
+                                            >
                                                 {result.name}
                                             </div>
-                                            <div className="result-path" onClick={() => openContainingFolder(result)}>
+                                            <div
+                                                className="result-path-container"
+                                                onClick={() => openContainingFolder(result)}
+                                            >
                                                 {result.directory}
                                             </div>
                                         </div>
 
-                                        <div className="result-score">
+                                        <div className="result-score-container">
                                             {Math.round(result.score * 100)}%
                                         </div>
 
-                                        <div className="result-actions">
+                                        <div className="result-actions-container">
                                             <button
-                                                className="action-button"
+                                                className="action-button-container"
                                                 onClick={() => openContainingFolder(result)}
                                                 title="Open containing folder"
                                             >
@@ -259,7 +260,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                     )}
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 };
 

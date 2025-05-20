@@ -24,6 +24,40 @@ export default function ContextMenuProvider({ children }) {
     const { selectedItems, loadDirectory, clearSelection } = useFileSystem();
     const { currentPath } = useHistory();
 
+    // Add to favorites
+    const addToFavorites = useCallback((item) => {
+        try {
+            const existingFavorites = JSON.parse(localStorage.getItem('fileExplorerFavorites') || '[]');
+
+            // Check if already in favorites
+            const alreadyExists = existingFavorites.some(fav => fav.path === item.path);
+            if (alreadyExists) {
+                alert('This item is already in your favorites.');
+                return;
+            }
+
+            const newFavorite = {
+                name: item.name,
+                path: item.path,
+                icon: item.isDirectory || ('sub_file_count' in item) ? 'folder' : 'file'
+            };
+
+            const updatedFavorites = [...existingFavorites, newFavorite];
+            localStorage.setItem('fileExplorerFavorites', JSON.stringify(updatedFavorites));
+
+            // Dispatch event to update sidebar
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: 'fileExplorerFavorites',
+                newValue: JSON.stringify(updatedFavorites)
+            }));
+
+            alert(`Added "${item.name}" to favorites.`);
+        } catch (error) {
+            console.error('Failed to add to favorites:', error);
+            alert('Failed to add to favorites.');
+        }
+    }, []);
+
     // Copy items to clipboard
     const copyToClipboard = useCallback(async (items) => {
         setClipboard({ items, operation: 'copy' });
@@ -148,135 +182,22 @@ export default function ContextMenuProvider({ children }) {
         }
     }, [currentPath, loadDirectory]);
 
-    // Compress items
-    const compressItems = useCallback(async (items) => {
-        if (!items.length) return;
-
-        setIsProcessing(true);
-        try {
-            const sourcePaths = items.map(item => item.path);
-            const zipName = items.length === 1
-                ? `${items[0].name}.zip`
-                : `Archive_${new Date().toISOString().split('T')[0]}.zip`;
-
-            const destinationPath = `${currentPath}/${zipName}`;
-
-            await invoke('zip', {
-                source_paths: sourcePaths,
-                destination_path: destinationPath
-            });
-
-            await loadDirectory(currentPath);
-        } catch (error) {
-            console.error('Compress operation failed:', error);
-            alert(`Failed to compress: ${error.message || error}`);
-        } finally {
-            setIsProcessing(false);
-        }
-    }, [currentPath, loadDirectory]);
-
-    // Extract archive
-    const extractArchive = useCallback(async (item) => {
-        setIsProcessing(true);
-        try {
-            await invoke('unzip', {
-                zip_paths: [item.path],
-                destination_path: currentPath
-            });
-
-            await loadDirectory(currentPath);
-        } catch (error) {
-            console.error('Extract operation failed:', error);
-            alert(`Failed to extract: ${error.message || error}`);
-        } finally {
-            setIsProcessing(false);
-        }
-    }, [currentPath, loadDirectory]);
-
-    // Generate hash
-    const generateHash = useCallback(async (item) => {
-        setIsProcessing(true);
-        try {
-            const hash = await invoke('gen_hash_and_return_string', { path: item.path });
-
-            // Copy to clipboard
-            await navigator.clipboard.writeText(hash);
-            alert(`Hash generated and copied to clipboard:\n${hash}`);
-        } catch (error) {
-            console.error('Hash generation failed:', error);
-            alert(`Failed to generate hash: ${error.message || error}`);
-        } finally {
-            setIsProcessing(false);
-        }
-    }, []);
-
-    // Compare with hash
-    const compareWithHash = useCallback(async (item) => {
-        const hashToCompare = prompt('Enter the hash to compare with:');
-        if (!hashToCompare) return;
-
-        setIsProcessing(true);
-        try {
-            const matches = await invoke('compare_file_or_dir_with_hash', {
-                path: item.path,
-                hash_to_compare: hashToCompare.trim()
-            });
-
-            alert(matches ? 'Hash matches!' : 'Hash does not match!');
-        } catch (error) {
-            console.error('Hash comparison failed:', error);
-            alert(`Failed to compare hash: ${error.message || error}`);
-        } finally {
-            setIsProcessing(false);
-        }
-    }, []);
-
-    // Copy path to clipboard
-    const copyPath = useCallback(async (item) => {
-        try {
-            await navigator.clipboard.writeText(item.path);
-            // Show temporary notification
-            const notification = document.createElement('div');
-            notification.textContent = 'Path copied to clipboard';
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: var(--accent);
-                color: white;
-                padding: 12px 20px;
-                border-radius: 6px;
-                z-index: 10000;
-                animation: slideIn 0.3s ease-out;
-            `;
-            document.body.appendChild(notification);
-            setTimeout(() => {
-                notification.remove();
-            }, 2000);
-        } catch (error) {
-            console.error('Failed to copy path:', error);
-        }
-    }, []);
-
-    // Save as template
-    const saveAsTemplate = useCallback(async (item) => {
-        setIsProcessing(true);
-        try {
-            await invoke('add_template', { template_path: item.path });
-            alert(`"${item.name}" has been saved as a template.`);
-        } catch (error) {
-            console.error('Save as template failed:', error);
-            alert(`Failed to save as template: ${error.message || error}`);
-        } finally {
-            setIsProcessing(false);
-        }
+    // Show properties - dispatch event to open details panel
+    const showProperties = useCallback((item) => {
+        // First, select the item
+        document.dispatchEvent(new CustomEvent('select-item', {
+            detail: { item }
+        }));
+        // Then show properties
+        document.dispatchEvent(new CustomEvent('show-properties', {
+            detail: { item }
+        }));
     }, []);
 
     // Generate menu items
     const getMenuItemsForContext = useCallback((contextTarget) => {
         const isFile = contextTarget && !('sub_file_count' in contextTarget);
         const isDirectory = contextTarget && ('sub_file_count' in contextTarget);
-        const isArchive = isFile && (contextTarget.name.endsWith('.zip') || contextTarget.name.endsWith('.rar') || contextTarget.name.endsWith('.7z'));
         const hasClipboard = clipboard.items.length > 0;
 
         // Empty space context menu
@@ -295,7 +216,6 @@ export default function ContextMenuProvider({ children }) {
                     label: 'New Folder',
                     icon: 'folder',
                     action: () => {
-                        // This will be handled by the CreateFileButton component
                         document.dispatchEvent(new CustomEvent('create-folder'));
                     }
                 },
@@ -304,16 +224,15 @@ export default function ContextMenuProvider({ children }) {
                     label: 'New File',
                     icon: 'file',
                     action: () => {
-                        // This will be handled by the CreateFileButton component
                         document.dispatchEvent(new CustomEvent('create-file'));
                     }
                 },
                 { type: 'separator' },
                 {
-                    id: 'copy-path',
-                    label: 'Copy Current Path',
-                    icon: 'copy',
-                    action: () => copyPath({ path: currentPath })
+                    id: 'properties',
+                    label: 'Properties',
+                    icon: 'properties',
+                    action: () => showProperties({ name: 'Current Folder', path: currentPath })
                 },
                 { type: 'separator' },
                 {
@@ -391,70 +310,22 @@ export default function ContextMenuProvider({ children }) {
             },
             { type: 'separator' },
             {
-                id: 'compress',
-                label: targetItems.length > 1 ? 'Compress Selection' : 'Compress',
-                icon: 'compress',
-                disabled: isProcessing,
-                action: () => compressItems(targetItems)
-            },
-            ...(isArchive ? [{
-                id: 'extract',
-                label: 'Extract Here',
-                icon: 'extract',
-                disabled: isProcessing,
-                action: () => extractArchive(contextTarget)
-            }] : []),
-            { type: 'separator' },
-            {
-                id: 'copy-path',
-                label: 'Copy Path',
-                icon: 'copy',
+                id: 'add-to-favorites',
+                label: 'Add to Favorites',
+                icon: 'star',
                 disabled: selectedItems.length > 1,
-                action: () => copyPath(contextTarget)
+                action: () => addToFavorites(contextTarget)
             },
-            { type: 'separator' },
-            {
-                id: 'hash-submenu',
-                label: 'Hash',
-                icon: 'hash',
-                disabled: selectedItems.length > 1 || isDirectory,
-                submenu: [
-                    {
-                        id: 'generate-hash',
-                        label: 'Generate Hash',
-                        icon: 'generate',
-                        action: () => generateHash(contextTarget)
-                    },
-                    {
-                        id: 'compare-hash',
-                        label: 'Compare with Hash',
-                        icon: 'compare',
-                        action: () => compareWithHash(contextTarget)
-                    }
-                ]
-            },
-            ...(isDirectory ? [{
-                id: 'save-template',
-                label: 'Save as Template',
-                icon: 'template',
-                disabled: selectedItems.length > 1 || isProcessing,
-                action: () => saveAsTemplate(contextTarget)
-            }] : []),
             { type: 'separator' },
             {
                 id: 'properties',
                 label: 'Properties',
                 icon: 'properties',
                 disabled: selectedItems.length > 1,
-                action: () => {
-                    // This will be handled by showing properties in details panel
-                    document.dispatchEvent(new CustomEvent('show-properties', {
-                        detail: { item: contextTarget }
-                    }));
-                }
+                action: () => showProperties(contextTarget)
             }
         ];
-    }, [selectedItems, clipboard, isProcessing, currentPath, copyToClipboard, cutToClipboard, pasteFromClipboard, deleteItems, renameItem, compressItems, extractArchive, generateHash, compareWithHash, copyPath, saveAsTemplate, loadDirectory]);
+    }, [selectedItems, clipboard, isProcessing, currentPath, copyToClipboard, cutToClipboard, pasteFromClipboard, deleteItems, renameItem, loadDirectory, showProperties, addToFavorites]);
 
     // Open context menu
     const openContextMenu = useCallback((e, contextTarget = null) => {

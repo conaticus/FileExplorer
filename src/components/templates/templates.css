@@ -14,11 +14,41 @@
     background-color: var(--background-secondary);
 }
 
+.template-header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
 .template-list-header h2 {
     margin: 0;
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-medium);
     color: var(--text-primary);
+}
+
+.template-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-circle);
+    background: transparent;
+    color: var(--text-tertiary);
+    border: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.template-close-btn:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.template-close-btn .icon {
+    width: 16px;
+    height: 16px;
 }
 
 .template-list-actions {
@@ -110,8 +140,13 @@
     margin-bottom: var(--space-md);
 }
 
-.template-use-form {
+.template-use-form, .template-add-form {
     padding: var(--space-md) 0;
+}
+
+/* Icon placeholders */
+.icon-x {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E");
 }
 
 /* Responsive adjustments */
@@ -127,7 +162,26 @@
         padding: var(--space-md);
     }
 
+    .template-header-left {
+        width: 100%;
+        justify-content: space-between;
+    }
+
     .template-list-actions {
         width: 100%;
+    }
+
+    .template-item {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .template-details {
+        text-align: center;
+        margin: var(--space-md) 0;
+    }
+
+    .template-actions {
+        margin-left: 0;
     }
 }
