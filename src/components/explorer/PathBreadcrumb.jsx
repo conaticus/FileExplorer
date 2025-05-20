@@ -3,7 +3,7 @@ import { useHistory } from '../../providers/HistoryProvider';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import './pathBreadcrumb.css';
 
-const PathBreadcrumb = () => {
+const PathBreadcrumb = ({ onCopyPath, isVisible = true }) => {
     const { currentPath, navigateTo } = useHistory();
     const { loadDirectory } = useFileSystem();
     const [isEditing, setIsEditing] = useState(false);
@@ -108,35 +108,53 @@ const PathBreadcrumb = () => {
         setEditValue(currentPath || '');
     }, [currentPath]);
 
+    // Don't render full component if not visible
+    if (!isVisible) {
+        return <div className="path-breadcrumb-placeholder"></div>;
+    }
+
     return (
-        <div className="path-breadcrumb" onClick={!isEditing ? handleClick : undefined}>
-            {isEditing ? (
-                <input
-                    ref={inputRef}
-                    className="path-input"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onBlur={() => setIsEditing(false)}
-                    aria-label="Path input"
-                />
-            ) : (
-                <div className="breadcrumb-segments">
-                    {pathSegments.map((segment, index) => (
-                        <React.Fragment key={segment.path}>
-                            {index > 0 && <span className="segment-divider">/</span>}
-                            <button
-                                className={`segment-button ${index === pathSegments.length - 1 ? 'current' : ''}`}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSegmentClick(segment.path);
-                                }}
-                            >
-                                {segment.name}
-                            </button>
-                        </React.Fragment>
-                    ))}
-                </div>
+        <div className="path-breadcrumb-container">
+            <div className={`path-breadcrumb ${isEditing ? 'editing' : ''}`} onClick={!isEditing ? handleClick : undefined}>
+                {isEditing ? (
+                    <input
+                        ref={inputRef}
+                        className="path-input"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onBlur={() => setIsEditing(false)}
+                        aria-label="Path input"
+                    />
+                ) : (
+                    <div className="breadcrumb-segments">
+                        {pathSegments.map((segment, index) => (
+                            <React.Fragment key={segment.path}>
+                                {index > 0 && <span className="segment-divider">/</span>}
+                                <button
+                                    className={`segment-button ${index === pathSegments.length - 1 ? 'current' : ''}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSegmentClick(segment.path);
+                                    }}
+                                >
+                                    {segment.name}
+                                </button>
+                            </React.Fragment>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {onCopyPath && currentPath && (
+                <button
+                    className="copy-path-btn"
+                    onClick={onCopyPath}
+                    title="Copy current path"
+                    aria-label="Copy current path"
+                >
+                    <span className="icon icon-copy"></span>
+                </button>
             )}
         </div>
     );

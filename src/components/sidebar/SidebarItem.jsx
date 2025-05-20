@@ -7,13 +7,11 @@ const SidebarItem = ({
                          path,
                          info,
                          isCollapsed = false,
+                         isActive = false,
                          onClick,
                          onContextMenu,
                          actions = []
                      }) => {
-    const { currentPath } = useHistory();
-    const isActive = currentPath === path;
-
     // Handle context menu
     const handleContextMenu = (e) => {
         e.preventDefault();

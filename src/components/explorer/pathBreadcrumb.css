@@ -1,3 +1,12 @@
+.path-breadcrumb-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex: 1;
+    height: 32px;
+    min-width: 0;
+}
+
 .path-breadcrumb {
     flex: 1;
     height: 32px;
@@ -9,10 +18,15 @@
     overflow: hidden;
     cursor: text;
     transition: background-color var(--transition-fast);
+    min-width: 0;
 }
 
 .path-breadcrumb:hover {
     background-color: var(--surface-hover);
+}
+
+.path-breadcrumb.editing {
+    cursor: auto;
 }
 
 .breadcrumb-segments {
@@ -36,6 +50,8 @@
     background-color: transparent;
     cursor: pointer;
     transition: color var(--transition-fast), background-color var(--transition-fast);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .segment-button:hover {
@@ -51,6 +67,7 @@
 .segment-divider {
     color: var(--text-tertiary);
     margin: 0 var(--space-xxs);
+    flex-shrink: 0;
 }
 
 .path-input {
@@ -64,10 +81,55 @@
     outline: none;
 }
 
+.copy-path-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.copy-path-btn:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
+    border-color: var(--text-tertiary);
+}
+
+.copy-path-btn .icon {
+    width: 16px;
+    height: 16px;
+}
+
+.path-breadcrumb-placeholder {
+    flex: 1;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
+    font-style: italic;
+}
+
+.path-breadcrumb-placeholder::before {
+    content: "Navigate to view path";
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    .path-breadcrumb {
+    .path-breadcrumb-container {
         flex: 1;
         min-width: 0;
+    }
+
+    .path-breadcrumb {
+        min-width: 120px;
     }
 }
