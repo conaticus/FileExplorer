@@ -17,8 +17,14 @@ const ThisPCView = () => {
 
     useEffect(() => {
         loadSystemInfo();
-        loadUserFolders();
     }, []);
+
+    // Load user folders when systemInfo is available
+    useEffect(() => {
+        if (systemInfo) {
+            loadUserFolders();
+        }
+    }, [systemInfo]);
 
     const loadSystemInfo = async () => {
         try {
@@ -33,79 +39,154 @@ const ThisPCView = () => {
     };
 
     const loadUserFolders = async () => {
-        // Try to detect user folders based on OS
+        if (!systemInfo) return;
+
+        console.log('Loading user folders for OS:', systemInfo.current_running_os);
+        console.log('User home directory:', systemInfo.user_home_dir);
+
         const folders = [];
 
         try {
-            // Common user folder paths
-            const commonPaths = [
-                { name: 'Desktop', path: getDesktopPath(), icon: 'desktop' },
-                { name: 'Documents', path: getDocumentsPath(), icon: 'documents' },
-                { name: 'Downloads', path: getDownloadsPath(), icon: 'downloads' },
-                { name: 'Pictures', path: getPicturesPath(), icon: 'pictures' },
-                { name: 'Music', path: getMusicPath(), icon: 'music' },
-                { name: 'Videos', path: getVideosPath(), icon: 'videos' },
+            // Get all possible paths for each folder type
+            const videoPaths = getVideosPaths();
+            console.log('Video paths to check:', videoPaths);
+
+            // Common user folder paths - some folders might have multiple possible names
+            const folderConfigs = [
+                {
+                    name: 'Desktop',
+                    paths: [getDesktopPath()],
+                    icon: 'desktop'
+                },
+                {
+                    name: 'Documents',
+                    paths: [getDocumentsPath()],
+                    icon: 'documents'
+                },
+                {
+                    name: 'Downloads',
+                    paths: [getDownloadsPath()],
+                    icon: 'downloads'
+                },
+                {
+                    name: 'Pictures',
+                    paths: [getPicturesPath()],
+                    icon: 'pictures'
+                },
+                {
+                    name: 'Music',
+                    paths: [getMusicPath()],
+                    icon: 'music'
+                },
+                {
+                    name: 'Videos',
+                    paths: videoPaths,
+                    icon: 'videos'
+                }
             ];
 
-            // Check which folders exist
-            for (const folder of commonPaths) {
-                try {
-                    await invoke('open_directory', { path: folder.path });
-                    folders.push(folder);
-                } catch {
-                    // Folder doesn't exist or isn't accessible
+            // Check which folders exist for each configuration
+            for (const config of folderConfigs) {
+                let foundPath = null;
+
+                console.log(`Checking ${config.name} with paths:`, config.paths);
+
+                // Try each possible path for this folder type
+                for (const path of config.paths) {
+                    console.log(`Trying path: ${path}`);
+                    try {
+                        await invoke('open_directory', { path });
+                        console.log(`✓ Path exists and is accessible: ${path}`);
+                        foundPath = path;
+                        break; // Use the first path that works
+                    } catch (error) {
+                        console.log(`✗ Path failed: ${path}`, error.message || error);
+                        // This path doesn't exist or isn't accessible, try the next one
+                        continue;
+                    }
+                }
+
+                // If we found a working path, add it to the folders list
+                if (foundPath) {
+                    console.log(`Adding ${config.name} folder with path: ${foundPath}`);
+                    folders.push({
+                        name: config.name,
+                        path: foundPath,
+                        icon: config.icon
+                    });
+                } else {
+                    console.log(`No accessible path found for ${config.name}`);
                 }
             }
         } catch (error) {
             console.error('Failed to load user folders:', error);
         }
 
+        console.log('Final user folders:', folders);
         setUserFolders(folders);
     };
 
     const getDesktopPath = () => {
-        if (systemInfo?.current_running_os === 'windows') {
+        if (systemInfo.current_running_os === 'windows') {
             return `${systemInfo.user_home_dir}\\Desktop`;
         }
-        return `${systemInfo?.user_home_dir || '/home/user'}/Desktop`;
+        return `${systemInfo.user_home_dir}/Desktop`;
     };
 
     const getDocumentsPath = () => {
-        if (systemInfo?.current_running_os === 'windows') {
+        if (systemInfo.current_running_os === 'windows') {
             return `${systemInfo.user_home_dir}\\Documents`;
         }
-        return `${systemInfo?.user_home_dir || '/home/user'}/Documents`;
+        return `${systemInfo.user_home_dir}/Documents`;
     };
 
     const getDownloadsPath = () => {
-        if (systemInfo?.current_running_os === 'windows') {
+        if (systemInfo.current_running_os === 'windows') {
             return `${systemInfo.user_home_dir}\\Downloads`;
         }
-        return `${systemInfo?.user_home_dir || '/home/user'}/Downloads`;
+        return `${systemInfo.user_home_dir}/Downloads`;
     };
 
     const getPicturesPath = () => {
-        if (systemInfo?.current_running_os === 'windows') {
+        if (systemInfo.current_running_os === 'windows') {
             return `${systemInfo.user_home_dir}\\Pictures`;
         }
-        return `${systemInfo?.user_home_dir || '/home/user'}/Pictures`;
+        return `${systemInfo.user_home_dir}/Pictures`;
     };
 
     const getMusicPath = () => {
-        if (systemInfo?.current_running_os === 'windows') {
+        if (systemInfo.current_running_os === 'windows') {
             return `${systemInfo.user_home_dir}\\Music`;
         }
-        return `${systemInfo?.user_home_dir || '/home/user'}/Music`;
+        return `${systemInfo.user_home_dir}/Music`;
     };
 
-    const getVideosPath = () => {
-        if (systemInfo?.current_running_os === 'windows') {
-            return `${systemInfo.user_home_dir}\\Videos`;
+    const getVideosPaths = () => {
+        if (!systemInfo) {
+            console.warn('getVideosPaths called without systemInfo');
+            return [];
         }
-        return `${systemInfo?.user_home_dir || '/home/user'}/Videos`;
+
+        // Return an array of possible video folder paths
+        let paths;
+        if (systemInfo.current_running_os === 'windows') {
+            paths = [
+                `${systemInfo.user_home_dir}\\Videos`,
+                `${systemInfo.user_home_dir}\\Movies`
+            ];
+        } else {
+            paths = [
+                `${systemInfo.user_home_dir}/Movies`,
+                `${systemInfo.user_home_dir}/Videos`
+            ];
+        }
+
+        console.log('Generated video paths:', paths);
+        return paths;
     };
 
     const handleFolderClick = async (path) => {
+        console.log('Clicking folder with path:', path);
         try {
             await loadDirectory(path);
             navigateTo(path);

@@ -24,7 +24,7 @@ export default function ContextMenuProvider({ children }) {
     const { selectedItems, loadDirectory, clearSelection } = useFileSystem();
     const { currentPath } = useHistory();
 
-    // Add to favorites
+    // Add to favorites with live update
     const addToFavorites = useCallback((item) => {
         try {
             const existingFavorites = JSON.parse(localStorage.getItem('fileExplorerFavorites') || '[]');
@@ -45,7 +45,8 @@ export default function ContextMenuProvider({ children }) {
             const updatedFavorites = [...existingFavorites, newFavorite];
             localStorage.setItem('fileExplorerFavorites', JSON.stringify(updatedFavorites));
 
-            // Dispatch event to update sidebar
+            // Dispatch events to update the UI immediately
+            window.dispatchEvent(new CustomEvent('favorites-updated'));
             window.dispatchEvent(new StorageEvent('storage', {
                 key: 'fileExplorerFavorites',
                 newValue: JSON.stringify(updatedFavorites)
@@ -55,6 +56,39 @@ export default function ContextMenuProvider({ children }) {
         } catch (error) {
             console.error('Failed to add to favorites:', error);
             alert('Failed to add to favorites.');
+        }
+    }, []);
+
+    // Remove from favorites with live update
+    const removeFromFavorites = useCallback((path) => {
+        try {
+            const existingFavorites = JSON.parse(localStorage.getItem('fileExplorerFavorites') || '[]');
+            const updatedFavorites = existingFavorites.filter(fav => fav.path !== path);
+            localStorage.setItem('fileExplorerFavorites', JSON.stringify(updatedFavorites));
+
+            // Dispatch events to update the UI immediately
+            window.dispatchEvent(new CustomEvent('favorites-updated'));
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: 'fileExplorerFavorites',
+                newValue: JSON.stringify(updatedFavorites)
+            }));
+        } catch (error) {
+            console.error('Failed to remove from favorites:', error);
+        }
+    }, []);
+
+    // Update navigation history with live update
+    const updateNavigationHistory = useCallback((path) => {
+        try {
+            const existingHistory = JSON.parse(sessionStorage.getItem('fileExplorerHistory') || '[]');
+            const updatedHistory = [path, ...existingHistory.filter(p => p !== path)].slice(0, 10);
+            sessionStorage.setItem('fileExplorerHistory', JSON.stringify(updatedHistory));
+
+            // Dispatch events to update quick access immediately
+            window.dispatchEvent(new CustomEvent('navigation-changed'));
+            window.dispatchEvent(new CustomEvent('quick-access-updated'));
+        } catch (error) {
+            console.error('Failed to update navigation history:', error);
         }
     }, []);
 
@@ -255,7 +289,8 @@ export default function ContextMenuProvider({ children }) {
                 disabled: selectedItems.length > 1,
                 action: async () => {
                     if (isDirectory) {
-                        loadDirectory(contextTarget.path);
+                        await loadDirectory(contextTarget.path);
+                        updateNavigationHistory(contextTarget.path);
                     } else {
                         try {
                             await invoke('open_file', { file_path: contextTarget.path });
@@ -325,7 +360,7 @@ export default function ContextMenuProvider({ children }) {
                 action: () => showProperties(contextTarget)
             }
         ];
-    }, [selectedItems, clipboard, isProcessing, currentPath, copyToClipboard, cutToClipboard, pasteFromClipboard, deleteItems, renameItem, loadDirectory, showProperties, addToFavorites]);
+    }, [selectedItems, clipboard, isProcessing, currentPath, copyToClipboard, cutToClipboard, pasteFromClipboard, deleteItems, renameItem, loadDirectory, showProperties, addToFavorites, updateNavigationHistory]);
 
     // Open context menu
     const openContextMenu = useCallback((e, contextTarget = null) => {
@@ -353,6 +388,7 @@ export default function ContextMenuProvider({ children }) {
         isProcessing,
         openContextMenu,
         closeContextMenu,
+        removeFromFavorites, // Export this for Sidebar to use
     };
 
     return (
