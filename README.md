@@ -109,7 +109,7 @@ Our benchmarks show extraordinary performance improvements over native solutions
 
 | Operation   | Fast File Explorer | Windows Explorer |
 | ----------- | :----------------: | :--------------: |
-| File search |       5.06ms       |   (3min 45sec)   |
+| File search |        ~5ms        |   (3min 45sec)   |
 
 ## 🤝 Contributing
 
