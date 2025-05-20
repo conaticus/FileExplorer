@@ -647,43 +647,25 @@ mod tests_file_system_operation_commands {
     async fn open_in_default_app_txt_test() {
         use tempfile::tempdir;
 
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file in the temporary directory
-        let mut test_path = temp_dir.path().to_path_buf();
-        test_path.push("open_in_default_app_test.txt");
-
-        // Create the test file
-        fs::File::create(&test_path).unwrap();
-
-        // Ensure the file exists
-        assert!(test_path.exists(), "Test file should exist before opening");
-
-        // Open the file in the default application
-        let result = open_in_default_app(test_path.to_str().unwrap()).await;
-
-        // Verify that the operation was successful
-        assert!(result.is_ok(), "Failed to open file in default app: {:?}", result);
-    }
-
-    #[tokio::test]
-    async fn open_in_default_app_pdf_test() {
-        use tempfile::tempdir;
-        use std::io::Write;
-
         let current_dir = env::current_dir().expect("Failed to get current directory");
-        let test_path = current_dir.join("assets").join("dummy.pdf");
-
         
-        assert!(test_path.exists(), "Test file should exist before opening");
+        let file_extensions = vec!["txt", "pdf", "mp4", "jpg", "png", "html"];
+        
+        for file_extension in file_extensions {
+            let test_path = current_dir.join("assets").join(format!("dummy.{}", file_extension));
 
-        // Open the file in the default application
-        let result = open_in_default_app(test_path.to_str().unwrap()).await;
+            // Ensure the file exists
+            assert!(test_path.exists(), "Test file should exist before opening");
 
-        // Verify that the operation was successful
-        assert!(result.is_ok(), "Failed to open file in default app: {:?}", result);
+            // Open the file in the default application
+            let result = open_in_default_app(test_path.to_str().unwrap()).await;
+
+            // Verify that the operation was successful
+            assert!(result.is_ok(), "Failed to open file in default app: {:?}", result);
+        }
+        
     }
+    
 
     #[tokio::test]
     async fn move_file_to_trash_test() {
