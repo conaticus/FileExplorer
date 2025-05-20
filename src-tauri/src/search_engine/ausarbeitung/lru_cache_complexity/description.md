@@ -9,10 +9,11 @@ Let's analyze your LRU cache, its empirical complexity, and compare it to other 
 | 100        | 57.4              | 57.4                   |
 | 1,000      | 141.9             | 141.9                  |
 | 10,000     | 204               | 204                    |
-
+| 100000     | 265.2             | 265.2                  |
 - As cache size increases by 10×, average lookup time increases by:
     - 100 → 1,000: ~2.5×
     - 1,000 → 10,000: ~1.4×
+    - 10,000 → 100,000 ~1.3x
 
 ### **Scaling**
 - Lookup time increases _slightly_ as cache size increases, but not linearly.
@@ -66,5 +67,3 @@ Your implementation is:
 - **Any further speedup will only come from fine-tuning memory usage, hash function, or pointer management, not algorithmic improvement.**
 
 ---
-
-**If you'd like a matplotlib script to plot this data, let me know!**
