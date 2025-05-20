@@ -1,6 +1,6 @@
 use crate::models::{
-    count_subdirectories, count_subfiles, format_system_time,
-    get_access_permission_number, get_access_permission_string, Entries,
+    count_subdirectories, count_subfiles, format_system_time, get_access_permission_number,
+    get_access_permission_string, Entries,
 };
 use crate::{log_info, models};
 use std::fs;
@@ -606,8 +606,8 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
 
 #[cfg(test)]
 mod tests_file_system_operation_commands {
-    use std::env;
     use super::*;
+    use std::env;
     use tempfile::tempdir;
 
     #[tokio::test]
@@ -647,11 +647,13 @@ mod tests_file_system_operation_commands {
     #[cfg(feature = "open-file-in-app")]
     async fn open_in_default_app_test() {
         let current_dir = env::current_dir().expect("Failed to get current directory");
-        
+
         let file_extensions = vec!["txt", "pdf", "mp4", "jpg", "png", "html"];
-        
+
         for file_extension in file_extensions {
-            let test_path = current_dir.join("assets").join(format!("dummy.{}", file_extension));
+            let test_path = current_dir
+                .join("assets")
+                .join(format!("dummy.{}", file_extension));
 
             // Ensure the file exists
             assert!(test_path.exists(), "Test file should exist before opening");
@@ -660,10 +662,13 @@ mod tests_file_system_operation_commands {
             let result = open_in_default_app(test_path.to_str().unwrap()).await;
 
             // Verify that the operation was successful
-            assert!(result.is_ok(), "Failed to open file in default app: {:?}", result);
+            assert!(
+                result.is_ok(),
+                "Failed to open file in default app: {:?}",
+                result
+            );
         }
     }
-    
 
     #[tokio::test]
     async fn move_file_to_trash_test() {
