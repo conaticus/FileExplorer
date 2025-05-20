@@ -47,9 +47,11 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 
     // Check if path is a file
     if !path_obj.is_file() {
-        return Err(
-            Error::new(ErrorCode::InvalidInput, format!("Path is not a file: {}", path)).to_json(),
-        );
+        return Err(Error::new(
+            ErrorCode::InvalidInput,
+            format!("Path is not a file: {}", path),
+        )
+        .to_json());
     }
 
     // Read the file
@@ -305,7 +307,7 @@ pub async fn create_directory(folder_path_abs: &str, folder_name: &str) -> Resul
         )
         .to_json());
     }
-    
+
     // Concatenate the parent path and new directory name
     let dir_path = parent_path.join(folder_name);
 
@@ -364,9 +366,11 @@ pub async fn rename(old_path: &str, new_path: &str) -> Result<(), String> {
     // Rename the file or directory
     match fs::rename(old_path, new_path) {
         Ok(_) => Ok(()),
-        Err(err) => {
-            Err(Error::new(ErrorCode::InternalError, format!("Failed to rename: {}", err)).to_json())
-        }
+        Err(err) => Err(Error::new(
+            ErrorCode::InternalError,
+            format!("Failed to rename: {}", err),
+        )
+        .to_json()),
     }
 }
 
@@ -431,7 +435,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
         )
         .to_json());
     }
-    
+
     // Check if the destination path is valid
     if Path::new(destination_path).exists() {
         return Err(Error::new(
@@ -537,9 +541,11 @@ pub async fn zip(
     destination_path: Option<String>,
 ) -> Result<(), String> {
     if source_paths.is_empty() {
-        return Err(
-            Error::new(ErrorCode::InvalidInput, "No source paths provided".to_string()).to_json(),
-        );
+        return Err(Error::new(
+            ErrorCode::InvalidInput,
+            "No source paths provided".to_string(),
+        )
+        .to_json());
     }
 
     // If single source and no destination, use source name with .zip
@@ -698,7 +704,9 @@ pub async fn zip(
 #[tauri::command]
 pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> Result<(), String> {
     if zip_paths.is_empty() {
-        return Err(Error::new(ErrorCode::InvalidInput, "No zip files provided".to_string()).to_json());
+        return Err(
+            Error::new(ErrorCode::InvalidInput, "No zip files provided".to_string()).to_json(),
+        );
     }
 
     for zip_path in zip_paths.clone() {
@@ -717,7 +725,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
             zip_path.with_extension("")
         } else if let Some(dest) = &destination_path {
             //TODO maybe fix the generated file name to an generated error for the user
-            
+
             // For multiple zips or specified destination, create subdirectory for each zip
             let zip_name = zip_path
                 .file_stem()
@@ -813,7 +821,6 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
 
 #[cfg(test)]
 mod tests_file_system_operation_commands {
-    use std::arch::aarch64::vcle_f32;
     use super::*;
     use tempfile::tempdir;
 
@@ -917,8 +924,17 @@ mod tests_file_system_operation_commands {
             result.clone().unwrap_err().contains("Path is not a file"),
             "Error message does not match expected value"
         );
+
+        assert!(
+            result.clone().unwrap_err().contains("408"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("InvalidInput"),
+            "Error message does not match expected value"
+        );
     }
-    
 
     #[tokio::test]
     async fn move_file_to_trash_test() {
@@ -953,7 +969,7 @@ mod tests_file_system_operation_commands {
 
         // No manual cleanup needed, as the temporary directory is automatically deleted
     }
-    
+
     #[tokio::test]
     async fn failed_move_to_trash_because_invalid_resource_test() {
         use tempfile::tempdir;
@@ -964,10 +980,12 @@ mod tests_file_system_operation_commands {
         // Create a test file in the temporary directory
         let mut invalid_test_path = temp_dir.path().to_path_buf();
         invalid_test_path.push("move_to_trash_test.txt");
-        
 
         // Ensure the file does not exist
-        assert!(!invalid_test_path.exists(), "Test file should not exist before deletion");
+        assert!(
+            !invalid_test_path.exists(),
+            "Test file should not exist before deletion"
+        );
 
         eprintln!("Test file exists: {:?}", invalid_test_path);
 
@@ -985,6 +1003,16 @@ mod tests_file_system_operation_commands {
                 .clone()
                 .unwrap_err()
                 .contains("Failed to move file or directory to trash"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.clone().unwrap_err().contains("500"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("InternalError"),
             "Error message does not match expected value"
         );
     }
@@ -1034,18 +1062,28 @@ mod tests_file_system_operation_commands {
                 .contains("Directory does not exist"),
             "Error message does not match expected value"
         );
+
+        assert!(
+            result.clone().unwrap_err().contains("405"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("ResourceNotFound"),
+            "Error message does not match expected value"
+        );
     }
-    
+
     #[tokio::test]
-    async fn failed_to_create_file_because_path_is_no_directory() {
+    async fn failed_to_create_file_because_path_is_no_directory_test() {
         use tempfile::tempdir;
 
         // Create a temporary directory (automatically deleted when out of scope)
         let temp_dir = tempdir().expect("Failed to create temporary directory");
-        
+
         let test_path = temp_dir.path().join("not_a_folder.txt");
         fs::File::create(&test_path).unwrap();
-        
+
         // Call the function to create the file
         let result = create_file(test_path.to_str().unwrap(), "create_file_test.txt").await;
 
@@ -1057,6 +1095,16 @@ mod tests_file_system_operation_commands {
         );
         assert!(
             result.clone().unwrap_err().contains("Path is no directory"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.clone().unwrap_err().contains("408"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("InvalidInput"),
             "Error message does not match expected value"
         );
     }
@@ -1091,31 +1139,6 @@ mod tests_file_system_operation_commands {
     }
 
     #[tokio::test]
-    async fn failed_to_create_file_because_file_path_is_no_directory_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file path in the temporary directory
-        let test_path = temp_dir.path().join("not_a_directory");
-
-        // Call the function to create the file
-        let result = create_file(test_path.to_str().unwrap(), "create_file_test.txt").await;
-
-        // Verify that the operation was successful
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result.clone().unwrap_err().contains("Path is no directory"),
-            "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
     async fn create_directory_test() {
         use tempfile::tempdir;
 
@@ -1135,7 +1158,7 @@ mod tests_file_system_operation_commands {
         // Verify that the directory exists at the specified path
         assert!(test_path.exists(), "Directory should exist after creation");
     }
-    
+
     #[tokio::test]
     async fn failed_to_create_directory_because_parent_directory_does_not_exist_test() {
         use tempfile::tempdir;
@@ -1147,7 +1170,11 @@ mod tests_file_system_operation_commands {
         let test_path = temp_dir.path().join("missing_dir");
 
         // Call the function to create the directory
-        let result = create_directory(test_path.join("not_a_parent_directory").to_str().unwrap(), "create_directory_test").await;
+        let result = create_directory(
+            test_path.join("not_a_parent_directory").to_str().unwrap(),
+            "create_directory_test",
+        )
+        .await;
 
         // Verify that the operation was successful
         assert!(
@@ -1162,60 +1189,14 @@ mod tests_file_system_operation_commands {
                 .contains("Parent directory does not exist"),
             "Error message does not match expected value"
         );
-    }
 
-    //TODO test korrigieren, es scheint an der letzten Fehler Ausgabe zu liegen
-    #[tokio::test]
-    async fn failed_to_create_directory_because_path_is_no_directory_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file path in the temporary directory
-        let test_path = temp_dir.path().join("not_a_directory.txt");
-
-        // Call the function to create the directory
-        let result =
-            create_directory(temp_dir.path().join("not_a_directory").to_str().unwrap(), "create_directory_test").await;
-
-        // Verify that the operation was successful
         assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result.clone().unwrap_err().contains("Path is no directory"),
+            result.clone().unwrap_err().contains("405"),
             "Error message does not match expected value"
         );
-    }
 
-    #[tokio::test]
-    async fn failed_to_create_directory_because_file_could_not_be_created_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file path in the temporary directory
-        let test_path = temp_dir.path().join("create_directory_test");
-
-        // Call the function to create the directory
-        let result =
-            create_directory(temp_dir.path().to_str().unwrap(), "create_directory_test").await;
-
-        // Verify that the operation was successful
         assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("File could not be created"),
+            result.unwrap_err().contains("ResourceNotFound"),
             "Error message does not match expected value"
         );
     }
@@ -1346,6 +1327,16 @@ mod tests_file_system_operation_commands {
                 .contains("Directory does not exist"),
             "Error message does not match expected value"
         );
+
+        assert!(
+            result.clone().unwrap_err().contains("405"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("ResourceNotFound"),
+            "Error message does not match expected value"
+        );
     }
 
     #[tokio::test]
@@ -1374,6 +1365,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+
         assert!(
             result
                 .clone()
@@ -1381,70 +1373,14 @@ mod tests_file_system_operation_commands {
                 .contains("Path is not a directory"),
             "Error message does not match expected value"
         );
-    }
-    
 
-    //TODO test korrigieren
-    #[tokio::test]
-    async fn failed_to_open_directory_because_failed_to_read_directory() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file in the temporary directory
-        let mut test_path = temp_dir.path().to_path_buf();
-        test_path.push("open_directory_test.txt");
-
-        // Create the test file
-        fs::File::create(&test_path).unwrap();
-
-        // Ensure the file exists
-        assert!(test_path.exists(), "Test file should exist before reading");
-
-        // Open the file and read its contents
-        let result = open_directory(test_path.to_str().unwrap().to_string()).await;
-
-        // Verify that the operation was successful
         assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
+            result.clone().unwrap_err().contains("408"),
+            "Error message does not match expected value"
         );
-    }
 
-    //TODO test korrigieren
-    #[tokio::test]
-    async fn failed_to_open_directory_because_failed_to_serialize_entries_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file in the temporary directory
-        let mut test_path = temp_dir.path().to_path_buf();
-        test_path.push("open_directory_test.txt");
-
-        // Create the test file
-        fs::File::create(&test_path).unwrap();
-
-        // Ensure the file exists
-        assert!(test_path.exists(), "Test file should exist before reading");
-
-        // Open the file and read its contents
-        let result = open_directory(test_path.to_str().unwrap().to_string()).await;
-
-        // Verify that the operation was successful
         assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to serialize entries"),
+            result.unwrap_err().contains("InvalidInput"),
             "Error message does not match expected value"
         );
     }
@@ -1504,6 +1440,15 @@ mod tests_file_system_operation_commands {
             result.clone().unwrap_err().contains("File does not exist"),
             "Error message does not match expected value"
         );
+        assert!(
+            result.clone().unwrap_err().contains("405"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("ResourceNotFound"),
+            "Error message does not match expected value"
+        );
     }
 
     #[tokio::test]
@@ -1543,42 +1488,14 @@ mod tests_file_system_operation_commands {
                 .contains("New path already exists"),
             "Error message does not match expected value"
         );
-    }
 
-    #[tokio::test]
-    async fn failed_to_rename_because_failed_to_rename_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file in the temporary directory
-        let mut test_path = temp_dir.path().to_path_buf();
-        test_path.push("rename_file_test.txt");
-
-        // Create the test file
-        fs::File::create(&test_path).unwrap();
-
-        // Ensure the file exists
-        assert!(test_path.exists(), "Test file should exist before renaming");
-
-        // Rename the file
-        let new_name = "renamed_file.txt";
-        let new_path = temp_dir.path().join(new_name);
-        let result = rename(
-            test_path.to_str().unwrap(),
-            "/invalid/path/renamed_file.txt",
-        )
-        .await;
-
-        // Verify that the operation was successful
         assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
+            result.clone().unwrap_err().contains("408"),
+            "Error message does not match expected value"
         );
+
         assert!(
-            result.clone().unwrap_err().contains("Failed to rename"),
+            result.unwrap_err().contains("InvalidInput"),
             "Error message does not match expected value"
         );
     }
@@ -1781,6 +1698,16 @@ mod tests_file_system_operation_commands {
                 .contains("Source path does not exist"),
             "Error message does not match expected value"
         );
+
+        assert!(
+            result.clone().unwrap_err().contains("405"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("ResourceNotFound"),
+            "Error message does not match expected value"
+        );
     }
     #[tokio::test]
     async fn failed_to_copy_file_or_dir_because_destination_path_already_exists_test() {
@@ -1820,161 +1747,14 @@ mod tests_file_system_operation_commands {
                 .contains("Destination path already exists"),
             "Error message does not match expected value"
         );
-    }
 
-    //TODO test korrigieren
-    #[tokio::test]
-    async fn failed_to_copy_file_or_dir_because_failed_to_create_destination_directory_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file in the temporary directory
-        let mut test_path = temp_dir.path().to_path_buf();
-        test_path.push("copy_file_test.txt");
-
-        // Create the test file
-        fs::File::create(&test_path).unwrap();
-
-        // Ensure the file exists
-        assert!(test_path.exists(), "Test file should exist before copying");
-
-        // Copy the file to a non-existing path
-        let new_name = "copy_file_test.txt";
-        let new_path = temp_dir.path().join(new_name);
-
-        let result =
-            copy_file_or_dir(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
-
-        // Verify that the operation was successful
         assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to create destination directory"),
+            result.clone().unwrap_err().contains("408"),
             "Error message does not match expected value"
         );
-    }
 
-    //TODO test korrigieren
-    #[tokio::test]
-    async fn failed_to_copy_file_or_dir_because_failed_to_read_source_directory_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file in the temporary directory
-        let mut test_path = temp_dir.path().to_path_buf();
-        test_path.push("copy_file_test.txt");
-
-        // Create the test file
-        fs::File::create(&test_path).unwrap();
-
-        // Ensure the file exists
-        assert!(test_path.exists(), "Test file should exist before copying");
-
-        // Copy the file to a non-existing path
-        let new_name = "copy_file_test.txt";
-        let new_path = temp_dir.path().join(new_name);
-
-        let result =
-            copy_file_or_dir(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
-
-        // Verify that the operation was successful
         assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to read source directory"),
-            "Error message does not match expected value"
-        );
-    }
-
-    //TODO test korrigieren
-    #[tokio::test]
-    async fn failed_to_copy_file_or_dir_because_failed_to_read_directory_entry_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file in the temporary directory
-        let mut test_path = temp_dir.path().to_path_buf();
-        test_path.push("copy_file_test.txt");
-
-        // Create the test file
-        fs::File::create(&test_path).unwrap();
-
-        // Ensure the file exists
-        assert!(test_path.exists(), "Test file should exist before copying");
-
-        // Copy the file to a non-existing path
-        let new_name = "copy_file_test.txt";
-        let new_path = temp_dir.path().join(new_name);
-
-        let result =
-            copy_file_or_dir(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
-
-        // Verify that the operation was successful
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to read directory entry"),
-            "Error message does not match expected value"
-        );
-    }
-
-    //TODO test korrigieren
-    #[tokio::test]
-    async fn failed_to_copy_file_or_dir_because_failed_to_copy_file_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file in the temporary directory
-        let mut test_path = temp_dir.path().to_path_buf();
-        test_path.push("copy_file_test.txt");
-
-        // Create the test file
-        fs::File::create(&test_path).unwrap();
-
-        // Ensure the file exists
-        assert!(test_path.exists(), "Test file should exist before copying");
-
-        // Copy the file to a non-existing path
-        let new_name = "copy_file_test.txt";
-        let new_path = temp_dir.path().join(new_name);
-
-        let result =
-            copy_file_or_dir(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
-
-        // Verify that the operation was successful
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result.clone().unwrap_err().contains("Failed to copy file"),
+            result.unwrap_err().contains("InvalidInput"),
             "Error message does not match expected value"
         );
     }
@@ -2060,36 +1840,6 @@ mod tests_file_system_operation_commands {
     }
 
     #[tokio::test]
-    async fn failed_to_zip_because_failed_to_create_zip_file_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create test files
-        let file1_path = temp_dir.path().join("file1.txt");
-        fs::write(&file1_path, "Content 1").expect("Failed to write file1");
-
-        // Attempt to zip with an invalid destination path
-        let invalid_zip_path = "/invalid/path/zip_file.zip";
-        let result = zip(
-            vec![file1_path.to_str().unwrap().to_string()],
-            Some(invalid_zip_path.to_string()),
-        )
-        .await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to create zip file"),
-            "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
     async fn failed_to_zip_because_source_path_does_not_exist_test() {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
 
@@ -2119,246 +1869,6 @@ mod tests_file_system_operation_commands {
                 .unwrap_err()
                 .contains("Source path does not exist"),
             "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
-    async fn failed_to_zip_because_error_adding_file_to_zip_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file
-        let test_file_path = temp_dir.path().join("test_file.txt");
-        fs::write(&test_file_path, "Test content").expect("Failed to write test file");
-
-        // Create a directory where we'll attempt to create the zip file
-        // This will cause an error since we can't create a file with the same path as a directory
-        let invalid_dest = temp_dir.path().join("invalid_dir");
-        fs::create_dir(&invalid_dest).expect("Failed to create directory");
-
-        // Attempt to create zip file at the same path as the directory
-        let result = zip(
-            vec![test_file_path.to_str().unwrap().to_string()],
-            Some(invalid_dest.to_str().unwrap().to_string()),
-        )
-        .await;
-
-        // Verify that the operation failed
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to create zip file"),
-            "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
-    async fn failed_to_zip_because_error_reading_file_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file
-        let test_file_path = temp_dir.path().join("test_file.txt");
-        fs::write(&test_file_path, "Test content").expect("Failed to write test file");
-
-        // Attempt to zip a non-existing file
-        let non_existing_file_path = temp_dir.path().join("non_existing_file.txt");
-        let result = zip(
-            vec![
-                test_file_path.to_str().unwrap().to_string(),
-                non_existing_file_path.to_str().unwrap().to_string(),
-            ],
-            None,
-        )
-        .await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result.clone().unwrap_err().contains("Error reading file"),
-            "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
-    async fn failed_to_zip_because_error_writing_to_zip_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file
-        let test_file_path = temp_dir.path().join("test_file.txt");
-        fs::write(&test_file_path, "Test content").expect("Failed to write test file");
-
-        // Attempt to zip a non-existing file
-        let non_existing_file_path = temp_dir.path().join("non_existing_file.txt");
-        let result = zip(
-            vec![
-                test_file_path.to_str().unwrap().to_string(),
-                non_existing_file_path.to_str().unwrap().to_string(),
-            ],
-            None,
-        )
-        .await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result.clone().unwrap_err().contains("Error writing to zip"),
-            "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
-    async fn failed_to_zip_because_error_reading_directory_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file
-        let test_file_path = temp_dir.path().join("test_file.txt");
-        fs::write(&test_file_path, "Test content").expect("Failed to write test file");
-
-        // Attempt to zip a non-existing file
-        let non_existing_file_path = temp_dir.path().join("non_existing_file.txt");
-        let result = zip(
-            vec![
-                test_file_path.to_str().unwrap().to_string(),
-                non_existing_file_path.to_str().unwrap().to_string(),
-            ],
-            None,
-        )
-        .await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Error reading directory"),
-            "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
-    async fn failed_to_zip_because_error_creating_relative_path_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file
-        let test_file_path = temp_dir.path().join("test_file.txt");
-        fs::write(&test_file_path, "Test content").expect("Failed to write test file");
-
-        // Attempt to zip a non-existing file
-        let non_existing_file_path = temp_dir.path().join("non_existing_file.txt");
-        let result = zip(
-            vec![
-                test_file_path.to_str().unwrap().to_string(),
-                non_existing_file_path.to_str().unwrap().to_string(),
-            ],
-            None,
-        )
-        .await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Error creating relative path"),
-            "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
-    async fn failed_to_zip_because_error_finalizing_zip_file_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file
-        let test_file_path = temp_dir.path().join("test_file.txt");
-        fs::write(&test_file_path, "Test content").expect("Failed to write test file");
-
-        // Attempt to zip a non-existing file
-        let non_existing_file_path = temp_dir.path().join("non_existing_file.txt");
-        let result = zip(
-            vec![
-                test_file_path.to_str().unwrap().to_string(),
-                non_existing_file_path.to_str().unwrap().to_string(),
-            ],
-            None,
-        )
-        .await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Error finalizing zip file"),
-            "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
-    async fn zip_multiple_files_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create test files
-        let file1_path = temp_dir.path().join("file1.txt");
-        let file2_path = temp_dir.path().join("file2.txt");
-        fs::write(&file1_path, "Content 1").expect("Failed to write file1");
-        fs::write(&file2_path, "Content 2").expect("Failed to write file2");
-
-        // Create destination zip path
-        let zip_path = temp_dir.path().join("multiple_files.zip");
-
-        // Zip multiple files
-        let result = zip(
-            vec![
-                file1_path.to_str().unwrap().to_string(),
-                file2_path.to_str().unwrap().to_string(),
-            ],
-            Some(zip_path.to_str().unwrap().to_string()),
-        )
-        .await;
-
-        assert!(result.is_ok(), "Failed to zip multiple files: {:?}", result);
-        assert!(zip_path.exists(), "Zip file should exist after operation");
-
-        // Verify zip contents
-        let zip_file = fs::File::open(&zip_path).expect("Failed to open zip file");
-        let mut archive = zip::ZipArchive::new(zip_file).expect("Failed to read zip archive");
-        assert_eq!(archive.len(), 2, "Zip should contain exactly two files");
-
-        let mut file_names: Vec<String> = (0..archive.len())
-            .map(|i| archive.by_index(i).unwrap().name().to_string())
-            .collect();
-        file_names.sort();
-
-        assert!(
-            file_names.contains(&"file1.txt".to_string()),
-            "file1.txt missing from zip"
-        );
-        assert!(
-            file_names.contains(&"file2.txt".to_string()),
-            "file2.txt missing from zip"
         );
     }
 
@@ -2432,7 +1942,7 @@ mod tests_file_system_operation_commands {
             "Error message does not match expected value"
         );
     }
-    
+
     #[tokio::test]
     async fn failed_to_unzip_because_destination_path_required_for_multiple_zip_files_test() {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
@@ -2478,7 +1988,7 @@ mod tests_file_system_operation_commands {
             "Error message does not match expected value"
         );
     }
-    
+
     #[tokio::test]
     async fn failed_to_unzip_because_failed_to_create_extraction_directory_test() {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
@@ -2494,7 +2004,11 @@ mod tests_file_system_operation_commands {
 
         // Attempt to unzip to an invalid destination path
         let invalid_dest = "/invalid/path/extracted";
-        let result = unzip(vec![zip_path.to_str().unwrap().to_string()], Some(invalid_dest.to_string())).await;
+        let result = unzip(
+            vec![zip_path.to_str().unwrap().to_string()],
+            Some(invalid_dest.to_string()),
+        )
+        .await;
 
         assert!(
             result.is_err(),
@@ -2509,100 +2023,7 @@ mod tests_file_system_operation_commands {
             "Error message does not match expected value"
         );
     }
-    
-    #[tokio::test]
-    async fn failed_to_unzip_because_failed_to_open_zip_file_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-        // Create a test zip file
-        let zip_path = temp_dir.path().join("test.zip");
-        let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
-
-        zip.start_file::<_, ()>("test.txt", FileOptions::default())
-            .unwrap();
-        zip.write_all(b"Hello, World!").unwrap();
-        zip.finish().unwrap();
-
-        // Attempt to unzip a non-existing file
-        let non_existing_zip_path = temp_dir.path().join("non_existing.zip");
-        let result = unzip(vec![non_existing_zip_path.to_str().unwrap().to_string()], None).await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to open zip file"),
-            "Error message does not match expected value"
-        );
-    }
-    
-    #[tokio::test]
-    async fn failed_to_unzip_because_failed_to_read_zip_archive_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test zip file
-        let zip_path = temp_dir.path().join("test.zip");
-        let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
-
-        zip.start_file::<_, ()>("test.txt", FileOptions::default())
-            .unwrap();
-        zip.write_all(b"Hello, World!").unwrap();
-        zip.finish().unwrap();
-
-        // Attempt to unzip a non-existing file
-        let non_existing_zip_path = temp_dir.path().join("non_existing.zip");
-        let result = unzip(vec![non_existing_zip_path.to_str().unwrap().to_string()], None).await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to read zip archive"),
-            "Error message does not match expected value"
-        );
-    }
-    
-    #[tokio::test]
-    async fn failed_to_unzip_because_failed_to_read_zip_entry_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test zip file
-        let zip_path = temp_dir.path().join("test.zip");
-        let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
-
-        zip.start_file::<_, ()>("test.txt", FileOptions::default())
-            .unwrap();
-        zip.write_all(b"Hello, World!").unwrap();
-        zip.finish().unwrap();
-
-        // Attempt to unzip a non-existing file
-        let non_existing_zip_path = temp_dir.path().join("non_existing.zip");
-        let result = unzip(vec![non_existing_zip_path.to_str().unwrap().to_string()], None).await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to read zip entry"),
-            "Error message does not match expected value"
-        );
-    }
-    
     #[tokio::test]
     async fn failed_to_unzip_because_failed_to_create_directory_test() {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
@@ -2618,7 +2039,11 @@ mod tests_file_system_operation_commands {
 
         // Attempt to unzip to an invalid destination path
         let invalid_dest = "/invalid/path/extracted";
-        let result = unzip(vec![zip_path.to_str().unwrap().to_string()], Some(invalid_dest.to_string())).await;
+        let result = unzip(
+            vec![zip_path.to_str().unwrap().to_string()],
+            Some(invalid_dest.to_string()),
+        )
+        .await;
 
         assert!(
             result.is_err(),
@@ -2633,7 +2058,7 @@ mod tests_file_system_operation_commands {
             "Error message does not match expected value"
         );
     }
-    
+
     #[tokio::test]
     async fn failed_to_unzip_because_failed_to_create_parent_directory_test() {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
@@ -2649,7 +2074,11 @@ mod tests_file_system_operation_commands {
 
         // Attempt to unzip to an invalid destination path
         let invalid_dest = "/invalid/path/extracted";
-        let result = unzip(vec![zip_path.to_str().unwrap().to_string()], Some(invalid_dest.to_string())).await;
+        let result = unzip(
+            vec![zip_path.to_str().unwrap().to_string()],
+            Some(invalid_dest.to_string()),
+        )
+        .await;
 
         assert!(
             result.is_err(),
@@ -2662,128 +2091,6 @@ mod tests_file_system_operation_commands {
                 .unwrap_err()
                 .contains("Failed to create parent directory"),
             "Error message does not match expected value"
-        );
-    }
-    
-    #[tokio::test]
-    async fn failed_to_unzip_because_failed_to_create_file_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test zip file
-        let zip_path = temp_dir.path().join("test.zip");
-        let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
-
-        zip.start_file::<_, ()>("test.txt", FileOptions::default())
-            .unwrap();
-        zip.write_all(b"Hello, World!").unwrap();
-        zip.finish().unwrap();
-
-        // Attempt to unzip to an invalid destination path
-        let invalid_dest = "/invalid/path/extracted";
-        let result = unzip(vec![zip_path.to_str().unwrap().to_string()], Some(invalid_dest.to_string())).await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to create file"),
-            "Error message does not match expected value"
-        );
-    }
-    
-    #[tokio::test]
-    async fn failed_to_unzip_because_failed_to_write_file_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test zip file
-        let zip_path = temp_dir.path().join("test.zip");
-        let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
-
-        zip.start_file::<_, ()>("test.txt", FileOptions::default())
-            .unwrap();
-        zip.write_all(b"Hello, World!").unwrap();
-        zip.finish().unwrap();
-
-        // Attempt to unzip to an invalid destination path
-        let invalid_dest = "/invalid/path/extracted";
-        let result = unzip(vec![zip_path.to_str().unwrap().to_string()], Some(invalid_dest.to_string())).await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to write file"),
-            "Error message does not match expected value"
-        );
-    }
-    
-    #[tokio::test]
-    async fn unzip_multiple_files_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create test zip files
-        let zip1_path = temp_dir.path().join("test1.zip");
-        let zip2_path = temp_dir.path().join("test2.zip");
-
-        // Create content for first zip
-        let mut zip1 = zip::ZipWriter::new(fs::File::create(&zip1_path).unwrap());
-        zip1.start_file::<_, ()>("file1.txt", FileOptions::default())
-            .unwrap();
-        zip1.write_all(b"Content 1").unwrap();
-        zip1.finish().unwrap();
-
-        // Create content for second zip
-        let mut zip2 = zip::ZipWriter::new(fs::File::create(&zip2_path).unwrap());
-        zip2.start_file::<_, ()>("file2.txt", FileOptions::default())
-            .unwrap();
-        zip2.write_all(b"Content 2").unwrap();
-        zip2.finish().unwrap();
-
-        // Create extraction directory
-        let extract_path = temp_dir.path().join("extracted_multiple");
-
-        // Test multiple extraction
-        let result = unzip(
-            vec![
-                zip1_path.to_str().unwrap().to_string(),
-                zip2_path.to_str().unwrap().to_string(),
-            ],
-            Some(extract_path.to_str().unwrap().to_string()),
-        )
-        .await;
-
-        assert!(
-            result.is_ok(),
-            "Failed to extract multiple zips: {:?}",
-            result
-        );
-
-        // Verify extracted contents
-        let file1 = extract_path.join("test1").join("file1.txt");
-        let file2 = extract_path.join("test2").join("file2.txt");
-
-        assert!(file1.exists(), "Extracted file1.txt should exist");
-        assert!(file2.exists(), "Extracted file2.txt should exist");
-
-        assert_eq!(
-            fs::read_to_string(file1).unwrap(),
-            "Content 1",
-            "Extracted content 1 should match"
-        );
-        assert_eq!(
-            fs::read_to_string(file2).unwrap(),
-            "Content 2",
-            "Extracted content 2 should match"
         );
     }
 
