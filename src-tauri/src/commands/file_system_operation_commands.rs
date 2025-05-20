@@ -49,6 +49,19 @@ pub async fn open_file(path: &str) -> Result<String, String> {
     fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))
 }
 
+#[tauri::command]
+pub async fn open_in_default_app(path: &str) -> Result<(), String> {
+    let path_obj = Path::new(path);
+
+    // Check if path exists
+    if !path_obj.exists() {
+        return Err(format!("File does not exist: {}", path));
+    }
+
+    // Open the file in the default application
+    open::that(path).map_err(|err| format!("Failed to open file: {}", err))
+}
+
 /// Opens a directory at the given path and returns its contents as a json string.
 ///
 /// # Arguments
@@ -593,6 +606,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
 
 #[cfg(test)]
 mod tests_file_system_operation_commands {
+    use std::env;
     use super::*;
     use tempfile::tempdir;
 
@@ -627,6 +641,48 @@ mod tests_file_system_operation_commands {
             "Hello, world!\n",
             "File contents do not match expected value"
         );
+    }
+
+    #[tokio::test]
+    async fn open_in_default_app_txt_test() {
+        use tempfile::tempdir;
+
+        // Create a temporary directory (automatically deleted when out of scope)
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        // Create a test file in the temporary directory
+        let mut test_path = temp_dir.path().to_path_buf();
+        test_path.push("open_in_default_app_test.txt");
+
+        // Create the test file
+        fs::File::create(&test_path).unwrap();
+
+        // Ensure the file exists
+        assert!(test_path.exists(), "Test file should exist before opening");
+
+        // Open the file in the default application
+        let result = open_in_default_app(test_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to open file in default app: {:?}", result);
+    }
+
+    #[tokio::test]
+    async fn open_in_default_app_pdf_test() {
+        use tempfile::tempdir;
+        use std::io::Write;
+
+        let current_dir = env::current_dir().expect("Failed to get current directory");
+        let test_path = current_dir.join("assets").join("dummy.pdf");
+
+        
+        assert!(test_path.exists(), "Test file should exist before opening");
+
+        // Open the file in the default application
+        let result = open_in_default_app(test_path.to_str().unwrap()).await;
+
+        // Verify that the operation was successful
+        assert!(result.is_ok(), "Failed to open file in default app: {:?}", result);
     }
 
     #[tokio::test]
