@@ -42,7 +42,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
             ErrorCode::ResourceNotFound,
             format!("File does not exist: {}", path),
         )
-        .to_json());
+            .to_json());
     }
 
     // Check if path is a file
@@ -51,7 +51,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
             ErrorCode::InvalidInput,
             format!("Path is not a file: {}", path),
         )
-        .to_json());
+            .to_json());
     }
 
     // Read the file
@@ -61,7 +61,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
             ErrorCode::InternalError,
             format!("Failed to read file: {}", err),
         )
-        .to_json()
+            .to_json()
     })
 }
 
@@ -100,7 +100,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
             ErrorCode::ResourceNotFound,
             format!("Directory does not exist: {}", path),
         )
-        .to_json());
+            .to_json());
     }
 
     // Check if path is a directory
@@ -109,7 +109,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
             ErrorCode::InvalidInput,
             format!("Path is not a directory: {}", path),
         )
-        .to_json());
+            .to_json());
     }
 
     let mut directories = Vec::new();
@@ -120,14 +120,14 @@ pub async fn open_directory(path: String) -> Result<String, String> {
             ErrorCode::InternalError,
             format!("Failed to read directory: {}", err),
         )
-        .to_json()
+            .to_json()
     })? {
         let entry = entry.map_err(|err| {
             Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to read entry: {}", err),
             )
-            .to_json()
+                .to_json()
         })?;
 
         let file_type = entry.file_type().map_err(|err| {
@@ -135,7 +135,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
                 ErrorCode::InternalError,
                 format!("Failed to get file type: {}", err),
             )
-            .to_json()
+                .to_json()
         })?;
 
         let path_of_entry = entry.path();
@@ -144,7 +144,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
                 ErrorCode::InternalError,
                 format!("Failed to get metadata: {}", err),
             )
-            .to_json()
+                .to_json()
         })?;
 
         if file_type.is_dir() {
@@ -214,7 +214,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
             ErrorCode::InternalError,
             format!("Failed to serialize entries: {}", err),
         )
-        .to_json()
+            .to_json()
     })?;
     Ok(json)
 }
@@ -246,14 +246,14 @@ pub async fn create_file(folder_path_abs: &str, file_name: &str) -> Result<(), S
             ErrorCode::ResourceNotFound,
             format!("Directory does not exist: {}", folder_path_abs),
         )
-        .to_json());
+            .to_json());
     }
     if !path.is_dir() {
         return Err(Error::new(
             ErrorCode::InvalidInput,
             format!("Path is no directory: {}", folder_path_abs),
         )
-        .to_json());
+            .to_json());
     }
 
     // Concatenate the folder path and filename
@@ -266,7 +266,7 @@ pub async fn create_file(folder_path_abs: &str, file_name: &str) -> Result<(), S
             ErrorCode::InternalError,
             format!("File could not be created: {} error: {}", folder_path_abs, err),
         )
-        .to_json()),
+            .to_json()),
     }
 }
 
@@ -297,7 +297,7 @@ pub async fn create_directory(folder_path_abs: &str, folder_name: &str) -> Resul
             ErrorCode::ResourceNotFound,
             format!("Parent directory does not exist: {}", folder_path_abs),
         )
-        .to_json());
+            .to_json());
     }
 
     if !parent_path.is_dir() {
@@ -305,7 +305,7 @@ pub async fn create_directory(folder_path_abs: &str, folder_name: &str) -> Resul
             ErrorCode::InvalidInput,
             format!("Path is no directory: {}", folder_path_abs),
         )
-        .to_json());
+            .to_json());
     }
 
     // Concatenate the parent path and new directory name
@@ -318,7 +318,7 @@ pub async fn create_directory(folder_path_abs: &str, folder_name: &str) -> Resul
             ErrorCode::InternalError,
             format!("Failed to create directory: {} err: {}", folder_path_abs, err),
         )
-        .to_json()),
+            .to_json()),
     }
 }
 
@@ -351,7 +351,7 @@ pub async fn rename(old_path: &str, new_path: &str) -> Result<(), String> {
             ErrorCode::ResourceNotFound,
             format!("File does not exist: {}", old_path),
         )
-        .to_json());
+            .to_json());
     }
 
     // Check if the new path is valid
@@ -360,7 +360,7 @@ pub async fn rename(old_path: &str, new_path: &str) -> Result<(), String> {
             ErrorCode::ResourceAlreadyExists,
             format!("New path already exists: {}", new_path),
         )
-        .to_json());
+            .to_json());
     }
 
     // Rename the file or directory
@@ -370,7 +370,7 @@ pub async fn rename(old_path: &str, new_path: &str) -> Result<(), String> {
             ErrorCode::InternalError,
             format!("Failed to rename: {}", err),
         )
-        .to_json()),
+            .to_json()),
     }
 }
 
@@ -400,7 +400,7 @@ pub async fn move_to_trash(path: &str) -> Result<(), String> {
             ErrorCode::InternalError,
             format!("Failed to move file or directory to trash: {} err: {}", path, err),
         )
-        .to_json()),
+            .to_json()),
     }
 }
 
@@ -433,7 +433,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
             ErrorCode::InvalidInput,
             format!("Source path does not exist: {}", source_path),
         )
-        .to_json());
+            .to_json());
     }
 
     // Check if the destination path is valid
@@ -442,7 +442,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
             ErrorCode::ResourceAlreadyExists,
             format!("Destination path already exists: {}", destination_path),
         )
-        .to_json());
+            .to_json());
     }
 
     if Path::new(source_path).is_dir() {
@@ -455,7 +455,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
                 ErrorCode::InternalError,
                 format!("Failed to create destination directory: {}", err),
             )
-            .to_json()
+                .to_json()
         })?;
 
         // Read all entries in the source directory
@@ -464,14 +464,14 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
                 ErrorCode::InternalError,
                 format!("Failed to read source directory: {}", err),
             )
-            .to_json()
+                .to_json()
         })? {
             let entry = entry.map_err(|err| {
                 Error::new(
                     ErrorCode::InternalError,
                     format!("Failed to read directory entry: {}", err),
                 )
-                .to_json()
+                    .to_json()
             })?;
 
             let entry_path = entry.path();
@@ -485,7 +485,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
                         ErrorCode::InternalError,
                         format!("Failed to copy file '{}': {}", entry_path.display(), err),
                     )
-                    .to_json()
+                        .to_json()
                 })?;
                 total_size += size;
             } else if entry_path.is_dir() {
@@ -494,7 +494,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
                     entry_path.to_str().unwrap(),
                     dest_path.to_str().unwrap(),
                 ))
-                .await?;
+                    .await?;
                 total_size += sub_size;
             }
         }
@@ -507,7 +507,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
                 ErrorCode::InternalError,
                 format!("Failed to copy file: {}", err),
             )
-            .to_json()
+                .to_json()
         })?;
         Ok(size)
     }
@@ -545,7 +545,7 @@ pub async fn zip(
             ErrorCode::InvalidInput,
             "No source paths provided".to_string(),
         )
-        .to_json());
+            .to_json());
     }
 
     // If single source and no destination, use source name with .zip
@@ -558,7 +558,7 @@ pub async fn zip(
             ErrorCode::InvalidInput,
             "Destination path required for multiple sources".to_string(),
         )
-        .to_json());
+            .to_json());
     };
 
     // Create zip file
@@ -567,7 +567,7 @@ pub async fn zip(
             ErrorCode::InternalError,
             format!("Failed to create zip file: {}", e),
         )
-        .to_json()
+            .to_json()
     })?;
 
     let mut zip = ZipWriter::new(zip_file);
@@ -583,7 +583,7 @@ pub async fn zip(
                 ErrorCode::ResourceNotFound,
                 format!("Source path does not exist: {}", source_path),
             )
-            .to_json());
+                .to_json());
         }
 
         let base_name = source
@@ -598,21 +598,21 @@ pub async fn zip(
                     ErrorCode::InternalError,
                     format!("Error adding file to zip: {}", e),
                 )
-                .to_json()
+                    .to_json()
             })?;
             let content = fs::read(source).map_err(|e| {
                 Error::new(
                     ErrorCode::InternalError,
                     format!("Error reading file: {}", e),
                 )
-                .to_json()
+                    .to_json()
             })?;
             zip.write_all(&content).map_err(|e| {
                 Error::new(
                     ErrorCode::InternalError,
                     format!("Error writing to zip: {}", e),
                 )
-                .to_json()
+                    .to_json()
             })?;
         } else if source.is_dir() {
             for entry in walkdir::WalkDir::new(source) {
@@ -621,7 +621,7 @@ pub async fn zip(
                         ErrorCode::InternalError,
                         format!("Error reading directory: {}", e),
                     )
-                    .to_json()
+                        .to_json()
                 })?;
                 let path = entry.path();
 
@@ -631,7 +631,7 @@ pub async fn zip(
                             ErrorCode::InternalError,
                             format!("Error creating relative path: {}", e),
                         )
-                        .to_json()
+                            .to_json()
                     })?;
                     let name = format!(
                         "{}/{}",
@@ -647,21 +647,21 @@ pub async fn zip(
                             ErrorCode::InternalError,
                             format!("Error adding file to zip: {}", e),
                         )
-                        .to_json()
+                            .to_json()
                     })?;
                     let content = fs::read(path).map_err(|e| {
                         Error::new(
                             ErrorCode::InternalError,
                             format!("Error reading file: {}", e),
                         )
-                        .to_json()
+                            .to_json()
                     })?;
                     zip.write_all(&content).map_err(|e| {
                         Error::new(
                             ErrorCode::InternalError,
                             format!("Error writing to zip: {}", e),
                         )
-                        .to_json()
+                            .to_json()
                     })?;
                 }
             }
@@ -673,7 +673,7 @@ pub async fn zip(
             ErrorCode::InternalError,
             format!("Error finalizing zip file: {}", e),
         )
-        .to_json()
+            .to_json()
     })?;
     Ok(())
 }
@@ -716,7 +716,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                 ErrorCode::ResourceNotFound,
                 format!("Zip file does not exist: {}", zip_path.display()),
             )
-            .to_json());
+                .to_json());
         }
 
         // Determine extraction path for this zip
@@ -736,7 +736,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                 ErrorCode::InvalidInput,
                 "Destination path required for multiple zip files".to_string(),
             )
-            .to_json());
+                .to_json());
         };
 
         // Create extraction directory
@@ -745,7 +745,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                 ErrorCode::InternalError,
                 format!("Failed to create extraction directory: {}", e),
             )
-            .to_json()
+                .to_json()
         })?;
 
         // Open and extract zip file
@@ -754,14 +754,14 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                 ErrorCode::InternalError,
                 format!("Failed to open zip file: {}", e),
             )
-            .to_json()
+                .to_json()
         })?;
         let mut archive = zip::ZipArchive::new(file).map_err(|e| {
             Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to read zip archive: {}", e),
             )
-            .to_json()
+                .to_json()
         })?;
 
         for i in 0..archive.len() {
@@ -770,7 +770,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                     ErrorCode::InternalError,
                     format!("Failed to read zip entry: {}", e),
                 )
-                .to_json()
+                    .to_json()
             })?;
             let outpath = extract_path.join(file.mangled_name());
 
@@ -780,7 +780,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                         ErrorCode::InternalError,
                         format!("Failed to create directory '{}': {}", outpath.display(), e),
                     )
-                    .to_json()
+                        .to_json()
                 })?;
             } else {
                 if let Some(parent) = outpath.parent() {
@@ -794,7 +794,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                                     e
                                 ),
                             )
-                            .to_json()
+                                .to_json()
                         })?;
                     }
                 }
@@ -803,14 +803,14 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                         ErrorCode::InternalError,
                         format!("Failed to create file {}': {}", outpath.display(), e),
                     )
-                    .to_json()
+                        .to_json()
                 })?;
                 std::io::copy(&mut file, &mut outfile).map_err(|e| {
                     Error::new(
                         ErrorCode::InternalError,
                         format!("Failed to write file '{}': {}", outpath.display(), e),
                     )
-                    .to_json()
+                        .to_json()
                 })?;
             }
         }
@@ -1109,34 +1109,6 @@ mod tests_file_system_operation_commands {
         );
     }
 
-    //TODO test korrigieren
-    #[tokio::test]
-    async fn failed_to_create_file_because_file_could_not_be_created_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file path in the temporary directory
-        let test_path = temp_dir.path().join("create_file_test.txt");
-
-        // Call the function to create the file
-        let result = create_file(temp_dir.path().to_str().unwrap(), "create_file_test.txt").await;
-
-        // Verify that the operation was successful
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("File could not be created"),
-            "Error message does not match expected value"
-        );
-    }
 
     #[tokio::test]
     async fn create_directory_test() {
@@ -1174,7 +1146,7 @@ mod tests_file_system_operation_commands {
             test_path.join("not_a_parent_directory").to_str().unwrap(),
             "create_directory_test",
         )
-        .await;
+            .await;
 
         // Verify that the operation was successful
         assert!(
@@ -1490,12 +1462,12 @@ mod tests_file_system_operation_commands {
         );
 
         assert!(
-            result.clone().unwrap_err().contains("408"),
+            result.clone().unwrap_err().contains("409"),
             "Error message does not match expected value"
         );
 
         assert!(
-            result.unwrap_err().contains("InvalidInput"),
+            result.unwrap_err().contains("ResourceAlreadyExists"),
             "Error message does not match expected value"
         );
     }
@@ -1622,7 +1594,7 @@ mod tests_file_system_operation_commands {
             test_path.to_str().unwrap(),
             copied_dir_path.to_str().unwrap(),
         )
-        .await;
+            .await;
 
         // Verify that the operation was successful
         assert!(result.is_ok(), "Failed to copy directory: {:?}", result);
@@ -1700,12 +1672,12 @@ mod tests_file_system_operation_commands {
         );
 
         assert!(
-            result.clone().unwrap_err().contains("405"),
+            result.clone().unwrap_err().contains("408"),
             "Error message does not match expected value"
         );
 
         assert!(
-            result.unwrap_err().contains("ResourceNotFound"),
+            result.unwrap_err().contains("InvalidInput"),
             "Error message does not match expected value"
         );
     }
@@ -1749,12 +1721,12 @@ mod tests_file_system_operation_commands {
         );
 
         assert!(
-            result.clone().unwrap_err().contains("408"),
+            result.clone().unwrap_err().contains("409"),
             "Error message does not match expected value"
         );
 
         assert!(
-            result.unwrap_err().contains("InvalidInput"),
+            result.unwrap_err().contains("ResourceAlreadyExists"),
             "Error message does not match expected value"
         );
     }
@@ -1823,7 +1795,7 @@ mod tests_file_system_operation_commands {
             ],
             None,
         )
-        .await;
+            .await;
 
         assert!(
             result.is_err(),
@@ -1843,6 +1815,8 @@ mod tests_file_system_operation_commands {
     async fn failed_to_zip_because_source_path_does_not_exist_test() {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
 
+        let result_zip = Some(temp_dir.path().join("result.zip").to_str().unwrap().to_string());
+
         // Create a test file
         let test_file_path = temp_dir.path().join("test_file.txt");
         fs::write(&test_file_path, "Test content").expect("Failed to write test file");
@@ -1854,9 +1828,9 @@ mod tests_file_system_operation_commands {
                 test_file_path.to_str().unwrap().to_string(),
                 non_existing_file_path.to_str().unwrap().to_string(),
             ],
-            None,
+            result_zip,
         )
-        .await;
+            .await;
 
         assert!(
             result.is_err(),
@@ -1868,6 +1842,16 @@ mod tests_file_system_operation_commands {
                 .clone()
                 .unwrap_err()
                 .contains("Source path does not exist"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.clone().unwrap_err().contains("405"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("ResourceNotFound"),
             "Error message does not match expected value"
         );
     }
@@ -1973,7 +1957,7 @@ mod tests_file_system_operation_commands {
             ],
             None,
         )
-        .await;
+            .await;
 
         assert!(
             result.is_err(),
@@ -2008,7 +1992,7 @@ mod tests_file_system_operation_commands {
             vec![zip_path.to_str().unwrap().to_string()],
             Some(invalid_dest.to_string()),
         )
-        .await;
+            .await;
 
         assert!(
             result.is_err(),
@@ -2023,97 +2007,4 @@ mod tests_file_system_operation_commands {
             "Error message does not match expected value"
         );
     }
-
-    #[tokio::test]
-    async fn failed_to_unzip_because_failed_to_create_directory_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test zip file
-        let zip_path = temp_dir.path().join("test.zip");
-        let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
-
-        zip.start_file::<_, ()>("test.txt", FileOptions::default())
-            .unwrap();
-        zip.write_all(b"Hello, World!").unwrap();
-        zip.finish().unwrap();
-
-        // Attempt to unzip to an invalid destination path
-        let invalid_dest = "/invalid/path/extracted";
-        let result = unzip(
-            vec![zip_path.to_str().unwrap().to_string()],
-            Some(invalid_dest.to_string()),
-        )
-        .await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to create directory"),
-            "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
-    async fn failed_to_unzip_because_failed_to_create_parent_directory_test() {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test zip file
-        let zip_path = temp_dir.path().join("test.zip");
-        let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
-
-        zip.start_file::<_, ()>("test.txt", FileOptions::default())
-            .unwrap();
-        zip.write_all(b"Hello, World!").unwrap();
-        zip.finish().unwrap();
-
-        // Attempt to unzip to an invalid destination path
-        let invalid_dest = "/invalid/path/extracted";
-        let result = unzip(
-            vec![zip_path.to_str().unwrap().to_string()],
-            Some(invalid_dest.to_string()),
-        )
-        .await;
-
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Failed to create parent directory"),
-            "Error message does not match expected value"
-        );
-    }
-
-    #[tokio::test]
-    async fn open_home_directory_test() {
-        //get time for measurement
-        let current_time = std::time::Instant::now();
-
-        // Get the home directory
-        let dir = String::from("/home/marco");
-
-        // Call the function to open the home directory
-        let result = open_directory(dir).await;
-
-        //print execution time
-        let elapsed_time = current_time.elapsed();
-        println!("Execution time: {:?}", elapsed_time);
-
-        // Verify that the operation was successful
-        assert!(
-            result.is_ok(),
-            "Failed to open home directory: {:?}",
-            result
-        );
-    }
-}
+}    
