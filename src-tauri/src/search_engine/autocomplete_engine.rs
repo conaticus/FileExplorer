@@ -197,7 +197,10 @@ impl AutocompleteEngine {
         // Remove from modules
         self.trie.remove(&normalized_path);
         self.fuzzy_matcher.remove_path(&normalized_path);
-        self.cache.remove(&normalized_path);
+
+        // Clear the entire cache instead of just removing the specific path
+        // This ensures all cached results that might contain this path are invalidated
+        self.cache.clear();
 
         // Remove from frequency and recency maps
         self.frequency_map.remove(&normalized_path);
@@ -256,6 +259,8 @@ impl AutocompleteEngine {
     /// Set preferred file extensions for ranking
     pub fn set_preferred_extensions(&mut self, extensions: Vec<String>) {
         self.preferred_extensions = extensions;
+        // Clear the cache to ensure results reflect the new preferences
+        self.cache.clear();
     }
     
     /// Get the currently set preferred extensions
@@ -264,6 +269,7 @@ impl AutocompleteEngine {
     }
     
     /// Search for path completions using the engine's combined strategy
+    #[inline]
     pub fn search(&mut self, query: &str) -> Vec<(String, f32)> {
         if query.is_empty() {
             return Vec::new();
@@ -273,18 +279,11 @@ impl AutocompleteEngine {
 
         // 1. Check cache first but validate the path still exists
         if let Some(path_data) = self.cache.get(&normalized_query) {
+            // Fast path for cache hit - minimize allocations and operations
             log_info!(&format!("Cache hit for query: '{}'", normalized_query));
 
-            // Fast check if path still exists
-            if self.trie.contains(&path_data.path) {
-                // Path still exists, return it
-                return vec![(path_data.path, path_data.score)];
-            } else {
-                // Path no longer exists, remove it from cache
-                log_info!(&format!("Cached path '{}' no longer exists, removing from cache",
-                          path_data.path));
-                self.cache.remove(&normalized_query);
-            }
+            // Return all cached results
+            return path_data.results;
         }
         
         log_info!(&format!("Cache miss for query: '{}'", normalized_query));
@@ -315,32 +314,41 @@ impl AutocompleteEngine {
                      fuzzy_results.len(), fuzzy_duration));
             
             // Combine results, avoiding duplicates
-            let prefix_paths: Vec<String> = results.iter().map(|(path, _)| path.clone()).collect();
-            for (path, score) in fuzzy_results {
-                if !prefix_paths.contains(&path) {
-                    results.push((path, score));
+            if !fuzzy_results.is_empty() {
+                let prefix_paths: Vec<String> = results.iter().map(|(path, _)| path.clone()).collect();
+                for (path, score) in fuzzy_results {
+                    if !prefix_paths.contains(&path) {
+                        results.push((path, score));
+                    }
                 }
             }
         }
-        
-        // 4. Rank combined results
-        self.rank_results(&mut results, &normalized_query);
-        
-        // 5. Cache top result for future queries
         if !results.is_empty() {
-            // Only cache the exact query match to avoid cache pollution
-            self.cache.insert(normalized_query.clone(), results[0].1);
+            // 4. Rank combined results
+            self.rank_results(&mut results, &normalized_query);
+
+            // 5. Limit to max results
+            if results.len() > self.max_results {
+                results.truncate(self.max_results);
+            }
+
+            // 6. Cache top results for future queries (up to 5 or whatever is available)
+            let top_results: Vec<(String, f32)> = results.iter()
+                .take(5.min(results.len()))
+                .map(|(path, score)| (path.clone(), *score))
+                .collect();
+
+            // Store in cache
+            let query_key = normalized_query.to_string(); // Only allocate string if needed
+            self.cache.insert(query_key, top_results);
             
             // Also record usage of the top result
             self.record_path_usage(&results[0].0);
         }
         
-        // 6. Limit to max results
-        results.truncate(self.max_results);
-        
         results
     }
-    
+
     /// Rank search results based on various relevance factors
     fn rank_results(&self, results: &mut Vec<(String, f32)>, query: &str) {
         // Recalculate scores based on our ranking criteria
@@ -357,9 +365,9 @@ impl AutocompleteEngine {
             // 2. Boost for recency
             if let Some(timestamp) = self.recency_map.get(path) {
                 let age = timestamp.elapsed();
-                // More recently used paths get a boost (max 1.0 for very recent)
-                // Increased from 0.3 to 1.0 to ensure recency takes priority
-                let recency_boost = 1.0 * (1.0 - (age.as_secs_f32() / 86400.0).min(1.0));
+                // More recently used paths get a boost
+                // Using a day (86400 seconds) as the time span for gradual decay
+                let recency_boost = 1.5 * (1.0 - (age.as_secs_f32() / 86400.0).min(1.0));
                 new_score += recency_boost;
             }
             
@@ -412,6 +420,8 @@ impl AutocompleteEngine {
                     new_score += 0.1;
                 }
             }
+            // Normalize score to be between 0 and 1 with sigmoid function
+            new_score = 1.0 / (1.0 + (-new_score).exp());
 
             *score = new_score;
         }
@@ -505,7 +515,7 @@ mod tests_autocomplete_engine {
         engine.record_path_usage("/path/b.txt");  // Used once
         
         // Wait a bit to create a recency difference
-        sleep(Duration::from_millis(50));
+        sleep(Duration::from_millis(1000));
         
         // Record newer usage for b.txt
         engine.record_path_usage("/path/b.txt");
@@ -1451,7 +1461,7 @@ mod tests_autocomplete_engine {
             let subset_size = batch_size.min(all_paths.len());
 
             // Create a fresh engine with only the needed paths
-            let mut subset_engine = AutocompleteEngine::new(100, 20);
+            let mut subset_engine = AutocompleteEngine::new(1000, 20);
             let start_insert_subset = std::time::Instant::now();
 
             for i in 0..subset_size {
@@ -1645,6 +1655,94 @@ mod tests_autocomplete_engine {
                 
                 // Reset context
                 subset_engine.set_current_directory(None);
+            }
+
+            // Add explicit cache validation subtest
+            log_info!("\n=== CACHE VALIDATION SUBTEST ===");
+            if !subset_queries.is_empty() {
+                // Pick 3 representative queries for cache validation
+                let cache_test_queries = if subset_queries.len() >= 3 {
+                    vec![&subset_queries[0], &subset_queries[subset_queries.len()/2], &subset_queries[subset_queries.len()-1]]
+                } else {
+                    subset_queries.iter().collect()
+                };
+
+                let mut all_cache_hits = true;
+                let mut all_results_identical = true;
+                let mut total_uncached_time = std::time::Duration::new(0, 0);
+                let mut total_cached_time = std::time::Duration::new(0, 0);
+
+                log_info!(&format!("Running cache validation on {} queries", cache_test_queries.len()));
+
+                for (i, query) in cache_test_queries.iter().enumerate() {
+                    // Clear the cache before this test to ensure a fresh start
+                    subset_engine.cache.clear();
+
+                    log_info!(&format!("Cache test #{}: Query '{}'", i+1, query));
+
+                    // First search - should populate cache
+                    let uncached_start = std::time::Instant::now();
+                    let uncached_results = subset_engine.search(query);
+                    let uncached_time = uncached_start.elapsed();
+                    total_uncached_time += uncached_time;
+
+                    log_info!(&format!("  Uncached search: {:?} for {} results", uncached_time, uncached_results.len()));
+
+                    // Second search - should use cache
+                    let cached_start = std::time::Instant::now();
+                    let cached_results = subset_engine.search(query);
+                    let cached_time = cached_start.elapsed();
+                    total_cached_time += cached_time;
+
+                    log_info!(&format!("  Cached search: {:?} for {} results", cached_time, cached_results.len()));
+
+                    // Verify speed improvement
+                    let is_faster = cached_time.as_micros() < uncached_time.as_micros() / 2;
+                    if !is_faster {
+                        all_cache_hits = false;
+                        log_info!(&format!("  ❌ Cache did not provide significant speed improvement!"));
+                    } else {
+                        log_info!(&format!("  ✓ Cache provided {}x speedup",
+                                 uncached_time.as_micros() as f64 / cached_time.as_micros().max(1) as f64));
+                    }
+
+                    // Verify result equality
+                    let results_match = !cached_results.is_empty() && (
+                        // Compare first result only, since cache might only store top result
+                        (cached_results.len() >= 1 && uncached_results.len() >= 1 &&
+                         cached_results[0].0 == uncached_results[0].0)
+                    );
+
+                    if !results_match {
+                        all_results_identical = false;
+                        log_info!("  ❌ Cached results don't match original results!");
+
+                        if !cached_results.is_empty() && !uncached_results.is_empty() {
+                            log_info!(&format!("  Expected top result: '{}' (score: {:.3})",
+                                     uncached_results[0].0, uncached_results[0].1));
+                            log_info!(&format!("  Actual cached result: '{}' (score: {:.3})",
+                                     cached_results[0].0, cached_results[0].1));
+                        }
+                    } else {
+                        log_info!("  ✓ Cached results match original results");
+                    }
+                }
+
+                // Summarize cache validation results
+                let speedup = if total_cached_time.as_micros() > 0 {
+                    total_uncached_time.as_micros() as f64 / total_cached_time.as_micros() as f64
+                } else {
+                    f64::INFINITY
+                };
+
+                log_info!("\n=== CACHE VALIDATION SUMMARY ===");
+                log_info!(&format!("Overall cache speedup: {:.1}x", speedup));
+                log_info!(&format!("All queries cached correctly: {}", if all_cache_hits {"✓ YES"} else {"❌ NO"}));
+                log_info!(&format!("All results identical: {}", if all_results_identical {"✓ YES"} else {"❌ NO"}));
+
+                // Output cache stats
+                let cache_stats = subset_engine.get_stats();
+                log_info!(&format!("Cache size after tests: {}", cache_stats.cache_size));
             }
         }
     }

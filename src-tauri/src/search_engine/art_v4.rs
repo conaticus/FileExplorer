@@ -1821,6 +1821,21 @@ mod tests_art_v4 {
     }
 
     #[test]
+    fn test_contains_function() {
+        log_info!("Testing contains function");
+        let mut trie = ART::new(10);
+
+        // Insert some paths directly without using the test module's normalize_path
+        trie.insert("/path1", 1.0);
+        trie.insert("/path2", 0.9);
+        
+        let result = trie.contains("/path1");
+
+        // Check if paths exist
+        assert!(result, "Path1 should exist");
+    }
+    
+    #[test]
     fn test_clear_trie() {
         log_info!("Testing trie clearing");
         let mut trie = ART::new(10);

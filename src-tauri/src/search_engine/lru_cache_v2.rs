@@ -57,7 +57,26 @@ where
         cache
     }
 
+    // Check if an entry exists and has not expired, without updating its position
+    #[inline]
+    pub fn check_ttl(&self, key: &K) -> bool {
+        if let Some(&node_ptr) = self.map.get(key) {
+            // SAFETY: The pointer is valid as it's managed by the cache
+            let node = unsafe { &*node_ptr.as_ptr() };
+
+            // Check if the entry has expired
+            if let Some(ttl) = self.ttl {
+                if node.last_accessed.elapsed() > ttl {
+                    return false;
+                }
+            }
+            return true;
+        }
+        false
+    }
+
     // Get a value from the cache, returns None if not found or if expired
+    #[inline]
     pub fn get(&mut self, key: &K) -> Option<V> {
         if let Some(&node_ptr) = self.map.get(key) {
             // SAFETY: The pointer is valid as it's managed by the cache
@@ -89,6 +108,7 @@ where
     }
 
     // Remove a key from the cache
+    #[inline]
     pub fn remove(&mut self, key: &K) -> bool {
         if let Some(node_ptr) = self.map.remove(key) {
             self.detach_node(node_ptr);
@@ -106,6 +126,7 @@ where
     }
 
     // Insert a value into cache
+    #[inline]
     pub fn insert(&mut self, key: K, value: V) {
         // Check if the key already exists
         if let Some(&node_ptr) = self.map.get(&key) {
@@ -114,8 +135,11 @@ where
             node.value = value;
             node.last_accessed = Instant::now();
 
-            self.detach_node(node_ptr);
-            self.prepend_node(node_ptr);
+            // Only move node if it's not already at the head
+            if self.head != Some(node_ptr) {
+                self.detach_node(node_ptr);
+                self.prepend_node(node_ptr);
+            }
             return;
         }
 
@@ -196,6 +220,7 @@ where
     }
 
     // Helper method to detach a node from the linked list
+    #[inline(always)]
     fn detach_node(&mut self, node_ptr: NonNull<Node<K, V>>) {
         // SAFETY: The pointer is valid as it's managed by the cache
         let node = unsafe { &mut *node_ptr.as_ptr() };
@@ -235,6 +260,7 @@ where
     }
 
     // Helper method to add a node to the front of the linked list
+    #[inline(always)]
     fn prepend_node(&mut self, node_ptr: NonNull<Node<K, V>>) {
         // SAFETY: The pointer is valid as it's managed by the cache
         let node = unsafe { &mut *node_ptr.as_ptr() };
