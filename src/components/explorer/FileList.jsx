@@ -25,14 +25,31 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
             setIsCtrlKeyPressed(e.ctrlKey || e.metaKey);
         };
 
+        // Listen for select-item events from context menu
+        const handleSelectItem = (e) => {
+            if (e.detail && e.detail.item) {
+                selectItem(e.detail.item, false);
+            }
+        };
+
+        // Listen for clear selection events
+        const handleClearSelection = () => {
+            clearSelection();
+            setLastSelectedIndex(-1);
+        };
+
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
+        document.addEventListener('select-item', handleSelectItem);
+        document.addEventListener('clear-selection', handleClearSelection);
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
+            document.removeEventListener('select-item', handleSelectItem);
+            document.removeEventListener('clear-selection', handleClearSelection);
         };
-    }, []);
+    }, [selectItem, clearSelection]);
 
     // Clear selection when data changes
     useEffect(() => {
@@ -129,25 +146,59 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
             if (item.isDirectory) {
                 loadDirectory(item.path);
             } else {
-                // Handle file open (this will depend on your implementation)
+                // Open file using the open_file endpoint
+                const openFile = async () => {
+                    try {
+                        const { invoke } = await import('@tauri-apps/api/core');
+                        await invoke('open_file', { file_path: item.path });
+                    } catch (error) {
+                        console.error('Failed to open file:', error);
+                        alert(`Failed to open file: ${error.message || error}`);
+                    }
+                };
+                openFile();
             }
             return;
         }
 
         // For single click, handle selection
+        const isAlreadySelected = selectedItems.some(selected => selected.path === item.path);
+
         if (isShiftKeyPressed && lastSelectedIndex !== -1) {
             // Multi-select with shift key
             const start = Math.min(lastSelectedIndex, index);
             const end = Math.max(lastSelectedIndex, index);
             const itemsToSelect = sortedItems.slice(start, end + 1);
 
-            // Update selection
-            selectItem(item, true);
+            // Clear current selection and select range
+            clearSelection();
+            itemsToSelect.forEach(rangeItem => {
+                selectItem(rangeItem, true);
+            });
+            setLastSelectedIndex(index);
+        } else if (isCtrlKeyPressed) {
+            // Toggle selection with Ctrl key
+            if (isAlreadySelected) {
+                // Deselect by clearing and re-selecting others
+                const otherSelected = selectedItems.filter(selected => selected.path !== item.path);
+                clearSelection();
+                otherSelected.forEach(otherItem => {
+                    selectItem(otherItem, true);
+                });
+            } else {
+                selectItem(item, true);
+            }
             setLastSelectedIndex(index);
         } else {
-            // Select a single item or add to selection with Ctrl key
-            selectItem(item, isCtrlKeyPressed);
-            setLastSelectedIndex(index);
+            // Single selection
+            if (isAlreadySelected && selectedItems.length === 1) {
+                // If clicking on the only selected item, deselect it
+                clearSelection();
+                setLastSelectedIndex(-1);
+            } else {
+                selectItem(item, false);
+                setLastSelectedIndex(index);
+            }
         }
     };
 
@@ -166,68 +217,70 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
     };
 
     return (
-        <div
-            className={`file-list-container view-mode-${viewMode}`}
-            onClick={handleContainerClick}
-            onContextMenu={(e) => {
-                if (e.target === e.currentTarget) {
-                    handleContextMenu(e, null);
-                }
-            }}
-        >
-            {viewMode === 'details' && (
-                <div className="file-list-header">
-                    <div
-                        className={`file-list-column column-name ${sortConfig.key === 'name' ? `sorted-${sortConfig.direction}` : ''}`}
-                        onClick={() => handleSort('name')}
-                    >
-                        Name
-                        {sortConfig.key === 'name' && (
-                            <span className={`sort-icon sort-${sortConfig.direction}`}></span>
-                        )}
+        <div className="file-list-wrapper">
+            <div
+                className={`file-list-container view-mode-${viewMode} scrollable-content`}
+                onClick={handleContainerClick}
+                onContextMenu={(e) => {
+                    if (e.target === e.currentTarget) {
+                        handleContextMenu(e, null);
+                    }
+                }}
+            >
+                {viewMode === 'details' && (
+                    <div className="file-list-header">
+                        <div
+                            className={`file-list-column column-name ${sortConfig.key === 'name' ? `sorted-${sortConfig.direction}` : ''}`}
+                            onClick={() => handleSort('name')}
+                        >
+                            Name
+                            {sortConfig.key === 'name' && (
+                                <span className={`sort-icon sort-${sortConfig.direction}`}></span>
+                            )}
+                        </div>
+                        <div
+                            className={`file-list-column column-size ${sortConfig.key === 'size_in_bytes' ? `sorted-${sortConfig.direction}` : ''}`}
+                            onClick={() => handleSort('size_in_bytes')}
+                        >
+                            Size
+                            {sortConfig.key === 'size_in_bytes' && (
+                                <span className={`sort-icon sort-${sortConfig.direction}`}></span>
+                            )}
+                        </div>
+                        <div
+                            className={`file-list-column column-type ${sortConfig.key === 'type' ? `sorted-${sortConfig.direction}` : ''}`}
+                            onClick={() => handleSort('type')}
+                        >
+                            Type
+                            {sortConfig.key === 'type' && (
+                                <span className={`sort-icon sort-${sortConfig.direction}`}></span>
+                            )}
+                        </div>
+                        <div
+                            className={`file-list-column column-modified ${sortConfig.key === 'last_modified' ? `sorted-${sortConfig.direction}` : ''}`}
+                            onClick={() => handleSort('last_modified')}
+                        >
+                            Modified
+                            {sortConfig.key === 'last_modified' && (
+                                <span className={`sort-icon sort-${sortConfig.direction}`}></span>
+                            )}
+                        </div>
                     </div>
-                    <div
-                        className={`file-list-column column-size ${sortConfig.key === 'size_in_bytes' ? `sorted-${sortConfig.direction}` : ''}`}
-                        onClick={() => handleSort('size_in_bytes')}
-                    >
-                        Size
-                        {sortConfig.key === 'size_in_bytes' && (
-                            <span className={`sort-icon sort-${sortConfig.direction}`}></span>
-                        )}
-                    </div>
-                    <div
-                        className={`file-list-column column-type ${sortConfig.key === 'type' ? `sorted-${sortConfig.direction}` : ''}`}
-                        onClick={() => handleSort('type')}
-                    >
-                        Type
-                        {sortConfig.key === 'type' && (
-                            <span className={`sort-icon sort-${sortConfig.direction}`}></span>
-                        )}
-                    </div>
-                    <div
-                        className={`file-list-column column-modified ${sortConfig.key === 'last_modified' ? `sorted-${sortConfig.direction}` : ''}`}
-                        onClick={() => handleSort('last_modified')}
-                    >
-                        Modified
-                        {sortConfig.key === 'last_modified' && (
-                            <span className={`sort-icon sort-${sortConfig.direction}`}></span>
-                        )}
-                    </div>
-                </div>
-            )}
+                )}
 
-            <div className={`file-list view-mode-${viewMode}`}>
-                {sortedItems.map((item, index) => (
-                    <FileItem
-                        key={item.path}
-                        item={item}
-                        viewMode={viewMode}
-                        isSelected={selectedItems.some(selected => selected.path === item.path)}
-                        onClick={(e) => handleItemClick(item, index)}
-                        onDoubleClick={() => handleItemClick(item, index, true)}
-                        onContextMenu={(e) => handleContextMenu(e, item)}
-                    />
-                ))}
+                <div className={`file-list view-mode-${viewMode}`}>
+                    {sortedItems.map((item, index) => (
+                        <FileItem
+                            key={item.path}
+                            item={item}
+                            viewMode={viewMode}
+                            isSelected={selectedItems.some(selected => selected.path === item.path)}
+                            onClick={(e) => handleItemClick(item, index)}
+                            onDoubleClick={() => handleItemClick(item, index, true)}
+                            onContextMenu={(e) => handleContextMenu(e, item)}
+                        />
+                    ))}
+                </div>
             </div>
         </div>
     );

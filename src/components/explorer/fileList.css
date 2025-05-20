@@ -1,9 +1,23 @@
+.file-list-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
 .file-list-container {
     flex: 1;
     overflow: auto;
     position: relative;
     padding: var(--space-md);
     background-color: var(--background);
+}
+
+.scrollable-content {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 /* Loading state */
@@ -35,6 +49,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-md);
+    min-height: min-content;
 }
 
 /* View modes */
