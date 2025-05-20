@@ -264,7 +264,7 @@ pub async fn create_file(folder_path_abs: &str, file_name: &str) -> Result<(), S
         Ok(_) => Ok(()),
         Err(err) => Err(Error::new(
             ErrorCode::InternalError,
-            format!("File could not be created: {}", folder_path_abs),
+            format!("File could not be created: {} error: {}", folder_path_abs, err),
         )
         .to_json()),
     }
@@ -316,7 +316,7 @@ pub async fn create_directory(folder_path_abs: &str, folder_name: &str) -> Resul
         Ok(_) => Ok(()),
         Err(err) => Err(Error::new(
             ErrorCode::InternalError,
-            format!("Failed to create directory: {}", folder_path_abs),
+            format!("Failed to create directory: {} err: {}", folder_path_abs, err),
         )
         .to_json()),
     }
@@ -398,7 +398,7 @@ pub async fn move_to_trash(path: &str) -> Result<(), String> {
         Ok(_) => Ok(()),
         Err(err) => Err(Error::new(
             ErrorCode::InternalError,
-            format!("Failed to move file or directory to trash: {}", path),
+            format!("Failed to move file or directory to trash: {} err: {}", path, err),
         )
         .to_json()),
     }
