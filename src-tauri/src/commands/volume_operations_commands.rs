@@ -43,7 +43,7 @@ pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
         }
 
         for j in i + 1..volume_information_vec.len() {
-            
+
             // Check if the two volumes have the same name
             if volume_information_vec[i].volume_name == volume_information_vec[j].volume_name {
                 // Mark the one with longer mount_point to be skipped
@@ -53,7 +53,7 @@ pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
                     skip_indices.insert(j);
                 }
             }
-            
+
             // Check if the two volumes have the same mount point
             if volume_information_vec[i].mount_point == volume_information_vec[j].mount_point {
                 // Mark the one with longer volume_name to be skipped
@@ -69,9 +69,9 @@ pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
     // Second pass: collect non-skipped items and remove boot volumes
     for (index, volume) in volume_information_vec.into_iter().enumerate() {
         if !skip_indices.contains(&index) {
-            
+
             //filter boot volumes out on second pass
-            if volume.mount_point == "C:\\" || volume.mount_point == "C:" || volume.mount_point.contains("boot") {
+            if volume.mount_point == "C:\\" || volume.mount_point == "C:" || volume.mount_point == "efi" ||volume.mount_point.contains("boot") {
                 continue;
             }
             result.push(volume);
