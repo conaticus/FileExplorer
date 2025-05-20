@@ -998,6 +998,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
@@ -1055,6 +1056,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
@@ -1093,6 +1095,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result.clone().unwrap_err().contains("Path is no directory"),
             "Error message does not match expected value"
@@ -1154,6 +1157,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
@@ -1292,6 +1296,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
@@ -1408,10 +1413,12 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result.clone().unwrap_err().contains("File does not exist"),
             "Error message does not match expected value"
         );
+        
         assert!(
             result.clone().unwrap_err().contains("405"),
             "Error message does not match expected value"
@@ -1453,6 +1460,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
@@ -1663,6 +1671,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
@@ -1712,6 +1721,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
@@ -1763,16 +1773,28 @@ mod tests_file_system_operation_commands {
     #[tokio::test]
     async fn failed_to_zip_because_no_source_paths_provided_test() {
         let result = zip(vec![], None).await;
+        
         assert!(
             result.is_err(),
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
                 .unwrap_err()
                 .contains("No source paths provided"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.clone().unwrap_err().contains("408"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("InvalidInput"),
             "Error message does not match expected value"
         );
     }
@@ -1809,6 +1831,16 @@ mod tests_file_system_operation_commands {
                 .contains("Destination path required for multiple sources"),
             "Error message does not match expected value"
         );
+
+        assert!(
+            result.clone().unwrap_err().contains("408"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("InvalidInput"),
+            "Error message does not match expected value"
+        );
     }
 
     #[tokio::test]
@@ -1837,6 +1869,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
@@ -1889,16 +1922,28 @@ mod tests_file_system_operation_commands {
     #[tokio::test]
     async fn failed_to_unzip_because_no_zip_files_provided_test() {
         let result = unzip(vec![], None).await;
+        
         assert!(
             result.is_err(),
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
                 .unwrap_err()
                 .contains("No zip files provided"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.clone().unwrap_err().contains("408"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("InvalidInput"),
             "Error message does not match expected value"
         );
     }
@@ -1918,11 +1963,22 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
                 .unwrap_err()
                 .contains("Zip file does not exist"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.clone().unwrap_err().contains("405"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("ResourceNotFound"),
             "Error message does not match expected value"
         );
     }
@@ -1964,11 +2020,22 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
                 .unwrap_err()
                 .contains("Destination path required for multiple zip files"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.clone().unwrap_err().contains("408"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("InvalidInput"),
             "Error message does not match expected value"
         );
     }
@@ -1999,11 +2066,22 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
+        
         assert!(
             result
                 .clone()
                 .unwrap_err()
                 .contains("Failed to create extraction directory"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.clone().unwrap_err().contains("500"),
+            "Error message does not match expected value"
+        );
+
+        assert!(
+            result.unwrap_err().contains("InternalError"),
             "Error message does not match expected value"
         );
     }
