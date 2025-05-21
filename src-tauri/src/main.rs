@@ -14,8 +14,9 @@ use crate::commands::{file_system_operation_commands, meta_data_commands, volume
 fn all_commands() -> fn(Invoke) -> bool {
     tauri::generate_handler![
         // Filesystem commands
-        file_system_operation_commands::open_file,
+        //file_system_operation_commands::open_file,
         file_system_operation_commands::open_directory,
+        file_system_operation_commands::open_in_default_app,
         file_system_operation_commands::create_file,
         file_system_operation_commands::create_directory,
         file_system_operation_commands::rename,
