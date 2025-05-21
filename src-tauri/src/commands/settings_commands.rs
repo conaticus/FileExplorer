@@ -3,6 +3,7 @@ use serde_json::{to_string, Value};
 use std::io;
 use std::sync::{Arc, Mutex};
 use tauri::State;
+use crate::error_handling::{Error, ErrorCode};
 
 pub fn get_settings_as_json_impl(state: Arc<Mutex<SettingsState>>) -> String {
     let settings_inner = state.lock().unwrap().0.clone();
@@ -16,7 +17,13 @@ pub fn get_setting_field_impl(
     let settings_state = state.lock().unwrap();
     settings_state
         .get_setting_field(&key)
-        .map_err(|e| e.to_string())
+        .map_err(|e|  {
+            Error::new(
+                ErrorCode::InternalError,
+                format!("Failed to get setting field: {}", e),
+            )
+                .to_json()
+        })
 }
 
 pub fn update_settings_field_impl(
@@ -30,7 +37,13 @@ pub fn update_settings_field_impl(
         .and_then(|updated| {
             to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
         })
-        .map_err(|e| e.to_string())
+        .map_err(|e| {
+            Error::new(
+                ErrorCode::InternalError,
+                format!("Failed to update settings field: {}", e),
+            )
+                .to_json()
+        })
 }
 
 pub fn update_multiple_settings_impl(
@@ -43,7 +56,13 @@ pub fn update_multiple_settings_impl(
         .and_then(|updated| {
             to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
         })
-        .map_err(|e| e.to_string())
+        .map_err(|e| {
+            Error::new(
+                ErrorCode::InternalError,
+                format!("Failed to update multiple settings: {}", e),
+            )
+                .to_json()
+        })
 }
 
 pub fn reset_settings_impl(state: Arc<Mutex<SettingsState>>) -> Result<String, String> {
@@ -53,7 +72,13 @@ pub fn reset_settings_impl(state: Arc<Mutex<SettingsState>>) -> Result<String, S
         .and_then(|updated| {
             to_string(&updated).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
         })
-        .map_err(|e| e.to_string())
+        .map_err(|e| {
+            Error::new(
+                ErrorCode::InternalError,
+                format!("Failed to reset settings: {}", e),
+            )
+                .to_json()
+        })
 }
 
 /// Retrieves the current application settings as a JSON string.
