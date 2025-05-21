@@ -35,7 +35,6 @@ use zip::ZipWriter;
 #[allow(dead_code)] //remove once the command is used again
 #[tauri::command]
 pub async fn open_file(path: &str) -> Result<String, String> {
-    
     let path_obj = Path::new(path);
 
     // Check if path exists
