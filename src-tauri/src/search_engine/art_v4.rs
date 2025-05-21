@@ -1325,21 +1325,6 @@ impl ART {
         self.path_count = 0;
     }
 
-    pub fn contains(&self, path: &str) -> bool {
-        if self.root.is_none() {
-            return false;
-        }
-
-        let normalized = self.normalize_path(path);
-        let path_bytes = normalized.as_bytes();
-
-        if let Some((node, depth)) = self.find_node_for_prefix(path_bytes) {
-            return depth == path_bytes.len() && node.is_terminal();
-        }
-
-        false
-    }
-
     // Improved sorting and deduplication
     fn sort_and_deduplicate_results(&self, results: &mut Vec<(String, f32)>, skip_dedup: bool) {
         if results.is_empty() {
@@ -1818,21 +1803,6 @@ mod tests_art_v4 {
             assert_eq!(completions.len(), expected_count, "Failed for prefix: {}", prefix);
             log_info!(&format!("Prefix '{}' returned {} completions", prefix, completions.len()));
         }
-    }
-
-    #[test]
-    fn test_contains_function() {
-        log_info!("Testing contains function");
-        let mut trie = ART::new(10);
-
-        // Insert some paths directly without using the test module's normalize_path
-        trie.insert("/path1", 1.0);
-        trie.insert("/path2", 0.9);
-        
-        let result = trie.contains("/path1");
-
-        // Check if paths exist
-        assert!(result, "Path1 should exist");
     }
     
     #[test]
