@@ -106,26 +106,6 @@ impl PathCache {
     }
 
     #[inline]
-    pub fn remove(&mut self, path: &str) -> bool {
-        // Clear thread-local cache if it matches
-        RECENT_QUERY.with(|recent| {
-            let mut recent_ref = recent.borrow_mut();
-            if let Some((ref query, _)) = *recent_ref {
-                if query == path {
-                    *recent_ref = None;
-                }
-            }
-        });
-
-        // Remove from shared cache
-        if let Ok(mut cache) = self.inner.lock() {
-            cache.remove(&path.to_string())
-        } else {
-            false
-        }
-    }
-
-    #[inline]
     pub fn len(&self) -> usize {
         if let Ok(cache) = self.inner.lock() {
             cache.len()
@@ -224,11 +204,6 @@ mod tests_path_cache {
         assert_eq!(cache.len(), 3);
         assert!(cache.get("/path/to/file1").is_none());
         assert!(cache.get("/path/to/file2").is_some());
-
-        // Test removal
-        assert!(cache.remove("/path/to/file3"));
-        assert_eq!(cache.len(), 2);
-        assert!(cache.get("/path/to/file3").is_none());
 
         // Test clear
         cache.clear();

@@ -1265,7 +1265,7 @@ mod tests_fast_fuzzy_v2 {
     fn create_test_data() {
 
         let base_path = PathBuf::from("./test-data-for-fuzzy-search");
-        match super::super::generate_test_data(base_path) {
+        match crate::search_engine::test_generate_test_data::generate_test_data(base_path) {
             Ok(path) => log_info!(&format!("Test data generated successfully at {:?}", path)),
             Err(e) => panic!("Failed to generate test data: {}", e),
         }
