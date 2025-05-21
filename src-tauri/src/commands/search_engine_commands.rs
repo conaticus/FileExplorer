@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
-use crate::state::searchengine_data::{SearchEngineState, SearchEngineInfo};
 use crate::log_info;
+use crate::state::searchengine_data::{SearchEngineInfo, SearchEngineState};
 
 // Type alias for the search result type returned by the engine
 type SearchResult = Vec<(String, f32)>;
@@ -32,17 +32,20 @@ type SearchResult = Vec<(String, f32)>;
 /// ```
 #[tauri::command]
 pub fn search(
-    query: String, 
-    search_engine_state: State<Arc<Mutex<SearchEngineState>>>
+    query: String,
+    search_engine_state: State<Arc<Mutex<SearchEngineState>>>,
 ) -> Result<SearchResult, String> {
     search_impl(query, search_engine_state.inner().clone())
 }
 
 pub fn search_impl(
     query: String,
-    state: Arc<Mutex<SearchEngineState>>
+    state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<SearchResult, String> {
-    log_info!(&format!("Search implementation called with query: {}", query));
+    log_info!(&format!(
+        "Search implementation called with query: {}",
+        query
+    ));
     let engine = state.lock().unwrap();
     engine.search(&query)
 }
@@ -62,8 +65,8 @@ pub fn search_impl(
 /// # Example
 /// ```rust
 /// let result = search_with_extension(
-///     "document".to_string(), 
-///     vec!["txt".to_string(), "md".to_string()], 
+///     "document".to_string(),
+///     vec!["txt".to_string(), "md".to_string()],
 ///     search_engine_state
 /// ).await;
 /// match result {
@@ -77,9 +80,9 @@ pub fn search_impl(
 /// ```
 #[tauri::command]
 pub fn search_with_extension(
-    query: String, 
-    extensions: Vec<String>, 
-    search_engine_state: State<Arc<Mutex<SearchEngineState>>>
+    query: String,
+    extensions: Vec<String>,
+    search_engine_state: State<Arc<Mutex<SearchEngineState>>>,
 ) -> Result<SearchResult, String> {
     search_with_extension_impl(query, extensions, search_engine_state.inner().clone())
 }
@@ -87,9 +90,12 @@ pub fn search_with_extension(
 pub fn search_with_extension_impl(
     query: String,
     extensions: Vec<String>,
-    state: Arc<Mutex<SearchEngineState>>
+    state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<SearchResult, String> {
-    log_info!(&format!("Search with extension called: query='{}', extensions={:?}", query, extensions));
+    log_info!(&format!(
+        "Search with extension called: query='{}', extensions={:?}",
+        query, extensions
+    ));
     let engine = state.lock().unwrap();
     engine.search_by_extension(&query, extensions)
 }
@@ -114,17 +120,20 @@ pub fn search_with_extension_impl(
 /// ```
 #[tauri::command]
 pub fn add_paths_recursive(
-    folder: String, 
-    search_engine_state: State<Arc<Mutex<SearchEngineState>>>
+    folder: String,
+    search_engine_state: State<Arc<Mutex<SearchEngineState>>>,
 ) -> Result<(), String> {
     add_paths_recursive_impl(folder, search_engine_state.inner().clone())
 }
 
 pub fn add_paths_recursive_impl(
     folder: String,
-    state: Arc<Mutex<SearchEngineState>>
+    state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<(), String> {
-    log_info!(&format!("Add paths recursive called with folder: {}", folder));
+    log_info!(&format!(
+        "Add paths recursive called with folder: {}",
+        folder
+    ));
     let path = PathBuf::from(folder);
     let engine = state.lock().unwrap();
     engine.start_indexing(path)
@@ -150,16 +159,13 @@ pub fn add_paths_recursive_impl(
 /// ```
 #[tauri::command]
 pub fn add_path(
-    path: String, 
-    search_engine_state: State<Arc<Mutex<SearchEngineState>>>
+    path: String,
+    search_engine_state: State<Arc<Mutex<SearchEngineState>>>,
 ) -> Result<(), String> {
     add_path_impl(path, search_engine_state.inner().clone())
 }
 
-pub fn add_path_impl(
-    path: String,
-    state: Arc<Mutex<SearchEngineState>>
-) -> Result<(), String> {
+pub fn add_path_impl(path: String, state: Arc<Mutex<SearchEngineState>>) -> Result<(), String> {
     log_info!(&format!("Add path called with: {}", path));
     let engine = state.lock().unwrap();
     engine.add_path(&path)
@@ -185,17 +191,20 @@ pub fn add_path_impl(
 /// ```
 #[tauri::command]
 pub fn remove_paths_recursive(
-    folder: String, 
-    search_engine_state: State<Arc<Mutex<SearchEngineState>>>
+    folder: String,
+    search_engine_state: State<Arc<Mutex<SearchEngineState>>>,
 ) -> Result<(), String> {
     remove_paths_recursive_impl(folder, search_engine_state.inner().clone())
 }
 
 pub fn remove_paths_recursive_impl(
     folder: String,
-    state: Arc<Mutex<SearchEngineState>>
+    state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<(), String> {
-    log_info!(&format!("Remove paths recursive called with folder: {}", folder));
+    log_info!(&format!(
+        "Remove paths recursive called with folder: {}",
+        folder
+    ));
     let engine = state.lock().unwrap();
     engine.remove_paths_recursive(&folder)
 }
@@ -220,16 +229,13 @@ pub fn remove_paths_recursive_impl(
 /// ```
 #[tauri::command]
 pub fn remove_path(
-    path: String, 
-    search_engine_state: State<Arc<Mutex<SearchEngineState>>>
+    path: String,
+    search_engine_state: State<Arc<Mutex<SearchEngineState>>>,
 ) -> Result<(), String> {
     remove_path_impl(path, search_engine_state.inner().clone())
 }
 
-pub fn remove_path_impl(
-    path: String,
-    state: Arc<Mutex<SearchEngineState>>
-) -> Result<(), String> {
+pub fn remove_path_impl(path: String, state: Arc<Mutex<SearchEngineState>>) -> Result<(), String> {
     log_info!(&format!("Remove path called with: {}", path));
     let engine = state.lock().unwrap();
     engine.remove_path(&path)
@@ -254,17 +260,14 @@ pub fn remove_path_impl(
 /// ```
 #[tauri::command]
 pub fn clear_search_engine(
-    search_engine_state: State<Arc<Mutex<SearchEngineState>>>
+    search_engine_state: State<Arc<Mutex<SearchEngineState>>>,
 ) -> Result<(), String> {
     clear_search_engine_impl(search_engine_state.inner().clone())
 }
 
-pub fn clear_search_engine_impl(
-    state: Arc<Mutex<SearchEngineState>>
-) -> Result<(), String> {
+pub fn clear_search_engine_impl(state: Arc<Mutex<SearchEngineState>>) -> Result<(), String> {
     log_info!("Clear search engine called");
 
-    // Get engine lock and clear it
     let state = state.lock().unwrap();
     let mut engine = state.engine.lock().unwrap();
     engine.clear();
@@ -319,13 +322,13 @@ pub fn clear_search_engine_impl(
 /// ```
 #[tauri::command]
 pub fn get_search_engine_info(
-    search_engine_state: State<Arc<Mutex<SearchEngineState>>>
+    search_engine_state: State<Arc<Mutex<SearchEngineState>>>,
 ) -> Result<SearchEngineInfo, String> {
     get_search_engine_info_impl(search_engine_state.inner().clone())
 }
 
 pub fn get_search_engine_info_impl(
-    state: Arc<Mutex<SearchEngineState>>
+    state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<SearchEngineInfo, String> {
     log_info!("Get search engine info called");
     let engine = state.lock().unwrap();
@@ -336,9 +339,9 @@ pub fn get_search_engine_info_impl(
 mod tests_autocomplete_commands {
     use super::*;
     use crate::state::searchengine_data::SearchEngineStatus;
-    use tempfile::TempDir;
     use std::fs::File;
     use std::io::Write;
+    use tempfile::TempDir;
 
     // Helper function to create a test SearchEngineState
     fn create_test_search_engine_state() -> Arc<Mutex<SearchEngineState>> {
@@ -364,11 +367,8 @@ mod tests_autocomplete_commands {
     #[test]
     fn test_search_with_extension_impl_with_empty_engine() {
         let state = create_test_search_engine_state();
-        let results = search_with_extension_impl(
-            "test".to_string(), 
-            vec!["txt".to_string()], 
-            state
-        );
+        let results =
+            search_with_extension_impl("test".to_string(), vec!["txt".to_string()], state);
         assert!(results.is_ok());
         assert_eq!(results.unwrap().len(), 0);
     }
@@ -377,17 +377,17 @@ mod tests_autocomplete_commands {
     fn test_add_and_search_path() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = create_temp_file(&temp_dir, "test.txt", "This is a test document");
-        
+
         let state = create_test_search_engine_state();
-        
+
         // Add the file to the index
         let add_result = add_path_impl(file_path.to_string_lossy().to_string(), state.clone());
         assert!(add_result.is_ok());
-        
+
         // Search for a term that should be in the file
         let search_result = search_impl("test".to_string(), state.clone());
         assert!(search_result.is_ok());
-        
+
         let results = search_result.unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].0.contains("test.txt"));
@@ -397,21 +397,22 @@ mod tests_autocomplete_commands {
     fn test_add_and_remove_path() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = create_temp_file(&temp_dir, "test.txt", "This is a test document");
-        
+
         let state = create_test_search_engine_state();
-        
+
         // Add the file to the index
         let add_result = add_path_impl(file_path.to_string_lossy().to_string(), state.clone());
         assert!(add_result.is_ok());
-        
+
         // Remove the file from the index
-        let remove_result = remove_path_impl(file_path.to_string_lossy().to_string(), state.clone());
+        let remove_result =
+            remove_path_impl(file_path.to_string_lossy().to_string(), state.clone());
         assert!(remove_result.is_ok());
-        
+
         // Search for a term that was in the file
         let search_result = search_impl("test".to_string(), state.clone());
         assert!(search_result.is_ok());
-        
+
         // Verify the file is no longer in the index
         let results = search_result.unwrap();
         assert_eq!(results.len(), 0);
@@ -422,35 +423,43 @@ mod tests_autocomplete_commands {
         let temp_dir = TempDir::new().unwrap();
         let subdir = temp_dir.path().join("subdir");
         std::fs::create_dir_all(&subdir).unwrap();
-        
+
         let _file1 = create_temp_file(&temp_dir, "test1.txt", "This is test document one");
-        let _file2 = create_temp_file(&TempDir::new_in(&subdir).unwrap(), "test2.txt", "This is test document two");
-        
+        let _file2 = create_temp_file(
+            &TempDir::new_in(&subdir).unwrap(),
+            "test2.txt",
+            "This is test document two",
+        );
+
         let state = create_test_search_engine_state();
-        
+
         // Add all files recursively
-        let add_result = add_paths_recursive_impl(temp_dir.path().to_string_lossy().to_string(), state.clone());
+        let add_result =
+            add_paths_recursive_impl(temp_dir.path().to_string_lossy().to_string(), state.clone());
         assert!(add_result.is_ok());
-        
+
         // Search for a common term
         let search_result = search_impl("test".to_string(), state.clone());
         assert!(search_result.is_ok());
         let _results = search_result.unwrap();
-        
+
         // Since recursive indexing happens in a background thread, we can't reliably test file count here
         // We should test core functionality without relying on completion timing
-        
+
         // Remove all files recursively
-        let remove_result = remove_paths_recursive_impl(temp_dir.path().to_string_lossy().to_string(), state.clone());
+        let remove_result = remove_paths_recursive_impl(
+            temp_dir.path().to_string_lossy().to_string(),
+            state.clone(),
+        );
         assert!(remove_result.is_ok());
-        
+
         // Allow some time for removal to complete
         std::thread::sleep(std::time::Duration::from_millis(100));
-        
+
         // Search again after removal
         let search_result_after = search_impl("test".to_string(), state.clone());
         assert!(search_result_after.is_ok());
-        
+
         // We can't guarantee the files are completely removed due to threading, but core functionality works
         // assert_eq!(search_result_after.unwrap().len(), 0);
     }
@@ -459,21 +468,21 @@ mod tests_autocomplete_commands {
     fn test_clear_search_engine() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = create_temp_file(&temp_dir, "test.txt", "This is a test document");
-        
+
         let state = create_test_search_engine_state();
-        
+
         // Add the file to the index
         let add_result = add_path_impl(file_path.to_string_lossy().to_string(), state.clone());
         assert!(add_result.is_ok());
-        
+
         // Clear the search engine
         let clear_result = clear_search_engine_impl(state.clone());
         assert!(clear_result.is_ok());
-        
+
         // Search for a term that was in the file
         let search_result = search_impl("test".to_string(), state.clone());
         assert!(search_result.is_ok());
-        
+
         // Verify the index is empty
         let results = search_result.unwrap();
         assert_eq!(results.len(), 0);
@@ -482,12 +491,12 @@ mod tests_autocomplete_commands {
     #[test]
     fn test_get_search_engine_info() {
         let state = create_test_search_engine_state();
-        
+
         let info_result = get_search_engine_info_impl(state.clone());
         assert!(info_result.is_ok());
-        
+
         let info = info_result.unwrap();
-        
+
         // Check that the returned structure has the expected default values
         assert_eq!(info.metrics.total_searches, 0);
         assert_eq!(info.progress.files_indexed, 0);
@@ -499,23 +508,23 @@ mod tests_autocomplete_commands {
         let temp_dir = TempDir::new().unwrap();
         let txt_file = create_temp_file(&temp_dir, "test.txt", "This is a text document");
         let md_file = create_temp_file(&temp_dir, "readme.md", "This is a markdown document");
-        
+
         let state = create_test_search_engine_state();
-        
+
         // Add both files to the index
         add_path_impl(txt_file.to_string_lossy().to_string(), state.clone()).unwrap();
         add_path_impl(md_file.to_string_lossy().to_string(), state.clone()).unwrap();
-        
+
         // Search for "document" with txt extension filter
         let search_result = search_with_extension_impl(
-            "document".to_string(), 
-            vec!["txt".to_string()], 
-            state.clone()
+            "document".to_string(),
+            vec!["txt".to_string()],
+            state.clone(),
         );
-        
+
         assert!(search_result.is_ok());
         let results = search_result.unwrap();
-        
+
         // Should only find the txt file
         assert_eq!(results.len(), 1);
         assert!(results[0].0.contains("test.txt"));

@@ -1,7 +1,7 @@
-use std::time::Duration;
+use crate::search_engine::lru_cache_v2::LruPathCache;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
-use crate::search_engine::lru_cache_v2::LruPathCache;
+use std::time::Duration;
 
 thread_local! {
     // Thread-local recent query cache to avoid lock acquisition
@@ -9,11 +9,10 @@ thread_local! {
 }
 
 pub struct PathCache {
-    // Use Mutex instead of RwLock as we always need write access for LRU updates
     inner: Arc<Mutex<LruPathCache<String, PathData>>>,
 }
 
-// Make PathCache explicitly Send+Sync
+// explicitly Send+Sync
 unsafe impl Send for PathCache {}
 unsafe impl Sync for PathCache {}
 
@@ -43,7 +42,7 @@ impl PathCache {
     pub fn get(&mut self, path: &str) -> Option<PathData> {
         // Check thread-local cache first
         let mut result = None;
-        
+
         RECENT_QUERY.with(|recent| {
             if let Some((ref query, ref data)) = *recent.borrow() {
                 if query == path {
@@ -51,13 +50,11 @@ impl PathCache {
                 }
             }
         });
-        
-        // If we got a result from thread-local cache, verify it's not expired in main cache
+
+        // if we get result check if it is expired
         if result.is_some() {
-            // Check if the entry might be expired in the main cache
             if let Ok(cache) = self.inner.lock() {
                 if !cache.check_ttl(&path.to_string()) {
-                    // Clear the thread-local cache if it's expired
                     RECENT_QUERY.with(|recent| {
                         *recent.borrow_mut() = None;
                     });
@@ -67,12 +64,12 @@ impl PathCache {
             return result;
         }
 
-        // Try the shared cache if not in thread-local cache
+        // if not in thread-local cache try shared cache
         let mutex_guard = match self.inner.lock() {
             Ok(guard) => guard,
             Err(_) => return None,
         };
-        
+
         // Use destructuring to avoid holding the lock longer than needed
         let mut cache = mutex_guard;
         if let Some(data) = cache.get(&path.to_string()) {
@@ -81,7 +78,7 @@ impl PathCache {
             RECENT_QUERY.with(|recent| {
                 *recent.borrow_mut() = Some((path.to_string(), cloned_data.clone()));
             });
-            
+
             return Some(cloned_data);
         }
 
@@ -90,9 +87,7 @@ impl PathCache {
 
     #[inline]
     pub fn insert(&mut self, query: String, results: Vec<(String, f32)>) {
-        let data = PathData {
-            results: results,
-        };
+        let data = PathData { results };
 
         // Update thread-local cache
         RECENT_QUERY.with(|recent| {
@@ -162,8 +157,8 @@ impl PathCache {
 mod tests_path_cache {
     use super::*;
     use crate::log_info;
-    use std::time::Instant;
     use std::thread::sleep;
+    use std::time::Instant;
 
     #[test]
     fn test_basic_operations() {
@@ -173,8 +168,14 @@ mod tests_path_cache {
         assert_eq!(cache.len(), 0);
 
         // Test insertion
-        cache.insert("/path/to/file1".to_string(), vec![("/path/to/file1".to_string(), 1.0)]);
-        cache.insert("/path/to/file2".to_string(), vec![("/path/to/file2".to_string(), 2.0)]);
+        cache.insert(
+            "/path/to/file1".to_string(),
+            vec![("/path/to/file1".to_string(), 1.0)],
+        );
+        cache.insert(
+            "/path/to/file2".to_string(),
+            vec![("/path/to/file2".to_string(), 2.0)],
+        );
 
         assert_eq!(cache.len(), 2);
         assert!(!cache.is_empty());
@@ -197,8 +198,14 @@ mod tests_path_cache {
         assert!(cache.get("/path/to/file3").is_none());
 
         // Test LRU behavior (capacity limit)
-        cache.insert("/path/to/file3".to_string(), vec![("/path/to/file3".to_string(), 3.0)]);
-        cache.insert("/path/to/file4".to_string(), vec![("/path/to/file4".to_string(), 4.0)]);
+        cache.insert(
+            "/path/to/file3".to_string(),
+            vec![("/path/to/file3".to_string(), 3.0)],
+        );
+        cache.insert(
+            "/path/to/file4".to_string(),
+            vec![("/path/to/file4".to_string(), 4.0)],
+        );
 
         // file1 should be evicted since it's the least recently used
         assert_eq!(cache.len(), 3);
@@ -216,7 +223,10 @@ mod tests_path_cache {
         let mut cache = PathCache::new(3);
 
         // Insert a path with initial score
-        cache.insert("/path/to/file".to_string(), vec![("/path/to/file".to_string(), 1.0)]);
+        cache.insert(
+            "/path/to/file".to_string(),
+            vec![("/path/to/file".to_string(), 1.0)],
+        );
 
         // Verify initial score
         let file_data = cache.get("/path/to/file").unwrap();
@@ -224,7 +234,10 @@ mod tests_path_cache {
         assert_eq!(file_data.results[0].1, 1.0);
 
         // Update the score
-        cache.insert("/path/to/file".to_string(), vec![("/path/to/file".to_string(), 2.5)]);
+        cache.insert(
+            "/path/to/file".to_string(),
+            vec![("/path/to/file".to_string(), 2.5)],
+        );
 
         // Verify updated score
         let updated_data = cache.get("/path/to/file").unwrap();
@@ -237,10 +250,19 @@ mod tests_path_cache {
         let ttl = Duration::from_millis(100);
         let mut cache = PathCache::with_ttl(5, ttl);
 
-        cache.insert("/path/to/file1".to_string(), vec![("/path/to/file1".to_string(), 1.0)]);
-        cache.insert("/path/to/file2".to_string(), vec![("/path/to/file2".to_string(), 2.0)]);
-        cache.insert("/path/to/file3".to_string(), vec![("/path/to/file3".to_string(), 3.0)]);
-        
+        cache.insert(
+            "/path/to/file1".to_string(),
+            vec![("/path/to/file1".to_string(), 1.0)],
+        );
+        cache.insert(
+            "/path/to/file2".to_string(),
+            vec![("/path/to/file2".to_string(), 2.0)],
+        );
+        cache.insert(
+            "/path/to/file3".to_string(),
+            vec![("/path/to/file3".to_string(), 3.0)],
+        );
+
         let file1 = cache.get("/path/to/file1");
         assert!(file1.is_some());
         assert_eq!(file1.unwrap().results[0].0, "/path/to/file1");
@@ -254,11 +276,14 @@ mod tests_path_cache {
         assert!(cache.get("/path/to/file3").is_none());
 
         // Add a fresh entry
-        cache.insert("/path/to/file4".to_string(), vec![("/path/to/file4".to_string(), 4.0)]);
+        cache.insert(
+            "/path/to/file4".to_string(),
+            vec![("/path/to/file4".to_string(), 4.0)],
+        );
 
         // file1, file2, and file3 should expire, but file4 should remain
         let purged = cache.purge_expired();
-        assert_eq!(purged, 1);  // Now correctly expects 3 purged items
+        assert_eq!(purged, 1); // Now correctly expects 3 purged items
         assert_eq!(cache.len(), 1);
         assert!(cache.get("/path/to/file4").is_some());
     }
@@ -284,7 +309,10 @@ mod tests_path_cache {
         let elapsed = start.elapsed();
 
         let avg_retrieval_time = elapsed.as_nanos() as f64 / 500.0;
-        log_info!(&format!("Average retrieval time for existing paths: {:.2} ns", avg_retrieval_time));
+        log_info!(&format!(
+            "Average retrieval time for existing paths: {:.2} ns",
+            avg_retrieval_time
+        ));
 
         // Benchmark getting non-existent paths
         let start = Instant::now();
@@ -295,7 +323,10 @@ mod tests_path_cache {
         let elapsed = start.elapsed();
 
         let avg_miss_time = elapsed.as_nanos() as f64 / 500.0;
-        log_info!(&format!("Average retrieval time for non-existent paths: {:.2} ns", avg_miss_time));
+        log_info!(&format!(
+            "Average retrieval time for non-existent paths: {:.2} ns",
+            avg_miss_time
+        ));
     }
 
     #[test]
@@ -315,16 +346,18 @@ mod tests_path_cache {
 
             // Measure retrieval time (mixed hits and misses)
             let start = Instant::now();
-            for i in size/2..(size/2 + 1000).min(size + 500) {
+            for i in size / 2..(size / 2 + 1000).min(size + 500) {
                 let path = format!("/path/to/file_{}", i);
                 let _ = cache.get(&path);
             }
             let elapsed = start.elapsed();
 
-            log_info!(&format!("Path cache size {}: 1000 lookups took {:?} (avg: {:.2} ns/lookup)",
-                    size,
-                    elapsed,
-                    elapsed.as_nanos() as f64 / 1000.0));
+            log_info!(&format!(
+                "Path cache size {}: 1000 lookups took {:?} (avg: {:.2} ns/lookup)",
+                size,
+                elapsed,
+                elapsed.as_nanos() as f64 / 1000.0
+            ));
         }
     }
 
@@ -336,7 +369,10 @@ mod tests_path_cache {
 
         // Fill cache
         for i in 0..100 {
-            cache.insert(format!("/path/to/file_{}", i), vec![(format!("/path/to/file_{}", i), i as f32)]);
+            cache.insert(
+                format!("/path/to/file_{}", i),
+                vec![(format!("/path/to/file_{}", i), i as f32)],
+            );
         }
 
         // Access first 20 items to make them recently used
@@ -347,11 +383,17 @@ mod tests_path_cache {
         // Insert 20 new items, which should evict the least recently used
         let start = Instant::now();
         for i in 100..120 {
-            cache.insert(format!("/path/to/file_{}", i), vec![(format!("/path/to/file_{}", i), i as f32)]);
+            cache.insert(
+                format!("/path/to/file_{}", i),
+                vec![(format!("/path/to/file_{}", i), i as f32)],
+            );
         }
         let elapsed = start.elapsed();
 
-        log_info!(&format!("Time to insert 20 items with eviction: {:?}", elapsed));
+        log_info!(&format!(
+            "Time to insert 20 items with eviction: {:?}",
+            elapsed
+        ));
 
         // Verify the first 20 items are still there (recently used)
         for i in 0..20 {
@@ -366,7 +408,9 @@ mod tests_path_cache {
             }
         }
 
-        log_info!(&format!("Evicted {} items from the middle range", evicted_count));
+        log_info!(&format!(
+            "Evicted {} items from the middle range",
+            evicted_count
+        ));
     }
 }
-

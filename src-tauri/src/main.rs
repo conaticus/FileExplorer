@@ -76,9 +76,12 @@ async fn main() {
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(all_commands());
 
-    // State-Setup ausgelagert in eigene Funktion
+    // State-Setup moved to seperate function
     let app = state::setup_app_state(app);
 
     app.run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect({
+                    let error_msg = "error while running tauri application";
+                    log_critical!(error_msg);
+                    &error_msg.to_string()});
 }

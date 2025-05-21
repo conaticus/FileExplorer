@@ -109,7 +109,6 @@ macro_rules! log_critical {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(dead_code)]
 pub enum LogLevel {
     Info,
     Warn,

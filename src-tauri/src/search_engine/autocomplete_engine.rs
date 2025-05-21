@@ -1,43 +1,44 @@
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use crate::search_engine::art_v4::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
 use crate::search_engine::path_cache_wrapper::PathCache;
-use crate::{log_info, log_warn};
+use crate::log_warn;
+#[cfg(test)]
+use crate::log_info;
 
 /// Autocomplete engine that combines caching, prefix search, and fuzzy search
 pub struct AutocompleteEngine {
     /// Cache for storing recent search results
     cache: PathCache,
-    
+
     /// Adaptive Radix Trie for prefix searching
     trie: ART,
-    
+
     /// Fuzzy search engine for approximate matching
     fuzzy_matcher: PathMatcher,
-    
+
     /// Maximum number of results to return
     max_results: usize,
-    
+
     /// Current directory context for ranking
     current_directory: Option<String>,
-    
+
     /// Track frequency of path usage
     frequency_map: HashMap<String, u32>,
-    
+
     /// Track recency of path usage
     recency_map: HashMap<String, Instant>,
-    
+
     /// Preferred file extensions (ranked higher)
     preferred_extensions: Vec<String>,
-    
+
     /// Flag to signal that indexing should stop
     stop_indexing: AtomicBool,
 }
 
-#[allow(dead_code)] // remove later when used
 impl AutocompleteEngine {
     /// Create a new AutocompleteEngine with specified cache size and max results
     pub fn new(cache_size: usize, max_results: usize) -> Self {
@@ -50,11 +51,20 @@ impl AutocompleteEngine {
             frequency_map: HashMap::new(),
             recency_map: HashMap::new(),
             preferred_extensions: vec![
-                "txt".to_string(), "pdf".to_string(), "docx".to_string(), 
-                "xlsx".to_string(), "md".to_string(), "rs".to_string(),
-                "js".to_string(), "html".to_string(), "css".to_string(),
-                "json".to_string(), "png".to_string(), "jpg".to_string(),
-                "mp4".to_string(), "mp3".to_string()
+                "txt".to_string(),
+                "pdf".to_string(),
+                "docx".to_string(),
+                "xlsx".to_string(),
+                "md".to_string(),
+                "rs".to_string(),
+                "js".to_string(),
+                "html".to_string(),
+                "css".to_string(),
+                "json".to_string(),
+                "png".to_string(),
+                "jpg".to_string(),
+                "mp4".to_string(),
+                "mp3".to_string(),
             ],
             stop_indexing: AtomicBool::new(false),
         }
@@ -91,15 +101,15 @@ impl AutocompleteEngine {
         // This handles cases where spaces were intended to be path separators
         if trimmed.contains(' ') {
             // Check if these are likely meant to be separators by looking at the pattern
-            // e.g., "./test-data-for-fuzzy-search ambulance blueberry lime"
+            // e.g., "./test-data-for-fuzzy-search ambulance blueberry lime" from tests
             let components: Vec<&str> = trimmed.split(' ').collect();
 
             // If the first component contains a slash and subsequent components don't,
             // they're likely meant to be separate path components
-            if components.len() > 1 &&
-                components[0].contains('/') &&
-                !components.iter().skip(1).any(|&c| c.contains('/')) {
-                // Join with slashes instead of spaces
+            if components.len() > 1
+                && components[0].contains('/')
+                && !components.iter().skip(1).any(|&c| c.contains('/'))
+            {
                 return components.join("/");
             }
         }
@@ -111,21 +121,20 @@ impl AutocompleteEngine {
     pub fn set_current_directory(&mut self, directory: Option<String>) {
         self.current_directory = directory;
     }
-    
+
     /// Add or update a path (normalized!) in the search engines
     pub fn add_path(&mut self, path: &str) {
-        let normalied_path = self.normalize_path(path);
+        let normalized_path = self.normalize_path(path);
         let mut score = 1.0;
-        
-        // Check if we have existing frequency data to adjust score
-        if let Some(freq) = self.frequency_map.get(&normalied_path) {
-            // Boost score for frequently accessed paths
+
+        // check if we have existing frequency data to adjust score and boost score for frequently accessed paths
+        if let Some(freq) = self.frequency_map.get(&normalized_path) {
             score += (*freq as f32) * 0.01;
         }
-        
+
         // Update all modules and clean cache
-        self.trie.insert(&normalied_path, score);
-        self.fuzzy_matcher.add_path(&normalied_path);
+        self.trie.insert(&normalized_path, score);
+        self.fuzzy_matcher.add_path(&normalized_path);
         self.cache.purge_expired();
     }
 
@@ -147,11 +156,11 @@ impl AutocompleteEngine {
     pub fn add_paths_recursive(&mut self, path: &str) {
         // Reset stop flag at the beginning of a new indexing operation
         self.reset_stop_flag();
-        
-        // Add the path itself first
+
+        // add the path itself first
         self.add_path(path);
 
-        // Check if the path is a directory
+        // check if dir
         let path_obj = std::path::Path::new(path);
         if !path_obj.is_dir() {
             return;
@@ -169,20 +178,21 @@ impl AutocompleteEngine {
         for entry in walk_dir.filter_map(Result::ok) {
             // Check if we should stop indexing
             if self.should_stop_indexing() {
+                #[cfg(test)]
                 log_info!(&format!("Indexing of '{}' stopped prematurely", path));
                 return;
             }
-            
+
             let entry_path = entry.path();
             if let Some(entry_str) = Some(entry_path.to_string_lossy().to_string()) {
                 // Add this path
                 self.add_path(&entry_str);
 
-                // If it's a directory, recurse
+                // If it's a dir, recurse
                 if entry_path.is_dir() {
                     self.add_paths_recursive(&entry_str);
-                    
-                    // Check again after recursion in case we need to stop
+
+                    // Check again
                     if self.should_stop_indexing() {
                         return;
                     }
@@ -198,11 +208,10 @@ impl AutocompleteEngine {
         self.trie.remove(&normalized_path);
         self.fuzzy_matcher.remove_path(&normalized_path);
 
-        // Clear the entire cache instead of just removing the specific path
-        // This ensures all cached results that might contain this path are invalidated
+        // Clear the entire cache (this is a simplification, because of previous bugs)
         self.cache.clear();
 
-        // Remove from frequency and recency maps
+        // remove from frequency and recency maps
         self.frequency_map.remove(&normalized_path);
         self.recency_map.remove(&normalized_path);
     }
@@ -211,17 +220,21 @@ impl AutocompleteEngine {
         // Remove the path itself first
         self.remove_path(path);
 
-        // Check if the path is a directory
+        // Check if dir
         let path_obj = std::path::Path::new(path);
         if !path_obj.exists() || !path_obj.is_dir() {
             return;
         }
-
-        log_info!(&format!("Recursively removing directory from index: {}", path));
+       
+        #[cfg(test)]
+        log_info!(&format!(
+            "Recursively removing directory from index: {}",
+            path
+        ));
 
         let mut paths_to_remove = Vec::new();
 
-        // Walk the directory and collect all paths
+        // Walk dir
         if let Ok(entries) = std::fs::read_dir(path) {
             for entry in entries.filter_map(Result::ok) {
                 let entry_path = entry.path();
@@ -230,6 +243,7 @@ impl AutocompleteEngine {
                 }
             }
         } else {
+            #[cfg(test)]
             log_warn!(&format!("Failed to read directory '{}' for removal", path));
         }
 
@@ -251,23 +265,23 @@ impl AutocompleteEngine {
         // Update frequency count
         let count = self.frequency_map.entry(path.to_string()).or_insert(0);
         *count += 1;
-        
+
         // Update recency timestamp
         self.recency_map.insert(path.to_string(), Instant::now());
     }
-    
+
     /// Set preferred file extensions for ranking
     pub fn set_preferred_extensions(&mut self, extensions: Vec<String>) {
         self.preferred_extensions = extensions;
-        // Clear the cache to ensure results reflect the new preferences
+        // Clear the cache to ensure results reflect the new preferences (previous bug)
         self.cache.clear();
     }
-    
+
     /// Get the currently set preferred extensions
     pub fn get_preferred_extensions(&self) -> &Vec<String> {
         &self.preferred_extensions
     }
-    
+
     /// Search for path completions using the engine's combined strategy
     #[inline]
     pub fn search(&mut self, query: &str) -> Vec<(String, f32)> {
@@ -277,45 +291,57 @@ impl AutocompleteEngine {
 
         let normalized_query = query.trim().to_string();
 
-        // 1. Check cache first but validate the path still exists
+        // 1. Check cache first
         if let Some(path_data) = self.cache.get(&normalized_query) {
-            // Fast path for cache hit - minimize allocations and operations
+            #[cfg(test)]
             log_info!(&format!("Cache hit for query: '{}'", normalized_query));
-
-            // Return all cached results
             return path_data.results;
         }
-        
+
+        #[cfg(test)]
         log_info!(&format!("Cache miss for query: '{}'", normalized_query));
-        
+
+        #[cfg(test)]
         let prefix_start = Instant::now();
-        
+
+        // 2. ART prefix search
         //let current_dir_ref = self.current_directory.as_deref();
         let prefix_results = self.trie.search(
             &normalized_query,
-            None, // should add current_dif_ref!? Todo
-            false
+            None, // should add current_dif_ref, but rn not very performant
+            false,
         );
-
-        let prefix_duration = prefix_start.elapsed();
-        log_info!(&format!("prefix search found {} results in {:?}",
-                 prefix_results.len(), prefix_duration));
         
+        #[cfg(test)] {
+        let prefix_duration = prefix_start.elapsed();
+        log_info!(&format!(
+            "prefix search found {} results in {:?}",
+            prefix_results.len(),
+            prefix_duration
+        ));}
+
         // 3. Only use fuzzy search if we don't have enough results
         let mut results = prefix_results;
         if results.len() < self.max_results {
+            #[cfg(test)]
             let fuzzy_start = Instant::now();
-            let fuzzy_results = self.fuzzy_matcher.search(
-                &normalized_query, 
-                self.max_results - results.len()
-            );
-            let fuzzy_duration = fuzzy_start.elapsed();
-            log_info!(&format!("Fuzzy search found {} results in {:?}", 
-                     fuzzy_results.len(), fuzzy_duration));
             
+            let fuzzy_results = self
+                .fuzzy_matcher
+                .search(&normalized_query, self.max_results - results.len());
+            #[cfg(test)] { 
+                let fuzzy_duration = fuzzy_start.elapsed();
+                log_info!(&format!(
+                    "Fuzzy search found {} results in {:?}",
+                    fuzzy_results.len(),
+                    fuzzy_duration
+                ));
+            }
+
             // Combine results, avoiding duplicates
             if !fuzzy_results.is_empty() {
-                let prefix_paths: Vec<String> = results.iter().map(|(path, _)| path.clone()).collect();
+                let prefix_paths: Vec<String> =
+                    results.iter().map(|(path, _)| path.clone()).collect();
                 for (path, score) in fuzzy_results {
                     if !prefix_paths.contains(&path) {
                         results.push((path, score));
@@ -333,35 +359,35 @@ impl AutocompleteEngine {
             }
 
             // 6. Cache top results for future queries (up to 5 or whatever is available)
-            let top_results: Vec<(String, f32)> = results.iter()
+            let top_results: Vec<(String, f32)> = results
+                .iter()
                 .take(5.min(results.len()))
                 .map(|(path, score)| (path.clone(), *score))
                 .collect();
 
             // Store in cache
-            let query_key = normalized_query.to_string(); // Only allocate string if needed
+            let query_key = normalized_query.to_string();
             self.cache.insert(query_key, top_results);
-            
+
             // Also record usage of the top result
             self.record_path_usage(&results[0].0);
         }
-        
+
         results
     }
 
     /// Rank search results based on various relevance factors
     fn rank_results(&self, results: &mut Vec<(String, f32)>, query: &str) {
-        // Recalculate scores based on our ranking criteria
+        // Recalculate scores based on frequency, recency, and context
         for (path, score) in results.iter_mut() {
-            // Start with the existing score
             let mut new_score = *score;
-            
+
             // 1. Boost for frequency
             if let Some(frequency) = self.frequency_map.get(path) {
                 // More frequently used paths get a boost
                 new_score += ((*frequency as f32) * 0.05).min(0.5);
             }
-            
+
             // 2. Boost for recency
             if let Some(timestamp) = self.recency_map.get(path) {
                 let age = timestamp.elapsed();
@@ -370,7 +396,7 @@ impl AutocompleteEngine {
                 let recency_boost = 1.5 * (1.0 - (age.as_secs_f32() / 86400.0).min(1.0));
                 new_score += recency_boost;
             }
-            
+
             // 3. Boost for current directory context
             if let Some(current_dir) = &self.current_directory {
                 if path.starts_with(current_dir) {
@@ -385,30 +411,38 @@ impl AutocompleteEngine {
                     }
                 }
             }
-            
+
             // 4. Boost for preferred file extensions
             if let Some(extension) = std::path::Path::new(path)
                 .extension()
-                .and_then(|e| e.to_str()) 
+                .and_then(|e| e.to_str())
             {
                 let ext = extension.to_lowercase();
-                
+
                 // Check if it's in preferred extensions list
-                if let Some(position) = self.preferred_extensions.iter().position(|e| e.to_lowercase() == ext) {
+                if let Some(position) = self
+                    .preferred_extensions
+                    .iter()
+                    .position(|e| e.to_lowercase() == ext)
+                {
                     // Give higher boost to extensions that appear earlier in the list
-                    let position_factor = 1.0 - (position as f32 / self.preferred_extensions.len().max(1) as f32);
+                    let position_factor =
+                        1.0 - (position as f32 / self.preferred_extensions.len().max(1) as f32);
                     // Stronger boost (up to 2.0 for first extension)
                     new_score += 2.0 * position_factor;
                 }
-                
+
                 // Extra boost if the query contains the extension
                 if query.to_lowercase().contains(&ext) {
                     new_score += 0.25;
                 }
             }
-            
+
             // 5. Boost for exact filename matches
-            if let Some(filename) = std::path::Path::new(path).file_name().and_then(|n| n.to_str()) {
+            if let Some(filename) = std::path::Path::new(path)
+                .file_name()
+                .and_then(|n| n.to_str())
+            {
                 if filename.to_lowercase() == query.to_lowercase() {
                     // Exact filename matches get a large boost
                     new_score += 1.0;
@@ -425,12 +459,11 @@ impl AutocompleteEngine {
 
             *score = new_score;
         }
-        
+
         // Sort by score (descending)
         results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     }
 
-    #[allow(dead_code)] // Used in testing
     /// Clear all data and caches
     pub fn clear(&mut self) {
         self.trie.clear();
@@ -440,7 +473,7 @@ impl AutocompleteEngine {
 
         self.fuzzy_matcher = PathMatcher::new();
     }
-    
+
     /// Get statistics about the engine
     pub fn get_stats(&self) -> EngineStats {
         EngineStats {
@@ -450,7 +483,6 @@ impl AutocompleteEngine {
     }
 }
 
-#[allow(dead_code)] // used only in testing rn
 /// Statistics about the autocomplete engine
 pub struct EngineStats {
     pub cache_size: usize,
@@ -460,173 +492,182 @@ pub struct EngineStats {
 #[cfg(test)]
 mod tests_autocomplete_engine {
     use super::*;
-    use std::thread::sleep;
     use std::fs;
+    use std::thread::sleep;
 
     #[test]
     fn test_basic_search() {
         let mut engine = AutocompleteEngine::new(100, 10);
-        
+
         // Add some test paths
         engine.add_path("/home/user/documents/report.pdf");
         engine.add_path("/home/user/documents/notes.txt");
         engine.add_path("/home/user/pictures/vacation.jpg");
-        
+
         // Test prefix search
         let results = engine.search("doc");
         assert!(!results.is_empty());
         assert!(results.iter().any(|(path, _)| path.contains("documents")));
-        log_info!(&format!("First search for 'doc' found {} results", results.len()));
-        
+        log_info!(&format!(
+            "First search for 'doc' found {} results",
+            results.len()
+        ));
+
         // Test cache hit on repeat search
         let cached_results = engine.search("doc");
-        log_info!(&format!("Second search for 'doc' found {} results", cached_results.len()));
+        log_info!(&format!(
+            "Second search for 'doc' found {} results",
+            cached_results.len()
+        ));
         assert!(!cached_results.is_empty());
     }
-    
+
     #[test]
     fn test_fuzzy_search_fallback() {
         let mut engine = AutocompleteEngine::new(100, 10);
-        
+
         // Add some test paths
         engine.add_path("/home/user/documents/report.pdf");
         engine.add_path("/home/user/documents/presentation.pptx");
         engine.add_path("/home/user/pictures/vacation.jpg");
-        
+
         // Test with a misspelling that should use fuzzy search
         let results = engine.search("documants");
         assert!(!results.is_empty());
         assert!(results.iter().any(|(path, _)| path.contains("documents")));
-        log_info!(&format!("Fuzzy search for 'documants' found {} results", results.len()));
+        log_info!(&format!(
+            "Fuzzy search for 'documants' found {} results",
+            results.len()
+        ));
     }
-    
+
     #[test]
     fn test_recency_and_frequency_ranking() {
         let mut engine = AutocompleteEngine::new(100, 10);
-        
+
         // Add some test paths
         engine.add_path("/path/a.txt");
         engine.add_path("/path/b.txt");
         engine.add_path("/path/c.txt");
-        
+
         // Increase frequency and recency for certain paths
         engine.record_path_usage("/path/a.txt");
-        engine.record_path_usage("/path/a.txt");  // Used twice
-        engine.record_path_usage("/path/b.txt");  // Used once
-        
+        engine.record_path_usage("/path/a.txt"); // Used twice
+        engine.record_path_usage("/path/b.txt"); // Used once
+
         // Wait a bit to create a recency difference
         sleep(Duration::from_millis(1000));
-        
+
         // Record newer usage for b.txt
         engine.record_path_usage("/path/b.txt");
-        
+
         // Search for common prefix
         let results = engine.search("/path/");
-        
+
         // b.txt should be first (most recent), followed by a.txt (most frequent)
         assert!(!results.is_empty());
-        assert_eq!(results[0].0, "/path/b.txt");  // This is correct, should be most recent
-        assert_eq!(results[1].0, "/path/a.txt");  // This is second most relevant
+        assert_eq!(results[0].0, "/path/b.txt"); // This is correct, should be most recent
+        assert_eq!(results[1].0, "/path/a.txt"); // This is second most relevant
     }
 
     #[test]
     fn test_current_directory_context() {
         let mut engine = AutocompleteEngine::new(100, 10);
-        
+
         // Add paths in different directories
         engine.add_path("/home/user/docs/file1.txt");
         engine.add_path("/home/user/docs/file2.txt");
         engine.add_path("/var/log/file3.txt");
-        
+
         // Set current directory context
         engine.set_current_directory(Some("/home/user/docs".to_string()));
-        
+
         // Search for a common term
         let results = engine.search("file");
-        
+
         // The files in the current directory should be ranked higher
         assert!(!results.is_empty());
         assert!(results[0].0.starts_with("/home/user/docs"));
     }
-    
+
     #[test]
     fn test_extension_preference() {
         let mut engine = AutocompleteEngine::new(100, 10);
-        
+
         // Add paths with different extensions
         engine.add_path("/docs/report.pdf");
         engine.add_path("/docs/data.csv");
         engine.add_path("/docs/note.txt");
-        
+
         // txt and pdf should be preferred over csv
         let results = engine.search("docs");
-        
+
         // The files with preferred extensions should be ranked higher
         assert!(!results.is_empty());
         assert!(results[0].0.ends_with(".pdf") || results[0].0.ends_with(".txt"));
     }
-    
+
     #[test]
     fn test_removal() {
         let mut engine = AutocompleteEngine::new(100, 10);
-        
+
         // Add paths
         engine.add_path("/path/file1.txt");
         engine.add_path("/path/file2.txt");
-        
+
         // Initial search
         let initial_results = engine.search("file");
         assert_eq!(initial_results.len(), 2);
-        
+
         // Remove one path
         engine.remove_path("/path/file1.txt");
-        
+
         // Search again
         let after_removal = engine.search("file");
         assert_eq!(after_removal.len(), 1);
         assert_eq!(after_removal[0].0, "/path/file2.txt");
     }
-    
+
     #[test]
     fn test_cache_expiration() {
         let mut engine = AutocompleteEngine::new(10, 5);
-        
+
         // Add a path
         engine.add_path("/test/file.txt");
-        
+
         // Search to cache results
         let _ = engine.search("file");
-        
+
         // Modify the path cache with a very short TTL for testing
         engine.cache = PathCache::with_ttl(10, Duration::from_millis(10));
-        
+
         // Add the path again to ensure it's in the index
         engine.add_path("/test/file.txt");
-        
+
         // Wait for cache to expire
         sleep(Duration::from_millis(20));
-        
+
         // Search again - should be a cache miss but still find results
         let results = engine.search("file");
         assert!(!results.is_empty());
         assert_eq!(results[0].0, "/test/file.txt");
     }
-    
+
     #[test]
     fn test_stats() {
         let mut engine = AutocompleteEngine::new(100, 10);
-        
+
         // Add some paths
         for i in 0..5 {
             engine.add_path(&format!("/path/file{}.txt", i));
         }
-        
+
         // Search to populate cache
         let _ = engine.search("file");
-        
+
         // Get stats
         let stats = engine.get_stats();
-        
+
         // Should have 5 paths in trie, 1 in cache
         assert_eq!(stats.trie_size, 5);
         assert!(stats.cache_size >= 1);
@@ -635,11 +676,14 @@ mod tests_autocomplete_engine {
     // Helper function to create a temporary directory structure for testing
     fn create_temp_dir_structure() -> std::path::PathBuf {
         // Create unique temp directory using timestamp and random number
-        let unique_id = format!("{}_{}", std::process::id(),
+        let unique_id = format!(
+            "{}_{}",
+            std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_millis());
+                .as_millis()
+        );
 
         let temp_dir = std::env::temp_dir().join(format!("autocomplete_engine_test_{}", unique_id));
 
@@ -716,7 +760,10 @@ mod tests_autocomplete_engine {
         let stats = engine.get_stats();
 
         // We should have all directories and files indexed (1 root dir + 3 subdirs + 4 files = 8 paths)
-        assert!(stats.trie_size >= 8, "Trie should contain all paths and directories");
+        assert!(
+            stats.trie_size >= 8,
+            "Trie should contain all paths and directories"
+        );
 
         // Clean up - best effort, don't panic if it fails
         let _ = fs::remove_dir_all(temp_dir);
@@ -735,7 +782,10 @@ mod tests_autocomplete_engine {
 
         // Verify initial indexing
         let initial_stats = engine.get_stats();
-        assert!(initial_stats.trie_size >= 8, "Trie should initially contain all paths");
+        assert!(
+            initial_stats.trie_size >= 8,
+            "Trie should initially contain all paths"
+        );
 
         // Verify subdir1 content is searchable - use full filename
         let subdir1_results = engine.search("file1.txt");
@@ -749,11 +799,17 @@ mod tests_autocomplete_engine {
 
         // Verify subdir1 content is no longer searchable (should still find fuzzy matches)
         let after_removal_results = engine.search("file1.txt");
-        assert!(!after_removal_results[0].0.contains("file1.txt"), "Should not find file1 after removal");
+        assert!(
+            !after_removal_results[0].0.contains("file1.txt"),
+            "Should not find file1 after removal"
+        );
 
         // Also verify nested content is removed (should still find some fuzzy matches)
         let nested_results = engine.search("nested_file.txt");
-        assert!(!nested_results[0].0.contains("nested_file.txt"), "Should not find nested file after removal");
+        assert!(
+            !nested_results[0].0.contains("nested_file.txt"),
+            "Should not find nested file after removal"
+        );
 
         // But content in other directories should still be searchable
         let root_file_results = engine.search("root_file.txt");
@@ -764,8 +820,10 @@ mod tests_autocomplete_engine {
 
         // Get updated stats
         let after_removal_stats = engine.get_stats();
-        assert!(after_removal_stats.trie_size < initial_stats.trie_size,
-                "Trie size should decrease after removal");
+        assert!(
+            after_removal_stats.trie_size < initial_stats.trie_size,
+            "Trie size should decrease after removal"
+        );
 
         // Clean up - best effort, don't panic if it fails
         let _ = fs::remove_dir_all(temp_dir);
@@ -847,22 +905,35 @@ mod tests_autocomplete_engine {
 
         // Verify engine is still in a valid state
         let after_removal = engine.search("path");
-        assert!(after_removal.is_empty(), "Path should be removed even if it doesn't exist");
+        assert!(
+            after_removal.is_empty(),
+            "Path should be removed even if it doesn't exist"
+        );
 
         // Add some valid paths to ensure engine still works
         engine.add_path("/valid/path1.txt");
         engine.add_path("/valid/path2.txt");
 
         let valid_results = engine.search("valid");
-        assert_eq!(valid_results.len(), 2, "Engine should still work with valid paths");
+        assert_eq!(
+            valid_results.len(),
+            2,
+            "Engine should still work with valid paths"
+        );
     }
 
     // Helper function to get test data directory
     fn get_test_data_path() -> std::path::PathBuf {
         let path = std::path::PathBuf::from("./test-data-for-fuzzy-search");
         if !path.exists() {
-            log_warn!(&format!("Test data directory does not exist: {:?}. Run the 'create_test_data' test first.", path));
-            panic!("Test data directory does not exist: {:?}. Run the 'create_test_data' test first.", path);
+            log_warn!(&format!(
+                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
+                path
+            ));
+            panic!(
+                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
+                path
+            );
         }
         path
     }
@@ -872,14 +943,18 @@ mod tests_autocomplete_engine {
         let test_path = get_test_data_path();
         let mut paths = Vec::new();
 
-        fn add_paths_recursively(dir: &std::path::Path, paths: &mut Vec<String>, limit: Option<usize>) {
+        fn add_paths_recursively(
+            dir: &std::path::Path,
+            paths: &mut Vec<String>,
+            limit: Option<usize>,
+        ) {
             if let Some(max) = limit {
                 if paths.len() >= max {
                     return;
                 }
             }
 
-            if let Some(walker) = std::fs::read_dir(dir).ok() {
+            if let Some(walker) = fs::read_dir(dir).ok() {
                 for entry in walker.filter_map(|e| e.ok()) {
                     let path = entry.path();
                     if let Some(path_str) = path.to_str() {
@@ -905,7 +980,9 @@ mod tests_autocomplete_engine {
         // fall back to synthetic data with a warning
         if paths.is_empty() {
             log_warn!("No test data found, using synthetic data instead");
-            return (0..100).map(|i| format!("/path/to/file{}.txt", i)).collect();
+            return (0..100)
+                .map(|i| format!("/path/to/file{}.txt", i))
+                .collect();
         }
 
         paths
@@ -923,13 +1000,17 @@ mod tests_autocomplete_engine {
         log_info!(&format!("Collected {} test paths", paths.len()));
 
         // Add all paths to the engine
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         for path in &paths {
             engine.add_path(path);
         }
         let elapsed = start.elapsed();
-        log_info!(&format!("Added {} paths in {:?} ({:.2} paths/ms)",
-                 paths.len(), elapsed, paths.len() as f64 / elapsed.as_millis().max(1) as f64));
+        log_info!(&format!(
+            "Added {} paths in {:?} ({:.2} paths/ms)",
+            paths.len(),
+            elapsed,
+            paths.len() as f64 / elapsed.as_millis().max(1) as f64
+        ));
 
         // Test different types of searches
 
@@ -937,20 +1018,32 @@ mod tests_autocomplete_engine {
         if let Some(first_path) = paths.first() {
             // Extract a prefix from the first path
             if let Some(last_sep) = first_path.rfind('/').or_else(|| first_path.rfind('\\')) {
-                let prefix = &first_path[..last_sep+1];
+                let prefix = &first_path[..last_sep + 1];
 
-                let prefix_start = std::time::Instant::now();
+                let prefix_start = Instant::now();
                 let prefix_results = engine.search(prefix);
                 let prefix_elapsed = prefix_start.elapsed();
 
-                log_info!(&format!("Prefix search for '{}' found {} results in {:?}",
-                         prefix, prefix_results.len(), prefix_elapsed));
+                log_info!(&format!(
+                    "Prefix search for '{}' found {} results in {:?}",
+                    prefix,
+                    prefix_results.len(),
+                    prefix_elapsed
+                ));
 
-                assert!(!prefix_results.is_empty(), "Should find results for existing prefix");
+                assert!(
+                    !prefix_results.is_empty(),
+                    "Should find results for existing prefix"
+                );
 
                 // Log top results
                 for (i, (path, score)) in prefix_results.iter().take(3).enumerate() {
-                    log_info!(&format!("  Result #{}: {} (score: {:.4})", i+1, path, score));
+                    log_info!(&format!(
+                        "  Result #{}: {} (score: {:.4})",
+                        i + 1,
+                        path,
+                        score
+                    ));
                 }
             }
         }
@@ -973,17 +1066,23 @@ mod tests_autocomplete_engine {
 
         // Test each extracted filename term
         for term in &filename_terms {
-            let term_start = std::time::Instant::now();
+            let term_start = Instant::now();
             let term_results = engine.search(term);
             let term_elapsed = term_start.elapsed();
 
-            log_info!(&format!("Filename search for '{}' found {} results in {:?}",
-                     term, term_results.len(), term_elapsed));
+            log_info!(&format!(
+                "Filename search for '{}' found {} results in {:?}",
+                term,
+                term_results.len(),
+                term_elapsed
+            ));
 
             // Log first result if any
             if !term_results.is_empty() {
-                log_info!(&format!("  First result: {} (score: {:.4})",
-                         term_results[0].0, term_results[0].1));
+                log_info!(&format!(
+                    "  First result: {} (score: {:.4})",
+                    term_results[0].0, term_results[0].1
+                ));
             }
         }
 
@@ -998,12 +1097,16 @@ mod tests_autocomplete_engine {
                 engine.set_current_directory(Some(dir_context.to_string()));
 
                 // Use a short, generic search term
-                let context_start = std::time::Instant::now();
+                let context_start = Instant::now();
                 let context_results = engine.search("file");
                 let context_elapsed = context_start.elapsed();
 
-                log_info!(&format!("Context search with directory '{}' found {} results in {:?}",
-                         dir_context, context_results.len(), context_elapsed));
+                log_info!(&format!(
+                    "Context search with directory '{}' found {} results in {:?}",
+                    dir_context,
+                    context_results.len(),
+                    context_elapsed
+                ));
 
                 // Check that results prioritize the context directory
                 if !context_results.is_empty() {
@@ -1011,12 +1114,16 @@ mod tests_autocomplete_engine {
                     log_info!(&format!("  Top result: {}", top_result));
 
                     // Count how many results are from the context directory
-                    let context_matches = context_results.iter()
+                    let context_matches = context_results
+                        .iter()
                         .filter(|(path, _)| path.starts_with(dir_context))
                         .count();
 
-                    log_info!(&format!("  {} of {} results are from the context directory",
-                             context_matches, context_results.len()));
+                    log_info!(&format!(
+                        "  {} of {} results are from the context directory",
+                        context_matches,
+                        context_results.len()
+                    ));
                 }
 
                 // Reset context for other tests
@@ -1048,24 +1155,32 @@ mod tests_autocomplete_engine {
                 "fil"
             };
 
-            let freq_start = std::time::Instant::now();
+            let freq_start = Instant::now();
             let freq_results = engine.search(common_term);
             let freq_elapsed = freq_start.elapsed();
 
-            log_info!(&format!("Frequency-aware search for '{}' found {} results in {:?}",
-                     common_term, freq_results.len(), freq_elapsed));
+            log_info!(&format!(
+                "Frequency-aware search for '{}' found {} results in {:?}",
+                common_term,
+                freq_results.len(),
+                freq_elapsed
+            ));
 
             // Check that frequently used paths are prioritized
             if !freq_results.is_empty() {
-                log_info!(&format!("  Top result: {} (score: {:.4})",
-                         freq_results[0].0, freq_results[0].1));
+                log_info!(&format!(
+                    "  Top result: {} (score: {:.4})",
+                    freq_results[0].0, freq_results[0].1
+                ));
 
                 // The most frequently used path should be ranked high
-                let frequent_path_pos = freq_results.iter()
-                    .position(|(path, _)| path == &paths[0]);
+                let frequent_path_pos = freq_results.iter().position(|(path, _)| path == &paths[0]);
 
                 if let Some(pos) = frequent_path_pos {
-                    log_info!(&format!("  Most frequently used path is at position {}", pos));
+                    log_info!(&format!(
+                        "  Most frequently used path is at position {}",
+                        pos
+                    ));
                     // Should be in the top results
                     assert!(pos < 3, "Frequently used path should be ranked high");
                 }
@@ -1074,11 +1189,15 @@ mod tests_autocomplete_engine {
 
         // 5. Test the engine's statistics
         let stats = engine.get_stats();
-        log_info!(&format!("Engine stats - Cache size: {}, Trie size: {}",
-                 stats.cache_size, stats.trie_size));
+        log_info!(&format!(
+            "Engine stats - Cache size: {}, Trie size: {}",
+            stats.cache_size, stats.trie_size
+        ));
 
-        assert!(stats.trie_size >= paths.len(),
-                "Trie should contain at least as many entries as paths");
+        assert!(
+            stats.trie_size >= paths.len(),
+            "Trie should contain at least as many entries as paths"
+        );
 
         // 6. Test cache behavior by repeating a search
         if !paths.is_empty() {
@@ -1100,14 +1219,20 @@ mod tests_autocomplete_engine {
             let _ = engine.search(repeat_term);
 
             // Second search should hit cache
-            let cache_start = std::time::Instant::now();
+            let cache_start = Instant::now();
             let cache_results = engine.search(repeat_term);
             let cache_elapsed = cache_start.elapsed();
 
-            log_info!(&format!("Cached search for '{}' took {:?}", repeat_term, cache_elapsed));
+            log_info!(&format!(
+                "Cached search for '{}' took {:?}",
+                repeat_term, cache_elapsed
+            ));
 
             // Cache hit should be very fast
-            assert!(!cache_results.is_empty(), "Cached search should return results");
+            assert!(
+                !cache_results.is_empty(),
+                "Cached search should return results"
+            );
         }
     }
 
@@ -1124,13 +1249,17 @@ mod tests_autocomplete_engine {
         log_info!(&format!("Collected {} test paths", paths.len()));
 
         // Add all paths to the engine
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         for path in &paths {
             engine.add_path(path);
         }
         let elapsed = start.elapsed();
-        log_info!(&format!("Added {} paths in {:?} ({:.2} paths/ms)",
-                 paths.len(), elapsed, paths.len() as f64 / elapsed.as_millis().max(1) as f64));
+        log_info!(&format!(
+            "Added {} paths in {:?} ({:.2} paths/ms)",
+            paths.len(),
+            elapsed,
+            paths.len() as f64 / elapsed.as_millis().max(1) as f64
+        ));
 
         // Test different types of searches
 
@@ -1140,19 +1269,26 @@ mod tests_autocomplete_engine {
             let mut prefixes = Vec::new();
             for path in paths.iter().take(10) {
                 if let Some(last_sep) = path.rfind('/').or_else(|| path.rfind('\\')) {
-                    prefixes.push(&path[..last_sep+1]);
+                    prefixes.push(&path[..last_sep + 1]);
                 }
             }
 
             for prefix in prefixes {
-                let prefix_start = std::time::Instant::now();
+                let prefix_start = Instant::now();
                 let prefix_results = engine.search(prefix);
                 let prefix_elapsed = prefix_start.elapsed();
 
-                log_info!(&format!("Prefix search for '{}' found {} results in {:?}",
-                         prefix, prefix_results.len(), prefix_elapsed));
+                log_info!(&format!(
+                    "Prefix search for '{}' found {} results in {:?}",
+                    prefix,
+                    prefix_results.len(),
+                    prefix_elapsed
+                ));
 
-                assert!(!prefix_results.is_empty(), "Should find results for existing prefix");
+                assert!(
+                    !prefix_results.is_empty(),
+                    "Should find results for existing prefix"
+                );
             }
         }
 
@@ -1168,21 +1304,28 @@ mod tests_autocomplete_engine {
 
         // Test each extracted filename term
         for term in filename_terms.iter().take(5) {
-            let term_start = std::time::Instant::now();
+            let term_start = Instant::now();
             let term_results = engine.search(term);
             let term_elapsed = term_start.elapsed();
 
-            log_info!(&format!("Filename search for '{}' found {} results in {:?}",
-                     term, term_results.len(), term_elapsed));
+            log_info!(&format!(
+                "Filename search for '{}' found {} results in {:?}",
+                term,
+                term_results.len(),
+                term_elapsed
+            ));
 
-            assert!(!term_results.is_empty(), "Should find results for extracted terms");
+            assert!(
+                !term_results.is_empty(),
+                "Should find results for extracted terms"
+            );
         }
 
         // 3. Test with directory context if we have enough paths
         if paths.len() >= 2 {
             // Find a directory with at least 2 files to use as context
             let mut context_dir = None;
-            let mut dirs_with_counts = std::collections::HashMap::new();
+            let mut dirs_with_counts = HashMap::new();
 
             for path in &paths {
                 if let Some(last_sep) = path.rfind('/').or_else(|| path.rfind('\\')) {
@@ -1204,20 +1347,28 @@ mod tests_autocomplete_engine {
                 engine.set_current_directory(Some(dir.clone()));
 
                 // Use a generic search term
-                let context_start = std::time::Instant::now();
+                let context_start = Instant::now();
                 let context_results = engine.search("file");
                 let context_elapsed = context_start.elapsed();
 
-                log_info!(&format!("Context search with directory '{}' found {} results in {:?}",
-                         dir, context_results.len(), context_elapsed));
+                log_info!(&format!(
+                    "Context search with directory '{}' found {} results in {:?}",
+                    dir,
+                    context_results.len(),
+                    context_elapsed
+                ));
 
                 // Check if results prioritize the context directory
-                let context_matches = context_results.iter()
+                let context_matches = context_results
+                    .iter()
                     .filter(|(path, _)| path.starts_with(&dir))
                     .count();
 
-                log_info!(&format!("{} of {} results are from the context directory",
-                         context_matches, context_results.len()));
+                log_info!(&format!(
+                    "{} of {} results are from the context directory",
+                    context_matches,
+                    context_results.len()
+                ));
 
                 // Reset context
                 engine.set_current_directory(None);
@@ -1239,7 +1390,7 @@ mod tests_autocomplete_engine {
             }
 
             // Wait a moment to create time difference for recency
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            sleep(Duration::from_millis(10));
 
             // Record more recent usage for a different set of paths
             for i in 20..paths.len().min(30) {
@@ -1257,44 +1408,62 @@ mod tests_autocomplete_engine {
                 "fil"
             };
 
-            let freq_start = std::time::Instant::now();
+            let freq_start = Instant::now();
             let freq_results = engine.search(common_term);
             let freq_elapsed = freq_start.elapsed();
 
-            log_info!(&format!("Frequency-aware search for '{}' found {} results in {:?}",
-                     common_term, freq_results.len(), freq_elapsed));
+            log_info!(&format!(
+                "Frequency-aware search for '{}' found {} results in {:?}",
+                common_term,
+                freq_results.len(),
+                freq_elapsed
+            ));
 
-            assert!(!freq_results.is_empty(), "Should find results for frequency-aware search");
+            assert!(
+                !freq_results.is_empty(),
+                "Should find results for frequency-aware search"
+            );
         }
 
         // 5. Test engine stats
         let stats = engine.get_stats();
-        log_info!(&format!("Engine stats - Cache size: {}, Trie size: {}",
-                 stats.cache_size, stats.trie_size));
+        log_info!(&format!(
+            "Engine stats - Cache size: {}, Trie size: {}",
+            stats.cache_size, stats.trie_size
+        ));
 
-        assert!(stats.trie_size >= paths.len(),
-                "Trie should contain at least as many entries as paths");
+        assert!(
+            stats.trie_size >= paths.len(),
+            "Trie should contain at least as many entries as paths"
+        );
 
         // 6. Test path removal (for a sample of paths)
         if !paths.is_empty() {
             let to_remove = paths.len().min(100);
             log_info!(&format!("Testing removal of {} paths", to_remove));
 
-            let removal_start = std::time::Instant::now();
+            let removal_start = Instant::now();
             for i in 0..to_remove {
                 engine.remove_path(&paths[i]);
             }
             let removal_elapsed = removal_start.elapsed();
 
-            log_info!(&format!("Removed {} paths in {:?}", to_remove, removal_elapsed));
+            log_info!(&format!(
+                "Removed {} paths in {:?}",
+                to_remove, removal_elapsed
+            ));
 
             // Check that engine stats reflect the removals
             let after_stats = engine.get_stats();
-            log_info!(&format!("Engine stats after removal - Cache size: {}, Trie size: {}",
-                     after_stats.cache_size, after_stats.trie_size));
+            log_info!(&format!(
+                "Engine stats after removal - Cache size: {}, Trie size: {}",
+                after_stats.cache_size, after_stats.trie_size
+            ));
 
-            assert!(after_stats.trie_size <= stats.trie_size - to_remove,
-                    "Trie size should decrease after removals");
+            assert!(
+                after_stats.trie_size <= stats.trie_size - to_remove,
+                "Trie size should decrease after removals"
+            );
         }
     }
 
@@ -1316,7 +1485,7 @@ mod tests_autocomplete_engine {
         fn extract_guaranteed_queries(paths: &[String], limit: usize) -> Vec<String> {
             let mut queries = Vec::new();
             let mut seen_queries = std::collections::HashSet::new();
-            
+
             // Helper function to add unique queries
             fn should_add_query(query: &str, seen: &mut std::collections::HashSet<String>) -> bool {
                 let normalized = query.trim_end_matches('/').to_string();
@@ -1326,36 +1495,40 @@ mod tests_autocomplete_engine {
                 }
                 false
             }
-            
+
             if paths.is_empty() {
                 return queries;
             }
-            
+
             // a. Extract directory prefixes from actual paths
             for path in paths.iter().take(paths.len().min(100)) {
                 let components: Vec<&str> = path.split(|c| c == '/' || c == '\\').collect();
-                
+
                 // Full path prefixes
                 for i in 1..components.len() {
-                    if queries.len() >= limit { break; }
-                    
+                    if queries.len() >= limit {
+                        break;
+                    }
+
                     let prefix = components[0..i].join("/");
                     if !prefix.is_empty() {
                         // Check and add the base prefix
                         if should_add_query(&prefix, &mut seen_queries) {
                             queries.push(prefix.clone());
                         }
-                        
+
                         // Check and add with trailing slash
                         let prefix_slash = format!("{}/", prefix);
                         if should_add_query(&prefix_slash, &mut seen_queries) {
                             queries.push(prefix_slash);
                         }
                     }
-                    
-                    if queries.len() >= limit { break; }
+
+                    if queries.len() >= limit {
+                        break;
+                    }
                 }
-                
+
                 // b. Extract filename prefixes (for partial filename matches)
                 if queries.len() < limit {
                     if let Some(last) = components.last() {
@@ -1364,7 +1537,7 @@ mod tests_autocomplete_engine {
                             if !first_chars.is_empty() {
                                 // Add to parent directory
                                 if components.len() > 1 {
-                                    let parent = components[0..components.len()-1].join("/");
+                                    let parent = components[0..components.len() - 1].join("/");
                                     let partial = format!("{}/{}", parent, first_chars);
                                     if should_add_query(&partial, &mut seen_queries) {
                                         queries.push(partial);
@@ -1379,10 +1552,13 @@ mod tests_autocomplete_engine {
                     }
                 }
             }
-            
+
             // c. Add specific test cases for backslash and space handling
             if queries.len() < limit {
-                if paths.iter().any(|p| p.contains("test-data-for-fuzzy-search")) {
+                if paths
+                    .iter()
+                    .any(|p| p.contains("test-data-for-fuzzy-search"))
+                {
                     // Add queries with various path formats targeting the test data
                     let test_queries = [
                         "./test-data-for-fuzzy-search".to_string(),
@@ -1391,33 +1567,47 @@ mod tests_autocomplete_engine {
                         "./t".to_string(),
                         ".".to_string(),
                     ];
-                    
+
                     for query in test_queries {
-                        if queries.len() >= limit { break; }
+                        if queries.len() >= limit {
+                            break;
+                        }
                         if should_add_query(&query, &mut seen_queries) {
                             queries.push(query);
                         }
                     }
-                    
+
                     // Extract some specific directories from test data
                     if queries.len() < limit {
                         for path in paths.iter() {
-                            if queries.len() >= limit { break; }
+                            if queries.len() >= limit {
+                                break;
+                            }
                             if path.contains("test-data-for-fuzzy-search") {
-                                if let Some(suffix) = path.strip_prefix("./test-data-for-fuzzy-search/") {
+                                if let Some(suffix) =
+                                    path.strip_prefix("./test-data-for-fuzzy-search/")
+                                {
                                     if let Some(first_dir_end) = suffix.find('/') {
                                         if first_dir_end > 0 {
                                             let dir_name = &suffix[..first_dir_end];
-                                            
-                                            let query1 = format!("./test-data-for-fuzzy-search/{}", dir_name);
+
+                                            let query1 = format!(
+                                                "./test-data-for-fuzzy-search/{}",
+                                                dir_name
+                                            );
                                             if should_add_query(&query1, &mut seen_queries) {
                                                 queries.push(query1);
                                             }
-                                            
-                                            if queries.len() >= limit { break; }
-                                            
+
+                                            if queries.len() >= limit {
+                                                break;
+                                            }
+
                                             // Add with backslash for test variety
-                                            let query2 = format!("./test-data-for-fuzzy-search\\{}", dir_name);
+                                            let query2 = format!(
+                                                "./test-data-for-fuzzy-search\\{}",
+                                                dir_name
+                                            );
                                             if should_add_query(&query2, &mut seen_queries) {
                                                 queries.push(query2);
                                             }
@@ -1429,27 +1619,23 @@ mod tests_autocomplete_engine {
                     }
                 }
             }
-            
+
             // Add basic queries if needed
             if queries.len() < 3 {
-                let basic_queries = [
-                    "./".to_string(),
-                    "/".to_string(),
-                    ".".to_string(),
-                ];
-                
+                let basic_queries = ["./".to_string(), "/".to_string(), ".".to_string()];
+
                 for query in basic_queries {
                     if should_add_query(&query, &mut seen_queries) {
                         queries.push(query);
                     }
                 }
             }
-            
+
             // Limit the number of queries
             if queries.len() > limit {
                 queries.truncate(limit);
             }
-            
+
             queries
         }
 
@@ -1462,11 +1648,11 @@ mod tests_autocomplete_engine {
 
             // Create a fresh engine with only the needed paths
             let mut subset_engine = AutocompleteEngine::new(1000, 20);
-            let start_insert_subset = std::time::Instant::now();
+            let start_insert_subset = Instant::now();
 
             for i in 0..subset_size {
                 subset_engine.add_path(&all_paths[i]);
-                
+
                 // Add frequency data for some paths to test ranking
                 if i % 5 == 0 {
                     subset_engine.record_path_usage(&all_paths[i]);
@@ -1480,19 +1666,31 @@ mod tests_autocomplete_engine {
 
             let subset_insert_time = start_insert_subset.elapsed();
             log_info!(&format!("\n=== BENCHMARK WITH {} PATHS ===", subset_size));
-            log_info!(&format!("Subset insertion time: {:?} ({:.2} paths/ms)",
-                        subset_insert_time,
-                        subset_size as f64 / subset_insert_time.as_millis().max(1) as f64));
+            log_info!(&format!(
+                "Subset insertion time: {:?} ({:.2} paths/ms)",
+                subset_insert_time,
+                subset_size as f64 / subset_insert_time.as_millis().max(1) as f64
+            ));
 
             // Generate test queries specifically for this subset
-            let subset_paths = all_paths.iter().take(subset_size).cloned().collect::<Vec<_>>();
+            let subset_paths = all_paths
+                .iter()
+                .take(subset_size)
+                .cloned()
+                .collect::<Vec<_>>();
             let subset_queries = extract_guaranteed_queries(&subset_paths, 15);
-            
-            log_info!(&format!("Generated {} subset-specific queries", subset_queries.len()));
+
+            log_info!(&format!(
+                "Generated {} subset-specific queries",
+                subset_queries.len()
+            ));
 
             // Additional test: Set current directory context if possible
             if !subset_paths.is_empty() {
-                if let Some(dir_path) = subset_paths[0].rfind('/').map(|idx| &subset_paths[0][..idx]) {
+                if let Some(dir_path) = subset_paths[0]
+                    .rfind('/')
+                    .map(|idx| &subset_paths[0][..idx])
+                {
                     subset_engine.set_current_directory(Some(dir_path.to_string()));
                     log_info!(&format!("Set directory context to: {}", dir_path));
                 }
@@ -1502,7 +1700,7 @@ mod tests_autocomplete_engine {
             subset_engine.search("./");
 
             // Run measurements on each test query
-            let mut total_time = std::time::Duration::new(0, 0);
+            let mut total_time = Duration::new(0, 0);
             let mut total_results = 0;
             let mut times = Vec::new();
             let mut cache_hits = 0;
@@ -1510,7 +1708,7 @@ mod tests_autocomplete_engine {
 
             for query in &subset_queries {
                 // First search (no cache)
-                let start = std::time::Instant::now();
+                let start = Instant::now();
                 let completions = subset_engine.search(query);
                 let elapsed = start.elapsed();
 
@@ -1519,28 +1717,36 @@ mod tests_autocomplete_engine {
                 times.push((query.clone(), elapsed, completions.len()));
 
                 // Now do a second search to test cache
-                let cache_start = std::time::Instant::now();
+                let cache_start = Instant::now();
                 let _cached_results = subset_engine.search(query);
                 let cache_time = cache_start.elapsed();
-                
+
                 // If cache time is significantly faster, count as a cache hit
                 if cache_time.as_micros() < elapsed.as_micros() / 2 {
                     cache_hits += 1;
                 }
-                
+
                 // Count fuzzy matches (any match not starting with the query)
-                let fuzzy_matches = completions.iter()
+                let fuzzy_matches = completions
+                    .iter()
                     .filter(|(path, _)| !path.contains(query))
                     .count();
                 fuzzy_counts += fuzzy_matches;
 
                 // Print top results for each search
-                log_info!(&format!("Results for '{}' (found {})", query, completions.len()));
+                log_info!(&format!(
+                    "Results for '{}' (found {})",
+                    query,
+                    completions.len()
+                ));
                 for (i, (path, score)) in completions.iter().take(3).enumerate() {
-                    log_info!(&format!("    #{}: '{}' (score: {:.3})", i+1, path, score));
+                    log_info!(&format!("    #{}: '{}' (score: {:.3})", i + 1, path, score));
                 }
                 if completions.len() > 3 {
-                    log_info!(&format!("    ... and {} more results", completions.len() - 3));
+                    log_info!(&format!(
+                        "    ... and {} more results",
+                        completions.len() - 3
+                    ));
                 }
             }
 
@@ -1548,7 +1754,7 @@ mod tests_autocomplete_engine {
             let avg_time = if !subset_queries.is_empty() {
                 total_time / subset_queries.len() as u32
             } else {
-                std::time::Duration::new(0, 0)
+                Duration::new(0, 0)
             };
 
             let avg_results = if !subset_queries.is_empty() {
@@ -1556,13 +1762,13 @@ mod tests_autocomplete_engine {
             } else {
                 0
             };
-            
+
             let avg_fuzzy = if !subset_queries.is_empty() {
                 fuzzy_counts as f64 / subset_queries.len() as f64
             } else {
                 0.0
             };
-            
+
             let cache_hit_rate = if !subset_queries.is_empty() {
                 cache_hits as f64 / subset_queries.len() as f64 * 100.0
             } else {
@@ -1572,13 +1778,18 @@ mod tests_autocomplete_engine {
             log_info!(&format!("Ran {} searches", subset_queries.len()));
             log_info!(&format!("Average search time: {:?}", avg_time));
             log_info!(&format!("Average results per search: {}", avg_results));
-            log_info!(&format!("Average fuzzy matches per search: {:.1}", avg_fuzzy));
+            log_info!(&format!(
+                "Average fuzzy matches per search: {:.1}",
+                avg_fuzzy
+            ));
             log_info!(&format!("Cache hit rate: {:.1}%", cache_hit_rate));
-            
+
             // Get engine stats
             let stats = subset_engine.get_stats();
-            log_info!(&format!("Engine stats - Cache size: {}, Trie size: {}", 
-                     stats.cache_size, stats.trie_size));
+            log_info!(&format!(
+                "Engine stats - Cache size: {}, Trie size: {}",
+                stats.cache_size, stats.trie_size
+            ));
 
             // Sort searches by time and log
             times.sort_by(|a, b| b.1.cmp(&a.1)); // Sort by time, slowest first
@@ -1586,27 +1797,36 @@ mod tests_autocomplete_engine {
             // Log the slowest searches
             log_info!("Slowest searches:");
             for (i, (query, time, count)) in times.iter().take(3).enumerate() {
-                log_info!(&format!("  #{}: '{:40}' - {:?} ({} results)",
-                    i+1, query, time, count));
+                log_info!(&format!(
+                    "  #{}: '{:40}' - {:?} ({} results)",
+                    i + 1,
+                    query,
+                    time,
+                    count
+                ));
             }
 
             // Log the fastest searches
             log_info!("Fastest searches:");
             for (i, (query, time, count)) in times.iter().rev().take(3).enumerate() {
-                log_info!(&format!("  #{}: '{:40}' - {:?} ({} results)",
-                    i+1, query, time, count));
+                log_info!(&format!(
+                    "  #{}: '{:40}' - {:?} ({} results)",
+                    i + 1,
+                    query,
+                    time,
+                    count
+                ));
             }
 
             // Test with different result counts
             let mut by_result_count = Vec::new();
             for &count in &[0, 1, 10, 100] {
-                let matching: Vec<_> = times.iter()
-                    .filter(|(_, _, c)| *c >= count)
-                    .collect();
+                let matching: Vec<_> = times.iter().filter(|(_, _, c)| *c >= count).collect();
 
                 if !matching.is_empty() {
-                    let total = matching.iter()
-                        .fold(std::time::Duration::new(0, 0), |sum, (_, time, _)| sum + *time);
+                    let total = matching
+                        .iter()
+                        .fold(Duration::new(0, 0), |sum, (_, time, _)| sum + *time);
                     let avg = total / matching.len() as u32;
 
                     by_result_count.push((count, avg, matching.len()));
@@ -1615,44 +1835,48 @@ mod tests_autocomplete_engine {
 
             log_info!("Average search times by result count:");
             for (count, avg_time, num_searches) in by_result_count {
-                log_info!(&format!("  ≥ {:3} results: {:?} (from {} searches)",
-                    count, avg_time, num_searches));
+                log_info!(&format!(
+                    "  ≥ {:3} results: {:?} (from {} searches)",
+                    count, avg_time, num_searches
+                ));
             }
-            
+
             // Special test: Directory context efficiency
             if !subset_paths.is_empty() {
                 // Get a directory that contains at least 2 files
-                let mut dir_map = std::collections::HashMap::new();
+                let mut dir_map = HashMap::new();
                 for path in &subset_paths {
                     if let Some(last_sep) = path.rfind('/') {
                         let dir = &path[..last_sep];
                         *dir_map.entry(dir.to_string()).or_insert(0) += 1;
                     }
                 }
-                
+
                 // Find a directory with multiple files
-                let test_dirs: Vec<_> = dir_map.iter()
+                let test_dirs: Vec<_> = dir_map
+                    .iter()
                     .filter(|(_, &count)| count >= 2)
                     .map(|(dir, _)| dir.clone())
                     .take(2)
                     .collect();
-                
+
                 for dir in test_dirs {
                     // Set directory context
                     subset_engine.set_current_directory(Some(dir.clone()));
-                    
-                    let dir_start = std::time::Instant::now();
+
+                    let dir_start = Instant::now();
                     let dir_results = subset_engine.search("file");
                     let dir_elapsed = dir_start.elapsed();
-                    
-                    let dir_matches = dir_results.iter()
+
+                    let dir_matches = dir_results
+                        .iter()
                         .filter(|(path, _)| path.starts_with(&dir))
                         .count();
-                    
+
                     log_info!(&format!("Directory context search for '{}' found {} results ({} in context) in {:?}",
                              dir, dir_results.len(), dir_matches, dir_elapsed));
                 }
-                
+
                 // Reset context
                 subset_engine.set_current_directory(None);
             }
@@ -1662,55 +1886,73 @@ mod tests_autocomplete_engine {
             if !subset_queries.is_empty() {
                 // Pick 3 representative queries for cache validation
                 let cache_test_queries = if subset_queries.len() >= 3 {
-                    vec![&subset_queries[0], &subset_queries[subset_queries.len()/2], &subset_queries[subset_queries.len()-1]]
+                    vec![
+                        &subset_queries[0],
+                        &subset_queries[subset_queries.len() / 2],
+                        &subset_queries[subset_queries.len() - 1],
+                    ]
                 } else {
                     subset_queries.iter().collect()
                 };
 
                 let mut all_cache_hits = true;
                 let mut all_results_identical = true;
-                let mut total_uncached_time = std::time::Duration::new(0, 0);
-                let mut total_cached_time = std::time::Duration::new(0, 0);
+                let mut total_uncached_time = Duration::new(0, 0);
+                let mut total_cached_time = Duration::new(0, 0);
 
-                log_info!(&format!("Running cache validation on {} queries", cache_test_queries.len()));
+                log_info!(&format!(
+                    "Running cache validation on {} queries",
+                    cache_test_queries.len()
+                ));
 
                 for (i, query) in cache_test_queries.iter().enumerate() {
                     // Clear the cache before this test to ensure a fresh start
                     subset_engine.cache.clear();
 
-                    log_info!(&format!("Cache test #{}: Query '{}'", i+1, query));
+                    log_info!(&format!("Cache test #{}: Query '{}'", i + 1, query));
 
                     // First search - should populate cache
-                    let uncached_start = std::time::Instant::now();
+                    let uncached_start = Instant::now();
                     let uncached_results = subset_engine.search(query);
                     let uncached_time = uncached_start.elapsed();
                     total_uncached_time += uncached_time;
 
-                    log_info!(&format!("  Uncached search: {:?} for {} results", uncached_time, uncached_results.len()));
+                    log_info!(&format!(
+                        "  Uncached search: {:?} for {} results",
+                        uncached_time,
+                        uncached_results.len()
+                    ));
 
                     // Second search - should use cache
-                    let cached_start = std::time::Instant::now();
+                    let cached_start = Instant::now();
                     let cached_results = subset_engine.search(query);
                     let cached_time = cached_start.elapsed();
                     total_cached_time += cached_time;
 
-                    log_info!(&format!("  Cached search: {:?} for {} results", cached_time, cached_results.len()));
+                    log_info!(&format!(
+                        "  Cached search: {:?} for {} results",
+                        cached_time,
+                        cached_results.len()
+                    ));
 
                     // Verify speed improvement
                     let is_faster = cached_time.as_micros() < uncached_time.as_micros() / 2;
                     if !is_faster {
                         all_cache_hits = false;
-                        log_info!(&format!("  ❌ Cache did not provide significant speed improvement!"));
+                        log_info!("  ❌ Cache did not provide significant speed improvement!");
                     } else {
-                        log_info!(&format!("  ✓ Cache provided {}x speedup",
-                                 uncached_time.as_micros() as f64 / cached_time.as_micros().max(1) as f64));
+                        log_info!(&format!(
+                            "  ✓ Cache provided {}x speedup",
+                            uncached_time.as_micros() as f64
+                                / cached_time.as_micros().max(1) as f64
+                        ));
                     }
 
                     // Verify result equality
-                    let results_match = !cached_results.is_empty() && (
+                    let results_match = !cached_results.is_empty() &&
                         // Compare first result only, since cache might only store top result
                         (cached_results.len() >= 1 && uncached_results.len() >= 1 &&
-                         cached_results[0].0 == uncached_results[0].0)
+                         cached_results[0].0 == uncached_results[0].0
                     );
 
                     if !results_match {
@@ -1718,10 +1960,14 @@ mod tests_autocomplete_engine {
                         log_info!("  ❌ Cached results don't match original results!");
 
                         if !cached_results.is_empty() && !uncached_results.is_empty() {
-                            log_info!(&format!("  Expected top result: '{}' (score: {:.3})",
-                                     uncached_results[0].0, uncached_results[0].1));
-                            log_info!(&format!("  Actual cached result: '{}' (score: {:.3})",
-                                     cached_results[0].0, cached_results[0].1));
+                            log_info!(&format!(
+                                "  Expected top result: '{}' (score: {:.3})",
+                                uncached_results[0].0, uncached_results[0].1
+                            ));
+                            log_info!(&format!(
+                                "  Actual cached result: '{}' (score: {:.3})",
+                                cached_results[0].0, cached_results[0].1
+                            ));
                         }
                     } else {
                         log_info!("  ✓ Cached results match original results");
@@ -1737,12 +1983,25 @@ mod tests_autocomplete_engine {
 
                 log_info!("\n=== CACHE VALIDATION SUMMARY ===");
                 log_info!(&format!("Overall cache speedup: {:.1}x", speedup));
-                log_info!(&format!("All queries cached correctly: {}", if all_cache_hits {"✓ YES"} else {"❌ NO"}));
-                log_info!(&format!("All results identical: {}", if all_results_identical {"✓ YES"} else {"❌ NO"}));
+                log_info!(&format!(
+                    "All queries cached correctly: {}",
+                    if all_cache_hits { "✓ YES" } else { "❌ NO" }
+                ));
+                log_info!(&format!(
+                    "All results identical: {}",
+                    if all_results_identical {
+                        "✓ YES"
+                    } else {
+                        "❌ NO"
+                    }
+                ));
 
                 // Output cache stats
                 let cache_stats = subset_engine.get_stats();
-                log_info!(&format!("Cache size after tests: {}", cache_stats.cache_size));
+                log_info!(&format!(
+                    "Cache size after tests: {}",
+                    cache_stats.cache_size
+                ));
             }
         }
     }

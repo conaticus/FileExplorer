@@ -2,7 +2,7 @@ use crate::models::{
     count_subdirectories, count_subfiles, format_system_time, get_access_permission_number,
     get_access_permission_string, Entries,
 };
-use crate::{log_info, models};
+use crate::{log_error, log_info, models};
 use std::fs;
 use std::fs::read_dir;
 use std::io::Write;
@@ -34,7 +34,6 @@ use zip::ZipWriter;
 #[allow(dead_code)] //remove once the command is used again
 #[tauri::command]
 pub async fn open_file(path: &str) -> Result<String, String> {
-    
     let path_obj = Path::new(path);
 
     // Check if path exists
@@ -440,6 +439,7 @@ pub async fn zip(
     destination_path: Option<String>,
 ) -> Result<(), String> {
     if source_paths.is_empty() {
+        log_error!("No source paths provided");
         return Err("No source paths provided".to_string());
     }
 
@@ -454,7 +454,11 @@ pub async fn zip(
 
     // Create zip file
     let zip_file =
-        fs::File::create(&zip_path).map_err(|e| format!("Failed to create zip file: {}", e))?;
+        fs::File::create(&zip_path).map_err(|e| {
+            let err_msg = format!("Failed to create zip file: {}", e);
+            log_error!(&err_msg);
+            err_msg
+        })?;
 
     let mut zip = ZipWriter::new(zip_file);
     let options: FileOptions<()> = FileOptions::default()
@@ -465,6 +469,7 @@ pub async fn zip(
     for source_path in source_paths {
         let source = Path::new(&source_path);
         if !source.exists() {
+            log_error!(&format!("Source path does not exist: {}", source_path));
             return Err(format!("Source path does not exist: {}", source_path));
         }
 
@@ -476,13 +481,29 @@ pub async fn zip(
 
         if source.is_file() {
             zip.start_file(base_name, options)
-                .map_err(|e| format!("Error adding file to zip: {}", e))?;
-            let content = fs::read(source).map_err(|e| format!("Error reading file: {}", e))?;
+                .map_err(|e| {
+                    let err_msg = format!("Error adding file to zip: {}", e);
+                    log_error!(&err_msg);
+                    err_msg
+                })?;
+            let content = fs::read(source).map_err(|e| {
+                let err_msg = format!("Error reading file: {}", e);
+                log_error!(&err_msg);
+                err_msg
+            })?;
             zip.write_all(&content)
-                .map_err(|e| format!("Error writing to zip: {}", e))?;
+                .map_err(|e| {
+                    let err_msg = format!("Error writing to zip: {}", e);
+                    log_error!(&err_msg);
+                    err_msg
+                })?;
         } else if source.is_dir() {
             for entry in walkdir::WalkDir::new(source) {
-                let entry = entry.map_err(|e| format!("Error reading directory: {}", e))?;
+                let entry = entry.map_err(|e| {
+                    let err_msg = format!("Error reading directory: {}", e);
+                    log_error!(&err_msg);
+                    err_msg
+                })?;
                 let path = entry.path();
 
                 if path.is_file() {

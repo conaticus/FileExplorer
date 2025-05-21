@@ -1,6 +1,6 @@
+use smallvec::SmallVec;
 use std::cmp;
 use std::mem;
-use smallvec::SmallVec;
 
 pub struct ART {
     root: Option<Box<ARTNode>>,
@@ -15,10 +15,8 @@ const NODE48_MAX: usize = 48;
 const NODE256_MAX: usize = 256;
 type KeyType = u8;
 
-// --- Prefix is now SmallVec<[KeyType; 8]> ---
 type Prefix = SmallVec<[KeyType; 8]>;
 
-// --- Node definitions with SmallVec and Box<[Option<Box<ARTNode>>]> ---
 enum ARTNode {
     Node4(Node4),
     Node16(Node16),
@@ -105,17 +103,16 @@ impl ARTNode {
         (i, i == prefix.len())
     }
 
-    // Corrected split_prefix method
     fn split_prefix(&mut self, mismatch_pos: usize) {
         let old_prefix = self.get_prefix().to_vec();
 
         if mismatch_pos == 0 {
-            // Nothing to split
             return;
         }
 
         // The common prefix stays in this node
-        let mut common_prefix: SmallVec<[KeyType; 8]> = old_prefix[..mismatch_pos].iter().copied().collect();
+        let mut common_prefix: SmallVec<[KeyType; 8]> =
+            old_prefix[..mismatch_pos].iter().copied().collect();
         mem::swap(self.get_prefix_mut(), &mut common_prefix);
 
         // The rest of the prefix (after mismatch_pos) goes to the new node
@@ -134,14 +131,12 @@ impl ARTNode {
 
         // Move all children from current node to new node
         match self {
-            ARTNode::Node4(n) => {
-                match &mut new_node {
-                    ARTNode::Node4(new_n) => {
-                        mem::swap(&mut n.children, &mut new_n.children);
-                        mem::swap(&mut n.keys, &mut new_n.keys);
-                    },
-                    _ => unreachable!(),
+            ARTNode::Node4(n) => match &mut new_node {
+                ARTNode::Node4(new_n) => {
+                    mem::swap(&mut n.children, &mut new_n.children);
+                    mem::swap(&mut n.keys, &mut new_n.keys);
                 }
+                _ => unreachable!(),
             },
             ARTNode::Node16(n) => {
                 if let ARTNode::Node4(new_n) = &mut new_node {
@@ -152,7 +147,7 @@ impl ARTNode {
                         }
                     }
                 }
-            },
+            }
             ARTNode::Node48(n) => {
                 if let ARTNode::Node4(new_n) = &mut new_node {
                     for i in 0..256 {
@@ -166,7 +161,7 @@ impl ARTNode {
                     n.child_index = [None; 256];
                     n.size = 0;
                 }
-            },
+            }
             ARTNode::Node256(n) => {
                 if let ARTNode::Node4(new_n) = &mut new_node {
                     for i in 0..256 {
@@ -177,20 +172,21 @@ impl ARTNode {
                     }
                     n.size = 0;
                 }
-            },
+            }
         }
 
         // The first byte of the new node's prefix is the key for the child
         let split_char = if !new_node.get_prefix().is_empty() {
             new_node.get_prefix()[0]
         } else {
-            // This should not happen in correct usage
+            // should not happen
             0
         };
 
         // Remove the first byte from the new node's prefix (since it's now the key)
         if !new_node.get_prefix().is_empty() {
-            let mut prefix: SmallVec<[KeyType; 8]> = new_node.get_prefix().iter().copied().collect();
+            let mut prefix: SmallVec<[KeyType; 8]> =
+                new_node.get_prefix().iter().copied().collect();
             prefix.remove(0);
             *new_node.get_prefix_mut() = prefix;
         }
@@ -216,7 +212,7 @@ impl ARTNode {
                 } else {
                     added
                 }
-            },
+            }
             ARTNode::Node16(n) => {
                 let added = n.add_child(key, child.take());
                 if !added && n.keys.len() >= NODE16_MAX {
@@ -229,7 +225,7 @@ impl ARTNode {
                 } else {
                     added
                 }
-            },
+            }
             ARTNode::Node48(n) => {
                 let added = n.add_child(key, child.take());
                 if !added && n.size >= NODE48_MAX {
@@ -242,13 +238,12 @@ impl ARTNode {
                 } else {
                     added
                 }
-            },
+            }
             ARTNode::Node256(n) => n.add_child(key, child),
         };
         added || grown
     }
 
-    // Find a child by key
     fn find_child(&self, key: KeyType) -> Option<&Box<ARTNode>> {
         match self {
             ARTNode::Node4(n) => n.find_child(key),
@@ -258,7 +253,6 @@ impl ARTNode {
         }
     }
 
-    // Find a child by key (mutable variant)
     fn find_child_mut(&mut self, key: KeyType) -> Option<&mut Option<Box<ARTNode>>> {
         match self {
             ARTNode::Node4(n) => n.find_child_mut(key),
@@ -280,7 +274,7 @@ impl ARTNode {
                     *self = shrunk;
                 }
                 removed
-            },
+            }
             ARTNode::Node48(n) => {
                 let removed = n.remove_child(key);
                 if n.size < NODE16_MAX {
@@ -289,7 +283,7 @@ impl ARTNode {
                     *self = shrunk;
                 }
                 removed
-            },
+            }
             ARTNode::Node256(n) => {
                 let removed = n.remove_child(key);
                 if n.size < NODE48_MAX {
@@ -298,12 +292,11 @@ impl ARTNode {
                     *self = shrunk;
                 }
                 removed
-            },
+            }
         };
         removed
     }
 
-    // Iterate over all children (key and node)
     fn iter_children(&self) -> Vec<(KeyType, &Box<ARTNode>)> {
         match self {
             ARTNode::Node4(n) => n.iter_children(),
@@ -313,7 +306,6 @@ impl ARTNode {
         }
     }
 
-    // Number of children
     fn num_children(&self) -> usize {
         match self {
             ARTNode::Node4(n) => n.keys.len(),
@@ -338,7 +330,7 @@ impl ARTNode {
                     }
                 }
                 ARTNode::Node16(n16)
-            },
+            }
             ARTNode::Node16(n) => {
                 let mut n48 = Node48::new();
                 n48.prefix = n.prefix.clone();
@@ -355,7 +347,7 @@ impl ARTNode {
                 }
                 n48.size = child_count;
                 ARTNode::Node48(n48)
-            },
+            }
             ARTNode::Node48(n) => {
                 let mut n256 = Node256::new();
                 n256.prefix = n.prefix.clone();
@@ -370,7 +362,7 @@ impl ARTNode {
                 }
                 n256.size = n.size;
                 ARTNode::Node256(n256)
-            },
+            }
             ARTNode::Node256(_) => self.clone(),
         }
     }
@@ -390,7 +382,7 @@ impl ARTNode {
                     }
                 }
                 ARTNode::Node4(n4)
-            },
+            }
             ARTNode::Node48(n) => {
                 let mut n16 = Node16::new();
                 n16.prefix = n.prefix.clone();
@@ -410,7 +402,7 @@ impl ARTNode {
                     }
                 }
                 ARTNode::Node16(n16)
-            },
+            }
             ARTNode::Node256(n) => {
                 let mut n48 = Node48::new();
                 n48.prefix = n.prefix.clone();
@@ -429,13 +421,12 @@ impl ARTNode {
                 }
                 n48.size = count;
                 ARTNode::Node48(n48)
-            },
+            }
             _ => self.clone(),
         }
     }
 }
 
-// In Rust we must explicitly implement Clone for ARTNode
 impl Clone for ARTNode {
     fn clone(&self) -> Self {
         match self {
@@ -765,7 +756,6 @@ impl Node256 {
         }
     }
 
-    // Iterate over all children
     fn iter_children(&self) -> Vec<(KeyType, &Box<ARTNode>)> {
         let mut result = Vec::with_capacity(self.size);
         for i in 0..256 {
@@ -776,8 +766,6 @@ impl Node256 {
         result
     }
 }
-
-// Implement Clone for Node16, Node48, Node256
 impl Clone for Node16 {
     fn clone(&self) -> Self {
         Node16 {
@@ -785,7 +773,11 @@ impl Clone for Node16 {
             is_terminal: self.is_terminal,
             score: self.score,
             keys: self.keys.clone(),
-            children: self.children.iter().map(|c| c.as_ref().map(|n| Box::new((**n).clone()))).collect(),
+            children: self
+                .children
+                .iter()
+                .map(|c| c.as_ref().map(|n| Box::new((**n).clone())))
+                .collect(),
         }
     }
 }
@@ -796,7 +788,12 @@ impl Clone for Node48 {
             is_terminal: self.is_terminal,
             score: self.score,
             child_index: self.child_index,
-            children: self.children.iter().map(|c| c.as_ref().map(|n| Box::new((**n).clone()))).collect::<Vec<_>>().into_boxed_slice(),
+            children: self
+                .children
+                .iter()
+                .map(|c| c.as_ref().map(|n| Box::new((**n).clone())))
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
             size: self.size,
         }
     }
@@ -807,7 +804,12 @@ impl Clone for Node256 {
             prefix: self.prefix.clone(),
             is_terminal: self.is_terminal,
             score: self.score,
-            children: self.children.iter().map(|c| c.as_ref().map(|n| Box::new((**n).clone()))).collect::<Vec<_>>().into_boxed_slice(),
+            children: self
+                .children
+                .iter()
+                .map(|c| c.as_ref().map(|n| Box::new((**n).clone())))
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
             size: self.size,
         }
     }
@@ -824,7 +826,7 @@ impl ART {
         }
     }
 
-    // Fast and robust path normalization for ART
+    // path normalization
     fn normalize_path(&self, path: &str) -> String {
         let mut result = String::with_capacity(path.len());
         let mut saw_slash = false;
@@ -867,7 +869,6 @@ impl ART {
         result
     }
 
-    // Insert method
     pub fn insert(&mut self, path: &str, score: f32) -> bool {
         let normalized = self.normalize_path(path);
         let path_bytes = normalized.as_bytes();
@@ -887,12 +888,11 @@ impl ART {
         changed
     }
 
-    // Recursive insert helper method - restructured to avoid double borrowing
     fn insert_recursive(
         mut node: Option<Box<ARTNode>>,
         key: &[u8],
         depth: usize,
-        score: f32
+        score: f32,
     ) -> (bool, bool, Option<Box<ARTNode>>) {
         if node.is_none() {
             node = Some(Box::new(ARTNode::new_node4()));
@@ -965,12 +965,8 @@ impl ART {
         // Process the child (need to handle the case where node might grow)
         if let Some(child) = node_ref.find_child_mut(c) {
             let taken_child = child.take();
-            let (changed, new_path_in_child, new_child) = Self::insert_recursive(
-                taken_child,
-                key,
-                next_depth + 1,
-                score
-            );
+            let (changed, new_path_in_child, new_child) =
+                Self::insert_recursive(taken_child, key, next_depth + 1, score);
             *child = new_child;
 
             return (changed, new_path_in_child, Some(node_ref));
@@ -1018,7 +1014,7 @@ impl ART {
                 Some(child) => {
                     current = child;
                     depth += 1;
-                },
+                }
                 None => return None, // No matching child
             }
         }
@@ -1067,7 +1063,12 @@ impl ART {
     }
 
     // Optimized component matching that avoids collecting all paths
-    fn find_component_matches_optimized(&self, query: &str, current_dir: Option<&str>, results: &mut Vec<(String, f32)>) {
+    fn find_component_matches_optimized(
+        &self,
+        query: &str,
+        current_dir: Option<&str>,
+        results: &mut Vec<(String, f32)>,
+    ) {
         if self.root.is_none() || query.is_empty() {
             return;
         }
@@ -1133,7 +1134,12 @@ impl ART {
             // Instead of collecting all paths, we'll traverse the trie directly
             if let Some(root) = &self.root {
                 // Use direct trie traversal with a maximum limit
-                self.collect_results_with_limit(root.as_ref(), &normalized, &mut results, self.max_results);
+                self.collect_results_with_limit(
+                    root.as_ref(),
+                    &normalized,
+                    &mut results,
+                    self.max_results,
+                );
 
                 // Direct traversal guarantees unique results - skip deduplication
                 self.sort_and_deduplicate_results(&mut results, true);
@@ -1165,7 +1171,6 @@ impl ART {
 
         // Just accept the low results, because of fuzzy fallback search
         self.sort_and_deduplicate_results(&mut results, true);
-
 
         // Limit results
         if results.len() > self.max_results {
@@ -1245,7 +1250,7 @@ impl ART {
     fn remove_recursive(
         node: Option<Box<ARTNode>>,
         key: &[u8],
-        depth: usize
+        depth: usize,
     ) -> (bool, bool, Option<Box<ARTNode>>) {
         if node.is_none() {
             return (false, false, None);
@@ -1277,7 +1282,11 @@ impl ART {
 
             // Check if the node should be removed
             let should_remove = node_ref.num_children() == 0;
-            return (true, should_remove, if should_remove { None } else { Some(node_ref) });
+            return (
+                true,
+                should_remove,
+                if should_remove { None } else { Some(node_ref) },
+            );
         }
 
         // Not at the end of the path - continue recursively
@@ -1301,8 +1310,15 @@ impl ART {
             // 2. It has no children
             let should_remove_this = !node_ref.is_terminal() && node_ref.num_children() == 0;
 
-            return (removed, should_remove_this,
-                    if should_remove_this { None } else { Some(node_ref) });
+            return (
+                removed,
+                should_remove_this,
+                if should_remove_this {
+                    None
+                } else {
+                    Some(node_ref)
+                },
+            );
         }
 
         // Child not found
@@ -1332,20 +1348,22 @@ impl ART {
         }
 
         // Sort by score in descending order (highest scores first)
-        results.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
-        });
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(cmp::Ordering::Equal));
 
         // Skip deduplication if specified (when we know results are already unique)
         if !skip_dedup {
-            // Remove duplicates (keep first occurrence which will be highest score)
+            // Remove duplicates (keep first occurrence which will be the highest score)
             let mut seen_paths = std::collections::HashSet::new();
             results.retain(|(path, _)| seen_paths.insert(path.clone()));
         }
     }
 
-    // Modified search method to leverage the improved deduplication logic
-    pub fn search(&self, _query: &str, current_dir: Option<&str>, allow_partial_components: bool) -> Vec<(String, f32)> {
+    pub fn search(
+        &self,
+        _query: &str,
+        current_dir: Option<&str>,
+        allow_partial_components: bool,
+    ) -> Vec<(String, f32)> {
         let mut results = Vec::new();
         let query = &self.normalize_path(_query);
 
@@ -1353,7 +1371,7 @@ impl ART {
             return results;
         }
 
-        // Case 1: If we have a current directory, search only in that context
+        // If we have a current directory, search only in that context
         if let Some(dir) = current_dir {
             let normalized_dir = self.normalize_path(dir);
 
@@ -1364,7 +1382,6 @@ impl ART {
                 format!("{}/{}", normalized_dir, query)
             };
 
-            // Find paths that match the combined path
             let context_matches = self.find_completions(&combined_path);
             results.extend(context_matches);
 
@@ -1372,34 +1389,31 @@ impl ART {
             if allow_partial_components {
                 self.find_component_matches_optimized(query, Some(dir), &mut results);
 
-                // Filter results to ensure they all start with the current directory
+                // filter results to ensure they all start with the current directory
                 let dir_prefix = if normalized_dir.ends_with('/') {
                     normalized_dir.clone()
                 } else {
                     format!("{}/", normalized_dir)
                 };
 
-                results.retain(|(path, _)| path.starts_with(&normalized_dir) || path.starts_with(&dir_prefix));
+                results.retain(|(path, _)| {
+                    path.starts_with(&normalized_dir) || path.starts_with(&dir_prefix)
+                });
 
-                // Need full deduplication since we combined results from different searches
+                // deduplication because of different searches
                 self.sort_and_deduplicate_results(&mut results, false);
             } else {
-                // Results from find_completions are already sorted and deduped
-                // No additional deduplication needed
+                // no additional deduplication needed
             }
         } else {
-            // Case 2: No current directory, so search everywhere
+            // no current directory, so search everywhere
             let direct_matches = self.find_completions(query);
             results.extend(direct_matches);
 
-            // For global component matching, always use the optimized method
             if allow_partial_components {
                 self.find_component_matches_optimized(query, None, &mut results);
 
-                // Need deduplication when mixing results from different search strategies
                 self.sort_and_deduplicate_results(&mut results, false);
-            } else {
-                // Direct matches are already sorted and deduped - no additional work needed
             }
         }
 
@@ -1415,18 +1429,24 @@ impl ART {
 #[cfg(test)]
 mod tests_art_v4 {
     use super::*;
-    use std::time::Instant;
+    use crate::{log_info, log_warn};
+    use std::path::{Path, PathBuf, MAIN_SEPARATOR};
     #[cfg(feature = "long-tests")]
     use std::time::Duration;
-    use std::path::{Path, PathBuf, MAIN_SEPARATOR};
-    use crate::{log_info, log_warn};
+    use std::time::Instant;
 
     // Helper function to get test data directory
     fn get_test_data_path() -> PathBuf {
         let path = PathBuf::from("./test-data-for-fuzzy-search");
         if !path.exists() {
-            log_warn!(&format!("Test data directory does not exist: {:?}. Run the 'create_test_data' test first.", path));
-            panic!("Test data directory does not exist: {:?}. Run the 'create_test_data' test first.", path);
+            log_warn!(&format!(
+                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
+                path
+            ));
+            panic!(
+                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
+                path
+            );
         }
         path
     }
@@ -1470,8 +1490,14 @@ mod tests_art_v4 {
         if paths.is_empty() {
             log_warn!("No test data found, using synthetic data instead");
             // Generate paths with the correct separator
-            return (0..100).map(|i| format!("{}path{}to{}file{}.txt",
-                                            MAIN_SEPARATOR, MAIN_SEPARATOR, MAIN_SEPARATOR, i)).collect();
+            return (0..100)
+                .map(|i| {
+                    format!(
+                        "{}path{}to{}file{}.txt",
+                        MAIN_SEPARATOR, MAIN_SEPARATOR, MAIN_SEPARATOR, i
+                    )
+                })
+                .collect();
         }
 
         paths
@@ -1520,9 +1546,21 @@ mod tests_art_v4 {
         let mut trie = ART::new(10);
 
         // Use platform-agnostic paths by joining components
-        let docs_path = std::path::Path::new("C:").join("Users").join("Documents").to_string_lossy().to_string();
-        let downloads_path = std::path::Path::new("C:").join("Users").join("Downloads").to_string_lossy().to_string();
-        let pictures_path = std::path::Path::new("C:").join("Users").join("Pictures").to_string_lossy().to_string();
+        let docs_path = Path::new("C:")
+            .join("Users")
+            .join("Documents")
+            .to_string_lossy()
+            .to_string();
+        let downloads_path = Path::new("C:")
+            .join("Users")
+            .join("Downloads")
+            .to_string_lossy()
+            .to_string();
+        let pictures_path = Path::new("C:")
+            .join("Users")
+            .join("Pictures")
+            .to_string_lossy()
+            .to_string();
 
         let docs_path = normalize_path(&docs_path);
         let downloads_path = normalize_path(&downloads_path);
@@ -1538,10 +1576,17 @@ mod tests_art_v4 {
         log_info!(&format!("Trie contains {} paths", trie.len()));
 
         // Find completions
-        let prefix = std::path::Path::new("C:").join("Users").to_string_lossy().to_string();
+        let prefix = Path::new("C:")
+            .join("Users")
+            .to_string_lossy()
+            .to_string();
         let completions = trie.find_completions(&prefix);
         assert_eq!(completions.len(), 3);
-        log_info!(&format!("Found {} completions for '{}'", completions.len(), prefix));
+        log_info!(&format!(
+            "Found {} completions for '{}'",
+            completions.len(),
+            prefix
+        ));
 
         // Check specific completion
         let docs = completions.iter().find(|(path, _)| path == &docs_path);
@@ -1570,7 +1615,7 @@ mod tests_art_v4 {
         let paths = vec![
             "./test-data-for-fuzzy-search/airplane.mp4",
             "./test-data-for-fuzzy-search/ambulance",
-            "./test-data-for-fuzzy-search/apple.pdf"
+            "./test-data-for-fuzzy-search/apple.pdf",
         ];
 
         // Insert all paths
@@ -1593,9 +1638,12 @@ mod tests_art_v4 {
         // Check that filenames still start with 'a'
         for (path, _) in &results {
             let last_slash = path.rfind('/').unwrap_or(0);
-            let filename = &path[last_slash+1..];
-            assert!(filename.starts_with('a'),
-                    "Filename should start with 'a': {}", filename);
+            let filename = &path[last_slash + 1..];
+            assert!(
+                filename.starts_with('a'),
+                "Filename should start with 'a': {}",
+                filename
+            );
         }
     }
 
@@ -1621,8 +1669,14 @@ mod tests_art_v4 {
 
         // 4. Directly examine normalized versions
         let normalized_for_insert = trie.normalize_path(test_path);
-        log_info!(&format!("Normalized for insert: '{}'", normalized_for_insert));
-        log_info!(&format!("Normalized bytes: {:?}", normalized_for_insert.as_bytes()));
+        log_info!(&format!(
+            "Normalized for insert: '{}'",
+            normalized_for_insert
+        ));
+        log_info!(&format!(
+            "Normalized bytes: {:?}",
+            normalized_for_insert.as_bytes()
+        ));
 
         // 5. Add debug to your normalize_path method
         // Add this temporarily to your normalize_path method:
@@ -1635,11 +1689,17 @@ mod tests_art_v4 {
         // 6. Test with a path containing backslashes
         let backslash_path = r"dir1\file2.txt";
         log_info!(&format!("Backslash path: '{}'", backslash_path));
-        log_info!(&format!("Backslash path bytes: {:?}", backslash_path.as_bytes()));
+        log_info!(&format!(
+            "Backslash path bytes: {:?}",
+            backslash_path.as_bytes()
+        ));
 
         let normalized_bs = trie.normalize_path(backslash_path);
         log_info!(&format!("Normalized backslash path: '{}'", normalized_bs));
-        log_info!(&format!("Normalized backslash bytes: {:?}", normalized_bs.as_bytes()));
+        log_info!(&format!(
+            "Normalized backslash bytes: {:?}",
+            normalized_bs.as_bytes()
+        ));
     }
 
     #[test]
@@ -1670,7 +1730,10 @@ mod tests_art_v4 {
         // Verify first path is still findable
         let still_find1 = trie.find_completions(path1);
         assert_eq!(still_find1.len(), 1, "Should still find first path");
-        assert_eq!(still_find1[0].0, path1, "First path should still match exactly");
+        assert_eq!(
+            still_find1[0].0, path1,
+            "First path should still match exactly"
+        );
 
         // Add third path
         assert!(trie.insert(path3, 0.8), "Should insert third path");
@@ -1712,7 +1775,11 @@ mod tests_art_v4 {
 
         // Now verify BOTH paths can be found
         let found1_again = trie.find_completions(path1);
-        assert_eq!(found1_again.len(), 1, "Should still find path1 after second insertion");
+        assert_eq!(
+            found1_again.len(),
+            1,
+            "Should still find path1 after second insertion"
+        );
         assert_eq!(found1_again[0].0, path1, "Should still match exact path1");
 
         let found2 = trie.find_completions(path2);
@@ -1721,7 +1788,11 @@ mod tests_art_v4 {
 
         // Check prefix search - should find both
         let prefix_results = trie.find_completions("a/b/file");
-        assert_eq!(prefix_results.len(), 2, "Prefix search should find both files");
+        assert_eq!(
+            prefix_results.len(),
+            2,
+            "Prefix search should find both files"
+        );
     }
 
     #[test]
@@ -1743,15 +1814,28 @@ mod tests_art_v4 {
 
         // Check that path1 exists - use the same string reference
         let before_completions = trie.find_completions(path1);
-        log_info!(&format!("Before removal: found {} completions for '{}'",
-                      before_completions.len(), path1));
-        log_info!(&format!("is_in_trie: {}", trie.find_completions(path1).len() > 0));
-        assert_eq!(before_completions.len(), 1, "Path1 should be found before removal");
+        log_info!(&format!(
+            "Before removal: found {} completions for '{}'",
+            before_completions.len(),
+            path1
+        ));
+        log_info!(&format!(
+            "is_in_trie: {}",
+            trie.find_completions(path1).len() > 0
+        ));
+        assert_eq!(
+            before_completions.len(),
+            1,
+            "Path1 should be found before removal"
+        );
 
         // If needed, verify the exact string (for debugging)
         if !before_completions.is_empty() {
             let found_path = &before_completions[0].0;
-            log_info!(&format!("Found path: '{}', Expected: '{}'", found_path, path1));
+            log_info!(&format!(
+                "Found path: '{}', Expected: '{}'",
+                found_path, path1
+            ));
             log_info!(&format!("Path bytes: {:?}", found_path.as_bytes()));
             log_info!(&format!("Expected bytes: {:?}", path1.as_bytes()));
         }
@@ -1763,13 +1847,24 @@ mod tests_art_v4 {
 
         // Verify path1 is gone
         let after_completions = trie.find_completions(path1);
-        assert_eq!(after_completions.len(), 0, "Path1 should be gone after removal");
+        assert_eq!(
+            after_completions.len(),
+            0,
+            "Path1 should be gone after removal"
+        );
 
         // Check that we still find path2 with a common prefix search
         let user_prefix = "home/user/";
         let user_paths = trie.find_completions(user_prefix);
-        assert_eq!(user_paths.len(), 1, "Should find only 1 user path after removal");
-        assert_eq!(user_paths[0].0, path2, "The remaining user path should be path2");
+        assert_eq!(
+            user_paths.len(),
+            1,
+            "Should find only 1 user path after removal"
+        );
+        assert_eq!(
+            user_paths[0].0, path2,
+            "The remaining user path should be path2"
+        );
     }
 
     #[test]
@@ -1800,11 +1895,20 @@ mod tests_art_v4 {
 
         for (prefix, expected_count) in test_cases {
             let completions = trie.find_completions(&prefix);
-            assert_eq!(completions.len(), expected_count, "Failed for prefix: {}", prefix);
-            log_info!(&format!("Prefix '{}' returned {} completions", prefix, completions.len()));
+            assert_eq!(
+                completions.len(),
+                expected_count,
+                "Failed for prefix: {}",
+                prefix
+            );
+            log_info!(&format!(
+                "Prefix '{}' returned {} completions",
+                prefix,
+                completions.len()
+            ));
         }
     }
-    
+
     #[test]
     fn test_clear_trie() {
         log_info!("Testing trie clearing");
@@ -1873,8 +1977,10 @@ mod tests_art_v4 {
         assert!(completions[1].0.ends_with(&normalize_path("/medium")));
         assert!(completions[2].0.ends_with(&normalize_path("/low")));
 
-        log_info!(&format!("Completions correctly sorted by score: {:.1} > {:.1} > {:.1}",
-            completions[0].1, completions[1].1, completions[2].1));
+        log_info!(&format!(
+            "Completions correctly sorted by score: {:.1} > {:.1} > {:.1}",
+            completions[0].1, completions[1].1, completions[2].1
+        ));
     }
 
     // Performance tests with real-world data
@@ -1901,8 +2007,12 @@ mod tests_art_v4 {
         }
         let elapsed = start.elapsed();
 
-        log_info!(&format!("Inserted {} paths in {:?} ({:.2} paths/ms)",
-            paths.len(), elapsed, paths.len() as f64 / elapsed.as_millis().max(1) as f64));
+        log_info!(&format!(
+            "Inserted {} paths in {:?} ({:.2} paths/ms)",
+            paths.len(),
+            elapsed,
+            paths.len() as f64 / elapsed.as_millis().max(1) as f64
+        ));
 
         assert_eq!(trie.len(), unique_normalized.len());
     }
@@ -1935,7 +2045,7 @@ mod tests_art_v4 {
             // Use the directory portion of some paths
             for path in paths.iter().take(5) {
                 if let Some(last_sep) = path.rfind(MAIN_SEPARATOR) {
-                    prefixes.push(path[0..last_sep+1].to_string());
+                    prefixes.push(path[0..last_sep + 1].to_string());
                 }
             }
 
@@ -1951,7 +2061,7 @@ mod tests_art_v4 {
             vec![
                 normalize_path("/"),
                 normalize_path("/usr"),
-                normalize_path("/home")
+                normalize_path("/home"),
             ]
         };
 
@@ -1960,12 +2070,18 @@ mod tests_art_v4 {
             let completions = trie.find_completions(&prefix);
             let elapsed = start.elapsed();
 
-            log_info!(&format!("Found {} completions for '{}' in {:?}",
-                completions.len(), prefix, elapsed));
+            log_info!(&format!(
+                "Found {} completions for '{}' in {:?}",
+                completions.len(),
+                prefix,
+                elapsed
+            ));
 
             if completions.len() > 0 {
-                log_info!(&format!("First completion: {} (score: {:.1})",
-                    completions[0].0, completions[0].1));
+                log_info!(&format!(
+                    "First completion: {} (score: {:.1})",
+                    completions[0].0, completions[0].1
+                ));
             }
         }
     }
@@ -1976,11 +2092,7 @@ mod tests_art_v4 {
 
         // Test the specific cases from your logs
         let base_path = "./test-data-for-fuzzy-search";
-        let files = vec![
-            "/airplane.mp4",
-            "/ambulance",
-            "/apple.pdf"
-        ];
+        let files = vec!["/airplane.mp4", "/ambulance", "/apple.pdf"];
 
         // Insert each file path
         for file in &files {
@@ -2004,7 +2116,11 @@ mod tests_art_v4 {
             let expected_path = format!("{}{}", base_path, file);
             let found = completions.iter().any(|(path, _)| path == &expected_path);
 
-            assert!(found, "Path {} should be found in completions", expected_path);
+            assert!(
+                found,
+                "Path {} should be found in completions",
+                expected_path
+            );
             log_info!(&format!("Found expected path {}: {}", i, expected_path));
         }
 
@@ -2012,14 +2128,22 @@ mod tests_art_v4 {
         let partial_path = format!("{}/a", base_path);
         let partial_completions = trie.find_completions(&partial_path);
 
-        assert!(partial_completions.len() >= 2,
-                "Should find at least airplane.mp4 and apple.pdf");
+        assert!(
+            partial_completions.len() >= 2,
+            "Should find at least airplane.mp4 and apple.pdf"
+        );
 
         // Verify no character splitting
         for (path, _) in &partial_completions {
             // Check no character was incorrectly split
-            assert!(!path.contains("/i/rplane"), "No character splitting in airplane");
-            assert!(!path.contains("/m/bulance"), "No character splitting in ambulance");
+            assert!(
+                !path.contains("/i/rplane"),
+                "No character splitting in airplane"
+            );
+            assert!(
+                !path.contains("/m/bulance"),
+                "No character splitting in ambulance"
+            );
             assert!(!path.contains("/a/pple"), "No character splitting in apple");
         }
     }
@@ -2053,7 +2177,10 @@ mod tests_art_v4 {
             assert!(trie.remove(&path));
         }
 
-        log_info!(&format!("Removed 90 paths, trie now contains {} paths", trie.len()));
+        log_info!(&format!(
+            "Removed 90 paths, trie now contains {} paths",
+            trie.len()
+        ));
 
         // Check we can still find the remaining paths
         let completions = trie.find_completions(&prefix);
@@ -2093,11 +2220,23 @@ mod tests_art_v4 {
 
         // Remove a path and check it's gone
         trie.remove(path);
-        assert_eq!(trie.find_completions(path).len(), 0, "Path should be removed");
+        assert_eq!(
+            trie.find_completions(path).len(),
+            0,
+            "Path should be removed"
+        );
 
         // Verify remaining paths
-        assert_eq!(trie.find_completions(path2).len(), 1, "Path2 should still exist");
-        assert_eq!(trie.find_completions(path3).len(), 1, "Path3 should still exist");
+        assert_eq!(
+            trie.find_completions(path2).len(),
+            1,
+            "Path2 should still exist"
+        );
+        assert_eq!(
+            trie.find_completions(path3).len(),
+            1,
+            "Path3 should still exist"
+        );
     }
 
     #[test]
@@ -2129,16 +2268,28 @@ mod tests_art_v4 {
 
         // Test 3: Search with different current directory context
         let results3 = trie.search("doc", Some("home/other"), true);
-        assert_eq!(results3.len(), 1, "Should only find documents in home/other");
+        assert_eq!(
+            results3.len(),
+            1,
+            "Should only find documents in home/other"
+        );
         assert_eq!(results3[0].0, "home/other/documents/report.pdf");
 
         // Test 4: Partial component matching without directory context
         let results4 = trie.search("doc", None, true);
-        assert_eq!(results4.len(), 2, "Should find all paths with 'doc' component");
+        assert_eq!(
+            results4.len(),
+            2,
+            "Should find all paths with 'doc' component"
+        );
 
         // Test 5: Search for component that's not in the path
         let results5 = trie.search("missing", Some("home/user"), true);
-        assert_eq!(results5.len(), 0, "Should find no results for non-existent component");
+        assert_eq!(
+            results5.len(),
+            0,
+            "Should find no results for non-existent component"
+        );
     }
 
     #[test]
@@ -2222,11 +2373,13 @@ mod tests_art_v4 {
             if let Some(last_sep_pos) = prefix.rfind(MAIN_SEPARATOR) {
                 if last_sep_pos > 0 && last_sep_pos < prefix.len() - 1 {
                     // Add partial component after the last separator
-                    let component = &prefix[last_sep_pos+1..];
+                    let component = &prefix[last_sep_pos + 1..];
                     if component.len() >= 2 {
-                        partial_prefixes.push(format!("{}{}",
-                                                      &prefix[..=last_sep_pos],
-                                                      &component[..component.len().min(2)]));
+                        partial_prefixes.push(format!(
+                            "{}{}",
+                            &prefix[..=last_sep_pos],
+                            &component[..component.len().min(2)]
+                        ));
                     }
                 }
             }
@@ -2245,23 +2398,39 @@ mod tests_art_v4 {
             let completions = trie.find_completions(&original_prefix);
             let elapsed = start.elapsed();
 
-            log_info!(&format!("Found {} completions for prefix '{}' in {:?}",
-                  completions.len(), original_prefix, elapsed));
+            log_info!(&format!(
+                "Found {} completions for prefix '{}' in {:?}",
+                completions.len(),
+                original_prefix,
+                elapsed
+            ));
 
             if !completions.is_empty() {
-                log_info!(&format!("First result: {} (score: {:.2})",
-                      completions[0].0, completions[0].1));
+                log_info!(&format!(
+                    "First result: {} (score: {:.2})",
+                    completions[0].0, completions[0].1
+                ));
 
                 // Verify that results actually match the normalized prefix
-                let valid_matches = completions.iter()
+                let valid_matches = completions
+                    .iter()
                     .filter(|(path, _)| path.starts_with(&normalized_prefix))
                     .count();
 
-                log_info!(&format!("{} of {} results are valid prefix matches for '{}' (normalized: '{}')",
-                      valid_matches, completions.len(), original_prefix, normalized_prefix));
+                log_info!(&format!(
+                    "{} of {} results are valid prefix matches for '{}' (normalized: '{}')",
+                    valid_matches,
+                    completions.len(),
+                    original_prefix,
+                    normalized_prefix
+                ));
 
-                assert!(valid_matches > 0, "No valid matches found for prefix '{}' (normalized: '{}')",
-                        original_prefix, normalized_prefix);
+                assert!(
+                    valid_matches > 0,
+                    "No valid matches found for prefix '{}' (normalized: '{}')",
+                    original_prefix,
+                    normalized_prefix
+                );
             }
         }
 
@@ -2316,29 +2485,38 @@ mod tests_art_v4 {
                 log_info!(&format!("Inserted {} paths, verifying...", i));
 
                 // Calculate expected unique count up to this point
-                let expected_unique_count = i+1; // Maximum possible - actual will be lower due to duplicates
+                let expected_unique_count = i + 1; // Maximum possible - actual will be lower due to duplicates
 
                 // Check the count is reasonable (allowing for duplicates)
-                assert!(trie.len() <= expected_unique_count,
-                        "Trie should have at most {} paths, but has {}",
-                        expected_unique_count, trie.len());
+                assert!(
+                    trie.len() <= expected_unique_count,
+                    "Trie should have at most {} paths, but has {}",
+                    expected_unique_count,
+                    trie.len()
+                );
             }
         }
 
         let insert_time = start_insert.elapsed();
-        log_info!(&format!("Inserted {} paths in {:?} ({:.2} paths/ms)",
-            all_paths.len(), insert_time,
-            all_paths.len() as f64 / insert_time.as_millis().max(1) as f64));
+        log_info!(&format!(
+            "Inserted {} paths in {:?} ({:.2} paths/ms)",
+            all_paths.len(),
+            insert_time,
+            all_paths.len() as f64 / insert_time.as_millis().max(1) as f64
+        ));
 
         // Verify the final count matches expectation (accounting for duplicates)
-        log_info!(&format!("Expected unique paths: {}, Actual in trie: {}",
-                        unique_normalized_paths.len(), trie.len()));
-        
+        log_info!(&format!(
+            "Expected unique paths: {}, Actual in trie: {}",
+            unique_normalized_paths.len(),
+            trie.len()
+        ));
+
         // Create a function to generate a diverse set of queries that will have matches
         fn extract_guaranteed_queries(paths: &[String], limit: usize) -> Vec<String> {
             let mut queries = Vec::new();
             let mut seen_queries = std::collections::HashSet::new();
-            
+
             // Helper function instead of closure to avoid borrowing issues
             fn should_add_query(query: &str, seen: &mut std::collections::HashSet<String>) -> bool {
                 let normalized = query.trim_end_matches('/').to_string();
@@ -2348,36 +2526,40 @@ mod tests_art_v4 {
                 }
                 false
             }
-            
+
             if paths.is_empty() {
                 return queries;
             }
-            
+
             // a. Extract directory prefixes from actual paths
             for path in paths.iter().take(paths.len().min(100)) {
                 let components: Vec<&str> = path.split(|c| c == '/' || c == '\\').collect();
-                
+
                 // Full path prefixes
                 for i in 1..components.len() {
-                    if queries.len() >= limit { break; }
-                    
+                    if queries.len() >= limit {
+                        break;
+                    }
+
                     let prefix = components[0..i].join("/");
                     if !prefix.is_empty() {
                         // Check and add the base prefix
                         if should_add_query(&prefix, &mut seen_queries) {
                             queries.push(prefix.clone());
                         }
-                        
+
                         // Check and add with trailing slash
                         let prefix_slash = format!("{}/", prefix);
                         if should_add_query(&prefix_slash, &mut seen_queries) {
                             queries.push(prefix_slash);
                         }
                     }
-                    
-                    if queries.len() >= limit { break; }
+
+                    if queries.len() >= limit {
+                        break;
+                    }
                 }
-                
+
                 // b. Extract filename prefixes (for partial filename matches)
                 if queries.len() < limit {
                     if let Some(last) = components.last() {
@@ -2386,7 +2568,7 @@ mod tests_art_v4 {
                             if !first_chars.is_empty() {
                                 // Add to parent directory
                                 if components.len() > 1 {
-                                    let parent = components[0..components.len()-1].join("/");
+                                    let parent = components[0..components.len() - 1].join("/");
                                     let partial = format!("{}/{}", parent, first_chars);
                                     if should_add_query(&partial, &mut seen_queries) {
                                         queries.push(partial);
@@ -2401,10 +2583,13 @@ mod tests_art_v4 {
                     }
                 }
             }
-            
+
             // c. Add specific test cases for backslash and space handling
             if queries.len() < limit {
-                if paths.iter().any(|p| p.contains("test-data-for-fuzzy-search")) {
+                if paths
+                    .iter()
+                    .any(|p| p.contains("test-data-for-fuzzy-search"))
+                {
                     // Add queries with various path formats targeting the test data
                     let test_queries = [
                         "./test-data-for-fuzzy-search".to_string(),
@@ -2413,37 +2598,51 @@ mod tests_art_v4 {
                         "./t".to_string(),
                         ".".to_string(),
                     ];
-                    
+
                     for query in test_queries {
-                        if queries.len() >= limit { break; }
+                        if queries.len() >= limit {
+                            break;
+                        }
                         if should_add_query(&query, &mut seen_queries) {
                             queries.push(query);
                         }
                     }
-                    
+
                     // Extract some specific directories from test data
                     if queries.len() < limit {
                         for path in paths.iter() {
-                            if queries.len() >= limit { break; }
+                            if queries.len() >= limit {
+                                break;
+                            }
                             if path.contains("test-data-for-fuzzy-search") {
-                                if let Some(suffix) = path.strip_prefix("./test-data-for-fuzzy-search/") {
+                                if let Some(suffix) =
+                                    path.strip_prefix("./test-data-for-fuzzy-search/")
+                                {
                                     if let Some(first_dir_end) = suffix.find('/') {
                                         if first_dir_end > 0 {
                                             let dir_name = &suffix[..first_dir_end];
-                                            
-                                            let query1 = format!("./test-data-for-fuzzy-search/{}", dir_name);
+
+                                            let query1 = format!(
+                                                "./test-data-for-fuzzy-search/{}",
+                                                dir_name
+                                            );
                                             if should_add_query(&query1, &mut seen_queries) {
                                                 queries.push(query1);
                                             }
-                                            
-                                            if queries.len() >= limit { break; }
-                                            
+
+                                            if queries.len() >= limit {
+                                                break;
+                                            }
+
                                             // Add with backslash for test variety
-                                            let query2 = format!("./test-data-for-fuzzy-search\\{}", dir_name);
+                                            let query2 = format!(
+                                                "./test-data-for-fuzzy-search\\{}",
+                                                dir_name
+                                            );
                                             if should_add_query(&query2, &mut seen_queries) {
                                                 queries.push(query2);
                                             }
-                                            
+
                                             // Removed the backslash+space test case to avoid spaces in paths
                                         }
                                     }
@@ -2453,44 +2652,46 @@ mod tests_art_v4 {
                     }
                 }
             }
-            
+
             // If we still don't have enough queries, add some basic ones
             if queries.len() < 3 {
-                let basic_queries = [
-                    "./".to_string(),
-                    "/".to_string(),
-                    ".".to_string(),
-                ];
-                
+                let basic_queries = ["./".to_string(), "/".to_string(), ".".to_string()];
+
                 for query in basic_queries {
                     if should_add_query(&query, &mut seen_queries) {
                         queries.push(query);
                     }
                 }
             }
-            
+
             // Only keep a reasonable number of queries
             if queries.len() > limit {
                 queries.truncate(limit);
             }
-            
+
             queries
         }
 
         // Use our function to generate guaranteed-to-match queries
         let test_queries = extract_guaranteed_queries(&all_paths, 15);
-        
-        log_info!(&format!("Generated {} guaranteed-to-match queries", test_queries.len()));
-        
+
+        log_info!(&format!(
+            "Generated {} guaranteed-to-match queries",
+            test_queries.len()
+        ));
+
         // Pre-test queries to verify they match something
         for query in &test_queries {
             let results = trie.search(query, None, false);
             if results.is_empty() {
-                log_info!(&format!("Warning: Query '{}' didn't match any paths", query));
+                log_info!(&format!(
+                    "Warning: Query '{}' didn't match any paths",
+                    query
+                ));
             }
         }
 
-        // 4. Benchmark searches with different batch sizes, with separate tries
+        // 4. Benchmark searches with different batch sizes, with separate tries.
         // Ensure complete independence between different batch size tests
         let batch_sizes = [10, 100, 1000, 10000, all_paths.len()];
 
@@ -2508,15 +2709,24 @@ mod tests_art_v4 {
 
             let subset_insert_time = start_insert_subset.elapsed();
             log_info!(&format!("\n=== BENCHMARK WITH {} PATHS ===", subset_size));
-            log_info!(&format!("Subset insertion time: {:?} ({:.2} paths/ms)",
-                        subset_insert_time,
-                        subset_size as f64 / subset_insert_time.as_millis().max(1) as f64));
+            log_info!(&format!(
+                "Subset insertion time: {:?} ({:.2} paths/ms)",
+                subset_insert_time,
+                subset_size as f64 / subset_insert_time.as_millis().max(1) as f64
+            ));
 
             // Generate test queries specifically for this subset
-            let subset_paths = all_paths.iter().take(subset_size).cloned().collect::<Vec<_>>();
+            let subset_paths = all_paths
+                .iter()
+                .take(subset_size)
+                .cloned()
+                .collect::<Vec<_>>();
             let subset_queries = extract_guaranteed_queries(&subset_paths, 15);
-            
-            log_info!(&format!("Generated {} subset-specific queries", subset_queries.len()));
+
+            log_info!(&format!(
+                "Generated {} subset-specific queries",
+                subset_queries.len()
+            ));
 
             // Run a single warmup search to prime any caches
             subset_trie.search("./", None, false);
@@ -2568,26 +2778,35 @@ mod tests_art_v4 {
             // Log the slowest searches
             log_info!("Slowest searches:");
             for (i, (query, time, count)) in times.iter().take(3).enumerate() {
-                log_info!(&format!("  #{}: '{:40}' - {:?} ({} results)",
-                    i+1, normalize_path(query), time, count));
+                log_info!(&format!(
+                    "  #{}: '{:40}' - {:?} ({} results)",
+                    i + 1,
+                    normalize_path(query),
+                    time,
+                    count
+                ));
             }
 
             // Log the fastest searches
             log_info!("Fastest searches:");
             for (i, (query, time, count)) in times.iter().rev().take(3).enumerate() {
-                log_info!(&format!("  #{}: '{:40}' - {:?} ({} results)",
-                    i+1, normalize_path(query), time, count));
+                log_info!(&format!(
+                    "  #{}: '{:40}' - {:?} ({} results)",
+                    i + 1,
+                    normalize_path(query),
+                    time,
+                    count
+                ));
             }
 
             // Log search times for different result counts
             let mut by_result_count = Vec::new();
             for &count in &[0, 1, 10, 100] {
-                let matching: Vec<_> = times.iter()
-                    .filter(|(_, _, c)| *c >= count)
-                    .collect();
+                let matching: Vec<_> = times.iter().filter(|(_, _, c)| *c >= count).collect();
 
                 if !matching.is_empty() {
-                    let total = matching.iter()
+                    let total = matching
+                        .iter()
                         .fold(Duration::new(0, 0), |sum, (_, time, _)| sum + *time);
                     let avg = total / matching.len() as u32;
 
@@ -2597,8 +2816,10 @@ mod tests_art_v4 {
 
             log_info!("Average search times by result count:");
             for (count, avg_time, num_searches) in by_result_count {
-                log_info!(&format!("  ≥ {:3} results: {:?} (from {} searches)",
-                    count, avg_time, num_searches));
+                log_info!(&format!(
+                    "  ≥ {:3} results: {:?} (from {} searches)",
+                    count, avg_time, num_searches
+                ));
             }
         }
     }
@@ -2613,7 +2834,7 @@ mod tests_art_v4 {
             "./test-data-for-fuzzy-search/coconut/file1.txt",
             "./test-data-for-fuzzy-search/blueberry/file2.txt",
             "./test-data-for-fuzzy-search/truck/banana/raspberry/file3.txt",
-            "./test-data-for-fuzzy-search/tangerine/file4.txt"
+            "./test-data-for-fuzzy-search/tangerine/file4.txt",
         ];
 
         // Insert all paths
@@ -2622,7 +2843,12 @@ mod tests_art_v4 {
 
             // Verify insertion worked
             let found = trie.find_completions(path);
-            assert_eq!(found.len(), 1, "Path should be found after insertion: {}", path);
+            assert_eq!(
+                found.len(),
+                1,
+                "Path should be found after insertion: {}",
+                path
+            );
         }
 
         // Test searches with escaped spaces
@@ -2630,20 +2856,28 @@ mod tests_art_v4 {
             "./test-data-for-fuzzy-search\\ coconut",
             "./test-data-for-fuzzy-search\\ blueberry",
             "./test-data-for-fuzzy-search\\ truck\\banana\\ raspberry",
-            "./test-data-for-fuzzy-search\\ tangerine"
+            "./test-data-for-fuzzy-search\\ tangerine",
         ];
 
         for (i, search) in searches.iter().enumerate() {
             let results = trie.find_completions(search);
-            assert!(!results.is_empty(), "Search '{}' should find at least one result", search);
+            assert!(
+                !results.is_empty(),
+                "Search '{}' should find at least one result",
+                search
+            );
 
             // The corresponding path should be found
             let expected_path = &paths[i];
             let found = results.iter().any(|(p, _)| p.starts_with(expected_path));
-            assert!(found, "Path '{}' should be found for search '{}'", expected_path, search);
+            assert!(
+                found,
+                "Path '{}' should be found for search '{}'",
+                expected_path, search
+            );
         }
     }
-    
+
     #[test]
     fn test_normalization() {
         let mut trie = ART::new(10);
@@ -2652,7 +2886,7 @@ mod tests_art_v4 {
         let paths = vec![
             "./test-data-for-fuzzy-search/ airplane.mp4",
             "./test-data-for-fuzzy-search\\ambulance",
-            "./test-data-for-fuzzy-search\\ apple.pdf"
+            "./test-data-for-fuzzy-search\\ apple.pdf",
         ];
 
         // Insert all paths
@@ -2661,13 +2895,23 @@ mod tests_art_v4 {
 
             // Verify insertion worked
             let found = trie.find_completions(path);
-            assert_eq!(found.len(), 1, "Path should be found after insertion: {}", path);
+            assert_eq!(
+                found.len(),
+                1,
+                "Path should be found after insertion: {}",
+                path
+            );
         }
 
         // Test normalization
         for path in &paths {
             let normalized = trie.normalize_path(path);
-            assert_eq!(normalized, normalize_path(path), "Normalization failed for path: {}", path);
+            assert_eq!(
+                normalized,
+                normalize_path(path),
+                "Normalization failed for path: {}",
+                path
+            );
         }
     }
 }

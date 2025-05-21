@@ -38,7 +38,7 @@ where
     K: Eq + Hash + Clone,
     V: Clone,
 {
-    // Create a new LRU cache with the specified capacity
+    // create a new LRU cache with the specified capacity
     pub fn new(capacity: usize) -> Self {
         assert!(capacity > 0, "Capacity must be greater than zero");
         Self {
@@ -50,21 +50,21 @@ where
         }
     }
 
-    // Create a new LRU cache with the specified capacity and time-to-live duration
+    // create a new LRU cache with the specified capacity and time-to-live duration
     pub fn with_ttl(capacity: usize, ttl: Duration) -> Self {
         let mut cache = Self::new(capacity);
         cache.ttl = Some(ttl);
         cache
     }
 
-    // Check if an entry exists and has not expired, without updating its position
+    // check for entry, without updating position
     #[inline]
     pub fn check_ttl(&self, key: &K) -> bool {
         if let Some(&node_ptr) = self.map.get(key) {
             // SAFETY: The pointer is valid as it's managed by the cache
             let node = unsafe { &*node_ptr.as_ptr() };
 
-            // Check if the entry has expired
+            // expired?
             if let Some(ttl) = self.ttl {
                 if node.last_accessed.elapsed() > ttl {
                     return false;
@@ -82,10 +82,9 @@ where
             // SAFETY: The pointer is valid as it's managed by the cache
             let node = unsafe { &mut *node_ptr.as_ptr() };
 
-            // Check if the entry has expired
+            // expired?
             if let Some(ttl) = self.ttl {
                 if node.last_accessed.elapsed() > ttl {
-                    // Entry has expired, remove it
                     self.remove(key);
                     return None;
                 }
@@ -94,9 +93,9 @@ where
             // Update last accessed time
             node.last_accessed = Instant::now();
 
-            // Optimization: Skip detach/prepend if already at head
+            // skip if head
             if self.head != Some(node_ptr) {
-                // Move to front of list (most recently used)
+                // move to front
                 self.detach_node(node_ptr);
                 self.prepend_node(node_ptr);
             }
@@ -115,7 +114,7 @@ where
 
             // SAFETY: The pointer is valid as it's managed by the cache, and we own it now
             unsafe {
-                // Convert back to Box and drop
+                //first convert to box and drop
                 drop(Box::from_raw(node_ptr.as_ptr()));
             }
 
@@ -135,7 +134,7 @@ where
             node.value = value;
             node.last_accessed = Instant::now();
 
-            // Only move node if it's not already at the head
+            // skip if head
             if self.head != Some(node_ptr) {
                 self.detach_node(node_ptr);
                 self.prepend_node(node_ptr);
@@ -184,18 +183,16 @@ where
         self.map.clear();
     }
 
-    // Returns the number of items in the cache
     pub fn len(&self) -> usize {
         self.map.len()
     }
 
-    #[allow(dead_code)] // used in wrapper so remove later
-    // Returns true if the cache is empty
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
 
-    // Remove all expired entries from the cache
+    // purge all expired entries from the cache
     pub fn purge_expired(&mut self) -> usize {
         if self.ttl.is_none() {
             return 0;
@@ -328,9 +325,9 @@ where
 mod tests_lru_cache_v2 {
     use super::*;
     use crate::log_info;
-    use std::time::Instant;
-    use std::thread::sleep;
     use std::path::PathBuf;
+    use std::thread::sleep;
+    use std::time::Instant;
 
     #[test]
     fn test_basic_operations() {
@@ -438,7 +435,10 @@ mod tests_lru_cache_v2 {
         let elapsed = start.elapsed();
 
         let avg_retrieval_time = elapsed.as_nanos() as f64 / 500.0;
-        log_info!(&format!("Average retrieval time for existing paths: {:.2} ns", avg_retrieval_time));
+        log_info!(&format!(
+            "Average retrieval time for existing paths: {:.2} ns",
+            avg_retrieval_time
+        ));
 
         // Benchmark getting non-existent paths
         let start = Instant::now();
@@ -449,7 +449,10 @@ mod tests_lru_cache_v2 {
         let elapsed = start.elapsed();
 
         let avg_miss_time = elapsed.as_nanos() as f64 / 500.0;
-        log_info!(&format!("Average retrieval time for non-existent paths: {:.2} ns", avg_miss_time));
+        log_info!(&format!(
+            "Average retrieval time for non-existent paths: {:.2} ns",
+            avg_miss_time
+        ));
     }
 
     #[test]
@@ -469,16 +472,18 @@ mod tests_lru_cache_v2 {
 
             // Measure retrieval time (mixed hits and misses)
             let start = Instant::now();
-            for i in size/2..(size/2 + 1000).min(size + 500) {
+            for i in size / 2..(size / 2 + 1000).min(size + 500) {
                 let path = format!("/path/to/file_{}", i);
                 let _ = cache.get(&path);
             }
             let elapsed = start.elapsed();
 
-            log_info!(&format!("Cache size {}: 1000 lookups took {:?} (avg: {:.2} ns/lookup)",
-                    size,
-                    elapsed,
-                    elapsed.as_nanos() as f64 / 1000.0));
+            log_info!(&format!(
+                "Cache size {}: 1000 lookups took {:?} (avg: {:.2} ns/lookup)",
+                size,
+                elapsed,
+                elapsed.as_nanos() as f64 / 1000.0
+            ));
         }
     }
 
@@ -505,7 +510,10 @@ mod tests_lru_cache_v2 {
         }
         let elapsed = start.elapsed();
 
-        log_info!(&format!("Time to insert 20 items with eviction: {:?}", elapsed));
+        log_info!(&format!(
+            "Time to insert 20 items with eviction: {:?}",
+            elapsed
+        ));
 
         // Verify the first 20 items are still there (recently used)
         for i in 0..20 {
@@ -520,6 +528,9 @@ mod tests_lru_cache_v2 {
             }
         }
 
-        log_info!(&format!("Evicted {} items from the middle range", evicted_count));
+        log_info!(&format!(
+            "Evicted {} items from the middle range",
+            evicted_count
+        ));
     }
 }
