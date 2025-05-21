@@ -505,8 +505,7 @@ mod tests_hash_commands {
                 .unwrap();
             drop(state_guard);
 
-            let result =
-                gen_hash_and_return_string_impl(file_path.clone(), state.clone()).await;
+            let result = gen_hash_and_return_string_impl(file_path.clone(), state.clone()).await;
 
             assert!(result.is_ok(), "Hash generation failed for {:?}", method);
         }

@@ -3,7 +3,7 @@ use crate::models::{
     count_subdirectories, count_subfiles, format_system_time, get_access_permission_number,
     get_access_permission_string, Entries,
 };
-use crate::{log_info, models};
+use crate::{log_error, log_info, models};
 use std::fs;
 use std::fs::read_dir;
 use std::io::Write;
@@ -32,6 +32,7 @@ use zip::ZipWriter;
 ///     Err(err) => println!("Error opening file: {}", err),
 /// }
 /// ```
+#[allow(dead_code)] //remove once the command is used again
 #[tauri::command]
 pub async fn open_file(path: &str) -> Result<String, String> {
     let path_obj = Path::new(path);
@@ -63,6 +64,19 @@ pub async fn open_file(path: &str) -> Result<String, String> {
         )
             .to_json()
     })
+}
+
+#[tauri::command]
+pub async fn open_in_default_app(path: &str) -> Result<(), String> {
+    let path_obj = Path::new(path);
+
+    // Check if path exists
+    if !path_obj.exists() {
+        return Err(format!("File does not exist: {}", path));
+    }
+
+    // Open the file in the default application
+    open::that(path).map_err(|err| format!("Failed to open file: {}", err))
 }
 
 /// Opens a directory at the given path and returns its contents as a json string.
@@ -593,35 +607,29 @@ pub async fn zip(
             .ok_or_else(|| "Invalid characters in source name".to_string())?;
 
         if source.is_file() {
-            zip.start_file(base_name, options).map_err(|e| {
-                Error::new(
-                    ErrorCode::InternalError,
-                    format!("Error adding file to zip: {}", e),
-                )
-                    .to_json()
-            })?;
+            zip.start_file(base_name, options)
+                .map_err(|e| {
+                    let err_msg = format!("Error adding file to zip: {}", e);
+                    log_error!(&err_msg);
+                    err_msg
+                })?;
             let content = fs::read(source).map_err(|e| {
-                Error::new(
-                    ErrorCode::InternalError,
-                    format!("Error reading file: {}", e),
-                )
-                    .to_json()
+                let err_msg = format!("Error reading file: {}", e);
+                log_error!(&err_msg);
+                err_msg
             })?;
-            zip.write_all(&content).map_err(|e| {
-                Error::new(
-                    ErrorCode::InternalError,
-                    format!("Error writing to zip: {}", e),
-                )
-                    .to_json()
-            })?;
+            zip.write_all(&content)
+                .map_err(|e| {
+                    let err_msg = format!("Error writing to zip: {}", e);
+                    log_error!(&err_msg);
+                    err_msg
+                })?;
         } else if source.is_dir() {
             for entry in walkdir::WalkDir::new(source) {
                 let entry = entry.map_err(|e| {
-                    Error::new(
-                        ErrorCode::InternalError,
-                        format!("Error reading directory: {}", e),
-                    )
-                        .to_json()
+                    let err_msg = format!("Error reading directory: {}", e);
+                    log_error!(&err_msg);
+                    err_msg
                 })?;
                 let path = entry.path();
 
@@ -858,6 +866,34 @@ mod tests_file_system_operation_commands {
     }
 
     #[tokio::test]
+    #[cfg(feature = "open-file-in-app")]
+    async fn open_in_default_app_test() {
+        use std::env;
+        let current_dir = env::current_dir().expect("Failed to get current directory");
+
+        let file_extensions = vec!["txt", "pdf", "mp4", "jpg", "png", "html"];
+
+        for file_extension in file_extensions {
+            let test_path = current_dir
+                .join("assets")
+                .join(format!("dummy.{}", file_extension));
+
+            // Ensure the file exists
+            assert!(test_path.exists(), "Test file should exist before opening");
+
+            // Open the file in the default application
+            let result = open_in_default_app(test_path.to_str().unwrap()).await;
+
+            // Verify that the operation was successful
+            assert!(
+                result.is_ok(),
+                "Failed to open file in default app: {:?}",
+                result
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn failed_to_open_file_because_file_not_exists_test() {
         use tempfile::tempdir;
 
@@ -998,7 +1034,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -1056,7 +1092,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -1095,7 +1131,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result.clone().unwrap_err().contains("Path is no directory"),
             "Error message does not match expected value"
@@ -1157,7 +1193,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -1296,7 +1332,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -1413,12 +1449,12 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result.clone().unwrap_err().contains("File does not exist"),
             "Error message does not match expected value"
         );
-        
+
         assert!(
             result.clone().unwrap_err().contains("405"),
             "Error message does not match expected value"
@@ -1460,7 +1496,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -1671,7 +1707,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -1721,7 +1757,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -1773,13 +1809,13 @@ mod tests_file_system_operation_commands {
     #[tokio::test]
     async fn failed_to_zip_because_no_source_paths_provided_test() {
         let result = zip(vec![], None).await;
-        
+
         assert!(
             result.is_err(),
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -1869,7 +1905,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -1922,13 +1958,13 @@ mod tests_file_system_operation_commands {
     #[tokio::test]
     async fn failed_to_unzip_because_no_zip_files_provided_test() {
         let result = unzip(vec![], None).await;
-        
+
         assert!(
             result.is_err(),
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -1963,7 +1999,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -2020,7 +2056,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -2066,7 +2102,7 @@ mod tests_file_system_operation_commands {
             "Failed test (should throw an error): {:?}",
             result
         );
-        
+
         assert!(
             result
                 .clone()
@@ -2085,4 +2121,4 @@ mod tests_file_system_operation_commands {
             "Error message does not match expected value"
         );
     }
-}    
+}

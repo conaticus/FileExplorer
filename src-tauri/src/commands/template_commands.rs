@@ -1,10 +1,9 @@
+use crate::state::meta_data::MetaDataState;
+use crate::{log_error, log_info};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::State;
-use crate::{log_error, log_info};
-use crate::state::meta_data::MetaDataState;
-
 
 async fn get_template_paths_from_state(
     state: Arc<Mutex<MetaDataState>>,
@@ -17,16 +16,16 @@ async fn get_template_paths_from_state(
     Ok(inner_meta_data.template_paths.clone())
 }
 
-pub async fn get_template_paths_as_json_impl(state: Arc<Mutex<MetaDataState>>) -> Result<String, String> {
+pub async fn get_template_paths_as_json_impl(
+    state: Arc<Mutex<MetaDataState>>,
+) -> Result<String, String> {
     log_info!("Retrieving template paths from state");
     // Get the template paths
-    let paths = get_template_paths_from_state(state)
-        .await
-        .map_err(|_| {
-            let error_msg = "Failed to get template paths from state";
-            log_error!(error_msg);
-            error_msg.to_string()
-        })?;
+    let paths = get_template_paths_from_state(state).await.map_err(|_| {
+        let error_msg = "Failed to get template paths from state";
+        log_error!(error_msg);
+        error_msg.to_string()
+    })?;
 
     // Convert PathBufs to strings
     let path_strings: Vec<String> = paths
@@ -41,7 +40,7 @@ pub async fn get_template_paths_as_json_impl(state: Arc<Mutex<MetaDataState>>) -
         Ok(json) => {
             log_info!("Successfully serialized template paths to JSON");
             Ok(json)
-        },
+        }
         Err(e) => {
             let error_msg = format!("Failed to serialize paths to JSON: {}", e);
             log_error!(error_msg.as_str());
@@ -65,7 +64,9 @@ pub async fn get_template_paths_as_json_impl(state: Arc<Mutex<MetaDataState>>) -
 /// }
 /// ```
 #[tauri::command]
-pub async fn get_template_paths_as_json(state: State<'_, Arc<Mutex<MetaDataState>>>) -> Result<String, String> {
+pub async fn get_template_paths_as_json(
+    state: State<'_, Arc<Mutex<MetaDataState>>>,
+) -> Result<String, String> {
     log_info!("get_template_paths_as_json command called");
     get_template_paths_as_json_impl(state.inner().clone()).await
 }
@@ -85,9 +86,16 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
     if let Some(parent) = dest_path_buf.parent() {
         if !parent.exists() {
             match fs::create_dir_all(parent) {
-                Ok(_) => log_info!(format!("Created parent directories for destination: {}", parent.display()).as_str()),
+                Ok(_) => log_info!(format!(
+                    "Created parent directories for destination: {}",
+                    parent.display()
+                )
+                .as_str()),
                 Err(err) => {
-                    let error_msg = format!("Failed to create parent directories for destination: {}", err);
+                    let error_msg = format!(
+                        "Failed to create parent directories for destination: {}",
+                        err
+                    );
                     log_error!(error_msg.as_str());
                     return Err(error_msg);
                 }
@@ -115,7 +123,11 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
 
         // Create the destination directory
         match fs::create_dir_all(&final_dest_path) {
-            Ok(_) => log_info!(format!("Created destination directory: {}", final_dest_path.display()).as_str()),
+            Ok(_) => log_info!(format!(
+                "Created destination directory: {}",
+                final_dest_path.display()
+            )
+            .as_str()),
             Err(err) => {
                 let error_msg = format!("Failed to create destination directory: {}", err);
                 log_error!(error_msg.as_str());
@@ -153,35 +165,59 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
                 // Copy file
                 match fs::copy(&entry_path, &dest_path_entry) {
                     Ok(size) => {
-                        log_info!(format!("Copied file: {} ({} bytes)", entry_path.display(), size).as_str());
+                        log_info!(format!(
+                            "Copied file: {} ({} bytes)",
+                            entry_path.display(),
+                            size
+                        )
+                        .as_str());
                         total_size += size;
-                    },
+                    }
                     Err(err) => {
-                        let error_msg = format!("Failed to copy file '{}': {}", entry_path.display(), err);
+                        let error_msg =
+                            format!("Failed to copy file '{}': {}", entry_path.display(), err);
                         log_error!(error_msg.as_str());
                         return Err(error_msg);
                     }
                 }
             } else if entry_path.is_dir() {
                 // Recursively copy subdirectory - pass the dest_path_entry as destination
-                log_info!(format!("Recursively copying subdirectory: {}", entry_path.display()).as_str());
+                log_info!(
+                    format!("Recursively copying subdirectory: {}", entry_path.display()).as_str()
+                );
                 match Box::pin(copy_to_dest_path(
                     entry_path.to_str().unwrap(),
-                    dest_path_entry.parent().unwrap().to_str().unwrap()
-                )).await {
+                    dest_path_entry.parent().unwrap().to_str().unwrap(),
+                ))
+                .await
+                {
                     Ok(sub_size) => {
-                        log_info!(format!("Copied directory: {} ({} bytes)", entry_path.display(), sub_size).as_str());
+                        log_info!(format!(
+                            "Copied directory: {} ({} bytes)",
+                            entry_path.display(),
+                            sub_size
+                        )
+                        .as_str());
                         total_size += sub_size;
-                    },
+                    }
                     Err(err) => {
-                        log_error!(format!("Failed to copy directory '{}': {}", entry_path.display(), err).as_str());
+                        log_error!(format!(
+                            "Failed to copy directory '{}': {}",
+                            entry_path.display(),
+                            err
+                        )
+                        .as_str());
                         return Err(err);
                     }
                 }
             }
         }
 
-        log_info!(format!("Successfully copied directory with total size: {} bytes", total_size).as_str());
+        log_info!(format!(
+            "Successfully copied directory with total size: {} bytes",
+            total_size
+        )
+        .as_str());
         Ok(total_size)
     } else {
         log_info!("Copying single file");
@@ -189,7 +225,9 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
         if let Some(parent) = PathBuf::from(dest_path).parent() {
             if !parent.exists() {
                 match fs::create_dir_all(parent) {
-                    Ok(_) => log_info!(format!("Created parent directory: {}", parent.display()).as_str()),
+                    Ok(_) => {
+                        log_info!(format!("Created parent directory: {}", parent.display()).as_str())
+                    }
                     Err(err) => {
                         let error_msg = format!("Failed to create parent directory: {}", err);
                         log_error!(error_msg.as_str());
@@ -202,9 +240,13 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
         // Copy a single file
         match fs::copy(source_path, dest_path) {
             Ok(size) => {
-                log_info!(format!("Copied file: {} to {} ({} bytes)", source_path, dest_path, size).as_str());
+                log_info!(format!(
+                    "Copied file: {} to {} ({} bytes)",
+                    source_path, dest_path, size
+                )
+                .as_str());
                 Ok(size)
-            },
+            }
             Err(err) => {
                 let error_msg = format!("Failed to copy file: {}", err);
                 log_error!(error_msg.as_str());
@@ -230,33 +272,29 @@ pub async fn add_template_impl(
     // Extract what we need from the metadata state before any await points
     let dest_path = {
         let metadata_state = state.lock().unwrap();
-        let inner_metadata = metadata_state
-            .0
-            .lock()
-            .map_err(|e| {
-                let error_msg = format!("Error acquiring lock on metadata state: {:?}", e);
-                log_error!(error_msg.as_str());
-                error_msg
-            })?;
+        let inner_metadata = metadata_state.0.lock().map_err(|e| {
+            let error_msg = format!("Error acquiring lock on metadata state: {:?}", e);
+            log_error!(error_msg.as_str());
+            error_msg
+        })?;
 
-        inner_metadata
-            .abs_folder_path_buf_for_templates.clone()
+        inner_metadata.abs_folder_path_buf_for_templates.clone()
     };
 
     log_info!(format!("Template destination path: {}", dest_path.display()).as_str());
 
     // Create destination directory if it doesn't exist
     if !dest_path.exists() {
-        let error_msg = format!("Failed to find templates directory: {}", dest_path.display());
+        let error_msg = format!(
+            "Failed to find templates directory: {}",
+            dest_path.display()
+        );
         log_error!(error_msg.as_str());
         return Err(error_msg);
     }
 
     // Copy the template using our helper function
-    let size = copy_to_dest_path(
-        template_path,
-        dest_path.to_str().unwrap(),
-    ).await?;
+    let size = copy_to_dest_path(template_path, dest_path.to_str().unwrap()).await?;
 
     // Update the template paths in the metadata state
     let update_result = {
@@ -266,12 +304,17 @@ pub async fn add_template_impl(
 
     match update_result {
         Ok(_) => {
-            let success_msg = format!("Template '{}' added successfully ({} bytes)",
-                Path::new(template_path).file_name().unwrap_or_default().to_string_lossy(),
-                size);
+            let success_msg = format!(
+                "Template '{}' added successfully ({} bytes)",
+                Path::new(template_path)
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy(),
+                size
+            );
             log_info!(success_msg.as_str());
             Ok(success_msg)
-        },
+        }
         Err(err) => {
             let error_msg = format!("Failed to update template paths: {}", err);
             log_error!(error_msg.as_str());
@@ -302,15 +345,15 @@ pub async fn add_template_impl(
 /// }
 /// ```
 #[tauri::command]
-pub async fn add_template(state: State<'_, Arc<Mutex<MetaDataState>>>, template_path: &str) -> Result<String, String> {
+pub async fn add_template(
+    state: State<'_, Arc<Mutex<MetaDataState>>>,
+    template_path: &str,
+) -> Result<String, String> {
     log_info!(format!("add_template command called with path: {}", template_path).as_str());
     add_template_impl(state.inner().clone(), template_path).await
 }
 
-pub async fn use_template_impl(
-    template_path: &str,
-    dest_path : &str,
-) -> Result<String, String> {
+pub async fn use_template_impl(template_path: &str, dest_path: &str) -> Result<String, String> {
     log_info!(format!("Using template from path: {}", template_path).as_str());
 
     // Check if the template path exists
@@ -336,7 +379,7 @@ pub async fn use_template_impl(
             );
             log_info!(success_msg.as_str());
             Ok(success_msg)
-        },
+        }
         Err(err) => {
             let error_msg = format!("Failed to apply template: {}", err);
             log_error!(error_msg.as_str());
@@ -401,14 +444,14 @@ pub async fn remove_template_impl(
                 Ok(_) => {
                     log_info!(success_msg.as_str());
                     Ok(success_msg)
-                },
+                }
                 Err(err) => {
                     let error_msg = format!("Failed to update template paths: {}", err);
                     log_error!(error_msg.as_str());
                     Err(error_msg)
                 }
             }
-        },
+        }
         Err(err) => {
             let error_msg = format!("Failed to remove template: {}", err);
             log_error!(error_msg.as_str());
@@ -439,7 +482,10 @@ pub async fn remove_template_impl(
 /// }
 /// ```
 #[tauri::command]
-pub async fn remove_template(state: State<'_, Arc<Mutex<MetaDataState>>>, template_path: &str) -> Result<String, String> {
+pub async fn remove_template(
+    state: State<'_, Arc<Mutex<MetaDataState>>>,
+    template_path: &str,
+) -> Result<String, String> {
     remove_template_impl(state.inner().clone(), template_path).await
 }
 
@@ -454,7 +500,10 @@ mod tests_template_commands {
     use tempfile::tempdir;
 
     // Helper function to create a test MetaDataState
-    fn create_test_metadata_state(meta_data_path: PathBuf, temp_dir_path: PathBuf) -> Arc<Mutex<MetaDataState>> {
+    fn create_test_metadata_state(
+        meta_data_path: PathBuf,
+        temp_dir_path: PathBuf,
+    ) -> Arc<Mutex<MetaDataState>> {
         // Create a custom metadata state with our test directories
         let meta_data = MetaDataState::new_with_path(meta_data_path.to_path_buf());
 
@@ -465,14 +514,18 @@ mod tests_template_commands {
             meta_data_inner.template_paths = vec![];
 
             // Save the updated metadata
-            meta_data.write_meta_data_to_file(&meta_data_inner).expect("Failed to update metadata");
+            meta_data
+                .write_meta_data_to_file(&meta_data_inner)
+                .expect("Failed to update metadata");
 
             // Update the state
             *meta_data.0.lock().unwrap() = meta_data_inner;
         }
 
         // Ensure we properly initialize template paths in the state
-        meta_data.update_template_paths().expect("Failed to update template paths");
+        meta_data
+            .update_template_paths()
+            .expect("Failed to update template paths");
 
         Arc::new(Mutex::new(meta_data))
     }
@@ -499,7 +552,10 @@ mod tests_template_commands {
 
         assert!(result.is_ok(), "Should return Ok for empty template paths");
         let json = result.unwrap();
-        assert_eq!(json, "[]", "Empty template paths should return empty JSON array");
+        assert_eq!(
+            json, "[]",
+            "Empty template paths should return empty JSON array"
+        );
     }
 
     #[tokio::test]
@@ -532,19 +588,43 @@ mod tests_template_commands {
             let inner_meta_data = &mut meta_state.0.lock().unwrap();
             inner_meta_data.template_paths = vec![template1.clone(), template2.clone()];
 
-            assert!(inner_meta_data.template_paths.len() >= 2, "Should have found at least 2 templates: {:?}", inner_meta_data.template_paths);
-            assert!(inner_meta_data.template_paths.iter().any(|p| p.ends_with("template1")),
-                   "template1 should be in template_paths: {:?}", inner_meta_data.template_paths);
-            assert!(inner_meta_data.template_paths.iter().any(|p| p.ends_with("template2")),
-                   "template2 should be in template_paths: {:?}", inner_meta_data.template_paths);
+            assert!(
+                inner_meta_data.template_paths.len() >= 2,
+                "Should have found at least 2 templates: {:?}",
+                inner_meta_data.template_paths
+            );
+            assert!(
+                inner_meta_data
+                    .template_paths
+                    .iter()
+                    .any(|p| p.ends_with("template1")),
+                "template1 should be in template_paths: {:?}",
+                inner_meta_data.template_paths
+            );
+            assert!(
+                inner_meta_data
+                    .template_paths
+                    .iter()
+                    .any(|p| p.ends_with("template2")),
+                "template2 should be in template_paths: {:?}",
+                inner_meta_data.template_paths
+            );
         }
 
         let result = get_template_paths_as_json_impl(state).await;
         assert!(result.is_ok(), "Should return Ok with template paths");
         let json = result.unwrap();
 
-        assert!(json.contains("template1"), "JSON should contain template1: {}", json);
-        assert!(json.contains("template2"), "JSON should contain template2: {}", json);
+        assert!(
+            json.contains("template1"),
+            "JSON should contain template1: {}",
+            json
+        );
+        assert!(
+            json.contains("template2"),
+            "JSON should contain template2: {}",
+            json
+        );
     }
 
     #[tokio::test]
@@ -567,12 +647,20 @@ mod tests_template_commands {
 
         // Add the template
         let result = add_template_impl(state.clone(), source_path.to_str().unwrap()).await;
-        assert!(result.is_ok(), "Adding template should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Adding template should succeed: {:?}",
+            result.err()
+        );
 
         // Verify the template was copied - should be in templates_dir/source_name
         let expected_template_path = templates_dir.path().join(source_name);
         println!("Expected template path: {:?}", expected_template_path);
-        assert!(expected_template_path.exists(), "Template should exist at destination: {:?}", expected_template_path);
+        assert!(
+            expected_template_path.exists(),
+            "Template should exist at destination: {:?}",
+            expected_template_path
+        );
 
         // Verify the template file was copied correctly
         let copied_file = expected_template_path.join("test.txt");
@@ -603,7 +691,8 @@ mod tests_template_commands {
         // Create a template directory
         let template_dir = tempdir().expect("Failed to create template directory");
         let template_file = template_dir.path().join("template_file.txt");
-        create_test_file(&template_file, b"Template content").expect("Failed to create template file");
+        create_test_file(&template_file, b"Template content")
+            .expect("Failed to create template file");
 
         // Create a destination directory
         let dest_dir = tempdir().expect("Failed to create destination directory");
@@ -614,19 +703,30 @@ mod tests_template_commands {
         // Use the template
         let result = use_template_impl(
             template_dir.path().to_str().unwrap(),
-            dest_dir.path().to_str().unwrap()
-        ).await;
+            dest_dir.path().to_str().unwrap(),
+        )
+        .await;
 
-        assert!(result.is_ok(), "Using template should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Using template should succeed: {:?}",
+            result.err()
+        );
 
         // Verify the template was copied to the destination - should be in dest_dir/template_name
         let dest_template_dir = dest_dir.path().join(template_name);
         println!("Looking for template in: {:?}", dest_template_dir);
-        assert!(dest_template_dir.exists(), "Template directory should exist at destination");
+        assert!(
+            dest_template_dir.exists(),
+            "Template directory should exist at destination"
+        );
 
         // Verify the template file was copied correctly
         let copied_file = dest_template_dir.join("template_file.txt");
-        assert!(copied_file.exists(), "Template file should be copied to destination");
+        assert!(
+            copied_file.exists(),
+            "Template file should be copied to destination"
+        );
 
         let content = fs::read_to_string(copied_file).expect("Failed to read copied file");
         assert_eq!(content, "Template content", "File content should match");
@@ -640,8 +740,9 @@ mod tests_template_commands {
         // Try to use a template that doesn't exist
         let result = use_template_impl(
             "/path/to/nonexistent/template",
-            dest_dir.path().to_str().unwrap()
-        ).await;
+            dest_dir.path().to_str().unwrap(),
+        )
+        .await;
 
         assert!(result.is_err(), "Should fail when template doesn't exist");
         assert!(result.unwrap_err().contains("Template path does not exist"));
@@ -655,11 +756,17 @@ mod tests_template_commands {
         // Try to use a template with an invalid destination
         let result = use_template_impl(
             template_dir.path().to_str().unwrap(),
-            "/path/to/nonexistent/destination"
-        ).await;
+            "/path/to/nonexistent/destination",
+        )
+        .await;
 
-        assert!(result.is_err(), "Should fail when destination doesn't exist");
-        assert!(result.unwrap_err().contains("Destination path does not exist"));
+        assert!(
+            result.is_err(),
+            "Should fail when destination doesn't exist"
+        );
+        assert!(result
+            .unwrap_err()
+            .contains("Destination path does not exist"));
     }
 
     #[tokio::test]
@@ -679,22 +786,31 @@ mod tests_template_commands {
 
         // Update template paths in state
         let meta_state = state.lock().unwrap();
-        meta_state.update_template_paths().expect("Failed to update template paths");
+        meta_state
+            .update_template_paths()
+            .expect("Failed to update template paths");
         drop(meta_state);
 
         // Verify the template exists
-        assert!(template_path.exists(), "Template should exist before removal");
+        assert!(
+            template_path.exists(),
+            "Template should exist before removal"
+        );
 
         // Remove the template
-        let result = remove_template_impl(
-            state.clone(),
-            template_path.to_str().unwrap()
-        ).await;
+        let result = remove_template_impl(state.clone(), template_path.to_str().unwrap()).await;
 
-        assert!(result.is_ok(), "Removing template should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Removing template should succeed: {:?}",
+            result.err()
+        );
 
         // Verify the template was removed
-        assert!(!template_path.exists(), "Template should be removed after removal");
+        assert!(
+            !template_path.exists(),
+            "Template should be removed after removal"
+        );
     }
 
     #[tokio::test]
@@ -710,13 +826,13 @@ mod tests_template_commands {
         let nonexistent_path = templates_dir.path().join("nonexistent_template");
 
         // Ensure it doesn't exist
-        assert!(!nonexistent_path.exists(), "Template should not exist before test");
+        assert!(
+            !nonexistent_path.exists(),
+            "Template should not exist before test"
+        );
 
         // Try to remove it
-        let result = remove_template_impl(
-            state,
-            nonexistent_path.to_str().unwrap()
-        ).await;
+        let result = remove_template_impl(state, nonexistent_path.to_str().unwrap()).await;
 
         assert!(result.is_err(), "Should fail when template doesn't exist");
         assert!(result.unwrap_err().contains("Template path does not exist"));
@@ -736,12 +852,14 @@ mod tests_template_commands {
         let dest_file = dest_dir.path().join("test.txt");
 
         // Copy the file
-        let result = copy_to_dest_path(
-            source_file.to_str().unwrap(),
-            dest_file.to_str().unwrap()
-        ).await;
+        let result =
+            copy_to_dest_path(source_file.to_str().unwrap(), dest_file.to_str().unwrap()).await;
 
-        assert!(result.is_ok(), "Copying file should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Copying file should succeed: {:?}",
+            result.err()
+        );
 
         // Verify the file was copied
         assert!(dest_file.exists(), "Destination file should exist");
@@ -773,17 +891,25 @@ mod tests_template_commands {
         // Copy the directory
         let result = copy_to_dest_path(
             source_dir.path().to_str().unwrap(),
-            dest_dir.path().to_str().unwrap()
-        ).await;
+            dest_dir.path().to_str().unwrap(),
+        )
+        .await;
 
-        assert!(result.is_ok(), "Copying directory should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Copying directory should succeed: {:?}",
+            result.err()
+        );
 
         // The copied directory should be in dest_dir/source_name
         let copied_dir_path = dest_dir.path().join(source_name);
         println!("Expected copied directory path: {:?}", copied_dir_path);
 
         // Verify the directory structure was copied
-        assert!(copied_dir_path.exists(), "Destination directory should exist");
+        assert!(
+            copied_dir_path.exists(),
+            "Destination directory should exist"
+        );
 
         println!("Contents of copied directory:");
         for entry in fs::read_dir(&copied_dir_path).expect("Failed to read directory") {
@@ -794,14 +920,16 @@ mod tests_template_commands {
         let copied_subdir = copied_dir_path.join("subdir");
         let copied_file2 = copied_subdir.join("file2.txt");
 
-        assert!(copied_file1.exists(), "file1.txt should be copied: {:?}", copied_file1);
+        assert!(
+            copied_file1.exists(),
+            "file1.txt should be copied: {:?}",
+            copied_file1
+        );
         assert!(copied_subdir.exists(), "subdir should be copied");
         assert!(copied_file2.exists(), "file2.txt should be copied");
 
-        let content1 = fs::read_to_string(copied_file1)
-            .expect("Failed to read file1.txt");
-        let content2 = fs::read_to_string(copied_file2)
-            .expect("Failed to read file2.txt");
+        let content1 = fs::read_to_string(copied_file1).expect("Failed to read file1.txt");
+        let content2 = fs::read_to_string(copied_file2).expect("Failed to read file2.txt");
 
         assert_eq!(content1, "File 1 content", "File1 content should match");
         assert_eq!(content2, "File 2 content", "File2 content should match");

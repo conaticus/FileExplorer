@@ -10,13 +10,14 @@ mod logging;
 mod error_handling;
 
 use tauri::ipc::Invoke;
-use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands, hash_commands, settings_commands, template_commands};
+use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands, hash_commands, settings_commands, template_commands, command_exec_commands, search_engine_commands};
 
 fn all_commands() -> fn(Invoke) -> bool {
     tauri::generate_handler![
         // Filesystem commands
-        file_system_operation_commands::open_file,
+        //file_system_operation_commands::open_file,
         file_system_operation_commands::open_directory,
+        file_system_operation_commands::open_in_default_app,
         file_system_operation_commands::create_file,
         file_system_operation_commands::create_directory,
         file_system_operation_commands::rename,
@@ -24,6 +25,9 @@ fn all_commands() -> fn(Invoke) -> bool {
         file_system_operation_commands::copy_file_or_dir,
         file_system_operation_commands::zip,
         file_system_operation_commands::unzip,
+
+        // Command execution commands
+        command_exec_commands::execute_command,  // Add the execute_command function
 
         // Metadata commands
         meta_data_commands::get_meta_data_as_json,
@@ -50,6 +54,18 @@ fn all_commands() -> fn(Invoke) -> bool {
         template_commands::add_template,
         template_commands::use_template,
         template_commands::remove_template,
+        
+        // Autocomplete commands
+        search_engine_commands::search,
+        search_engine_commands::search_with_extension,
+        search_engine_commands::add_paths_recursive,
+        search_engine_commands::add_path,
+        search_engine_commands::remove_path,
+        search_engine_commands::remove_paths_recursive,
+        search_engine_commands::clear_search_engine,
+        search_engine_commands::get_search_engine_info,
+        
+        
     ]
 }
 
@@ -61,9 +77,12 @@ async fn main() {
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(all_commands());
 
-    // State-Setup ausgelagert in eigene Funktion
+    // State-Setup moved to seperate function
     let app = state::setup_app_state(app);
 
     app.run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect({
+                    let error_msg = "error while running tauri application";
+                    log_critical!(error_msg);
+                    &error_msg.to_string()});
 }

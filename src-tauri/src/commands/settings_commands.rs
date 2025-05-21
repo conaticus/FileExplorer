@@ -226,17 +226,15 @@ pub fn update_multiple_settings_command(
 /// }
 /// ```
 #[tauri::command]
-pub fn reset_settings_command(
-    state: State<Arc<Mutex<SettingsState>>>
-) -> Result<String, String>{
+pub fn reset_settings_command(state: State<Arc<Mutex<SettingsState>>>) -> Result<String, String> {
     reset_settings_impl(state.inner().clone())
 }
 
 #[cfg(test)]
 mod tests_settings_commands {
-    use std::path::PathBuf;
     use super::*;
     use serde_json::json;
+    use std::path::PathBuf;
 
     // Testing: Helper function to create a test SettingsState
     fn create_test_settings_state() -> Arc<Mutex<SettingsState>> {
@@ -327,7 +325,8 @@ mod tests_settings_commands {
     fn test_reset_settings_command_success() {
         let state = create_test_settings_state();
         // Prefix unused variable with underscore
-        let _updated_data = update_settings_field_impl(state.clone(), "darkmode".to_string(), json!(true));
+        let _updated_data =
+            update_settings_field_impl(state.clone(), "darkmode".to_string(), json!(true));
 
         let result = reset_settings_impl(state.clone());
         assert!(result.is_ok());
@@ -336,4 +335,3 @@ mod tests_settings_commands {
         assert_eq!(darkmode, json!(false));
     }
 }
-

@@ -1,4 +1,4 @@
-use crate::constants;
+use crate::{constants, log_error};
 use crate::models::LoggingLevel;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,7 +9,39 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use crate::commands::hash_commands::ChecksumMethod;
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum DefaultView {
+    Grid,
+    List,
+    Details,
+}
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum FontSize {
+    Small,
+    Medium,
+    Large,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum SortDirection {
+    Acscending,
+    Descending,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum SortBy {
+    Name,
+    Size,
+    Date,
+    Type,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum DoubleClick {
+    OpenFilesAndFolders,
+    SelectFilesAndFolders,
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
@@ -20,6 +52,20 @@ pub struct Settings {
     pub default_folder_path_on_opening: PathBuf,
     pub default_checksum_hash: ChecksumMethod,
     pub logging_level: LoggingLevel,
+    pub default_view: DefaultView,
+    pub font_size: FontSize,
+    pub show_hidden_files_and_folders: bool,
+    pub show_details_panel: bool,
+    pub accent_color: String,
+    pub confirm_delete: bool,
+    pub auto_refresh_dir: bool,
+    pub sort_direction: SortDirection,
+    pub sort_by: SortBy,
+    pub double_click: DoubleClick,
+    pub show_file_extensions: bool,
+    pub terminal_height: u32,
+    pub enable_animations_and_transitions: bool,
+    pub enable_virtual_scroll_for_large_directories: bool,
     pub abs_file_path_buf: PathBuf,
 }
 
@@ -35,6 +81,20 @@ impl Default for Settings {
             default_checksum_hash: ChecksumMethod::SHA256,
             logging_level: LoggingLevel::Full,
             abs_file_path_buf: constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf(),
+            default_view: DefaultView::Grid,
+            font_size: FontSize::Medium,
+            show_hidden_files_and_folders: false,
+            show_details_panel: false,
+            accent_color: "#000000".to_string(),
+            confirm_delete: true,
+            auto_refresh_dir: true,
+            sort_direction: SortDirection::Acscending,
+            sort_by: SortBy::Name,
+            double_click: DoubleClick::OpenFilesAndFolders,
+            show_file_extensions: true,
+            terminal_height: 240,
+            enable_animations_and_transitions: true,
+            enable_virtual_scroll_for_large_directories: false,
         }
     }
 }
@@ -382,7 +442,7 @@ impl SettingsState {
         let settings_state = Self(Arc::new(Mutex::new(defaults.clone())));
 
         if let Err(e) = settings_state.write_settings_to_file(&defaults) {
-            eprintln!("Error writing settings to file: {}", e);
+            log_error!(&format!("Error writing settings to file: {}", e));
         }
 
         defaults
