@@ -31,6 +31,7 @@ use zip::ZipWriter;
 ///     Err(err) => println!("Error opening file: {}", err),
 /// }
 /// ```
+#[allow(dead_code)] //remove once the command is used again
 #[tauri::command]
 pub async fn open_file(path: &str) -> Result<String, String> {
     
@@ -608,7 +609,6 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
 #[cfg(test)]
 mod tests_file_system_operation_commands {
     use super::*;
-    use std::env;
     use tempfile::tempdir;
 
     #[tokio::test]
@@ -647,6 +647,7 @@ mod tests_file_system_operation_commands {
     #[tokio::test]
     #[cfg(feature = "open-file-in-app")]
     async fn open_in_default_app_test() {
+        use std::env;
         let current_dir = env::current_dir().expect("Failed to get current directory");
 
         let file_extensions = vec!["txt", "pdf", "mp4", "jpg", "png", "html"];

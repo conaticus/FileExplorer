@@ -4,10 +4,12 @@ mod fast_fuzzy_v2;
 mod lru_cache_v2;
 mod path_cache_wrapper;
 
+
+#[cfg(test)]
 pub mod test_generate_test_data {
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
-    #[cfg(test)]
+
     /// Generates a test data directory structure with random folder and file names.
     /// Creates 20 folders with 20 subfolders each up to a depth of 5, and 20 files in each folder.
     pub fn generate_test_data(base_path: PathBuf) -> Result<PathBuf, std::io::Error> {
