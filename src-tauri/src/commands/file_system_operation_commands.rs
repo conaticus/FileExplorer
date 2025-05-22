@@ -774,6 +774,53 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
             Error::new(ErrorCode::InvalidInput, "No zip files provided".to_string()).to_json(),
         );
     }
+    
+    // Check if destination path is needed for multiple zips
+    if zip_paths.len() > 1 && destination_path.is_none() {
+        log_error!("Destination path required for multiple zip files");
+        return Err(Error::new(
+            ErrorCode::InvalidInput,
+            "Destination path required for multiple zip files".to_string(),
+        )
+        .to_json());
+    }
+
+    // Create destination directory path 
+    let dest_path = match &destination_path {
+        Some(dest) => Path::new(dest),
+        None => {
+            // For single file without explicit destination, use parent directory
+            if zip_paths.len() == 1 {
+                Path::new(&zip_paths[0]).parent().unwrap_or(Path::new("."))
+            } else {
+                log_error!("Destination path required for multiple zip files");
+                return Err(Error::new(
+                    ErrorCode::InvalidInput, 
+                    "Destination path required for multiple zip files".to_string()
+                ).to_json());
+            }
+        }
+    };
+
+    // If destination path is provided and we have multiple files, validate it exists
+    if zip_paths.len() > 1 && !dest_path.exists() {
+        log_error!("Destination path does not exist");
+        return Err(Error::new(
+            ErrorCode::ResourceNotFound,
+            "Destination path does not exist".to_string(),
+        )
+        .to_json());
+    }
+
+    // If destination path exists, ensure it's a directory
+    if dest_path.exists() && !dest_path.is_dir() {
+        log_error!("Destination path exists but is not a directory");
+        return Err(Error::new(
+            ErrorCode::InvalidInput,
+            "Destination path exists but is not a directory".to_string(),
+        )
+        .to_json());
+    }
 
     for zip_path in zip_paths.clone() {
         let zip_path = Path::new(&zip_path);
@@ -787,33 +834,29 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
         }
 
         // Determine extraction path for this zip
-        let extract_path = if zip_paths.len() == 1 && destination_path.is_none() {
-            // For single zip without destination, use zip name without extension
-            zip_path.with_extension("")
-        } else if let Some(dest) = &destination_path {
-            // For multiple zips or specified destination, create subdirectory for each zip
-            let zip_name = zip_path
-                .file_stem()
-                .ok_or_else(|| "Invalid zip filename".to_string())?;
-            Path::new(dest).join(zip_name)
-        } else {
-            log_error!("Destination path required for multiple zip files");
-            return Err(Error::new(
-                ErrorCode::InvalidInput,
-                "Destination path required for multiple zip files".to_string(),
-            )
-            .to_json());
+        let zip_name = match zip_path.file_stem() {
+            Some(name) => name,
+            None => {
+                log_error!("Invalid zip filename");
+                return Err(Error::new(
+                    ErrorCode::InvalidInput,
+                    "Invalid zip filename".to_string(),
+                )
+                .to_json());
+            }
         };
 
+        let extract_path = dest_path.join(zip_name);
+
         // Create extraction directory
-        fs::create_dir_all(&extract_path).map_err(|e| {
+        if let Err(e) = fs::create_dir_all(&extract_path) {
             log_error!(format!("Failed to create extraction directory: {}", e).as_str());
-            Error::new(
+            return Err(Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to create extraction directory: {}", e),
             )
-            .to_json()
-        })?;
+            .to_json());
+        }
 
         // Open and extract zip file
         let file = fs::File::open(zip_path).map_err(|e| {
@@ -824,6 +867,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
             )
             .to_json()
         })?;
+        
         let mut archive = zip::ZipArchive::new(file).map_err(|e| {
             log_error!(format!("Failed to read zip archive: {}", e).as_str());
             Error::new(
@@ -2154,6 +2198,7 @@ mod tests_file_system_operation_commands {
 
         // Create a test zip file
         let zip_path = temp_dir.path().join("test.zip");
+        let zip2_path = temp_dir.path().join("test2.zip");
         let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
 
         zip.start_file::<_, ()>("test.txt", FileOptions::default())
@@ -2161,11 +2206,20 @@ mod tests_file_system_operation_commands {
         zip.write_all(b"Hello, World!").unwrap();
         zip.finish().unwrap();
 
+        let mut zip2 = zip::ZipWriter::new(fs::File::create(&zip2_path).unwrap());
+        zip2.start_file::<_, ()>("test2.txt", FileOptions::default())
+            .unwrap();
+        zip2.write_all(b"Hello, World!").unwrap();
+        zip2.finish().unwrap();
+
         // Attempt to unzip to an invalid destination path
-        let invalid_dest = "/invalid/path/extracted";
+        let invalid_dest = temp_dir.path().join("invalid");
         let result = unzip(
-            vec![zip_path.to_str().unwrap().to_string()],
-            Some(invalid_dest.to_string()),
+            vec![
+                zip_path.to_str().unwrap().to_string(),
+                zip2_path.to_str().unwrap().to_string(),
+            ], // needs to be more than one path
+            Some(invalid_dest.to_str().unwrap().to_string()),
         )
         .await;
 
@@ -2179,17 +2233,17 @@ mod tests_file_system_operation_commands {
             result
                 .clone()
                 .unwrap_err()
-                .contains("Failed to create extraction directory"),
+                .contains("Destination path does not exist"),
             "Error message does not match expected value"
         );
 
         assert!(
-            result.clone().unwrap_err().contains("500"),
+            result.clone().unwrap_err().contains("405"),
             "Error message does not match expected value"
         );
 
         assert!(
-            result.unwrap_err().contains("InternalError"),
+            result.unwrap_err().contains("ResourceNotFound"),
             "Error message does not match expected value"
         );
     }
