@@ -71,7 +71,7 @@ pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
         if !skip_indices.contains(&index) {
 
             //filter boot volumes out on second pass
-            if volume.mount_point == "C:\\" || volume.mount_point == "C:" || volume.mount_point == "efi" ||volume.mount_point.contains("boot") {
+            if volume.mount_point == "efi" ||volume.mount_point.contains("boot") {
                 continue;
             }
             result.push(volume);

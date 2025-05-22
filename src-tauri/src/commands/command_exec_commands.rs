@@ -65,6 +65,7 @@ pub async fn execute_command(command: String) -> Result<String, String> {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_execute_command_success() {
         let result = execute_command("echo hello world".to_string()).await;
