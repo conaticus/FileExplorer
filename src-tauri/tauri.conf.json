@@ -14,11 +14,13 @@
       {
         "title": "File Explorer",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "resizable": true,
+        "fullscreen": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {
@@ -29,6 +31,14 @@
       "icons/logo_128x128.png",
       "icons/logo.icns",
       "icons/logo.ico"
-    ]
+    ],
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      },
+      "nsis": {
+        "installMode": "perMachine"
+      }
+    }
   }
 }
