@@ -1,7 +1,7 @@
+use crate::error_handling::{Error, ErrorCode};
 use crate::state::meta_data::MetaDataState;
 use std::sync::{Arc, Mutex};
 use tauri::State;
-
 
 //TODO implement error handling and update docs
 //TODO implement tests
@@ -14,7 +14,6 @@ pub fn get_meta_data_as_json(state: State<Arc<Mutex<MetaDataState>>>) -> String 
 pub fn update_meta_data(state: State<Arc<Mutex<MetaDataState>>>) -> Result<(), String> {
     match state.lock().unwrap().refresh_volumes() {
         Ok(_) => Ok(()),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(Error::new(ErrorCode::InternalError, format!("Error: {}", e)).to_json()),
     }
 }
-

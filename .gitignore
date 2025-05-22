@@ -1,3 +1,5 @@
+/src-tauri/test-data*/
+
 # General Rust ignores
 /target/
 /Cargo.lock
