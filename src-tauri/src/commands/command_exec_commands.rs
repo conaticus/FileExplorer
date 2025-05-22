@@ -71,11 +71,4 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap().trim(), "hello world");
     }
-
-    #[tokio::test]
-    async fn test() {
-        let result = execute_command("sudo -i".to_string()).await;
-        println!("{:?}", result);
-    }
-
 }

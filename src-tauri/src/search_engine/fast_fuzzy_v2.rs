@@ -1424,7 +1424,7 @@ mod tests_fast_fuzzy_v2 {
 
     // Test to create test data directory if it doesn't exist
     #[test]
-    #[ignore] // Only run when needed to generate test data
+    #[cfg(feature = "generate-test-data")] // Only run when needed to generate test data
     fn create_test_data() {
         let base_path = PathBuf::from("./test-data-for-fuzzy-search");
         match crate::search_engine::test_generate_test_data::generate_test_data(base_path) {

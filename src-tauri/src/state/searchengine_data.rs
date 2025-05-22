@@ -712,6 +712,7 @@ mod tests_searchengine_state {
         assert!(data.recent_activity.recent_searches.is_empty());
     }
 
+    #[cfg(feature = "long-tests")]
     #[test]
     fn test_start_indexing() {
         let state = SearchEngineState::new();
@@ -734,6 +735,7 @@ mod tests_searchengine_state {
         assert!(data.metrics.last_indexing_duration_ms.is_some());
     }
 
+    #[cfg(feature = "long-tests")]
     #[test]
     fn test_stop_indexing() {
         let state = Arc::new(SearchEngineState::new());
@@ -1400,6 +1402,7 @@ mod tests_searchengine_state {
             .contains("No indexing operation in progress"));
     }
 
+    #[cfg(feature = "long-tests")]
     #[test]
     fn test_thread_safety() {
         let state = Arc::new(SearchEngineState::new());

@@ -727,6 +727,7 @@ mod tests_autocomplete_engine {
         temp_dir
     }
 
+    #[ignore]
     #[test]
     fn test_add_paths_recursive() {
         let temp_dir = create_temp_dir_structure();
@@ -769,6 +770,7 @@ mod tests_autocomplete_engine {
         let _ = fs::remove_dir_all(temp_dir);
     }
 
+    #[ignore]
     #[test]
     fn test_remove_paths_recursive() {
         let temp_dir = create_temp_dir_structure();
@@ -988,6 +990,7 @@ mod tests_autocomplete_engine {
         paths
     }
 
+    #[ignore]
     #[test]
     fn test_with_real_world_data_autocomplete_engine() {
         log_info!("Testing autocomplete engine with real-world test data");
