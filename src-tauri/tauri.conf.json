@@ -18,10 +18,7 @@
         "resizable": true,
         "fullscreen": false
       }
-    ],
-    "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'"
-    }
+    ]
   },
   "bundle": {
     "active": true,
