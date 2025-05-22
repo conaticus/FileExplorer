@@ -63,6 +63,7 @@ pub async fn execute_command(command: String) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
     use super::*;
 
     #[cfg(unix)]
