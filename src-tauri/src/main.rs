@@ -10,6 +10,7 @@ mod logging;
 mod error_handling;
 
 use tauri::ipc::Invoke;
+use tauri::Manager;
 use crate::commands::{file_system_operation_commands, meta_data_commands, volume_operations_commands, hash_commands, settings_commands, template_commands, command_exec_commands, search_engine_commands};
 
 fn all_commands() -> fn(Invoke) -> bool {
@@ -71,18 +72,25 @@ fn all_commands() -> fn(Invoke) -> bool {
 
 #[tokio::main]
 async fn main() {
-    log_info!("Starting application...");
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(all_commands());
+        .invoke_handler(all_commands())
+        .setup(|app| {
+            // Safely show/focus the main window if it exists
+            if let Some(window) = app.get_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            Ok(())
+        });
 
-    // State-Setup moved to seperate function
     let app = state::setup_app_state(app);
 
     app.run(tauri::generate_context!())
         .expect({
-                    let error_msg = "error while running tauri application";
-                    log_critical!(error_msg);
-                    &error_msg.to_string()});
+            let error_msg = "error while running tauri application";
+            log_critical!(error_msg);
+            &error_msg.to_string()
+        });
 }

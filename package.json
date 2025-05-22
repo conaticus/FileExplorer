@@ -8,14 +8,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "prepare": "yarn install && cd src-tauri && yarn install"
+    "prepare": "npm install && cd src-tauri && npm install"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-opener": "^2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "yarn": "^1.22.22"
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
