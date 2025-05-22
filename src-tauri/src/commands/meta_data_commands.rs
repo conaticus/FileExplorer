@@ -1,38 +1,51 @@
+use crate::error_handling::{Error, ErrorCode};
 use crate::state::meta_data::MetaDataState;
 use std::sync::{Arc, Mutex};
 use tauri::State;
-use crate::error_handling::{Error, ErrorCode};
 
-//TODO implement error handling and update docs
-//TODO implement tests
 #[tauri::command]
 pub fn get_meta_data_as_json(state: State<Arc<Mutex<MetaDataState>>>) -> Result<String, String> {
-    //let meta_dat_state = state.lock().unwrap().0.clone();
     let meta_data = state.lock().unwrap().refresh_volumes();
-    
+
     if meta_data.is_err() {
-        return Err(Error::new(ErrorCode::InternalError, format!("Error: {}", meta_data.err().unwrap())).to_json());
+        return Err(Error::new(
+            ErrorCode::InternalError,
+            format!("Error: {}", meta_data.err().unwrap()),
+        )
+        .to_json());
     }
-    
+
     let meta_data = state.lock().unwrap().0.clone();
-    
+
     serde_json::to_string(&meta_data).map_err(|e| {
-        Error::new(ErrorCode::InternalError, format!("Error serializing metadata: {}", e)).to_json()
+        Error::new(
+            ErrorCode::InternalError,
+            format!("Error serializing metadata: {}", e),
+        )
+        .to_json()
     })
 }
 
 #[cfg(test)]
 pub fn get_meta_data_as_json_impl(state: Arc<Mutex<MetaDataState>>) -> Result<String, String> {
     let meta_data = state.lock().unwrap().refresh_volumes();
-    
+
     if meta_data.is_err() {
-        return Err(Error::new(ErrorCode::InternalError, format!("Error: {}", meta_data.err().unwrap())).to_json());
+        return Err(Error::new(
+            ErrorCode::InternalError,
+            format!("Error: {}", meta_data.err().unwrap()),
+        )
+        .to_json());
     }
-    
+
     let meta_data = state.lock().unwrap().0.clone();
-    
+
     serde_json::to_string(&meta_data).map_err(|e| {
-        Error::new(ErrorCode::InternalError, format!("Error serializing metadata: {}", e)).to_json()
+        Error::new(
+            ErrorCode::InternalError,
+            format!("Error serializing metadata: {}", e),
+        )
+        .to_json()
     })
 }
 
@@ -57,13 +70,13 @@ mod tests_meta_data_commands {
     #[test]
     fn test_get_meta_data_as_json_success() {
         let state = create_test_meta_data_state();
-        
+
         // Call the implementation function with our test state
         let result = get_meta_data_as_json_impl(state.clone());
-        
+
         // Check that we got a successful result
         assert!(result.is_ok());
-        
+
         // Verify the JSON contains expected metadata structure
         let json = result.unwrap();
         assert!(json.contains("volumes"));
@@ -73,22 +86,29 @@ mod tests_meta_data_commands {
     #[test]
     fn test_get_meta_data_as_json_contains_volumes() {
         let state = create_test_meta_data_state();
-        
+
         // First update the metadata to ensure we have fresh data
-        state.lock().unwrap().refresh_volumes().expect("Failed to refresh volumes");
-        
+        state
+            .lock()
+            .unwrap()
+            .refresh_volumes()
+            .expect("Failed to refresh volumes");
+
         // Call the implementation function
         let result = get_meta_data_as_json_impl(state);
-        
+
         // Verify the result contains volumes information
         assert!(result.is_ok());
         let json = result.unwrap();
-        
+
         // Parse the JSON to check its structure
         let parsed: serde_json::Value = serde_json::from_str(&json).expect("Failed to parse JSON");
-        
+
         // Check that the parsed JSON has the expected structure
         assert!(parsed.is_object());
-        assert!(parsed.as_object().unwrap().contains_key("all_volumes_with_information"));
+        assert!(parsed
+            .as_object()
+            .unwrap()
+            .contains_key("all_volumes_with_information"));
     }
 }
