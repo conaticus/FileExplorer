@@ -60,6 +60,5 @@ long-tests = []
 benchmarks = ["bench"]
 bench = []
 full = ["long-tests", "generate-test-data", "benchmarks", "open-file-in-app"]
-path_cache = []
-full-without-generate-test-data = ["long-tests"]
+full-no-generate-test-data = ["long-tests", "benchmarks", "open-file-in-app"]
 

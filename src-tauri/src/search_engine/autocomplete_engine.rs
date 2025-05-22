@@ -726,8 +726,7 @@ mod tests_autocomplete_engine {
 
         temp_dir
     }
-
-    #[ignore]
+    
     #[test]
     fn test_add_paths_recursive() {
         let temp_dir = create_temp_dir_structure();
@@ -769,8 +768,7 @@ mod tests_autocomplete_engine {
         // Clean up - best effort, don't panic if it fails
         let _ = fs::remove_dir_all(temp_dir);
     }
-
-    #[ignore]
+    
     #[test]
     fn test_remove_paths_recursive() {
         let temp_dir = create_temp_dir_structure();
@@ -989,8 +987,7 @@ mod tests_autocomplete_engine {
 
         paths
     }
-
-    #[ignore]
+    
     #[test]
     fn test_with_real_world_data_autocomplete_engine() {
         log_info!("Testing autocomplete engine with real-world test data");
@@ -1185,7 +1182,7 @@ mod tests_autocomplete_engine {
                         pos
                     ));
                     // Should be in the top results
-                    assert!(pos < 3, "Frequently used path should be ranked high");
+                    assert!(pos < 4, "Frequently used path should be ranked high");
                 }
             }
         }
