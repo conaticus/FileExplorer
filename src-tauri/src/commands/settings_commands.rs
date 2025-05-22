@@ -1,5 +1,5 @@
 use crate::state::SettingsState;
-use serde_json::{to_string, Value};
+use serde_json::to_string;
 use std::io;
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -12,7 +12,7 @@ pub fn get_settings_as_json_impl(state: Arc<Mutex<SettingsState>>) -> String {
 pub fn get_setting_field_impl(
     state: Arc<Mutex<SettingsState>>,
     key: String,
-) -> Result<Value, String> {
+) -> Result<serde_json::Value, String> {
     let settings_state = state.lock().unwrap();
     settings_state
         .get_setting_field(&key)
@@ -22,7 +22,7 @@ pub fn get_setting_field_impl(
 pub fn update_settings_field_impl(
     state: Arc<Mutex<SettingsState>>,
     key: String,
-    value: Value,
+    value: serde_json::Value,
 ) -> Result<String, String> {
     let settings_state = state.lock().unwrap();
     settings_state
@@ -35,7 +35,7 @@ pub fn update_settings_field_impl(
 
 pub fn update_multiple_settings_impl(
     state: Arc<Mutex<SettingsState>>,
-    updates: serde_json::Map<String, Value>,
+    updates: serde_json::Map<String, serde_json::Value>,
 ) -> Result<String, String> {
     let settings_state = state.lock().unwrap();
     settings_state
@@ -106,7 +106,7 @@ pub fn get_settings_as_json(state: State<Arc<Mutex<SettingsState>>>) -> String {
 pub fn get_setting_field(
     state: State<Arc<Mutex<SettingsState>>>,
     key: String,
-) -> Result<Value, String> {
+) -> Result<serde_json::Value, String> {
     get_setting_field_impl(state.inner().clone(), key)
 }
 
@@ -138,7 +138,7 @@ pub fn get_setting_field(
 pub fn update_settings_field(
     state: State<Arc<Mutex<SettingsState>>>,
     key: String,
-    value: Value,
+    value: serde_json::Value,
 ) -> Result<String, String> {
     update_settings_field_impl(state.inner().clone(), key, value)
 }
