@@ -40,16 +40,7 @@ rustc-hash = "2.1.1"
 tauri-build = { version = "2.1", features = [] }  # Removed "log" feature
 
 [package.metadata.tauri]
-bundle.identifier = "com.yourorg.fileexplorer"
-
-[package.metadata.tauri.macOS]
-# This is optional, but here for clarity
-
-[profile.release]
-strip = "debuginfo"
-
-[profile.dev]
-strip = "none"
+bundle.identifier = "com.software.fileexplorer"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
