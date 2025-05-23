@@ -58,19 +58,26 @@ pub async fn execute_command(command: String) -> Result<String, String> {
         }
     }
 
-    let program = program.unwrap();
-
-    let args: Vec<&str> = parts.collect();
-
     let start_time = std::time::Instant::now();
-    // Execute the command
-    let output = Command::new(program)
-        .args(args)
+    
+    #[cfg(unix)] {
+        let program = program.unwrap();
+        let args: Vec<&str> = parts.collect();
+        // Execute the command
+        let output = Command::new(program)
+            .args(args)
+            .output()
+            .map_err(|e| Error::new(ErrorCode::InvalidInput, e.to_string()).to_json())?;
+    }
+    
+    #[cfg(windows)]
+    let output = Command::new("cmd")
+        .args(["/C", &command])
         .output()
         .map_err(|e| Error::new(ErrorCode::InvalidInput, e.to_string()).to_json())?;
 
     let exec_time = start_time.elapsed().as_millis();
-
+    
     let res = CommandResponse {
         stdout: String::from_utf8_lossy(&output.stdout).to_string(),
         stderr: String::from_utf8_lossy(&output.stderr).to_string(),
@@ -89,7 +96,8 @@ pub async fn execute_command(command: String) -> Result<String, String> {
 
 #[cfg(test)]
 mod command_exec_tests {
-    use crate::commands::command_exec_commands::execute_command;
+    use crate::commands::command_exec_commands::{execute_command, CommandResponse};
+    use serde_json::from_str;
 
     #[cfg(unix)]
     #[tokio::test]
@@ -111,7 +119,11 @@ mod command_exec_tests {
     async fn echo_command_test_windows() {
         let result = execute_command("echo hello world".to_string()).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().trim(), "hello world");
+        
+        let json_result = result.unwrap();
+        let command_response: CommandResponse = from_str(&json_result).unwrap();
+        
+        assert_eq!(command_response.stdout.trim(), "hello world");
     }
 
     #[cfg(windows)]

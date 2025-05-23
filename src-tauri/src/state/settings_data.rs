@@ -448,7 +448,7 @@ impl SettingsState {
         defaults
     }
 
-    /// Reads settings from a file path for testing purposes.
+    /// Reads settings from a file path.
     ///
     /// This method loads and deserializes Settings from a JSON file.
     ///
