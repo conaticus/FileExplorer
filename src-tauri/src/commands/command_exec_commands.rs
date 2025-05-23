@@ -94,6 +94,7 @@ pub async fn execute_command(command: String) -> Result<String, String> {
 #[cfg(test)]
 mod command_exec_tests {
     use crate::commands::command_exec_commands::{execute_command, CommandResponse};
+    #[cfg(windows)]
     use serde_json::from_str;
 
     #[cfg(unix)]
