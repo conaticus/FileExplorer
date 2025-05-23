@@ -69,6 +69,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
     })
 }
 
+//TODO fix error 
 #[tauri::command]
 pub async fn open_in_default_app(path: &str) -> Result<(), String> {
     let path_obj = Path::new(path);

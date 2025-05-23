@@ -1,5 +1,15 @@
-use std::process::Command;
+use crate::error_handling::{Error, ErrorCode};
 use crate::log_info;
+use serde::{Deserialize, Serialize};
+use std::process::Command;
+
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+struct CommandResponse {
+    stdout: String,
+    stderr: String,
+    status: i32,
+    exec_time_in_ms: u128,
+}
 
 /// Executes a shell command and returns its output as a string.
 ///
@@ -24,53 +34,90 @@ use crate::log_info;
 #[tauri::command]
 pub async fn execute_command(command: String) -> Result<String, String> {
     log_info!(format!("Command: {}", command).as_str());
-    
+
     // Split the command string into program and arguments
     let mut parts = command.split_whitespace();
-    let program = parts.next().ok_or_else(|| "Empty command".to_string())?;
+    let program = parts.next();
+
+    match program {
+        Some(p) => {
+            if p.is_empty() {
+                return Err(Error::new(
+                    ErrorCode::InvalidInput,
+                    "Command is empty (before exec)".to_string(),
+                )
+                .to_json());
+            }
+        }
+        None => {
+            return Err(Error::new(
+                ErrorCode::InvalidInput,
+                "Command is empty or invalid input (before exec)".to_string(),
+            )
+            .to_json());
+        }
+    }
+
+    let program = program.unwrap();
+
     let args: Vec<&str> = parts.collect();
 
+    let start_time = std::time::Instant::now();
     // Execute the command
     let output = Command::new(program)
         .args(args)
         .output()
-        .map_err(|e| format!("Failed to execute command: {}", e))?;
+        .map_err(|e| Error::new(ErrorCode::InvalidInput, e.to_string()).to_json())?;
 
-    // Combine stdout and stderr
-    let mut result = String::new();
-    
-    if !output.stdout.is_empty() {
-        result.push_str(&String::from_utf8_lossy(&output.stdout));
-    }
-    
-    if !output.stderr.is_empty() {
-        if !result.is_empty() {
-            result.push_str("\n");
-        }
-        result.push_str(&String::from_utf8_lossy(&output.stderr));
-    }
+    let exec_time = start_time.elapsed().as_millis();
 
-    // Add exit status if the command failed
-    if !output.status.success() {
-        if !result.is_empty() {
-            result.push_str("\n");
-        }
-        result.push_str(&format!("Exit status: {}", output.status));
-    }
+    let res = CommandResponse {
+        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        status: output.status.code().unwrap_or(-1),
+        exec_time_in_ms: exec_time,
+    };
 
-    Ok(result)
+    serde_json::to_string(&res).map_err(|e| {
+        Error::new(
+            ErrorCode::InternalError,
+            format!("Error serializing command response: {}", e),
+        )
+        .to_json()
+    })
 }
 
 #[cfg(test)]
-mod tests {
-    #[cfg(unix)]
-    use super::*;
+mod command_exec_tests {
+    use crate::commands::command_exec_commands::execute_command;
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn test_execute_command_success() {
+    async fn echo_command_test_unix() {
         let result = execute_command("echo hello world".to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().trim(), "hello world");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn ls_command_test_unix() {
+        let result = execute_command("ls -la".to_string()).await;
+        assert!(result.is_ok());
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn echo_command_test_windows() {
+        let result = execute_command("echo hello world".to_string()).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().trim(), "hello world");
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn dir_command_test_windows() {
+        let result = execute_command("dir".to_string()).await;
+        assert!(result.is_ok());
     }
 }
