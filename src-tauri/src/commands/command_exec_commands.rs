@@ -67,7 +67,6 @@ pub async fn execute_command(command: String) -> Result<String, String> {
     } else {
         let program = program.unwrap();
         let args: Vec<&str> = parts.collect();
-        // Original Unix approach
         Command::new(program)
             .args(args)
             .output()
