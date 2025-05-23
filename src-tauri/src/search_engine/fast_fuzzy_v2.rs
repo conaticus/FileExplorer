@@ -50,9 +50,9 @@
 //! - Length normalization to prevent bias toward longer paths
 //! - Memory-efficient trigram storage with FxHashMap and SmallVec
 
-use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{smallvec, SmallVec};
 use std::sync::Once;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 type TrigramMap = FxHashMap<u32, SmallVec<[u32; 4]>>;
 

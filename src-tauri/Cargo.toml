@@ -34,6 +34,7 @@ zip = "3.0.0"
 regex = "1.11.1"
 smallvec = "1.15.0"
 open = "5.3.2"
+rustc-hash = "2.1.1"
 
 [build-dependencies]
 tauri-build = { version = "2.1", features = [] }  # Removed "log" feature
