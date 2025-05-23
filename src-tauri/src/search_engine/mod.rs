@@ -11,7 +11,28 @@ pub mod test_generate_test_data {
     use std::sync::{Arc, Mutex};
 
     /// Generates a test data directory structure with random folder and file names.
-    /// Creates 20 folders with 20 subfolders each up to a depth of 5, and 20 files in each folder.
+    /// This function creates a hierarchical directory structure with random file and folder names
+    /// for testing purposes. It creates a specified number of folders per level, with files
+    /// in each folder, up to a maximum depth.
+    ///
+    /// # Arguments
+    /// * `base_path` - A PathBuf that specifies the root directory where the test data will be created.
+    ///
+    /// # Returns
+    /// * `Ok(PathBuf)` - The path to the created test data directory if successful.
+    /// * `Err(std::io::Error)` - If there was an error during directory or file creation.
+    ///
+    /// # Example
+    /// ```rust
+    /// use std::path::PathBuf;
+    /// use crate::search_engine::test_generate_test_data::generate_test_data;
+    ///
+    /// let test_dir = PathBuf::from("/path/to/test_data");
+    /// match generate_test_data(test_dir) {
+    ///     Ok(path) => println!("Test data created at: {:?}", path),
+    ///     Err(err) => println!("Failed to create test data: {}", err),
+    /// }
+    /// ```
     #[allow(dead_code)]
     pub fn generate_test_data(base_path: PathBuf) -> Result<PathBuf, std::io::Error> {
         use rand::{thread_rng, Rng};
@@ -145,3 +166,4 @@ pub mod test_generate_test_data {
         Ok(base_path)
     }
 }
+

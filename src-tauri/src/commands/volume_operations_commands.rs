@@ -1,15 +1,66 @@
 use crate::models::VolumeInformation;
 use sysinfo::Disks;
 
+/// Retrieves information about all system volumes/disks and returns it as a JSON string.
+/// The information includes volume names, mount points, file systems, size, available space, etc.
+///
+/// # Returns
+/// * `String` - A JSON string containing an array of volume information objects.
+///
+/// # Example
+/// ```javascript
+/// // From frontend JavaScript/TypeScript
+/// import { invoke } from '@tauri-apps/api/tauri';
+/// 
+/// // Call the command
+/// invoke('get_system_volumes_information_as_json')
+///   .then((response) => {
+///     // Parse the JSON string
+///     const volumes = JSON.parse(response);
+///     
+///     // Display volume information
+///     volumes.forEach(volume => {
+///       console.log(`Volume: ${volume.volume_name}, Space: ${volume.available_space}/${volume.size}`);
+///     });
+///   })
+///   .catch((error) => {
+///     console.error('Error retrieving volume information:', error);
+///   });
+/// ```
 #[tauri::command]
 pub fn get_system_volumes_information_as_json() -> String {
     let volume_information_vec = get_system_volumes_information();
     serde_json::to_string(&volume_information_vec).unwrap()
 }
 
-/// Gets information about all system volumes/disks
+/// Gets information about all system volumes/disks.
+/// Collects detailed information such as volume names, mount points, file systems,
+/// total and available space, and whether the volume is removable.
+/// Automatically filters out duplicate entries and boot volumes.
 ///
-/// This function can be called both from Rust code and from the frontend via Tauri
+/// # Returns
+/// * `Vec<VolumeInformation>` - A vector of VolumeInformation structs, each containing
+///   details about a single system volume or disk.
+///
+/// # Example
+/// ```javascript
+/// // From frontend JavaScript/TypeScript
+/// import { invoke } from '@tauri-apps/api/tauri';
+/// 
+/// // Call the command
+/// invoke('get_system_volumes_information')
+///   .then((volumes) => {
+///     // Process the volume information
+///     volumes.forEach(volume => {
+///       console.log(`Volume: ${volume.volume_name}, Mount: ${volume.mount_point}`);
+///       console.log(`File System: ${volume.file_system}`);
+///       console.log(`Space: ${volume.available_space}/${volume.size} bytes`);
+///     });
+///   })
+///   .catch((error) => {
+///     console.error('Error retrieving volumes:', error);
+///   });
+/// ```
 #[tauri::command]
 pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
     let mut volume_information_vec: Vec<VolumeInformation> = Vec::new();
@@ -100,3 +151,4 @@ mod tests {
         }
     }
 }
+

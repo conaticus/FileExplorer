@@ -1,27 +1,106 @@
-use std::collections::{HashMap, HashSet};
+//! # Fast Fuzzy Path Matcher
+//!
+//! A high-performance fuzzy path matching engine using trigram indexing for efficient searches
+//! through large collections of file paths. This implementation provides sub-linear search
+//! performance even with hundreds of thousands of paths.
+//!
+//! ## Use Cases
+//!
+//! - **File Explorers**: Quickly find files and folders by partial name, even with typos
+//! - **Command Palettes**: Implement fuzzy command matching like in VS Code or JetBrains IDEs
+//! - **Autocompletion**: Power autocomplete for paths, filenames, or any textual data
+//! - **Search Fields**: Backend for "search-as-you-type" interfaces with typo tolerance
+//!
+//! ## Performance Benchmarks
+//!
+//! Empirical measurements show sub-linear scaling with path count:
+//!
+//! | Paths    | Avg Search Time (µs) | Scaling Factor |
+//! |----------|----------------------|----------------|
+//! | 10       | 8.05                 | -              |
+//! | 100      | 25.21                | 3.1×           |
+//! | 1,000    | 192.05               | 7.6×           |
+//! | 10,000   | 548.39               | 2.9×           |
+//! | 170,456  | 3,431.88             | 6.3×           |
+//!
+//! With 10× more paths, search is typically only 3-7× slower, demonstrating **O(n^a)**
+//! scaling where **a ≈ 0.5-0.7**.
+//!
+//! ## Comparison to Other Algorithms
+//!
+//! | Algorithm                  | Theoretical Complexity | Practical Scaling | Suitability       |
+//! |----------------------------|------------------------|-------------------|-------------------|
+//! | Levenshtein (brute force)  | O(N*M²)                | Linear/Quadratic  | Poor for large N  |
+//! | Substring/Regex (scan)     | O(N*Q)                 | Linear            | Poor for large N  |
+//! | Trie/Prefix Tree           | O(Q)                   | Sub-linear        | Good for prefixes |
+//! | **Trigram Index (this)**   | **O(Q+S)**             | **Sub-linear**    | **Best for large N** |
+//! | FZF/Sublime fuzzy scan     | O(N*Q)                 | Linear            | Good for small N  |
+//!
+//! Where:
+//! - N = number of paths
+//! - M = average string length
+//! - Q = query length
+//! - S = number of candidate paths (typically S << N)
+//!
+//! ## Features
+//!
+//! - Handles typos, transpositions, and character substitutions
+//! - Case-insensitive matching with fast character mapping
+//! - Boosts exact matches and filename matches over partial matches
+//! - Length normalization to prevent bias toward longer paths
+//! - Memory-efficient trigram storage with FxHashMap and SmallVec
+
+use rustc_hash::{FxHashMap, FxHashSet};
+use smallvec::{smallvec, SmallVec};
 use std::sync::Once;
 
-type TrigramMap = HashMap<u32, Vec<u32>>;
+type TrigramMap = FxHashMap<u32, SmallVec<[u32; 4]>>;
 
 static CHAR_MAPPING_INIT: Once = Once::new();
 static mut CHAR_MAPPING: [u8; 256] = [0; 256];
 
+/// A fast fuzzy path matching engine that uses trigram indexing for efficient searches.
+/// The PathMatcher enables rapid searching through large collections of file paths
+/// with support for fuzzy matching, allowing for typos and variations in search queries.
+///
+/// # Time Complexity
+/// Overall search complexity scales sub-linearly with the number of paths (O(n^a) where a ≈ 0.5-0.7),
+/// significantly outperforming traditional algorithms like Levenshtein (O(N*M²)) or
+/// simple substring matching (O(N*Q)).
 pub struct PathMatcher {
     paths: Vec<String>,
     trigram_index: TrigramMap,
 }
 
 impl PathMatcher {
+    /// Creates a new PathMatcher instance with empty path collection and trigram index.
+    /// Initializes internal character mapping for fast case folding.
+    ///
+    /// # Returns
+    /// * A new empty PathMatcher instance ready for indexing paths.
+    ///
+    /// # Example
+    /// ```rust
+    /// let matcher = PathMatcher::new();
+    /// assert_eq!(matcher.search("test", 10).len(), 0); // Empty matcher returns no results
+    /// ```
+    ///
+    /// # Time Complexity
+    /// * O(1) - Constant time initialization
     pub fn new() -> Self {
         Self::init_char_mapping();
 
         PathMatcher {
             paths: Vec::new(),
-            trigram_index: HashMap::with_capacity(4096),
+            trigram_index: FxHashMap::with_capacity_and_hasher(4096, Default::default()),
         }
     }
 
-    // Fast case folding using a lookup table
+    /// Initializes the static character mapping table for fast case-insensitive comparisons.
+    /// This is called once during the first instantiation of a PathMatcher.
+    ///
+    /// The mapping table is used for efficient lowercase conversion without
+    /// having to use the more expensive Unicode-aware to_lowercase() function.
     fn init_char_mapping() {
         CHAR_MAPPING_INIT.call_once(|| unsafe {
             for i in 0..256 {
@@ -32,35 +111,83 @@ impl PathMatcher {
         });
     }
 
+    /// Converts a single byte character to lowercase using the pre-computed mapping table.
+    /// This is much faster than using the standard to_lowercase() function for ASCII characters.
+    ///
+    /// # Arguments
+    /// * `c` - The byte to convert to lowercase.
+    ///
+    /// # Returns
+    /// * The lowercase version of the input byte.
+    ///
+    /// # Example
+    /// ```rust
+    /// assert_eq!(PathMatcher::fast_lowercase(b'A'), b'a');
+    /// assert_eq!(PathMatcher::fast_lowercase(b'z'), b'z');
+    /// ```
     #[inline(always)]
     fn fast_lowercase(c: u8) -> u8 {
-        // Ensure mapping is initialized before using it
         Self::init_char_mapping();
         unsafe { CHAR_MAPPING[c as usize] }
     }
 
+    /// Adds a path to the matcher, indexing it for fast retrieval during searches.
+    /// Each path is broken down into trigrams (3-character sequences) that are
+    /// indexed for efficient fuzzy matching.
+    ///
+    /// # Arguments
+    /// * `path` - The file path string to add to the matcher.
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut matcher = PathMatcher::new();
+    /// matcher.add_path("/home/user/documents/report.pdf");
+    /// let results = matcher.search("report", 10);
+    /// assert_eq!(results.len(), 1);
+    /// assert_eq!(results[0].0, "/home/user/documents/report.pdf");
+    /// ```
+    ///
+    /// # Time Complexity
+    /// * O(L) where L is the length of the path
+    /// * Overall index construction is O(N*L) for N paths with average length L
     pub fn add_path(&mut self, path: &str) {
         let path_index = self.paths.len() as u32;
         self.paths.push(path.to_string());
-
-        // Extract trigrams directly from bytes without intermediate allocations
         self.extract_and_index_trigrams(path, path_index);
     }
 
+    /// Removes a path from the matcher and updates all indices accordingly.
+    /// This maintains the integrity of the trigram index by adjusting the indices
+    /// of paths that come after the removed path.
+    ///
+    /// # Arguments
+    /// * `path` - The path string to remove from the matcher.
+    ///
+    /// # Returns
+    /// * `true` if the path was found and removed.
+    /// * `false` if the path was not in the matcher.
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut matcher = PathMatcher::new();
+    /// matcher.add_path("/home/user/file.txt");
+    /// assert_eq!(matcher.search("file", 10).len(), 1);
+    ///
+    /// let removed = matcher.remove_path("/home/user/file.txt");
+    /// assert!(removed);
+    /// assert_eq!(matcher.search("file", 10).len(), 0);
+    /// ```
+    ///
+    /// # Time Complexity
+    /// * O(T) where T is the number of trigrams in the index
+    /// * Worst case O(N) where N is the total number of paths
     pub fn remove_path(&mut self, path: &str) -> bool {
-        // Find the index of the path in our paths vector
         if let Some(path_idx) = self.paths.iter().position(|p| p == path) {
             let path_idx = path_idx as u32;
-
-            // Remove path from paths vector
             self.paths.remove(path_idx as usize);
 
-            // Update trigram index: remove the path and adjust indices
             for values in self.trigram_index.values_mut() {
-                // Remove the target path_idx
-                values.retain(|&idx| idx != path_idx);
-
-                // Decrement indices for paths that come after the removed one
+                values.retain(|idx| *idx != path_idx);
                 for idx in values.iter_mut() {
                     if *idx > path_idx {
                         *idx -= 1;
@@ -68,16 +195,27 @@ impl PathMatcher {
                 }
             }
 
-            // Clean up empty trigram entries
             self.trigram_index.retain(|_, values| !values.is_empty());
-
             true
         } else {
             false
         }
     }
 
-    // Optimized trigram extraction working directly on bytes
+    /// Extracts trigrams from a text string and indexes them for the given path.
+    /// Trigrams are 3-character sequences that serve as the basis for fuzzy matching.
+    /// The path is padded with spaces to ensure edge characters are properly indexed.
+    ///
+    /// # Arguments
+    /// * `text` - The text string to extract trigrams from.
+    /// * `path_idx` - The index of the path in the paths collection.
+    ///
+    /// # Implementation Details
+    /// This method pads the text with spaces, converts all characters to lowercase,
+    /// and generates a trigram for each consecutive 3-character sequence.
+    ///
+    /// # Time Complexity
+    /// * O(L) where L is the length of the text
     #[inline]
     fn extract_and_index_trigrams(&mut self, text: &str, path_idx: u32) {
         let bytes = text.as_bytes();
@@ -85,37 +223,37 @@ impl PathMatcher {
             return;
         }
 
-        // Pre-allocate workspace to avoid repeated allocations
         let mut trigram_bytes = [0u8; 3];
-
-        // Use a preallocated buffer for the padded version
         let mut padded = Vec::with_capacity(bytes.len() + 4);
-        //generate padded path
         padded.push(b' ');
         padded.push(b' ');
         padded.extend_from_slice(bytes);
         padded.push(b' ');
         padded.push(b' ');
 
+        let mut seen_trigrams = FxHashSet::with_capacity_and_hasher(padded.len(), Default::default());
+
         for i in 0..padded.len() - 2 {
-            // Fast lowercase conversion using lookup table
             trigram_bytes[0] = Self::fast_lowercase(padded[i]);
             trigram_bytes[1] = Self::fast_lowercase(padded[i + 1]);
             trigram_bytes[2] = Self::fast_lowercase(padded[i + 2]);
 
-            // Pack into a single u32 for maximum performance
             let trigram = Self::pack_trigram(trigram_bytes[0], trigram_bytes[1], trigram_bytes[2]);
+
+            // Skip duplicate trigrams within the same path
+            if !seen_trigrams.insert(trigram) {
+                continue;
+            }
 
             match self.trigram_index.entry(trigram) {
                 std::collections::hash_map::Entry::Occupied(mut e) => {
                     let v = e.get_mut();
-                    // only add if not already present
                     if v.is_empty() || v[v.len() - 1] != path_idx {
                         v.push(path_idx);
                     }
                 }
                 std::collections::hash_map::Entry::Vacant(e) => {
-                    let mut v = Vec::with_capacity(4);
+                    let mut v = smallvec![];
                     v.push(path_idx);
                     e.insert(v);
                 }
@@ -123,13 +261,91 @@ impl PathMatcher {
         }
     }
 
+    /// Packs three bytes into a single u32 value for efficient trigram storage.
+    /// Each byte occupies 8 bits in the resulting u32, allowing for compact
+    /// representation of trigrams in memory.
+    ///
+    /// # Arguments
+    /// * `a` - The first byte (most significant).
+    /// * `b` - The second byte (middle).
+    /// * `c` - The third byte (least significant).
+    ///
+    /// # Returns
+    /// * A u32 value containing all three bytes packed together.
     #[inline(always)]
     fn pack_trigram(a: u8, b: u8, c: u8) -> u32 {
         ((a as u32) << 16) | ((b as u32) << 8) | (c as u32)
     }
 
+    /// Calculates a normalization factor based on path length using a sigmoid function.
+    /// This helps prevent unfair advantages for very long paths that naturally contain more trigrams.
+    ///
+    /// # Arguments
+    /// * `path_length` - The length of the path in characters
+    ///
+    /// # Returns
+    /// * A normalization factor between 0.5 and 1.0
+    ///
+    /// # Implementation Details
+    /// Uses a sigmoid function to create a smooth transition from no penalty (factor=1.0)
+    /// for short paths to a maximum penalty (factor=0.5) for very long paths.
+    #[inline]
+    fn calculate_length_normalization(&self, path_length: usize) -> f32 {
+        // Constants to control the sigmoid curve
+        const MIDPOINT: f32 = 100.0;  // Path length at which penalty is 0.75
+        const STEEPNESS: f32 = 0.03;  // Controls how quickly penalty increases with length
+        const MIN_FACTOR: f32 = 0.5;  // Maximum penalty (minimum factor)
+
+        // No penalty for very short paths
+        if path_length < 30 {
+            return 1.0;
+        }
+
+        // Sigmoid function: 1 - MIN_FACTOR/(1 + e^(-STEEPNESS * (x - MIDPOINT)))
+        let length_f32 = path_length as f32;
+        let sigmoid = 1.0 - (1.0 - MIN_FACTOR) / (1.0 + (-STEEPNESS * (length_f32 - MIDPOINT)).exp());
+
+        sigmoid
+    }
+
+    /// Searches for paths matching the given query string, supporting fuzzy matching.
+    /// This method performs a trigram-based search that can find matches even when
+    /// the query contains typos or spelling variations.
+    /// As optimization only score and rank up until a constant value, for faster fuzzy matching.
+    /// Tune this value for improvements 1000 <= MAX_SCORING_CANDIDATES <= 5000.
+    ///
+    /// # Arguments
+    /// * `query` - The search string to match against indexed paths.
+    /// * `max_results` - The maximum number of results to return.
+    ///
+    /// # Returns
+    /// * A vector of tuples containing matching paths and their relevance scores,
+    ///   sorted by score in descending order (best matches first).
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut matcher = PathMatcher::new();
+    /// matcher.add_path("/home/user/documents/presentation.pptx");
+    /// matcher.add_path("/home/user/images/photo.jpg");
+    ///
+    /// // Search with exact query
+    /// let results = matcher.search("presentation", 10);
+    /// assert!(!results.is_empty());
+    ///
+    /// // Search with misspelled query
+    /// let fuzzy_results = matcher.search("presentaton", 10); // Missing 'i'
+    /// assert!(!fuzzy_results.is_empty());
+    /// ```
+    ///
+    /// # Time Complexity
+    /// * Empirically scales as O(n^a) where a ≈ 0.5-0.7 (sub-linear)
+    /// * Theoretical: O(Q + S) where:
+    ///   - Q = length of query
+    ///   - S = number of candidate paths sharing trigrams with query (typically S << N)
+    /// * For 10× more paths, search is typically only 3-7× slower
+    /// * Significantly faster than Levenshtein (O(N*M²)) or substring matching (O(N*Q))
     pub fn search(&self, query: &str, max_results: usize) -> Vec<(String, f32)> {
-        const MAX_SCORING_CANDIDATES: usize = 2000; // maybe tune, normal between 1000 and 5000 -> Way better performance
+        const MAX_SCORING_CANDIDATES: usize = 2000;
 
         if query.is_empty() {
             return Vec::new();
@@ -170,7 +386,6 @@ impl PathMatcher {
             }
         }
 
-        // early termination
         if total_hits == 0 {
             return self.fallback_search(query, max_results);
         }
@@ -192,7 +407,6 @@ impl PathMatcher {
             .collect::<Vec<_>>();
 
         let mut results = Vec::with_capacity(max_results * 2);
-        // Track the first letter of the query for prioritization
         let query_first_char = query_lower.chars().next();
         let query_trigram_count = query_trigrams.len() as f32;
 
@@ -234,6 +448,10 @@ impl PathMatcher {
                 score += pos_factor * 0.1;
             }
 
+            // Apply path length normalization
+            let length_factor = self.calculate_length_normalization(path.len());
+            score *= length_factor;
+
             results.push((path.clone(), score));
         }
 
@@ -253,7 +471,18 @@ impl PathMatcher {
         results
     }
 
-    // Extract trigrams from query
+    /// Extracts trigrams from a query string for searching.
+    /// Similar to extract_and_index_trigrams but optimized for search-time use.
+    ///
+    /// # Arguments
+    /// * `query` - The query string to extract trigrams from.
+    ///
+    /// # Returns
+    /// * A vector of u32 values representing the packed trigrams.
+    ///
+    /// # Implementation Details
+    /// The query is padded with spaces and each consecutive 3-character sequence
+    /// is converted to lowercase and packed into a u32 value.
     #[inline]
     fn extract_query_trigrams(&self, query: &str) -> Vec<u32> {
         let bytes = query.as_bytes();
@@ -263,8 +492,6 @@ impl PathMatcher {
         }
 
         let mut trigrams = Vec::with_capacity(bytes.len() + 2);
-
-        // Use a preallocated buffer for the padded version
         let mut padded = Vec::with_capacity(bytes.len() + 4);
         padded.push(b' ');
         padded.push(b' ');
@@ -283,32 +510,50 @@ impl PathMatcher {
         trigrams
     }
 
+    /// Performs an optimized fallback search when the primary search method doesn't yield enough results.
+    /// This method generates variations of the query and matches them against the trigram index
+    /// to find matches even with significant typos or spelling variations.
+    ///
+    /// # Arguments
+    /// * `query` - The original search query.
+    /// * `max_results` - The maximum number of results to return.
+    ///
+    /// # Returns
+    /// * A vector of tuples containing matching paths and their relevance scores.
+    ///
+    /// # Implementation Details
+    /// The fallback search uses the following approach:
+    ///
+    /// - Generates efficient variations of the query (deletions, transpositions, substitutions)
+    /// - Uses trigram matching against these variations for fast candidate identification
+    /// - Employs bitmap-based tracking for high-performance path collection
+    /// - Applies first-character matching bonuses to prioritize more relevant results
+    /// - Applies path length normalization to prevent bias toward longer paths
+    /// - Assigns scores based on the variation position (earlier variations get higher scores)
+    ///
+    /// # Time Complexity
+    /// * O(V * (Q + S)) where:
+    ///   - V = number of query variations generated (typically 2-3 times query length)
+    ///   - Q = length of query
+    ///   - S = number of candidate paths per variation
+    /// * Still maintains sub-linear scaling relative to total paths N
+    /// * Optimized to terminate early once sufficient results are found
     fn fallback_search(&self, query: &str, max_results: usize) -> Vec<(String, f32)> {
         let query_lower = query.to_lowercase();
-        // Generate minimal set of variations
         let variations = self.generate_efficient_variations(&query_lower);
 
-        // Reuse a bitmap across all variations to minimize allocations
-        let bitmap_size = (self.paths.len() + 31) / 32;
-        let mut path_bitmap = vec![0u32; bitmap_size];
-        let mut variation_hits = HashMap::with_capacity(variations.len());
-
-        let mut seen_paths = HashSet::with_capacity(max_results * 2);
+        // === Step 1: Fast Variation-based Fallback ===
+        let mut path_bitmap = vec![0u32; (self.paths.len() + 31) / 32];
+        let mut variation_hits = FxHashMap::with_capacity_and_hasher(variations.len(), Default::default());
+        let mut seen_paths = FxHashSet::with_capacity_and_hasher(max_results * 2, Default::default());
         let mut results = Vec::with_capacity(max_results * 2);
 
-        // Process each variation
         for (variation_idx, variation) in variations.iter().enumerate() {
             let trigrams = self.extract_query_trigrams(variation);
             if trigrams.is_empty() {
                 continue;
             }
-
-            // Clear bitmap for this variation
-            for word in &mut path_bitmap {
-                *word = 0;
-            }
-
-            // Mark paths containing these trigrams
+            for word in &mut path_bitmap { *word = 0; }
             for &trigram in &trigrams {
                 if let Some(path_indices) = self.trigram_index.get(&trigram) {
                     for &path_idx in path_indices {
@@ -316,54 +561,39 @@ impl PathMatcher {
                         let word_idx = idx / 32;
                         let bit_pos = idx % 32;
                         path_bitmap[word_idx] |= 1 << bit_pos;
-
-                        // Track which variation matched this path
-                        variation_hits
-                            .entry(path_idx)
-                            .or_insert_with(|| Vec::with_capacity(2))
+                        variation_hits.entry(path_idx)
+                            .or_insert_with(|| SmallVec::<[usize; 2]>::with_capacity(2))
                             .push(variation_idx);
                     }
                 }
             }
-            // Extract matches from bitmap
             for word_idx in 0..path_bitmap.len() {
                 let mut word = path_bitmap[word_idx];
                 while word != 0 {
                     let bit_pos = word.trailing_zeros() as usize;
                     let path_idx = word_idx * 32 + bit_pos;
-
                     if path_idx < self.paths.len() && !seen_paths.contains(&path_idx) {
                         seen_paths.insert(path_idx);
                         let path = &self.paths[path_idx];
-
-                        // Extract filename for case-insensitive comparison
                         let filename = path.split('/').last().unwrap_or(path);
                         let filename_lower = filename.to_lowercase();
-
-                        // Simplified scoring for variations
                         let variation_index = variation_idx as f32 / variations.len() as f32;
-                        let mut score = 0.9 - (variation_index * 0.2); // Earlier variations score higher
-
-                        // This is crucial for differentiating "LWORECASE" → "lowercase" vs "UPPERCASE"
+                        let mut score = 0.9 - (variation_index * 0.2);
+                        // Bonus for matching first char
                         if !query_lower.is_empty() && !filename_lower.is_empty() {
-                            let query_first_char = query_lower.chars().next().unwrap();
-                            let filename_first_char = filename_lower.chars().next().unwrap();
-
-                            if query_first_char == filename_first_char {
-                                // Significantly boost score when first letter matches
+                            if query_lower.chars().next().unwrap() == filename_lower.chars().next().unwrap() {
                                 score += 0.3;
                             }
                         }
-
+                        // Length normalization
+                        let length_factor = self.calculate_length_normalization(path.len());
+                        score *= length_factor;
                         results.push((path.clone(), score));
                     }
-
                     word &= !(1 << bit_pos);
                 }
             }
-
-            // Early exit if we have enough results
-            if results.len() >= max_results * 2 {
+            if results.len() >= max_results {
                 break;
             }
         }
@@ -374,6 +604,21 @@ impl PathMatcher {
         results
     }
 
+    /// Generates efficient variations of a query string for fuzzy matching.
+    /// Creates alternative spellings by applying character deletions, transpositions,
+    /// and substitutions based on common typing errors.
+    ///
+    /// # Arguments
+    /// * `query` - The original query string to generate variations for.
+    ///
+    /// # Returns
+    /// * A vector of strings containing variations of the original query.
+    ///
+    /// # Implementation Details
+    /// The number and type of variations generated depends on the query length:
+    /// - Deletions: Remove one character at a time
+    /// - Transpositions: Swap adjacent characters
+    /// - Substitutions: Replace characters with common alternatives (only for short queries)
     #[inline]
     fn generate_efficient_variations(&self, query: &str) -> Vec<String> {
         let len = query.len();
@@ -407,7 +652,6 @@ impl PathMatcher {
         }
         // 3. Only do substitutions for short queries (expensive)
         if len > 1 && len <= 5 {
-            // Common substitution patterns
             static SUBS: &[(char, char)] = &[
                 ('a', 'e'),
                 ('e', 'a'),

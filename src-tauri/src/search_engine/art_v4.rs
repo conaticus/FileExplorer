@@ -818,6 +818,21 @@ impl Clone for Node256 {
 // ------------------ ART Implementation ------------------
 
 impl ART {
+    /// Creates a new Adaptive Radix Trie (ART) with specified maximum results limit.
+    /// This trie is optimized for efficiently storing and searching file paths.
+    ///
+    /// # Arguments
+    /// * `max_results` - The maximum number of results to return from search operations.
+    ///
+    /// # Returns
+    /// * A new empty ART instance.
+    ///
+    /// # Example
+    /// ```rust
+    /// let trie = ART::new(100); // Create a new ART with max 100 results
+    /// assert_eq!(trie.len(), 0);
+    /// assert!(trie.is_empty());
+    /// ```
     pub fn new(max_results: usize) -> Self {
         ART {
             root: None,
@@ -826,7 +841,22 @@ impl ART {
         }
     }
 
-    // path normalization
+    /// Normalizes a file path to ensure consistent representation in the trie.
+    /// This function standardizes separators, removes redundant whitespace,
+    /// and handles platform-specific path characteristics.
+    ///
+    /// # Arguments
+    /// * `path` - A string slice containing the path to normalize.
+    ///
+    /// # Returns
+    /// * A normalized String representation of the path.
+    ///
+    /// # Example
+    /// ```rust
+    /// let trie = ART::new(10);
+    /// let normalized = trie.normalize_path("C:\\Users\\Documents\\ file.txt");
+    /// assert_eq!(normalized, "C:/Users/Documents/file.txt");
+    /// ```
     fn normalize_path(&self, path: &str) -> String {
         let mut result = String::with_capacity(path.len());
         let mut saw_slash = false;
@@ -869,6 +899,23 @@ impl ART {
         result
     }
 
+    /// Inserts a path into the trie with an associated score for ranking.
+    /// Normalizes the path before insertion to ensure consistency.
+    ///
+    /// # Arguments
+    /// * `path` - A string slice containing the path to insert.
+    /// * `score` - A floating-point score to associate with this path (higher is better).
+    ///
+    /// # Returns
+    /// * `true` if the path was inserted or its score was updated.
+    /// * `false` if no change was made.
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut trie = ART::new(10);
+    /// assert!(trie.insert("/home/user/documents/file.txt", 1.0));
+    /// assert_eq!(trie.len(), 1);
+    /// ```
     pub fn insert(&mut self, path: &str, score: f32) -> bool {
         let normalized = self.normalize_path(path);
         let path_bytes = normalized.as_bytes();
@@ -888,6 +935,20 @@ impl ART {
         changed
     }
 
+    /// Recursively inserts a path into the trie, navigating and modifying nodes as needed.
+    /// This internal helper method is used by the public insert method.
+    ///
+    /// # Arguments
+    /// * `node` - The current node in the traversal.
+    /// * `key` - The byte representation of the path being inserted.
+    /// * `depth` - The current depth in the key.
+    /// * `score` - The score to associate with the path.
+    ///
+    /// # Returns
+    /// * A tuple containing:
+    ///   - Whether the insertion changed the trie
+    ///   - Whether this is a new path
+    ///   - The new node after insertion
     fn insert_recursive(
         mut node: Option<Box<ARTNode>>,
         key: &[u8],
@@ -976,7 +1037,17 @@ impl ART {
         (false, false, Some(node_ref))
     }
 
-    // Finds the node that matches the given prefix - fixed to correctly traverse the tree
+    /// Finds the node that matches a given prefix.
+    /// This internal method traverses the trie to find the node that corresponds
+    /// to the end of the specified prefix.
+    ///
+    /// # Arguments
+    /// * `prefix` - The byte representation of the prefix to find.
+    ///
+    /// # Returns
+    /// * `Some((&ARTNode, usize))` - A reference to the matching node and the depth
+    ///   reached in the prefix.
+    /// * `None` - If no node matches the prefix.
     fn find_node_for_prefix(&self, prefix: &[u8]) -> Option<(&ARTNode, usize)> {
         if self.root.is_none() {
             return None;
@@ -1022,7 +1093,25 @@ impl ART {
         Some((current, depth))
     }
 
-    // Rewritten to use an iterative approach to prevent stack overflow
+    /// Collects all paths stored below a given node in the trie.
+    /// Uses an iterative approach to prevent stack overflow for deep tries.
+    ///
+    /// # Arguments
+    /// * `node` - The node from which to start collection.
+    /// * `results` - A mutable reference to a vector where results will be stored.
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut trie = ART::new(10);
+    /// trie.insert("/home/user/file1.txt", 1.0);
+    /// trie.insert("/home/user/file2.txt", 0.9);
+    ///
+    /// let mut results = Vec::new();
+    /// if let Some(root) = &trie.root {
+    ///     trie.collect_all_paths(root.as_ref(), &mut results);
+    /// }
+    /// assert_eq!(results.len(), 2);
+    /// ```
     fn collect_all_paths(&self, node: &ARTNode, results: &mut Vec<(String, f32)>) {
         let mut stack = Vec::new();
         stack.push((node, String::new(), false)); // (node, current_path, processed_children)
@@ -1062,7 +1151,24 @@ impl ART {
         }
     }
 
-    // Optimized component matching that avoids collecting all paths
+    /// Finds path components that match a query string, optimized for performance.
+    /// This is particularly useful for finding files by partial names regardless of their
+    /// location in the directory structure.
+    ///
+    /// # Arguments
+    /// * `query` - The query string to match against path components.
+    /// * `current_dir` - Optional current directory to restrict search scope.
+    /// * `results` - A mutable reference to a vector where results will be stored.
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut trie = ART::new(10);
+    /// trie.insert("/home/user/documents/report.pdf", 1.0);
+    /// 
+    /// let mut results = Vec::new();
+    /// trie.find_component_matches_optimized("report", Some("/home/user"), &mut results);
+    /// assert_eq!(results.len(), 1);
+    /// ```
     fn find_component_matches_optimized(
         &self,
         query: &str,
@@ -1119,7 +1225,25 @@ impl ART {
         }
     }
 
-    // Optimized find_completions that avoids component_matches in most cases
+    /// Finds all paths that start with a given prefix.
+    /// This is the primary method for quickly retrieving paths matching a partial input.
+    ///
+    /// # Arguments
+    /// * `prefix` - A string slice containing the prefix to search for.
+    ///
+    /// # Returns
+    /// * A vector of tuples containing matching paths and their scores, sorted by score.
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut trie = ART::new(10);
+    /// trie.insert("/home/user/file1.txt", 1.0);
+    /// trie.insert("/home/user/file2.txt", 0.9);
+    /// trie.insert("/home/admin/file3.txt", 0.8);
+    ///
+    /// let results = trie.find_completions("/home/user");
+    /// assert_eq!(results.len(), 2);
+    /// ```
     pub fn find_completions(&self, prefix: &str) -> Vec<(String, f32)> {
         let mut results = Vec::new();
 
@@ -1180,6 +1304,15 @@ impl ART {
         results
     }
 
+    /// Collects results from a node with a specified limit.
+    /// Uses breadth-first traversal to efficiently collect paths,
+    /// Due to bad performance with deep searching
+    ///
+    /// # Arguments
+    /// * `node` - The node from which to start collection.
+    /// * `prefix` - The prefix string that led to this node.
+    /// * `results` - A mutable reference to a vector where results will be stored.
+    /// * `limit` - The maximum number of results to collect.
     fn collect_results_with_limit(
         &self,
         node: &ARTNode,
@@ -1220,7 +1353,25 @@ impl ART {
         }
     }
 
-    // remove - Removes a path from the trie
+    /// Removes a path from the trie.
+    /// Normalizes the path before removal to ensure consistency.
+    ///
+    /// # Arguments
+    /// * `path` - A string slice containing the path to remove.
+    ///
+    /// # Returns
+    /// * `true` if the path was found and removed.
+    /// * `false` if the path was not found.
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut trie = ART::new(10);
+    /// trie.insert("/home/user/documents/file.txt", 1.0);
+    /// assert_eq!(trie.len(), 1);
+    ///
+    /// assert!(trie.remove("/home/user/documents/file.txt"));
+    /// assert_eq!(trie.len(), 0);
+    /// ```
     pub fn remove(&mut self, path: &str) -> bool {
         if self.root.is_none() {
             return false;
@@ -1246,7 +1397,19 @@ impl ART {
         removed
     }
 
-    // Recursive removal helper method - restructured to avoid double borrowing
+    /// Recursively removes a path from the trie, navigating and cleaning up nodes as needed.
+    /// This internal helper method is used by the public remove method.
+    ///
+    /// # Arguments
+    /// * `node` - The current node in the traversal.
+    /// * `key` - The byte representation of the path being removed.
+    /// * `depth` - The current depth in the key.
+    ///
+    /// # Returns
+    /// * A tuple containing:
+    ///   - Whether the path was removed
+    ///   - Whether this node should be removed
+    ///   - The new node after removal
     fn remove_recursive(
         node: Option<Box<ARTNode>>,
         key: &[u8],
@@ -1341,7 +1504,12 @@ impl ART {
         self.path_count = 0;
     }
 
-    // Improved sorting and deduplication
+    /// Sorts and optionally deduplicates a collection of search results.
+    /// Results are sorted by score in descending order (highest first).
+    ///
+    /// # Arguments
+    /// * `results` - A mutable reference to a vector of (path, score) tuples.
+    /// * `skip_dedup` - Whether to skip deduplication (set to true when results are known to be unique).
     fn sort_and_deduplicate_results(&self, results: &mut Vec<(String, f32)>, skip_dedup: bool) {
         if results.is_empty() {
             return;
@@ -1358,6 +1526,31 @@ impl ART {
         }
     }
 
+    /// Searches for paths matching a query string, with optional context directory and component matching.
+    /// This is the main search algorithm for the ART implementation.
+    ///
+    /// # Arguments
+    /// * `query` - The query string to search for.
+    /// * `current_dir` - Optional current directory to restrict search scope.
+    /// * `allow_partial_components` - Whether to match partial components within paths.
+    ///
+    /// # Returns
+    /// * A vector of tuples containing matching paths and their scores, sorted by score.
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut trie = ART::new(10);
+    /// trie.insert("/home/user/documents/report.pdf", 1.0);
+    /// trie.insert("/home/admin/images/photo.jpg", 0.9);
+    ///
+    /// // Search in context of user directory
+    /// let results = trie.search("doc", Some("/home/user"), true);
+    /// assert_eq!(results.len(), 1);
+    ///
+    /// // Search everywhere with component matching
+    /// let results = trie.search("rep", None, true);
+    /// assert_eq!(results.len(), 1);
+    /// ```
     pub fn search(
         &self,
         _query: &str,

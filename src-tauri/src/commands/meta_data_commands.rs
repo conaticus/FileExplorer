@@ -3,6 +3,30 @@ use crate::state::meta_data::MetaDataState;
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
+/// Retrieves system metadata information as a JSON string.
+/// This includes information about volumes, drives, and storage devices.
+/// Updates the metadata state before returning the JSON.
+/// 
+/// # Arguments
+/// * `state` - The application state containing metadata information.
+///
+/// # Returns
+/// * `Ok(String)` - A JSON string containing the metadata if successful.
+/// * `Err(String)` - If there was an error retrieving or serializing the metadata.
+///
+/// # Example
+/// ```javascript
+/// invoke('get_meta_data_as_json')
+///   .then((response) => {
+///     // Process the metadata JSON
+///     console.log('Metadata:', response);
+///     const metadata = JSON.parse(response);
+///     // Use the metadata in the UI
+///   })
+///   .catch((error) => {
+///     console.error('Error retrieving metadata:', error);
+///   });
+/// ```
 #[tauri::command]
 pub fn get_meta_data_as_json(state: State<Arc<Mutex<MetaDataState>>>) -> Result<String, String> {
     let meta_data = state.lock().unwrap().refresh_volumes();
