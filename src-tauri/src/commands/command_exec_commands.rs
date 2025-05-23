@@ -94,7 +94,6 @@ pub async fn execute_command(command: String) -> Result<String, String> {
 #[cfg(test)]
 mod command_exec_tests {
     use crate::commands::command_exec_commands::{execute_command, CommandResponse};
-    #[cfg(windows)]
     use serde_json::from_str;
 
     #[cfg(unix)]
@@ -102,7 +101,10 @@ mod command_exec_tests {
     async fn echo_command_test_unix() {
         let result = execute_command("echo hello world".to_string()).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().trim(), "hello world");
+        
+        let json_result = result.unwrap();
+        let command_response: CommandResponse = from_str(&json_result).unwrap();
+        assert_eq!(command_response.stdout.trim(), "hello world");
     }
 
     #[cfg(unix)]
