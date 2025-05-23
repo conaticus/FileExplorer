@@ -6,7 +6,7 @@ use tauri::State;
 /// Retrieves system metadata information as a JSON string.
 /// This includes information about volumes, drives, and storage devices.
 /// Updates the metadata state before returning the JSON.
-/// 
+///
 /// # Arguments
 /// * `state` - The application state containing metadata information.
 ///

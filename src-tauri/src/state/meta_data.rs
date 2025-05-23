@@ -1,8 +1,8 @@
-use crate::{constants, log_error};
-use serde::{Deserialize, Serialize};
-use home::home_dir;
 use crate::commands::volume_operations_commands;
 use crate::models::VolumeInformation;
+use crate::{constants, log_error};
+use home::home_dir;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -19,7 +19,7 @@ pub struct MetaData {
     all_volumes_with_information: Vec<VolumeInformation>,
     current_running_os: String,
     current_cpu_architecture: String,
-    user_home_dir: String
+    user_home_dir: String,
 }
 impl Default for MetaData {
     fn default() -> Self {
@@ -33,7 +33,10 @@ impl Default for MetaData {
                 volume_operations_commands::get_system_volumes_information(),
             current_running_os: std::env::consts::OS.to_string(),
             current_cpu_architecture: std::env::consts::ARCH.to_string(),
-            user_home_dir: home_dir().unwrap_or(PathBuf::from("")).to_string_lossy().to_string(),
+            user_home_dir: home_dir()
+                .unwrap_or(PathBuf::from(""))
+                .to_string_lossy()
+                .to_string(),
         }
     }
 }
@@ -148,12 +151,21 @@ mod metadata_tests {
             constants::META_DATA_CONFIG_ABS_PATH.to_path_buf()
         );
         // Check the OS and architecture fields
-        assert_eq!(meta_data.current_running_os, std::env::consts::OS.to_string());
-        assert_eq!(meta_data.current_cpu_architecture, std::env::consts::ARCH.to_string());
+        assert_eq!(
+            meta_data.current_running_os,
+            std::env::consts::OS.to_string()
+        );
+        assert_eq!(
+            meta_data.current_cpu_architecture,
+            std::env::consts::ARCH.to_string()
+        );
         // Check the home directory field
         assert_eq!(
             meta_data.user_home_dir,
-            home_dir().unwrap_or(PathBuf::from("")).to_string_lossy().to_string()
+            home_dir()
+                .unwrap_or(PathBuf::from(""))
+                .to_string_lossy()
+                .to_string()
         );
         // Cannot test volume information directly as it depends on the system
     }
@@ -185,12 +197,21 @@ mod metadata_tests {
             constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf()
         );
         // Check the OS and architecture fields
-        assert_eq!(meta_data.current_running_os, std::env::consts::OS.to_string());
-        assert_eq!(meta_data.current_cpu_architecture, std::env::consts::ARCH.to_string());
+        assert_eq!(
+            meta_data.current_running_os,
+            std::env::consts::OS.to_string()
+        );
+        assert_eq!(
+            meta_data.current_cpu_architecture,
+            std::env::consts::ARCH.to_string()
+        );
         // Check the home directory field
         assert_eq!(
             meta_data.user_home_dir,
-            home_dir().unwrap_or(PathBuf::from("")).to_string_lossy().to_string()
+            home_dir()
+                .unwrap_or(PathBuf::from(""))
+                .to_string_lossy()
+                .to_string()
         );
     }
 
@@ -242,12 +263,12 @@ mod metadata_tests {
         let mut meta_data = MetaData::default();
         meta_data.abs_file_path_buf = test_path.clone();
         meta_data.version = "test-version".to_string();
-        
+
         // Customize the OS, CPU, and home directory fields for testing
         let test_os = "test-os".to_string();
         let test_arch = "test-arch".to_string();
         let test_home = "/test/home/path".to_string();
-        
+
         meta_data.current_running_os = test_os.clone();
         meta_data.current_cpu_architecture = test_arch.clone();
         meta_data.user_home_dir = test_home.clone();
@@ -269,11 +290,10 @@ mod metadata_tests {
             meta_data.abs_file_path_for_settings_json,
             constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf()
         );
-        
+
         // Verify the custom OS, CPU, and home directory fields
         assert_eq!(read_meta_data.current_running_os, test_os);
         assert_eq!(read_meta_data.current_cpu_architecture, test_arch);
         assert_eq!(read_meta_data.user_home_dir, test_home);
     }
 }
-

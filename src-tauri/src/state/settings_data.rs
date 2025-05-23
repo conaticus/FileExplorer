@@ -1,5 +1,6 @@
-use crate::{constants, log_error};
+use crate::commands::hash_commands::ChecksumMethod;
 use crate::models::LoggingLevel;
+use crate::{constants, log_error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::File;
@@ -7,7 +8,6 @@ use std::io;
 use std::io::{Error, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use crate::commands::hash_commands::ChecksumMethod;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum DefaultView {
@@ -108,7 +108,7 @@ impl SettingsState {
         let settings = if path.exists() {
             match Self::read_settings_from_file(&path) {
                 Ok(s) => s,
-                Err(_) => Self::write_default_settings_to_file_and_save_in_state()
+                Err(_) => Self::write_default_settings_to_file_and_save_in_state(),
             }
         } else {
             Self::write_default_settings_to_file_and_save_in_state()
@@ -557,7 +557,10 @@ mod tests_settings {
         drop(settings_state);
 
         let loaded = SettingsState::read_settings_from_file(&test_path);
-        assert!(loaded.is_ok(), "Should load settings from file after reload");
+        assert!(
+            loaded.is_ok(),
+            "Should load settings from file after reload"
+        );
 
         let loaded_settings = loaded.unwrap();
         assert_eq!(loaded_settings.darkmode, true);

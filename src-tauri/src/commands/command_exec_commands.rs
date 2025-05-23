@@ -59,19 +59,16 @@ pub async fn execute_command(command: String) -> Result<String, String> {
     }
 
     let start_time = std::time::Instant::now();
-    
+
     let output = if cfg!(target_os = "windows") {
-        Command::new("cmd")
-            .args(["/C", &command])
-            .output()
+        Command::new("cmd").args(["/C", &command]).output()
     } else {
         let program = program.unwrap();
         let args: Vec<&str> = parts.collect();
-        Command::new(program)
-            .args(args)
-            .output()
-    }.map_err(|e| Error::new(ErrorCode::InvalidInput, e.to_string()).to_json())?;
-    
+        Command::new(program).args(args).output()
+    }
+    .map_err(|e| Error::new(ErrorCode::InvalidInput, e.to_string()).to_json())?;
+
     let exec_time = start_time.elapsed().as_millis();
 
     let res = CommandResponse {
@@ -100,7 +97,7 @@ mod command_exec_tests {
     async fn echo_command_test_unix() {
         let result = execute_command("echo hello world".to_string()).await;
         assert!(result.is_ok());
-        
+
         let json_result = result.unwrap();
         let command_response: CommandResponse = from_str(&json_result).unwrap();
         assert_eq!(command_response.stdout.trim(), "hello world");

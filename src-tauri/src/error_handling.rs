@@ -12,7 +12,6 @@ pub enum ErrorCode {
     ResourceAlreadyExists,
 }
 
-
 impl ErrorCode {
     pub fn get_code_as_u16(&self) -> u16 {
         match self {
@@ -41,7 +40,6 @@ impl ErrorCode {
             _ => None,
         }
     }
-
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -63,18 +61,15 @@ impl Error {
     }
 }
 
-    //TODO a method which should be the constructor for the error code so pub fn new(code: u16, message: String) -> ErrorCode 
-    
-    //TODO a method which is called pub fn to _json(&self) -> String 
-    
-    //methode sollte dann so aussehen um den error aufzurufen 
-    //Err(Error::new(ErrorCode::NotFound, "File not found".to_string()).to_json())   
-    
-    //oder
-    //Err(Error::new(ErrorCode::NotFound, format!("File not found: {}", file_path)).to_json())   
+//TODO a method which should be the constructor for the error code so pub fn new(code: u16, message: String) -> ErrorCode
 
- 
+//TODO a method which is called pub fn to _json(&self) -> String
 
+//methode sollte dann so aussehen um den error aufzurufen
+//Err(Error::new(ErrorCode::NotFound, "File not found".to_string()).to_json())
+
+//oder
+//Err(Error::new(ErrorCode::NotFound, format!("File not found: {}", file_path)).to_json())
 
 //tests noch abändern
 #[cfg(test)]
@@ -86,5 +81,4 @@ mod error_handling_tests {
         let _x = Error::new(ErrorCode::NotFound, "File not found".to_string()).to_json();
         println!("Error: {:?}", _x);
     }
-
 }

@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+#[cfg(test)]
+use crate::log_info;
+use crate::log_warn;
 use crate::search_engine::art_v4::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
 use crate::search_engine::path_cache_wrapper::PathCache;
-use crate::log_warn;
-#[cfg(test)]
-use crate::log_info;
 
 /// Autocomplete engine that combines caching, prefix search, and fuzzy search
 pub struct AutocompleteEngine {
@@ -225,7 +225,7 @@ impl AutocompleteEngine {
         if !path_obj.exists() || !path_obj.is_dir() {
             return;
         }
-       
+
         #[cfg(test)]
         log_info!(&format!(
             "Recursively removing directory from index: {}",
@@ -311,25 +311,28 @@ impl AutocompleteEngine {
             None, // should add current_dif_ref, but rn not very performant
             false,
         );
-        
-        #[cfg(test)] {
-        let prefix_duration = prefix_start.elapsed();
-        log_info!(&format!(
-            "prefix search found {} results in {:?}",
-            prefix_results.len(),
-            prefix_duration
-        ));}
+
+        #[cfg(test)]
+        {
+            let prefix_duration = prefix_start.elapsed();
+            log_info!(&format!(
+                "prefix search found {} results in {:?}",
+                prefix_results.len(),
+                prefix_duration
+            ));
+        }
 
         // 3. Only use fuzzy search if we don't have enough results
         let mut results = prefix_results;
         if results.len() < self.max_results {
             #[cfg(test)]
             let fuzzy_start = Instant::now();
-            
+
             let fuzzy_results = self
                 .fuzzy_matcher
                 .search(&normalized_query, self.max_results - results.len());
-            #[cfg(test)] { 
+            #[cfg(test)]
+            {
                 let fuzzy_duration = fuzzy_start.elapsed();
                 log_info!(&format!(
                     "Fuzzy search found {} results in {:?}",
@@ -726,7 +729,7 @@ mod tests_autocomplete_engine {
 
         temp_dir
     }
-    
+
     #[test]
     fn test_add_paths_recursive() {
         let temp_dir = create_temp_dir_structure();
@@ -769,7 +772,7 @@ mod tests_autocomplete_engine {
         // Clean up - best effort, don't panic if it fails
         let _ = fs::remove_dir_all(temp_dir);
     }
-    
+
     #[test]
     fn test_remove_paths_recursive() {
         let temp_dir = create_temp_dir_structure();
@@ -988,7 +991,7 @@ mod tests_autocomplete_engine {
 
         paths
     }
-    
+
     #[test]
     fn test_with_real_world_data_autocomplete_engine() {
         log_info!("Testing autocomplete engine with real-world test data");

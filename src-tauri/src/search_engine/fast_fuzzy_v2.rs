@@ -50,9 +50,9 @@
 //! - Length normalization to prevent bias toward longer paths
 //! - Memory-efficient trigram storage with FxHashMap and SmallVec
 
+use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{smallvec, SmallVec};
 use std::sync::Once;
-use rustc_hash::{FxHashMap, FxHashSet};
 
 type TrigramMap = FxHashMap<u32, SmallVec<[u32; 4]>>;
 
@@ -231,7 +231,8 @@ impl PathMatcher {
         padded.push(b' ');
         padded.push(b' ');
 
-        let mut seen_trigrams = FxHashSet::with_capacity_and_hasher(padded.len(), Default::default());
+        let mut seen_trigrams =
+            FxHashSet::with_capacity_and_hasher(padded.len(), Default::default());
 
         for i in 0..padded.len() - 2 {
             trigram_bytes[0] = Self::fast_lowercase(padded[i]);
@@ -292,9 +293,9 @@ impl PathMatcher {
     #[inline]
     fn calculate_length_normalization(&self, path_length: usize) -> f32 {
         // Constants to control the sigmoid curve
-        const MIDPOINT: f32 = 100.0;  // Path length at which penalty is 0.75
-        const STEEPNESS: f32 = 0.03;  // Controls how quickly penalty increases with length
-        const MIN_FACTOR: f32 = 0.5;  // Maximum penalty (minimum factor)
+        const MIDPOINT: f32 = 100.0; // Path length at which penalty is 0.75
+        const STEEPNESS: f32 = 0.03; // Controls how quickly penalty increases with length
+        const MIN_FACTOR: f32 = 0.5; // Maximum penalty (minimum factor)
 
         // No penalty for very short paths
         if path_length < 30 {
@@ -303,7 +304,8 @@ impl PathMatcher {
 
         // Sigmoid function: 1 - MIN_FACTOR/(1 + e^(-STEEPNESS * (x - MIDPOINT)))
         let length_f32 = path_length as f32;
-        let sigmoid = 1.0 - (1.0 - MIN_FACTOR) / (1.0 + (-STEEPNESS * (length_f32 - MIDPOINT)).exp());
+        let sigmoid =
+            1.0 - (1.0 - MIN_FACTOR) / (1.0 + (-STEEPNESS * (length_f32 - MIDPOINT)).exp());
 
         sigmoid
     }
@@ -544,8 +546,10 @@ impl PathMatcher {
 
         // === Step 1: Fast Variation-based Fallback ===
         let mut path_bitmap = vec![0u32; (self.paths.len() + 31) / 32];
-        let mut variation_hits = FxHashMap::with_capacity_and_hasher(variations.len(), Default::default());
-        let mut seen_paths = FxHashSet::with_capacity_and_hasher(max_results * 2, Default::default());
+        let mut variation_hits =
+            FxHashMap::with_capacity_and_hasher(variations.len(), Default::default());
+        let mut seen_paths =
+            FxHashSet::with_capacity_and_hasher(max_results * 2, Default::default());
         let mut results = Vec::with_capacity(max_results * 2);
 
         for (variation_idx, variation) in variations.iter().enumerate() {
@@ -553,7 +557,9 @@ impl PathMatcher {
             if trigrams.is_empty() {
                 continue;
             }
-            for word in &mut path_bitmap { *word = 0; }
+            for word in &mut path_bitmap {
+                *word = 0;
+            }
             for &trigram in &trigrams {
                 if let Some(path_indices) = self.trigram_index.get(&trigram) {
                     for &path_idx in path_indices {
@@ -561,7 +567,8 @@ impl PathMatcher {
                         let word_idx = idx / 32;
                         let bit_pos = idx % 32;
                         path_bitmap[word_idx] |= 1 << bit_pos;
-                        variation_hits.entry(path_idx)
+                        variation_hits
+                            .entry(path_idx)
                             .or_insert_with(|| SmallVec::<[usize; 2]>::with_capacity(2))
                             .push(variation_idx);
                     }
@@ -581,7 +588,9 @@ impl PathMatcher {
                         let mut score = 0.9 - (variation_index * 0.2);
                         // Bonus for matching first char
                         if !query_lower.is_empty() && !filename_lower.is_empty() {
-                            if query_lower.chars().next().unwrap() == filename_lower.chars().next().unwrap() {
+                            if query_lower.chars().next().unwrap()
+                                == filename_lower.chars().next().unwrap()
+                            {
                                 score += 0.3;
                             }
                         }

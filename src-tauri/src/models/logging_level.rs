@@ -5,5 +5,5 @@ pub enum LoggingLevel {
     Full,
     Partial,
     Minimal,
-    OFF
+    OFF,
 }

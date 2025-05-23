@@ -56,7 +56,6 @@ pub fn get_access_permission_number(permissions: Permissions, _is_directory: boo
     }
 }
 
-
 /// This function converts the access permissions of a file or directory into a human-readable string.
 /// It takes into account the platform (Windows or Unix) and formats the permissions accordingly.
 ///
@@ -285,7 +284,7 @@ pub fn count_subfiles_and_subdirectories(path: &str) -> (usize, usize) {
 /// # Example
 /// ```rust
 /// use crate::models::directory_entries_helper::count_subfiles;
-/// 
+///
 /// fn main() {
 ///   let path = "/path/to/directory";
 ///   let file_count = count_subfiles(path);
@@ -320,7 +319,7 @@ pub fn count_subfiles(path: &str) -> usize {
 /// # Example
 /// ```rust
 /// use crate::models::directory_entries_helper::count_subdirectories;
-/// 
+///
 /// fn main() {
 ///   let path = "/path/to/directory";
 ///   let dir_count = count_subdirectories(path);

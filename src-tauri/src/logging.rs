@@ -44,17 +44,17 @@
 //! - Error and critical logs are also written to a separate error log file for easier debugging.
 //! - Ensure that the `SettingsState` is properly initialized and shared across the application to manage logging behavior effectively.
 
-use std::fs::{OpenOptions, File};
-use std::io::{Write, BufReader, BufRead};
-use std::path::PathBuf;
-use chrono::Local;
-use std::fs;
-use std::fmt;
-use std::sync::{Arc, Mutex};
-use once_cell::sync::Lazy;
-use crate::constants::{LOG_FILE_NAME, ERROR_LOG_FILE_NAME, MAX_FILE_SIZE};
+use crate::constants::{ERROR_LOG_FILE_NAME, LOG_FILE_NAME, MAX_FILE_SIZE};
 use crate::models::LoggingLevel;
 use crate::state::SettingsState;
+use chrono::Local;
+use once_cell::sync::Lazy;
+use std::fmt;
+use std::fs;
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 #[macro_export]
 macro_rules! log_info {
@@ -118,7 +118,10 @@ pub enum LogLevel {
 
 fn get_logging_state(state: Arc<Mutex<SettingsState>>) -> Result<LoggingLevel, String> {
     let settings_state = state.lock().unwrap();
-    let inner_settings = settings_state.0.lock().map_err(|_| "Error while getting Logging state")?;
+    let inner_settings = settings_state
+        .0
+        .lock()
+        .map_err(|_| "Error while getting Logging state")?;
     Ok(inner_settings.logging_level.clone())
 }
 
@@ -157,14 +160,7 @@ impl Logger {
         &LOGGER
     }
 
-    pub fn log(
-        &self,
-        level: LogLevel,
-        file: &str,
-        function: &str,
-        message: &str,
-        line: u32,
-    ) {
+    pub fn log(&self, level: LogLevel, file: &str, function: &str, message: &str, line: u32) {
         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
         // Retrieve the logging state
@@ -212,8 +208,11 @@ impl Logger {
         if file_size > MAX_FILE_SIZE {
             // For test purposes, print the file size before truncation
             #[cfg(test)]
-            println!("File exceeds size limit: {} bytes. Truncating...", file_size);
-            
+            println!(
+                "File exceeds size limit: {} bytes. Truncating...",
+                file_size
+            );
+
             // Truncate file before writing
             self.truncate_oldest_entry_from(path);
         }
@@ -236,26 +235,34 @@ impl Logger {
                 return;
             }
         };
-        
+
         let reader = BufReader::new(file);
-        
+
         // Collect lines into a vector
         let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
-        
+
         // Calculate how many lines to keep (around 30% of the original to ensure significant reduction)
         let total_lines = lines.len();
-        let lines_to_keep = if total_lines > 100 { total_lines / 3 } else { total_lines / 2 };
-        
+        let lines_to_keep = if total_lines > 100 {
+            total_lines / 3
+        } else {
+            total_lines / 2
+        };
+
         // Keep only the most recent lines
         let recent_lines: Vec<String> = lines
             .into_iter()
             .skip(total_lines.saturating_sub(lines_to_keep))
             .collect();
-        
+
         // Debug info for tests
         #[cfg(test)]
-        println!("Truncating log file: keeping {} of {} lines", recent_lines.len(), total_lines);
-        
+        println!(
+            "Truncating log file: keeping {} of {} lines",
+            recent_lines.len(),
+            total_lines
+        );
+
         // Rewrite the file with only the recent lines
         match File::create(path) {
             Ok(mut file) => {
@@ -264,7 +271,7 @@ impl Logger {
                         eprintln!("Failed to write line during truncation: {}", e);
                     }
                 }
-            },
+            }
             Err(e) => {
                 eprintln!("Failed to create log file for truncation: {}", e);
             }
@@ -295,28 +302,40 @@ mod tests_logging {
     fn test_log_info() {
         let (logger, _temp_dir) = setup_test_logger();
         logger.write_log("Test info message");
-        assert!(logger.log_path.exists(), "Log file should exist after logging");
+        assert!(
+            logger.log_path.exists(),
+            "Log file should exist after logging"
+        );
     }
 
     #[test]
     fn test_log_warn() {
         let (logger, _temp_dir) = setup_test_logger();
         logger.write_log("Test warning message");
-        assert!(logger.log_path.exists(), "Log file should exist after logging");
+        assert!(
+            logger.log_path.exists(),
+            "Log file should exist after logging"
+        );
     }
 
     #[test]
     fn test_log_error() {
         let (logger, _temp_dir) = setup_test_logger();
         logger.write_log("Test error message");
-        assert!(logger.log_path.exists(), "Log file should exist after logging");
+        assert!(
+            logger.log_path.exists(),
+            "Log file should exist after logging"
+        );
     }
 
     #[test]
     fn test_error_log_creation() {
         let (logger, _temp_dir) = setup_test_logger();
         logger.write_error_log("Test error message");
-        assert!(logger.error_log_path.exists(), "Error log file should exist after logging an error");
+        assert!(
+            logger.error_log_path.exists(),
+            "Error log file should exist after logging an error"
+        );
     }
 
     #[test]
@@ -328,14 +347,35 @@ mod tests_logging {
             inner_settings.logging_level = LoggingLevel::Full;
         }
 
-        logger.log(LogLevel::Info, "test_file.rs", "test_function", "Full logging test", 42);
+        logger.log(
+            LogLevel::Info,
+            "test_file.rs",
+            "test_function",
+            "Full logging test",
+            42,
+        );
 
         let log_content = fs::read_to_string(&logger.log_path).expect("Failed to read log file");
-        assert!(log_content.contains("test_file.rs"), "Full logging should include file name");
-        assert!(log_content.contains("test_function"), "Full logging should include function name");
-        assert!(log_content.contains("line: 42"), "Full logging should include line number");
-        assert!(log_content.contains("INFO"), "Full logging should include log level");
-        assert!(log_content.contains("Full logging test"), "Full logging should include the message");
+        assert!(
+            log_content.contains("test_file.rs"),
+            "Full logging should include file name"
+        );
+        assert!(
+            log_content.contains("test_function"),
+            "Full logging should include function name"
+        );
+        assert!(
+            log_content.contains("line: 42"),
+            "Full logging should include line number"
+        );
+        assert!(
+            log_content.contains("INFO"),
+            "Full logging should include log level"
+        );
+        assert!(
+            log_content.contains("Full logging test"),
+            "Full logging should include the message"
+        );
     }
 
     #[test]
@@ -347,14 +387,35 @@ mod tests_logging {
             inner_settings.logging_level = LoggingLevel::Partial;
         }
 
-        logger.log(LogLevel::Warn, "test_file.rs", "test_function", "Partial logging test", 42);
+        logger.log(
+            LogLevel::Warn,
+            "test_file.rs",
+            "test_function",
+            "Partial logging test",
+            42,
+        );
 
         let log_content = fs::read_to_string(&logger.log_path).expect("Failed to read log file");
-        assert!(!log_content.contains("test_file.rs"), "Partial logging should not include file name");
-        assert!(!log_content.contains("test_function"), "Partial logging should not include function name");
-        assert!(!log_content.contains("line 42"), "Partial logging should not include line number");
-        assert!(log_content.contains("WARN"), "Partial logging should include log level");
-        assert!(log_content.contains("Partial logging test"), "Partial logging should include the message");
+        assert!(
+            !log_content.contains("test_file.rs"),
+            "Partial logging should not include file name"
+        );
+        assert!(
+            !log_content.contains("test_function"),
+            "Partial logging should not include function name"
+        );
+        assert!(
+            !log_content.contains("line 42"),
+            "Partial logging should not include line number"
+        );
+        assert!(
+            log_content.contains("WARN"),
+            "Partial logging should include log level"
+        );
+        assert!(
+            log_content.contains("Partial logging test"),
+            "Partial logging should include the message"
+        );
     }
 
     #[test]
@@ -366,14 +427,35 @@ mod tests_logging {
             inner_settings.logging_level = LoggingLevel::Minimal;
         }
 
-        logger.log(LogLevel::Error, "test_file.rs", "test_function", "Minimal logging test", 42);
+        logger.log(
+            LogLevel::Error,
+            "test_file.rs",
+            "test_function",
+            "Minimal logging test",
+            42,
+        );
 
         let log_content = fs::read_to_string(&logger.log_path).expect("Failed to read log file");
-        assert!(!log_content.contains("test_file.rs"), "Minimal logging should not include file name");
-        assert!(!log_content.contains("test_function"), "Minimal logging should not include function name");
-        assert!(!log_content.contains("line 42"), "Minimal logging should not include line number");
-        assert!(log_content.contains("ERROR"), "Minimal logging should include log level");
-        assert!(log_content.contains("Minimal logging test"), "Minimal logging should include the message");
+        assert!(
+            !log_content.contains("test_file.rs"),
+            "Minimal logging should not include file name"
+        );
+        assert!(
+            !log_content.contains("test_function"),
+            "Minimal logging should not include function name"
+        );
+        assert!(
+            !log_content.contains("line 42"),
+            "Minimal logging should not include line number"
+        );
+        assert!(
+            log_content.contains("ERROR"),
+            "Minimal logging should include log level"
+        );
+        assert!(
+            log_content.contains("Minimal logging test"),
+            "Minimal logging should include the message"
+        );
     }
 
     #[test]
@@ -385,63 +467,83 @@ mod tests_logging {
             inner_settings.logging_level = LoggingLevel::OFF;
         }
 
-        logger.log(LogLevel::Critical, "test_file.rs", "test_function", "Logging OFF test", 42);
+        logger.log(
+            LogLevel::Critical,
+            "test_file.rs",
+            "test_function",
+            "Logging OFF test",
+            42,
+        );
 
         let log_content = fs::read_to_string(&logger.log_path).unwrap_or_default();
-        assert!(log_content.is_empty(), "Logging should not occur when state is OFF");
+        assert!(
+            log_content.is_empty(),
+            "Logging should not occur when state is OFF"
+        );
     }
 
     #[test]
     fn test_log_truncation_when_max_size_reached() {
         let (logger, _temp_dir) = setup_test_logger();
-        
+
         // Override the MAX_FILE_SIZE constant for this test with a smaller value
         #[allow(dead_code)]
         const TEST_MAX_SIZE: u64 = 50000; // 50KB is enough for testing
-        
+
         // Create a log file that exceeds our test max size
         let large_entry = "X".repeat(1000); // 1KB per entry
-        
+
         // Write entries until we exceed the test max size
-        for i in 0..60 {  // Should create ~60KB of data
+        for i in 0..60 {
+            // Should create ~60KB of data
             logger.write_log(&format!("Log entry #{}: {}", i, large_entry));
         }
-        
+
         // Get the file size before triggering truncation
         let metadata_before = fs::metadata(&logger.log_path).expect("Failed to read file metadata");
         let size_before = metadata_before.len();
-        
+
         println!("Size before truncation: {} bytes", size_before);
-        
+
         // Force truncation by directly calling the truncate method
         logger.truncate_oldest_entry_from(&logger.log_path);
-        
+
         // Get the file size after truncation
         let metadata_after = fs::metadata(&logger.log_path).expect("Failed to read file metadata");
         let size_after = metadata_after.len();
-        
+
         println!("Size after truncation: {} bytes", size_after);
-        
+
         // Check that the file size has been reduced significantly
-        assert!(size_after < size_before, 
-                "File size should be reduced after truncation (before: {}, after: {})", 
-                size_before, size_after);
-        
+        assert!(
+            size_after < size_before,
+            "File size should be reduced after truncation (before: {}, after: {})",
+            size_before,
+            size_after
+        );
+
         // Check that the file size is significantly smaller (at least 40% reduction)
-        assert!(size_after < size_before * 6 / 10, 
-                "File size should be reduced by at least 40% (before: {}, after: {})", 
-                size_before, size_after);
-        
+        assert!(
+            size_after < size_before * 6 / 10,
+            "File size should be reduced by at least 40% (before: {}, after: {})",
+            size_before,
+            size_after
+        );
+
         // Add new log entries to verify they're appended correctly after truncation
         logger.write_log("This entry should be added after truncation");
-        
+
         // Verify that recent logs are preserved by reading the file content
         let log_content = fs::read_to_string(&logger.log_path).expect("Failed to read log file");
-        assert!(log_content.contains("This entry should be added after truncation"), 
-                "New log entries should be appended correctly after truncation");
-        
+        assert!(
+            log_content.contains("This entry should be added after truncation"),
+            "New log entries should be appended correctly after truncation"
+        );
+
         // Also verify the file doesn't contain the earliest entries
-        assert!(!log_content.contains("Log entry #0:"), 
-                "Oldest log entries should be removed after truncation");
+        assert!(
+            !log_content.contains("Log entry #0:"),
+            "Oldest log entries should be removed after truncation"
+        );
     }
 }

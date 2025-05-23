@@ -4,7 +4,6 @@ mod fast_fuzzy_v2;
 mod lru_cache_v2;
 mod path_cache_wrapper;
 
-
 #[cfg(test)]
 pub mod test_generate_test_data {
     use std::path::PathBuf;
@@ -58,12 +57,13 @@ pub mod test_generate_test_data {
 
         // Function to generate random strings based on a predefined set
         let generate_random_name = || -> String {
-            let charset: Vec<&str> = "banana,apple,orange,grape,watermelon,kiwi,mango,peach,cherry,\
+            let charset: Vec<&str> =
+                "banana,apple,orange,grape,watermelon,kiwi,mango,peach,cherry,\
         strawberry,blueberry,raspberry,blackberry,lemon,lime,coconut,papaya,pineapple,tangerine,\
         car,truck,motorcycle,bicycle,bus,train,airplane,helicopter,boat,ship,submarine,scooter,van,\
         ambulance,taxi,firetruck,tractor,yacht,jetski,speedboat,racecar"
-                .split(",")
-                .collect::<Vec<_>>();
+                    .split(",")
+                    .collect::<Vec<_>>();
 
             let mut rng = thread_rng();
 
@@ -166,4 +166,3 @@ pub mod test_generate_test_data {
         Ok(base_path)
     }
 }
-

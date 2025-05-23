@@ -1164,7 +1164,7 @@ impl ART {
     /// ```rust
     /// let mut trie = ART::new(10);
     /// trie.insert("/home/user/documents/report.pdf", 1.0);
-    /// 
+    ///
     /// let mut results = Vec::new();
     /// trie.find_component_matches_optimized("report", Some("/home/user"), &mut results);
     /// assert_eq!(results.len(), 1);
@@ -1769,10 +1769,7 @@ mod tests_art_v4 {
         log_info!(&format!("Trie contains {} paths", trie.len()));
 
         // Find completions
-        let prefix = Path::new("C:")
-            .join("Users")
-            .to_string_lossy()
-            .to_string();
+        let prefix = Path::new("C:").join("Users").to_string_lossy().to_string();
         let completions = trie.find_completions(&prefix);
         assert_eq!(completions.len(), 3);
         log_info!(&format!(

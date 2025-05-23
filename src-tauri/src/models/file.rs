@@ -1,6 +1,8 @@
-use std::fs::DirEntry;
+use crate::models::{
+    format_system_time, get_access_permission_number, get_access_permission_string,
+};
 use serde::{Deserialize, Serialize};
-use crate::models::{format_system_time, get_access_permission_number, get_access_permission_string};
+use std::fs::DirEntry;
 use std::io::Result;
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct File {

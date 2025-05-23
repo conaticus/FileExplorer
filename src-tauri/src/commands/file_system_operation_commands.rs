@@ -69,7 +69,6 @@ pub async fn open_file(path: &str) -> Result<String, String> {
     })
 }
 
-//TODO fix error 
 #[tauri::command]
 pub async fn open_in_default_app(path: &str) -> Result<(), String> {
     let path_obj = Path::new(path);
@@ -81,7 +80,13 @@ pub async fn open_in_default_app(path: &str) -> Result<(), String> {
     }
 
     // Open the file in the default application
-    open::that(path).map_err(|err| format!("Failed to open file: {}", err))
+    open::that(path).map_err(|err| {
+        Error::new(
+            ErrorCode::InternalError,
+            format!("Failed to open file in default app: {}", err),
+        )
+        .to_json()
+    })
 }
 
 /// Opens a directory at the given path and returns its contents as a json string.
@@ -775,7 +780,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
             Error::new(ErrorCode::InvalidInput, "No zip files provided".to_string()).to_json(),
         );
     }
-    
+
     // Check if destination path is needed for multiple zips
     if zip_paths.len() > 1 && destination_path.is_none() {
         log_error!("Destination path required for multiple zip files");
@@ -786,7 +791,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
         .to_json());
     }
 
-    // Create destination directory path 
+    // Create destination directory path
     let dest_path = match &destination_path {
         Some(dest) => Path::new(dest),
         None => {
@@ -796,9 +801,10 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
             } else {
                 log_error!("Destination path required for multiple zip files");
                 return Err(Error::new(
-                    ErrorCode::InvalidInput, 
-                    "Destination path required for multiple zip files".to_string()
-                ).to_json());
+                    ErrorCode::InvalidInput,
+                    "Destination path required for multiple zip files".to_string(),
+                )
+                .to_json());
             }
         }
     };
@@ -868,7 +874,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
             )
             .to_json()
         })?;
-        
+
         let mut archive = zip::ZipArchive::new(file).map_err(|e| {
             log_error!(format!("Failed to read zip archive: {}", e).as_str());
             Error::new(
@@ -2249,4 +2255,3 @@ mod tests_file_system_operation_commands {
         );
     }
 }
-
