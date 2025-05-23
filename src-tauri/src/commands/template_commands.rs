@@ -5,15 +5,26 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
-async fn get_template_paths_from_state(
-    state: Arc<Mutex<MetaDataState>>,
-) -> Result<Vec<PathBuf>, ()> {
-    let meta_data_state = state.lock().unwrap();
-    let inner_meta_data = meta_data_state
-        .0
-        .lock()
-        .map_err(|_| log_error!("Cannot acquire lock on metadata state"))?;
-    Ok(inner_meta_data.template_paths.clone())
+/// Retrieves all available templates as a JSON string of paths.
+///
+/// # Returns
+/// * `Ok(String)` - A JSON array of template paths as strings
+/// * `Err(String)` - An error message if the templates can't be retrieved
+///
+/// # Example
+/// ```rust
+/// let result = get_template_paths_as_json(state).await;
+/// match result {
+///     Ok(json_paths) => println!("Available templates: {}", json_paths),
+///     Err(e) => eprintln!("Error getting templates: {}", e),
+/// }
+/// ```
+#[tauri::command]
+pub async fn get_template_paths_as_json(
+    state: State<'_, Arc<Mutex<MetaDataState>>>,
+) -> Result<String, String> {
+    log_info!("get_template_paths_as_json command called");
+    get_template_paths_as_json_impl(state.inner().clone()).await
 }
 
 pub async fn get_template_paths_as_json_impl(
@@ -49,26 +60,250 @@ pub async fn get_template_paths_as_json_impl(
     }
 }
 
-/// Retrieves all available templates as a JSON string of paths.
+/// Adds a template to the template directory.
+///
+/// This function copies a file or directory from the provided path to the application's
+/// template directory and registers it as a template.
+///
+/// # Arguments
+/// * `state` - The application's metadata state
+/// * `template_path` - A string representing the absolute path to the file or directory to be added as a template
 ///
 /// # Returns
-/// * `Ok(String)` - A JSON array of template paths as strings
-/// * `Err(String)` - An error message if the templates can't be retrieved
+/// * `Ok(String)` - A success message including the name of the template and its size
+/// * `Err(String)` - An error message if the template cannot be added
 ///
 /// # Example
 /// ```rust
-/// let result = get_template_paths_as_json(state).await;
+/// let result = add_template(state, "/path/to/my/template").await;
 /// match result {
-///     Ok(json_paths) => println!("Available templates: {}", json_paths),
-///     Err(e) => eprintln!("Error getting templates: {}", e),
+///     Ok(msg) => println!("{}", msg),  // Template 'template' added successfully (1024 bytes)
+///     Err(e) => eprintln!("Error adding template: {}", e),
 /// }
 /// ```
 #[tauri::command]
-pub async fn get_template_paths_as_json(
+pub async fn add_template(
     state: State<'_, Arc<Mutex<MetaDataState>>>,
+    template_path: &str,
 ) -> Result<String, String> {
-    log_info!("get_template_paths_as_json command called");
-    get_template_paths_as_json_impl(state.inner().clone()).await
+    log_info!(format!("add_template command called with path: {}", template_path).as_str());
+    add_template_impl(state.inner().clone(), template_path).await
+}
+
+pub async fn add_template_impl(
+    state: Arc<Mutex<MetaDataState>>,
+    template_path: &str,
+) -> Result<String, String> {
+    log_info!(format!("Adding template from path: {}", template_path).as_str());
+
+    // Check if the source path exists
+    if !Path::new(template_path).exists() {
+        let error_msg = format!("Source path does not exist: {}", template_path);
+        log_error!(error_msg.as_str());
+        return Err(error_msg);
+    }
+
+    // Extract what we need from the metadata state before any await points
+    let dest_path = {
+        let metadata_state = state.lock().unwrap();
+        let inner_metadata = metadata_state.0.lock().map_err(|e| {
+            let error_msg = format!("Error acquiring lock on metadata state: {:?}", e);
+            log_error!(error_msg.as_str());
+            error_msg
+        })?;
+
+        inner_metadata.abs_folder_path_buf_for_templates.clone()
+    };
+
+    log_info!(format!("Template destination path: {}", dest_path.display()).as_str());
+
+    // Create destination directory if it doesn't exist
+    if !dest_path.exists() {
+        let error_msg = format!(
+            "Failed to find templates directory: {}",
+            dest_path.display()
+        );
+        log_error!(error_msg.as_str());
+        return Err(error_msg);
+    }
+
+    // Copy the template using our helper function
+    let size = copy_to_dest_path(template_path, dest_path.to_str().unwrap()).await?;
+
+    // Update the template paths in the metadata state
+    let update_result = {
+        let metadata_state = state.lock().unwrap();
+        metadata_state.update_template_paths()
+    };
+
+    match update_result {
+        Ok(_) => {
+            let success_msg = format!(
+                "Template '{}' added successfully ({} bytes)",
+                Path::new(template_path)
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy(),
+                size
+            );
+            log_info!(success_msg.as_str());
+            Ok(success_msg)
+        }
+        Err(err) => {
+            let error_msg = format!("Failed to update template paths: {}", err);
+            log_error!(error_msg.as_str());
+            Err(error_msg)
+        }
+    }
+}
+
+/// Applies a template to the specified destination path.
+///
+/// This function copies the content of a template (file or directory) to the specified destination.
+/// The template remains unchanged, creating a new instance at the destination path.
+///
+/// # Arguments
+/// * `template_path` - A string representing the absolute path to the template
+/// * `dest_path` - A string representing the absolute path where the template should be applied
+///
+/// # Returns
+/// * `Ok(String)` - A success message with details about the template application
+/// * `Err(String)` - An error message if the template cannot be applied
+///
+/// # Example
+/// ```rust
+/// let result = use_template("/path/to/template", "/path/to/destination").await;
+/// match result {
+///     Ok(msg) => println!("{}", msg),  // Template applied successfully (1024 bytes copied)
+///     Err(e) => eprintln!("Error applying template: {}", e),
+/// }
+/// ```
+#[tauri::command]
+pub async fn use_template(template_path: &str, dest_path: &str) -> Result<String, String> {
+    log_info!(format!("use_template command called with key: {}", template_path).as_str());
+    use_template_impl(template_path, dest_path).await
+}
+
+pub async fn use_template_impl(template_path: &str, dest_path: &str) -> Result<String, String> {
+    log_info!(format!("Using template from path: {}", template_path).as_str());
+
+    // Check if the template path exists
+    if !Path::new(template_path).exists() {
+        let error_msg = format!("Template path does not exist: {}", template_path);
+        log_error!(error_msg.as_str());
+        return Err(error_msg);
+    }
+
+    // Check if the destination path exists
+    if !Path::new(dest_path).exists() {
+        let error_msg = format!("Destination path does not exist: {}", dest_path);
+        log_error!(error_msg.as_str());
+        return Err(error_msg);
+    }
+
+    // Copy the template to the destination
+    match copy_to_dest_path(template_path, dest_path).await {
+        Ok(size) => {
+            let success_msg = format!(
+                "Template '{}' applied successfully to '{}' ({} bytes copied)",
+                template_path, dest_path, size
+            );
+            log_info!(success_msg.as_str());
+            Ok(success_msg)
+        }
+        Err(err) => {
+            let error_msg = format!("Failed to apply template: {}", err);
+            log_error!(error_msg.as_str());
+            Err(error_msg)
+        }
+    }
+}
+
+/// Removes a template from the template directory.
+///
+/// This function deletes a template (file or directory) from the application's template directory
+/// and updates the registered templates list.
+///
+/// # Arguments
+/// * `state` - The application's metadata state
+/// * `template_path` - A string representing the absolute path to the template to be removed
+///
+/// # Returns
+/// * `Ok(String)` - A success message confirming the removal of the template
+/// * `Err(String)` - An error message if the template cannot be removed
+///
+/// # Example
+/// ```rust
+/// let result = remove_template(state, "/path/to/templates/my_template").await;
+/// match result {
+///     Ok(msg) => println!("{}", msg),  // Template removed successfully
+///     Err(e) => eprintln!("Error removing template: {}", e),
+/// }
+/// ```
+#[tauri::command]
+pub async fn remove_template(
+    state: State<'_, Arc<Mutex<MetaDataState>>>,
+    template_path: &str,
+) -> Result<String, String> {
+    remove_template_impl(state.inner().clone(), template_path).await
+}
+
+pub async fn remove_template_impl(
+    state: Arc<Mutex<MetaDataState>>,
+    template_path: &str,
+) -> Result<String, String> {
+    log_info!(format!("Removing template at path: {}", template_path).as_str());
+
+    // Check if the template path exists
+    if !Path::new(template_path).exists() {
+        let error_msg = format!("Template path does not exist: {}", template_path);
+        log_error!(error_msg.as_str());
+        return Err(error_msg);
+    }
+
+    // Remove the template
+    match fs::remove_dir_all(template_path) {
+        Ok(_) => {
+            let success_msg = format!("Template '{}' removed successfully", template_path);
+            log_info!(success_msg.as_str());
+
+            // Update the template paths in the metadata state
+            let update_result = {
+                let metadata_state = state.lock().unwrap();
+                metadata_state.update_template_paths()
+            };
+
+            match update_result {
+                Ok(_) => {
+                    log_info!(success_msg.as_str());
+                    Ok(success_msg)
+                }
+                Err(err) => {
+                    let error_msg = format!("Failed to update template paths: {}", err);
+                    log_error!(error_msg.as_str());
+                    Err(error_msg)
+                }
+            }
+        }
+        Err(err) => {
+            let error_msg = format!("Failed to remove template: {}", err);
+            log_error!(error_msg.as_str());
+            Err(error_msg)
+        }
+    }
+}
+
+// helper functions
+
+async fn get_template_paths_from_state(
+    state: Arc<Mutex<MetaDataState>>,
+) -> Result<Vec<PathBuf>, ()> {
+    let meta_data_state = state.lock().unwrap();
+    let inner_meta_data = meta_data_state
+        .0
+        .lock()
+        .map_err(|_| log_error!("Cannot acquire lock on metadata state"))?;
+    Ok(inner_meta_data.template_paths.clone())
 }
 
 pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64, String> {
@@ -254,239 +489,6 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
             }
         }
     }
-}
-
-pub async fn add_template_impl(
-    state: Arc<Mutex<MetaDataState>>,
-    template_path: &str,
-) -> Result<String, String> {
-    log_info!(format!("Adding template from path: {}", template_path).as_str());
-
-    // Check if the source path exists
-    if !Path::new(template_path).exists() {
-        let error_msg = format!("Source path does not exist: {}", template_path);
-        log_error!(error_msg.as_str());
-        return Err(error_msg);
-    }
-
-    // Extract what we need from the metadata state before any await points
-    let dest_path = {
-        let metadata_state = state.lock().unwrap();
-        let inner_metadata = metadata_state.0.lock().map_err(|e| {
-            let error_msg = format!("Error acquiring lock on metadata state: {:?}", e);
-            log_error!(error_msg.as_str());
-            error_msg
-        })?;
-
-        inner_metadata.abs_folder_path_buf_for_templates.clone()
-    };
-
-    log_info!(format!("Template destination path: {}", dest_path.display()).as_str());
-
-    // Create destination directory if it doesn't exist
-    if !dest_path.exists() {
-        let error_msg = format!(
-            "Failed to find templates directory: {}",
-            dest_path.display()
-        );
-        log_error!(error_msg.as_str());
-        return Err(error_msg);
-    }
-
-    // Copy the template using our helper function
-    let size = copy_to_dest_path(template_path, dest_path.to_str().unwrap()).await?;
-
-    // Update the template paths in the metadata state
-    let update_result = {
-        let metadata_state = state.lock().unwrap();
-        metadata_state.update_template_paths()
-    };
-
-    match update_result {
-        Ok(_) => {
-            let success_msg = format!(
-                "Template '{}' added successfully ({} bytes)",
-                Path::new(template_path)
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy(),
-                size
-            );
-            log_info!(success_msg.as_str());
-            Ok(success_msg)
-        }
-        Err(err) => {
-            let error_msg = format!("Failed to update template paths: {}", err);
-            log_error!(error_msg.as_str());
-            Err(error_msg)
-        }
-    }
-}
-
-/// Adds a template to the template directory.
-///
-/// This function copies a file or directory from the provided path to the application's
-/// template directory and registers it as a template.
-///
-/// # Arguments
-/// * `state` - The application's metadata state
-/// * `template_path` - A string representing the absolute path to the file or directory to be added as a template
-///
-/// # Returns
-/// * `Ok(String)` - A success message including the name of the template and its size
-/// * `Err(String)` - An error message if the template cannot be added
-///
-/// # Example
-/// ```rust
-/// let result = add_template(state, "/path/to/my/template").await;
-/// match result {
-///     Ok(msg) => println!("{}", msg),  // Template 'template' added successfully (1024 bytes)
-///     Err(e) => eprintln!("Error adding template: {}", e),
-/// }
-/// ```
-#[tauri::command]
-pub async fn add_template(
-    state: State<'_, Arc<Mutex<MetaDataState>>>,
-    template_path: &str,
-) -> Result<String, String> {
-    log_info!(format!("add_template command called with path: {}", template_path).as_str());
-    add_template_impl(state.inner().clone(), template_path).await
-}
-
-pub async fn use_template_impl(template_path: &str, dest_path: &str) -> Result<String, String> {
-    log_info!(format!("Using template from path: {}", template_path).as_str());
-
-    // Check if the template path exists
-    if !Path::new(template_path).exists() {
-        let error_msg = format!("Template path does not exist: {}", template_path);
-        log_error!(error_msg.as_str());
-        return Err(error_msg);
-    }
-
-    // Check if the destination path exists
-    if !Path::new(dest_path).exists() {
-        let error_msg = format!("Destination path does not exist: {}", dest_path);
-        log_error!(error_msg.as_str());
-        return Err(error_msg);
-    }
-
-    // Copy the template to the destination
-    match copy_to_dest_path(template_path, dest_path).await {
-        Ok(size) => {
-            let success_msg = format!(
-                "Template '{}' applied successfully to '{}' ({} bytes copied)",
-                template_path, dest_path, size
-            );
-            log_info!(success_msg.as_str());
-            Ok(success_msg)
-        }
-        Err(err) => {
-            let error_msg = format!("Failed to apply template: {}", err);
-            log_error!(error_msg.as_str());
-            Err(error_msg)
-        }
-    }
-}
-
-/// Applies a template to the specified destination path.
-///
-/// This function copies the content of a template (file or directory) to the specified destination.
-/// The template remains unchanged, creating a new instance at the destination path.
-///
-/// # Arguments
-/// * `template_path` - A string representing the absolute path to the template
-/// * `dest_path` - A string representing the absolute path where the template should be applied
-///
-/// # Returns
-/// * `Ok(String)` - A success message with details about the template application
-/// * `Err(String)` - An error message if the template cannot be applied
-///
-/// # Example
-/// ```rust
-/// let result = use_template("/path/to/template", "/path/to/destination").await;
-/// match result {
-///     Ok(msg) => println!("{}", msg),  // Template applied successfully (1024 bytes copied)
-///     Err(e) => eprintln!("Error applying template: {}", e),
-/// }
-/// ```
-#[tauri::command]
-pub async fn use_template(template_path: &str, dest_path: &str) -> Result<String, String> {
-    log_info!(format!("use_template command called with key: {}", template_path).as_str());
-    use_template_impl(template_path, dest_path).await
-}
-
-pub async fn remove_template_impl(
-    state: Arc<Mutex<MetaDataState>>,
-    template_path: &str,
-) -> Result<String, String> {
-    log_info!(format!("Removing template at path: {}", template_path).as_str());
-
-    // Check if the template path exists
-    if !Path::new(template_path).exists() {
-        let error_msg = format!("Template path does not exist: {}", template_path);
-        log_error!(error_msg.as_str());
-        return Err(error_msg);
-    }
-
-    // Remove the template
-    match fs::remove_dir_all(template_path) {
-        Ok(_) => {
-            let success_msg = format!("Template '{}' removed successfully", template_path);
-            log_info!(success_msg.as_str());
-
-            // Update the template paths in the metadata state
-            let update_result = {
-                let metadata_state = state.lock().unwrap();
-                metadata_state.update_template_paths()
-            };
-
-            match update_result {
-                Ok(_) => {
-                    log_info!(success_msg.as_str());
-                    Ok(success_msg)
-                }
-                Err(err) => {
-                    let error_msg = format!("Failed to update template paths: {}", err);
-                    log_error!(error_msg.as_str());
-                    Err(error_msg)
-                }
-            }
-        }
-        Err(err) => {
-            let error_msg = format!("Failed to remove template: {}", err);
-            log_error!(error_msg.as_str());
-            Err(error_msg)
-        }
-    }
-}
-
-/// Removes a template from the template directory.
-///
-/// This function deletes a template (file or directory) from the application's template directory
-/// and updates the registered templates list.
-///
-/// # Arguments
-/// * `state` - The application's metadata state
-/// * `template_path` - A string representing the absolute path to the template to be removed
-///
-/// # Returns
-/// * `Ok(String)` - A success message confirming the removal of the template
-/// * `Err(String)` - An error message if the template cannot be removed
-///
-/// # Example
-/// ```rust
-/// let result = remove_template(state, "/path/to/templates/my_template").await;
-/// match result {
-///     Ok(msg) => println!("{}", msg),  // Template removed successfully
-///     Err(e) => eprintln!("Error removing template: {}", e),
-/// }
-/// ```
-#[tauri::command]
-pub async fn remove_template(
-    state: State<'_, Arc<Mutex<MetaDataState>>>,
-    template_path: &str,
-) -> Result<String, String> {
-    remove_template_impl(state.inner().clone(), template_path).await
 }
 
 #[cfg(test)]
