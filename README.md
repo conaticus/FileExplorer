@@ -93,6 +93,7 @@ cargo tauri build
 ```
 
 ## 📸 Images
+<div align="center">
 <img src="assets/screenshot_details.png" width="700px"/>
 
 <img src="assets/screenshot_overview.png" width="700px"/>
@@ -100,6 +101,7 @@ cargo tauri build
 <img src="assets/screenshot_terminal.png" width="700px"/>
 
 <img src="assets/screenshot_settings.png" width="700px"/>
+</div>
 
 ## 📄 History
 
