@@ -2,6 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use bloom::{BloomFilter, ASMS};
+
 #[cfg(test)]
 use crate::log_info;
 use crate::log_warn;
@@ -58,7 +60,7 @@ impl Default for RankingConfig {
 ///
 /// This implementation uses an Adaptive Radix Trie (ART) for prefix searching,
 /// a fuzzy matcher for approximate matching, and an LRU cache for repeated queries.
-/// 
+///
 /// # Performance Characteristics
 ///
 /// - Insertion: O(n) time complexity where n is the number of paths
@@ -92,15 +94,18 @@ pub struct AutocompleteEngine {
 
     /// Flag to signal that indexing should stop
     stop_indexing: AtomicBool,
-    
+
+    //Optimizations//
     /// Configuration for ranking results
     ranking_config: RankingConfig,
 
     /// Temporary storage to avoid reallocating per search
     results_buffer: Vec<(String, f32)>,
-    
+
     /// Fixed capacity for the buffer: ~max_results * 2
     results_capacity: usize,
+
+    bloom_filter: BloomFilter,
 }
 
 impl AutocompleteEngine {
@@ -117,6 +122,9 @@ impl AutocompleteEngine {
     /// Initialization is O(1) as actual data structures are created empty
     pub fn new(cache_size: usize, max_results: usize) -> Self {
         let cap = max_results * 2;
+        // FastBloom: expected_items = cap, false_positive_rate = 1%
+        // BloomFilter with ~1% false positive and capacity = cap
+        let bloom_filter = BloomFilter::with_rate(0.01, cap as u32);
         Self {
             cache: PathCache::with_ttl(cache_size, Duration::from_secs(300)), // 5 minute TTL
             trie: ART::new(max_results * 2),
@@ -145,6 +153,7 @@ impl AutocompleteEngine {
             ranking_config: RankingConfig::default(),
             results_buffer: Vec::with_capacity(cap),
             results_capacity: cap,
+            bloom_filter,
         }
     }
 
@@ -251,6 +260,7 @@ impl AutocompleteEngine {
         // Update all modules and clean cache
         self.trie.insert(&normalized_path, score);
         self.fuzzy_matcher.add_path(&normalized_path);
+        self.bloom_filter.insert(&normalized_path);
         self.cache.purge_expired();
     }
 
@@ -518,7 +528,7 @@ impl AutocompleteEngine {
             Vec::with_capacity(self.results_capacity),
         );
         results.clear();
-        
+
         // 3. ART prefix search
         //let current_dir_ref = self.current_directory.as_deref();
         let prefix_results = self.trie.search(
@@ -526,7 +536,7 @@ impl AutocompleteEngine {
             None, // should add current_dif_ref, but rn not very performant
             false,
         );
-        
+
         #[cfg(test)]
         {
             let prefix_duration = prefix_start.elapsed();
@@ -536,11 +546,11 @@ impl AutocompleteEngine {
                 prefix_duration
             ));
         }
-        
+
         results.extend(prefix_results);
 
         // 4. Only use fuzzy search if we don't have enough results
-        if results.len() < self.max_results.min(10) {
+        if results.len() < self.max_results.min(10) && self.bloom_filter.contains(&normalized_query) {
             #[cfg(test)]
             let fuzzy_start = Instant::now();
 
@@ -582,10 +592,10 @@ impl AutocompleteEngine {
             self.cache.insert(normalized_query.to_string().clone(), top_n);
             self.record_path_usage(&results[0].0);
         }
-
+        self.results_buffer = results.clone();
         results
     }
-    
+
     /// Ranks search results based on various relevance factors.
     ///
     /// Scoring factors include:
@@ -609,7 +619,7 @@ impl AutocompleteEngine {
             .iter()
             .map(|e| e.to_lowercase())
             .collect();
-        
+
         // Recalculate scores based on frequency, recency, and context
         for (path, score) in results.iter_mut() {
             let mut new_score = *score;
