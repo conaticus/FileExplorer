@@ -20,6 +20,13 @@
   </tr>
 </table>
 
+
+<img src="assets/screenshot_details.png" width="300px"/>
+<img src="assets/screenshot_details.png" width="300px"/>
+
+<img src="assets/screenshot_details.png" width="300px"/>
+<img src="assets/screenshot_details.png" width="300px"/>
+
 </div>
 
 ## 🔍 Current Status
