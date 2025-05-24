@@ -1,5 +1,7 @@
 # Tauri Command Execution Documentation
 
+Error Structure as json can be found [here](./error_structure.md).
+
 ## Content
 - [Execute Command](#execute_command-endpoint)
 
@@ -11,7 +13,17 @@
 
 ## Returns
 - Ok(String) - The combined stdout and stderr output from the command as a string.
-- Err(String) - An error message if the command cannot be executed or other errors occur.
+- Err(String) - An error message if the command cannot be executed or other errors occur. 
+
+## JSON Example Response
+```json
+{
+    "stdout":"hello world\n",
+    "stderr":"",
+    "status":0,
+    "exec_time_in_ms":3
+}
+```
 
 ## Description
 Executes a shell command and returns its output. The command string is split into a program name and arguments. Both stdout and stderr are captured and combined in the response. If the command fails (non-zero exit status), the exit status is appended to the output.

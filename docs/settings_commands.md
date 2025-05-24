@@ -1,5 +1,7 @@
 # Tauri Settings Commands Documentation
 
+Error Structure as json can be found [here](./error_structure.md).
+
 ## Content
 - [Get All Settings](#get_settings_as_json-endpoint)
 - [Get a Specific Setting](#get_setting_field-endpoint)

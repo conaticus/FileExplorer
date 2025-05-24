@@ -1,5 +1,7 @@
 # Tauri Search Engine Commands Documentation
 
+Error Structure as json can be found [here](./error_structure.md).
+
 ## Content
 - [Search for Files](#search-endpoint)
 - [Search with Extension](#search_with_extension-endpoint)

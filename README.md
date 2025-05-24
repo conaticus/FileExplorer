@@ -8,7 +8,8 @@
 
 **A fast file explorer built with Rust and Tauri**
 
-<img src="./resources/screenshot-explorer.png" alt="Fast Search Feature" width="700px"/>
+<img src="assets/screenshot_ThisPC.png" alt="Fast Search Feature" width="1000px"/>
+
 
 </div>
 
@@ -90,6 +91,17 @@ cargo tauri dev
 # Build for production
 cargo tauri build
 ```
+
+## 📸 Images
+<div align="center">
+<img src="assets/screenshot_details.png" width="700px"/>
+
+<img src="assets/screenshot_overview.png" width="700px"/>
+
+<img src="assets/screenshot_terminal.png" width="700px"/>
+
+<img src="assets/screenshot_settings.png" width="700px"/>
+</div>
 
 ## 📄 History
 
