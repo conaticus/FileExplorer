@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -9,7 +9,62 @@ use crate::search_engine::art_v4::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
 use crate::search_engine::path_cache_wrapper::PathCache;
 
+#[derive(Clone, Debug)]
+pub struct RankingConfig {
+    /// Weight per usage count (frequency boost multiplier)
+    pub frequency_weight: f32,
+    /// Maximum cap for frequency boost
+    pub max_frequency_boost: f32,
+    /// Base weight for recency boost
+    pub recency_weight: f32,
+    /// Decay rate for recency (per second)
+    pub recency_lambda: f32,
+    /// Boost when path is in the exact current directory
+    pub context_same_dir_boost: f32,
+    /// Boost when path is in the parent of the current directory
+    pub context_parent_dir_boost: f32,
+    /// Multiplier for extension-based boost
+    pub extension_boost: f32,
+    /// Additional boost if query contains the extension
+    pub extension_query_boost: f32,
+    /// Boost for exact filename matches
+    pub exact_match_boost: f32,
+    /// Boost for filename prefix matches
+    pub prefix_match_boost: f32,
+    /// Boost for filename contains matches
+    pub contains_match_boost: f32,
+}
+
+impl Default for RankingConfig {
+    fn default() -> Self {
+        Self {
+            frequency_weight: 0.05,
+            max_frequency_boost: 0.5,
+            recency_weight: 1.5,
+            recency_lambda: 1.0 / 86400.0,
+            context_same_dir_boost: 0.4,
+            context_parent_dir_boost: 0.2,
+            extension_boost: 2.0,
+            extension_query_boost: 0.25,
+            exact_match_boost: 1.0,
+            prefix_match_boost: 0.3,
+            contains_match_boost: 0.1,
+        }
+    }
+}
+
 /// Autocomplete engine that combines caching, prefix search, and fuzzy search
+/// for high-performance path completion with contextual relevance.
+///
+/// This implementation uses an Adaptive Radix Trie (ART) for prefix searching,
+/// a fuzzy matcher for approximate matching, and an LRU cache for repeated queries.
+/// 
+/// # Performance Characteristics
+///
+/// - Insertion: O(n) time complexity where n is the number of paths
+/// - Search: O(m + log n) empircal time complexity where m is query length
+/// - Typical search latency: ~1ms across datasets of up to 170,000 paths
+/// - Cache speedup: 3×-7× for repeated queries
 pub struct AutocompleteEngine {
     /// Cache for storing recent search results
     cache: PathCache,
@@ -37,11 +92,31 @@ pub struct AutocompleteEngine {
 
     /// Flag to signal that indexing should stop
     stop_indexing: AtomicBool,
+    
+    /// Configuration for ranking results
+    ranking_config: RankingConfig,
+
+    /// Temporary storage to avoid reallocating per search
+    results_buffer: Vec<(String, f32)>,
+    
+    /// Fixed capacity for the buffer: ~max_results * 2
+    results_capacity: usize,
 }
 
 impl AutocompleteEngine {
-    /// Create a new AutocompleteEngine with specified cache size and max results
+    /// Creates a new AutocompleteEngine with specified cache size and max results.
+    ///
+    /// # Arguments
+    /// * `cache_size` - The maximum number of query results to cache
+    /// * `max_results` - The maximum number of results to return per search
+    ///
+    /// # Returns
+    /// A new AutocompleteEngine instance with default settings
+    ///
+    /// # Performance
+    /// Initialization is O(1) as actual data structures are created empty
     pub fn new(cache_size: usize, max_results: usize) -> Self {
+        let cap = max_results * 2;
         Self {
             cache: PathCache::with_ttl(cache_size, Duration::from_secs(300)), // 5 minute TTL
             trie: ART::new(max_results * 2),
@@ -67,62 +142,103 @@ impl AutocompleteEngine {
                 "mp3".to_string(),
             ],
             stop_indexing: AtomicBool::new(false),
+            ranking_config: RankingConfig::default(),
+            results_buffer: Vec::with_capacity(cap),
+            results_capacity: cap,
         }
     }
 
-    /// Normalize paths with special handling for spaces and backslashes
+    /// Normalizes paths with special handling for whitespace and path separators.
+    ///
+    /// This function standardizes paths by:
+    /// 1. Removing leading Unicode whitespace
+    /// 2. Converting backslashes to forward slashes
+    /// 3. Removing duplicate slashes
+    /// 4. Preserving trailing slash only for root paths ('/')
+    /// 5. Efficiently handling path separators for cross-platform compatibility
+    ///
+    /// # Arguments
+    /// * `path` - The path string to normalize
+    ///
+    /// # Returns
+    /// A normalized version of the path string
+    ///
+    /// # Performance
+    /// O(m) where m is the length of the path
     fn normalize_path(&self, path: &str) -> String {
-        // Skip normalization for empty paths
-        if path.is_empty() {
-            return String::new();
-        }
+        let mut result = String::with_capacity(path.len());
+        let mut saw_slash = false;
+        let mut started = false;
 
-        // Step 1: Handle escaped spaces
-        // Replace backslash-space sequences with just spaces
-        let space_fixed = path.replace("\\ ", " ");
+        let mut chars = path.chars().peekable();
 
-        // Step 2: Handle platform-specific separators
-        let slash_fixed = space_fixed.replace('\\', "/");
-
-        // Step 3: Fix doubled slashes
-        let mut normalized = slash_fixed;
-        while normalized.contains("//") {
-            normalized = normalized.replace("//", "/");
-        }
-
-        // Step 4: Handle trailing slashes appropriately
-        let trimmed = if normalized == "/" {
-            "/".to_string()
-        } else {
-            normalized.trim_end_matches('/').to_string()
-        };
-
-        // Step 5: Clean up any remaining spaces that look like they should be separators
-        // This handles cases where spaces were intended to be path separators
-        if trimmed.contains(' ') {
-            // Check if these are likely meant to be separators by looking at the pattern
-            // e.g., "./test-data-for-fuzzy-search ambulance blueberry lime" from tests
-            let components: Vec<&str> = trimmed.split(' ').collect();
-
-            // If the first component contains a slash and subsequent components don't,
-            // they're likely meant to be separate path components
-            if components.len() > 1
-                && components[0].contains('/')
-                && !components.iter().skip(1).any(|&c| c.contains('/'))
-            {
-                return components.join("/");
+        // Skip leading whitespace (including Unicode whitespace)
+        while let Some(&c) = chars.peek() {
+            if c.is_whitespace() {
+                chars.next();
+            } else {
+                break;
             }
         }
 
-        trimmed
+        if let Some(&first) = chars.peek() {
+            if first == '/' || first == '\\' {
+                result.push('/');
+                saw_slash = true;
+                started = true;
+                chars.next();
+            }
+        }
+
+        for c in chars {
+            match c {
+                '/' | '\\' => {
+                    if !saw_slash && started {
+                        result.push('/');
+                        saw_slash = true;
+                    }
+                }
+                _ => {
+                    result.push(c);
+                    saw_slash = false;
+                    started = true;
+                }
+            }
+        }
+
+        // Remove trailing slash (unless result is exactly "/")
+        let len = result.len();
+        if len > 1 && result.ends_with('/') {
+            result.truncate(len - 1);
+        }
+
+        result
     }
 
-    /// for ranking
+    /// Sets the current directory context for improved search result ranking.
+    ///
+    /// When set, search results in or near this directory receive ranking boosts.
+    ///
+    /// # Arguments
+    /// * `directory` - Optional directory path to use as context
+    ///
+    /// # Performance
+    /// O(1) - Simple assignment operation
     pub fn set_current_directory(&mut self, directory: Option<String>) {
         self.current_directory = directory;
     }
 
-    /// Add or update a path (normalized!) in the search engines
+    /// Adds or updates a path in the search engines.
+    ///
+    /// This normalizes the path and adds it to both the trie and fuzzy matcher.
+    /// Paths used more frequently receive a score boost.
+    ///
+    /// # Arguments
+    /// * `path` - The path to add to the search engines
+    ///
+    /// # Performance
+    /// - Average case: O(m) where m is the length of the path
+    /// - Paths are added with ~300 paths/ms throughput
     pub fn add_path(&mut self, path: &str) {
         let normalized_path = self.normalize_path(path);
         let mut score = 1.0;
@@ -138,21 +254,51 @@ impl AutocompleteEngine {
         self.cache.purge_expired();
     }
 
-    /// Signal the engine to stop indexing
+    /// Signals the engine to stop any ongoing indexing operation.
+    ///
+    /// Used to safely interrupt long-running recursive indexing operations.
+    ///
+    /// # Performance
+    /// O(1) - Simple atomic flag operation
     pub fn stop_indexing(&mut self) {
         self.stop_indexing.store(true, Ordering::SeqCst);
     }
 
-    /// Reset the stop indexing flag
+    /// Resets the stop indexing flag.
+    ///
+    /// Called at the beginning of new indexing operations.
+    ///
+    /// # Performance
+    /// O(1) - Simple atomic flag operation
     pub fn reset_stop_flag(&mut self) {
         self.stop_indexing.store(false, Ordering::SeqCst);
     }
 
-    /// Check if indexing should stop
+    /// Checks if indexing should stop.
+    ///
+    /// Used during recursive operations to check if they should terminate early.
+    ///
+    /// # Returns
+    /// `true` if indexing should stop, `false` otherwise
+    ///
+    /// # Performance
+    /// O(1) - Simple atomic flag read operation
     pub fn should_stop_indexing(&self) -> bool {
         self.stop_indexing.load(Ordering::SeqCst)
     }
 
+    /// Recursively adds a path and all its subdirectories and files to the index.
+    ///
+    /// This method walks the directory tree starting at the given path,
+    /// adding each file and directory encountered. The operation can be
+    /// interrupted by calling `stop_indexing()`.
+    ///
+    /// # Arguments
+    /// * `path` - The root path to start indexing from
+    ///
+    /// # Performance
+    /// - O(n) where n is the number of files and directories under the path
+    /// - Scales linearly with ~300 paths/ms throughput for large directories
     pub fn add_paths_recursive(&mut self, path: &str) {
         // Reset stop flag at the beginning of a new indexing operation
         self.reset_stop_flag();
@@ -201,7 +347,16 @@ impl AutocompleteEngine {
         }
     }
 
-    /// Remove a path (normalized!) from the search engines
+    /// Removes a path from the search engines.
+    ///
+    /// This normalizes the path and removes it from both the trie and fuzzy matcher.
+    /// Also clears any cached results that might contain this path.
+    ///
+    /// # Arguments
+    /// * `path` - The path to remove from the search engines
+    ///
+    /// # Performance
+    /// O(m) where m is the length of the path, plus cache invalidation cost
     pub fn remove_path(&mut self, path: &str) {
         let normalized_path = self.normalize_path(path);
         // Remove from modules
@@ -216,6 +371,16 @@ impl AutocompleteEngine {
         self.recency_map.remove(&normalized_path);
     }
 
+    /// Recursively removes a path and all its subdirectories and files from the index.
+    ///
+    /// This method walks the directory tree starting at the given path,
+    /// removing each file and directory encountered.
+    ///
+    /// # Arguments
+    /// * `path` - The root path to remove from the index
+    ///
+    /// # Performance
+    /// O(n) where n is the number of files and directories under the path
     pub fn remove_paths_recursive(&mut self, path: &str) {
         // Remove the path itself first
         self.remove_path(path);
@@ -260,7 +425,15 @@ impl AutocompleteEngine {
         self.cache.purge_expired();
     }
 
-    /// Track that a path was used (for frequency/recency scoring)
+    /// Records that a path was used, updating frequency and recency data for ranking.
+    ///
+    /// This improves future search results by boosting frequently and recently used paths.
+    ///
+    /// # Arguments
+    /// * `path` - The path that was used
+    ///
+    /// # Performance
+    /// O(1) - Simple HashMap operations
     pub fn record_path_usage(&mut self, path: &str) {
         // Update frequency count
         let count = self.frequency_map.entry(path.to_string()).or_insert(0);
@@ -270,19 +443,53 @@ impl AutocompleteEngine {
         self.recency_map.insert(path.to_string(), Instant::now());
     }
 
-    /// Set preferred file extensions for ranking
+    /// Sets the list of preferred file extensions for ranking.
+    ///
+    /// Files with these extensions will receive higher ranking in search results.
+    /// Extensions earlier in the list receive stronger boosts.
+    ///
+    /// # Arguments
+    /// * `extensions` - Vector of file extensions (without the dot)
+    ///
+    /// # Performance
+    /// O(1) plus cache invalidation cost
     pub fn set_preferred_extensions(&mut self, extensions: Vec<String>) {
         self.preferred_extensions = extensions;
         // Clear the cache to ensure results reflect the new preferences (previous bug)
         self.cache.clear();
     }
 
-    /// Get the currently set preferred extensions
+    /// Gets the currently set preferred file extensions.
+    ///
+    /// # Returns
+    /// Reference to the vector of preferred extensions
+    ///
+    /// # Performance
+    /// O(1) - Simple reference return
     pub fn get_preferred_extensions(&self) -> &Vec<String> {
         &self.preferred_extensions
     }
 
-    /// Search for path completions using the engine's combined strategy
+    /// Searches for path completions using the engine's combined strategy.
+    ///
+    /// This function combines several techniques for optimal results:
+    /// 1. First checks the LRU cache for recent identical queries
+    /// 2. Performs a trie-based prefix search
+    /// 3. Falls back to fuzzy matching if needed
+    /// 4. Ranks results based on multiple relevance factors
+    /// 5. Caches results for future queries
+    ///
+    /// # Arguments
+    /// * `query` - The search string to find completions for
+    ///
+    /// # Returns
+    /// A vector of (path, score) pairs sorted by relevance score
+    ///
+    /// # Performance
+    /// - Cache hits: O(1) retrieval time
+    /// - Cache misses: O(m + log n) where m is query length and n is index size
+    /// - Typical latency: ~1ms for datasets of up to 170,000 paths
+    /// - Cache provides 3×-7× speedup for repeated queries
     #[inline]
     pub fn search(&mut self, query: &str) -> Vec<(String, f32)> {
         if query.is_empty() {
@@ -304,27 +511,36 @@ impl AutocompleteEngine {
         #[cfg(test)]
         let prefix_start = Instant::now();
 
-        // 2. ART prefix search
+        // 2. Reuse buffer for results
+        // Swap out old buffer and replace with fresh-capacity Vec
+        let mut results = std::mem::replace(
+            &mut self.results_buffer,
+            Vec::with_capacity(self.results_capacity),
+        );
+        results.clear();
+        
+        // 3. ART prefix search
         //let current_dir_ref = self.current_directory.as_deref();
         let prefix_results = self.trie.search(
             &normalized_query,
             None, // should add current_dif_ref, but rn not very performant
             false,
         );
-
+        
         #[cfg(test)]
         {
             let prefix_duration = prefix_start.elapsed();
             log_info!(&format!(
                 "prefix search found {} results in {:?}",
-                prefix_results.len(),
+                &prefix_results.len(),
                 prefix_duration
             ));
         }
+        
+        results.extend(prefix_results);
 
-        // 3. Only use fuzzy search if we don't have enough results
-        let mut results = prefix_results;
-        if results.len() < self.max_results {
+        // 4. Only use fuzzy search if we don't have enough results
+        if results.len() < self.max_results.min(10) {
             #[cfg(test)]
             let fuzzy_start = Instant::now();
 
@@ -336,19 +552,16 @@ impl AutocompleteEngine {
                 let fuzzy_duration = fuzzy_start.elapsed();
                 log_info!(&format!(
                     "Fuzzy search found {} results in {:?}",
-                    fuzzy_results.len(),
+                    &fuzzy_results.len(),
                     fuzzy_duration
                 ));
             }
 
-            // Combine results, avoiding duplicates
-            if !fuzzy_results.is_empty() {
-                let prefix_paths: Vec<String> =
-                    results.iter().map(|(path, _)| path.clone()).collect();
-                for (path, score) in fuzzy_results {
-                    if !prefix_paths.contains(&path) {
-                        results.push((path, score));
-                    }
+            let mut seen: HashSet<String> = results.iter().map(|(p, _)| p.clone()).collect();
+            for (p, s) in fuzzy_results {
+                if !seen.contains(&p) {
+                    seen.insert(p.clone());
+                    results.push((p, s));
                 }
             }
         }
@@ -361,100 +574,99 @@ impl AutocompleteEngine {
                 results.truncate(self.max_results);
             }
 
-            // 6. Cache top results for future queries (up to 5 or whatever is available)
-            let top_results: Vec<(String, f32)> = results
-                .iter()
-                .take(5.min(results.len()))
-                .map(|(path, score)| (path.clone(), *score))
-                .collect();
-
-            // Store in cache
-            let query_key = normalized_query.to_string();
-            self.cache.insert(query_key, top_results);
-
-            // Also record usage of the top result
+            // Reserve capacity for cache top N
+            let mut top_n = Vec::with_capacity(results.len().min(5));
+            for (p, s) in results.iter().take(5) {
+                top_n.push((p.clone(), *s));
+            }
+            self.cache.insert(normalized_query.to_string().clone(), top_n);
             self.record_path_usage(&results[0].0);
         }
 
         results
     }
-
-    /// Rank search results based on various relevance factors
+    
+    /// Ranks search results based on various relevance factors.
+    ///
+    /// Scoring factors include:
+    /// 1. Frequency of path usage
+    /// 2. Recency of path usage
+    /// 3. Current directory context
+    /// 4. Preferred file extensions
+    /// 5. Exact filename matches
+    ///
+    /// # Arguments
+    /// * `results` - Mutable reference to vector of (path, score) pairs to rank
+    /// * `query` - The original search query for context
+    ///
+    /// # Performance
+    /// O(k log k) where k is the number of results to rank
     fn rank_results(&self, results: &mut Vec<(String, f32)>, query: &str) {
+        // Precompute lowercase query once
+        let q_lc = query.to_lowercase();
+        // Precompute lowercase preferred extensions
+        let pref_exts_lc: Vec<String> = self.preferred_extensions
+            .iter()
+            .map(|e| e.to_lowercase())
+            .collect();
+        
         // Recalculate scores based on frequency, recency, and context
         for (path, score) in results.iter_mut() {
             let mut new_score = *score;
 
             // 1. Boost for frequency
             if let Some(frequency) = self.frequency_map.get(path) {
+                let boost = (*frequency as f32) * self.ranking_config.frequency_weight;
                 // More frequently used paths get a boost
-                new_score += ((*frequency as f32) * 0.05).min(0.5);
+                new_score += boost.min(self.ranking_config.max_frequency_boost);
             }
 
             // 2. Boost for recency
             if let Some(timestamp) = self.recency_map.get(path) {
-                let age = timestamp.elapsed();
-                // More recently used paths get a boost
-                // Using a day (86400 seconds) as the time span for gradual decay
-                let recency_boost = 1.5 * (1.0 - (age.as_secs_f32() / 86400.0).min(1.0));
-                new_score += recency_boost;
+                let age = timestamp.elapsed().as_secs_f32();
+                let rec_boost_approx = self.ranking_config.recency_weight / (1.0 + age * self.ranking_config.recency_lambda);
+                new_score += rec_boost_approx;
             }
 
             // 3. Boost for current directory context
             if let Some(current_dir) = &self.current_directory {
                 if path.starts_with(current_dir) {
                     // Paths in the current directory get a significant boost
-                    new_score += 0.4;
+                    new_score += self.ranking_config.context_same_dir_boost;
                 } else if let Some(parent_dir) = std::path::Path::new(current_dir).parent() {
                     if let Some(parent_str) = parent_dir.to_str() {
                         if path.starts_with(parent_str) {
                             // Paths in the parent directory get a smaller boost
-                            new_score += 0.2;
+                            new_score += self.ranking_config.context_parent_dir_boost;
                         }
                     }
                 }
             }
 
             // 4. Boost for preferred file extensions
-            if let Some(extension) = std::path::Path::new(path)
+            if let Some(ext) = std::path::Path::new(path)
                 .extension()
                 .and_then(|e| e.to_str())
             {
-                let ext = extension.to_lowercase();
-
-                // Check if it's in preferred extensions list
-                if let Some(position) = self
-                    .preferred_extensions
-                    .iter()
-                    .position(|e| e.to_lowercase() == ext)
-                {
-                    // Give higher boost to extensions that appear earlier in the list
-                    let position_factor =
-                        1.0 - (position as f32 / self.preferred_extensions.len().max(1) as f32);
-                    // Stronger boost (up to 2.0 for first extension)
-                    new_score += 2.0 * position_factor;
+                let ext_lc = ext.to_lowercase();
+                if let Some(pos) = pref_exts_lc.iter().position(|e| e == &ext_lc) {
+                    let position_factor = 1.0 - (pos as f32 / pref_exts_lc.len() as f32);
+                    new_score += self.ranking_config.extension_boost * position_factor;
                 }
-
-                // Extra boost if the query contains the extension
-                if query.to_lowercase().contains(&ext) {
-                    new_score += 0.25;
+                if q_lc.contains(&ext_lc) {
+                    new_score += self.ranking_config.extension_query_boost;
                 }
             }
 
             // 5. Boost for exact filename matches
-            if let Some(filename) = std::path::Path::new(path)
-                .file_name()
-                .and_then(|n| n.to_str())
-            {
-                if filename.to_lowercase() == query.to_lowercase() {
-                    // Exact filename matches get a large boost
-                    new_score += 1.0;
-                } else if filename.to_lowercase().starts_with(&query.to_lowercase()) {
-                    // Filename prefix matches get a medium boost
-                    new_score += 0.3;
-                } else if filename.to_lowercase().contains(&query.to_lowercase()) {
-                    // Filename contains matches get a small boost
-                    new_score += 0.1;
+            if let Some(name) = std::path::Path::new(path).file_name().and_then(|n| n.to_str()) {
+                let f_lc = name.to_lowercase();
+                if f_lc == q_lc {
+                    new_score += self.ranking_config.exact_match_boost;
+                } else if f_lc.starts_with(&q_lc) {
+                    new_score += self.ranking_config.prefix_match_boost;
+                } else if f_lc.contains(&q_lc) {
+                    new_score += self.ranking_config.contains_match_boost;
                 }
             }
             // Normalize score to be between 0 and 1 with sigmoid function
@@ -467,7 +679,12 @@ impl AutocompleteEngine {
         results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     }
 
-    /// Clear all data and caches
+    /// Clears all data and caches in the engine.
+    ///
+    /// This removes all indexed paths, cached results, frequency and recency data.
+    ///
+    /// # Performance
+    /// O(1) - Constant time as it simply replaces internal data structures
     pub fn clear(&mut self) {
         self.trie.clear();
         self.cache.clear();
@@ -477,7 +694,13 @@ impl AutocompleteEngine {
         self.fuzzy_matcher = PathMatcher::new();
     }
 
-    /// Get statistics about the engine
+    /// Returns statistics about the engine's internal state.
+    ///
+    /// # Returns
+    /// An `EngineStats` struct containing size information
+    ///
+    /// # Performance
+    /// O(1) - Simple field access operations
     pub fn get_stats(&self) -> EngineStats {
         EngineStats {
             cache_size: self.cache.len(),
@@ -486,9 +709,14 @@ impl AutocompleteEngine {
     }
 }
 
-/// Statistics about the autocomplete engine
+/// Statistics about the autocomplete engine's internal state.
+///
+/// This struct provides visibility into the current memory usage
+/// and index sizes of the engine.
 pub struct EngineStats {
+    /// Number of queries currently in the cache
     pub cache_size: usize,
+    /// Number of paths in the trie index
     pub trie_size: usize,
 }
 

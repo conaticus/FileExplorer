@@ -8,6 +8,12 @@ thread_local! {
     static RECENT_QUERY: RefCell<Option<(String, PathData)>> = RefCell::new(None);
 }
 
+/// A thread-safe path cache implementation with two-level caching:
+/// 1. Thread-local cache for the most recent query
+/// 2. Shared LRU cache for all queries across threads
+///
+/// The two-level design minimizes contention when the same query is accessed
+/// repeatedly by the same thread.
 pub struct PathCache {
     inner: Arc<Mutex<LruPathCache<String, PathData>>>,
 }
@@ -23,6 +29,26 @@ pub struct PathData {
 }
 
 impl PathCache {
+    /// Creates a new path cache with the specified capacity.
+    /// Available only in test configurations.
+    ///
+    /// # Time Complexity
+    ///
+    /// - O(1) - Constant time operation
+    ///
+    /// # Arguments
+    ///
+    /// * `capacity` - The maximum number of entries the cache can hold
+    ///
+    /// # Returns
+    ///
+    /// A new `PathCache` instance with the specified capacity
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let mut cache = PathCache::new(100);
+    /// ```
     #[cfg(test)]
     #[inline]
     pub fn new(capacity: usize) -> Self {
@@ -31,6 +57,31 @@ impl PathCache {
         }
     }
 
+    /// Creates a new path cache with the specified capacity and time-to-live duration.
+    ///
+    /// # Time Complexity
+    ///
+    /// - O(1) - Constant time operation
+    ///
+    /// # Arguments
+    ///
+    /// * `capacity` - The maximum number of entries the cache can hold
+    /// * `ttl` - The time-to-live duration after which entries are considered expired
+    ///
+    /// # Returns
+    ///
+    /// A new `PathCache` instance with the specified capacity and TTL
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use std::time::Duration;
+    /// 
+    /// let mut cache = PathCache::with_ttl(
+    ///     100, 
+    ///     Duration::from_secs(30)
+    /// );
+    /// ```
     #[inline]
     pub fn with_ttl(capacity: usize, ttl: Duration) -> Self {
         Self {
@@ -38,6 +89,37 @@ impl PathCache {
         }
     }
 
+    /// Retrieves path data from the cache by its path key.
+    /// 
+    /// This method first checks the thread-local cache to avoid lock contention,
+    /// then falls back to the shared LRU cache if needed. If found, the entry is
+    /// moved to the front of the LRU list (marking it as most recently used).
+    ///
+    /// # Time Complexity
+    ///
+    /// - Best case: O(1) - Constant time thread-local lookup
+    /// - Average case: O(1) - Constant time hash lookup + linked list update when lock acquired
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path key to look up in the cache
+    ///
+    /// # Returns
+    ///
+    /// * `Some(PathData)` - The path data associated with the key if it exists and is not expired
+    /// * `None` - If the key does not exist or the entry has expired
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let mut cache = PathCache::new(100);
+    /// cache.insert("file.txt".to_string(), vec![("file.txt".to_string(), 1.0)]);
+    /// 
+    /// match cache.get("file.txt") {
+    ///     Some(data) => println!("Found {} results", data.results.len()),
+    ///     None => println!("No cached results found"),
+    /// }
+    /// ```
     #[inline]
     pub fn get(&mut self, path: &str) -> Option<PathData> {
         // Check thread-local cache first
@@ -85,6 +167,33 @@ impl PathCache {
         None
     }
 
+    /// Inserts path data into the cache using the given query as the key.
+    /// 
+    /// The data is stored both in the thread-local cache and the shared LRU cache.
+    /// If the shared cache is at capacity, the least recently used entry will be evicted.
+    ///
+    /// # Time Complexity
+    ///
+    /// - Best case: O(1) - Constant time thread-local update
+    /// - Average case: O(1) - Constant time hash insertion + linked list update when lock acquired
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - The path query to use as the key
+    /// * `results` - The search results to cache (path strings and their relevance scores)
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let mut cache = PathCache::new(100);
+    /// 
+    /// // Cache search results
+    /// let results = vec![
+    ///     ("C:/path/to/file.txt".to_string(), 0.95),
+    ///     ("C:/path/to/other.txt".to_string(), 0.85)
+    /// ];
+    /// cache.insert("file.txt".to_string(), results);
+    /// ```
     #[inline]
     pub fn insert(&mut self, query: String, results: Vec<(String, f32)>) {
         let data = PathData { results };
@@ -100,6 +209,22 @@ impl PathCache {
         }
     }
 
+    /// Returns the number of entries currently in the shared cache.
+    ///
+    /// # Time Complexity
+    ///
+    /// - O(1) - Constant time operation, but requires lock acquisition
+    ///
+    /// # Returns
+    ///
+    /// The number of entries in the cache, or 0 if the lock couldn't be acquired
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let cache = PathCache::new(100);
+    /// println!("Cache contains {} entries", cache.len());
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         if let Ok(cache) = self.inner.lock() {
@@ -109,6 +234,26 @@ impl PathCache {
         }
     }
 
+    /// Checks if the shared cache is empty.
+    /// Available only in test configurations.
+    ///
+    /// # Time Complexity
+    ///
+    /// - O(1) - Constant time operation, but requires lock acquisition
+    ///
+    /// # Returns
+    ///
+    /// * `true` - If the cache contains no entries or the lock couldn't be acquired
+    /// * `false` - If the cache contains at least one entry
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let cache = PathCache::new(100);
+    /// if cache.is_empty() {
+    ///     println!("Cache is empty");
+    /// }
+    /// ```
     #[cfg(test)]
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -119,6 +264,24 @@ impl PathCache {
         }
     }
 
+    /// Removes all entries from both the thread-local and shared caches.
+    ///
+    /// # Time Complexity
+    ///
+    /// - O(1) - For clearing thread-local cache
+    /// - O(n) - For clearing the shared cache, where n is the number of entries
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let mut cache = PathCache::new(100);
+    /// // Add some entries
+    /// cache.insert("file.txt".to_string(), vec![("path/to/file.txt".to_string(), 1.0)]);
+    /// 
+    /// // Clear all entries
+    /// cache.clear();
+    /// assert_eq!(cache.len(), 0);
+    /// ```
     #[inline]
     pub fn clear(&mut self) {
         // Clear thread-local cache
@@ -131,6 +294,33 @@ impl PathCache {
         }
     }
 
+    /// Removes all expired entries from the shared cache.
+    /// Also clears the thread-local cache to ensure consistency.
+    ///
+    /// # Time Complexity
+    ///
+    /// - O(n) - Linear in the number of elements in the cache
+    ///
+    /// # Returns
+    ///
+    /// The number of expired entries that were removed, or 0 if the lock couldn't be acquired
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use std::time::Duration;
+    /// use std::thread::sleep;
+    /// 
+    /// let mut cache = PathCache::with_ttl(100, Duration::from_secs(5));
+    /// cache.insert("file.txt".to_string(), vec![("path/to/file.txt".to_string(), 1.0)]);
+    /// 
+    /// // Wait for entries to expire
+    /// sleep(Duration::from_secs(6));
+    /// 
+    /// // Purge expired entries
+    /// let purged = cache.purge_expired();
+    /// println!("Purged {} expired entries", purged);
+    /// ```
     #[inline]
     pub fn purge_expired(&mut self) -> usize {
         // Clear thread-local cache as it might have expired
@@ -354,6 +544,38 @@ mod tests_path_cache {
 
             log_info!(&format!(
                 "Path cache size {}: 1000 lookups took {:?} (avg: {:.2} ns/lookup)",
+                size,
+                elapsed,
+                elapsed.as_nanos() as f64 / 1000.0
+            ));
+        }
+    }
+
+    #[test]
+    fn benchmark_cache_size_impact_path_cache() {
+        log_info!("Benchmarking impact of cache size on retrieval performance");
+
+        let sizes = [100, 1000, 10000, 100000];
+
+        for &size in &sizes {
+            let mut cache = PathCache::new(size);
+
+            // Fill the cache to capacity
+            for i in 0..size {
+                let path = format!("/path/to/file_{}", i);
+                cache.insert(path.clone(), vec![(path.clone(), format!("metadata_{}", i).parse::<f32>().unwrap_or(1.0))]);
+            }
+
+            // Measure retrieval time (mixed hits and misses)
+            let start = Instant::now();
+            for i in size / 2..(size / 2 + 1000).min(size + 500) {
+                let path = format!("/path/to/file_{}", i);
+                let _ = cache.get(&path);
+            }
+            let elapsed = start.elapsed();
+
+            log_info!(&format!(
+                "Cache size {}: 1000 lookups took {:?} (avg: {:.2} ns/lookup)",
                 size,
                 elapsed,
                 elapsed.as_nanos() as f64 / 1000.0
