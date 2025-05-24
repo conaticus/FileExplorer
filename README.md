@@ -8,24 +8,15 @@
 
 **A fast file explorer built with Rust and Tauri**
 
-<img src="assets/screenshot_overview.png" alt="Fast Search Feature" width="700px"/>
-<table style="border: none;">
-  <tr>
-    <td style="border: none;"><img src="assets/screenshot_details.png" width="300px"/></td>
-    <td style="border: none;"><img src="assets/screenshot_settings.png" width="300px"/></td>
-  </tr>
-  <tr>
-    <td style="border: none;"><img src="assets/screenshot_terminal.png" width="300px"/></td>
-    <td style="border: none;"><img src="assets/screenshot_ThisPC.png" width="300px"/></td>
-  </tr>
-</table>
+<img src="assets/screenshot_overview.png" alt="Fast Search Feature" width="1000px"/>
 
+<img src="assets/screenshot_details.png" width="700px"/>
 
-<img src="assets/screenshot_details.png" width="300px"/>
-<img src="assets/screenshot_details.png" width="300px"/>
+<img src="assets/screenshot_details.png" width="700px"/>
 
-<img src="assets/screenshot_details.png" width="300px"/>
-<img src="assets/screenshot_details.png" width="300px"/>
+<img src="assets/screenshot_details.png" width="700px"/>
+
+<img src="assets/screenshot_details.png" width="700px"/>
 
 </div>
 
