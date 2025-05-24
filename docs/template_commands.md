@@ -1,5 +1,7 @@
 # Tauri Template Commands Documentation
 
+Error Structure as json can be found [here](./error_structure.md).
+
 ## Content
 - [Get Template Paths as JSON](#get_template_paths_as_json-endpoint)
 - [Add Template](#add_template-endpoint)

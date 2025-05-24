@@ -1,5 +1,7 @@
 # Rules and guide for writing tests
 
+Error Structure as json can be found [here](./error_structure.md).
+
 Tests should be written for every function.
 Every Test should be in a ``mod test`` block with ``#[cfg(test)]`` -> This ensures that the tests
 are only build when the ``cargo test`` command is executed in the ``src-tauri`` folder

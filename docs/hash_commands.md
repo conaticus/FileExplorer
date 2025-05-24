@@ -1,5 +1,7 @@
 # Tauri Hash Commands Documentation
 
+Error Structure as json can be found [here](./error_structure.md).
+
 ## Content
 - [Generate Hash and Return String](#gen_hash_and_return_string-endpoint)
 - [Generate Hash and Save to File](#gen_hash_and_save_to_file-endpoint)

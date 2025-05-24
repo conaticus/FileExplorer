@@ -1,5 +1,7 @@
 # Tauri Filesystem Commands Documentation
 
+Error Structure as json can be found [here](./error_structure.md).
+
 ## Content
 
 - [Open a File](#open_file-endpoint)
@@ -11,7 +13,7 @@
 - [Zip a Dir or File](#zip-endpoint)
 - [Unzip a Dir or File](#unzip-endpoint)
 
-# `open_file` endpoint KURRENTLY NOT ACTIVE
+# `open_file` endpoint CURRENTLY NOT ACTIVE
 
 ---
 

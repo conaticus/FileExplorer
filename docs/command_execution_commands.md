@@ -1,5 +1,7 @@
 # Tauri Command Execution Documentation
 
+Error Structure as json can be found [here](./error_structure.md).
+
 ## Content
 - [Execute Command](#execute_command-endpoint)
 
