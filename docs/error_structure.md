@@ -27,8 +27,7 @@
 
 ### Output Structure
 
-```
-json
+```json
 {
   "error_code": 401,
   "error_message": "Unauthorized",
