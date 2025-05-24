@@ -914,6 +914,7 @@ impl ART {
         result
     }
 
+    #[cfg(test)]
     pub fn debug_print(&self) {
         if let Some(root) = &self.root {
             log_info!(&format!("ART ({} paths):", self.path_count));
@@ -923,6 +924,7 @@ impl ART {
         }
     }
 
+    #[cfg(test)]
     fn debug_print_node(node: &ARTNode, indent: usize) {
         let pad = "  ".repeat(indent);
         // Node type
