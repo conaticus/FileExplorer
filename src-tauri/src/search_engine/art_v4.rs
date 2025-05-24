@@ -1,7 +1,7 @@
 use smallvec::SmallVec;
 use std::cmp;
 use std::mem;
-use crate::{log_error};
+use crate::{log_error, log_info};
 
 pub struct ART {
     root: Option<Box<ARTNode>>,
@@ -908,6 +908,47 @@ impl ART {
         }
 
         result
+    }
+
+    pub fn debug_print(&self) {
+        if let Some(root) = &self.root {
+            log_info!(&format!("ART ({} paths):", self.path_count));
+            Self::debug_print_node(root.as_ref(), 0);
+        } else {
+            log_info!("ART is empty");
+        }
+    }
+
+    fn debug_print_node(node: &ARTNode, indent: usize) {
+        let pad = "  ".repeat(indent);
+        // Node type
+        let (node_type, prefix, is_term, score) = match node {
+            ARTNode::Node4(n)   => ("Node4", &n.prefix[..], n.is_terminal, n.score),
+            ARTNode::Node16(n)  => ("Node16", &n.prefix[..], n.is_terminal, n.score),
+            ARTNode::Node48(n)  => ("Node48", &n.prefix[..], n.is_terminal, n.score),
+            ARTNode::Node256(n) => ("Node256", &n.prefix[..], n.is_terminal, n.score),
+        };
+        // Decode prefix bytes as UTF-8 lossily
+        let prefix_str = String::from_utf8_lossy(prefix);
+        // Header line
+        if is_term {
+            log_info!(&format!(
+                "{}{} [{}] (terminal, score={:?})",
+                pad, node_type, prefix_str, score
+            ));
+        } else {
+            log_info!(&format!("{}{} [{}]", pad, node_type, prefix_str));
+        }
+        // Recurse into children
+        for (key, child) in node.iter_children() {
+            let key_char = if key.is_ascii_graphic() {
+                key as char
+            } else {
+                '.'  // non-printable
+            };
+                log_info!(&format!("{}  ├─ key={:?} ('{}') →", pad, key, key_char));
+            Self::debug_print_node(child, indent + 2);
+        }
     }
 
     /// Inserts a path into the trie with an associated score for ranking.
@@ -1919,8 +1960,12 @@ mod tests_art_v4 {
         trie.insert("a/foo", 1.0);
         trie.insert("b/bar", 2.0);
 
+        trie.debug_print();
+
         // Insert a path that is a prefix of another
         trie.insert("a", 3.0);
+
+        trie.debug_print();
 
         fn check_no_chain_of_empty_prefix(node: &ARTNode, is_root: bool, parent_empty: bool, path: String) {
             let prefix = node.get_prefix();
