@@ -1,6 +1,7 @@
 use smallvec::SmallVec;
 use std::cmp;
 use std::mem;
+use crate::{log_error};
 
 pub struct ART {
     root: Option<Box<ARTNode>>,
@@ -204,10 +205,10 @@ impl ARTNode {
                 let added = n.add_child(key, child.take());
                 if !added && n.keys.len() >= NODE4_MAX {
                     // Grow to Node16
-                    let mut grown_node = self.grow();
+                    let grown_node = self.grow();
                     grown = true;
-                    let added = grown_node.add_child(key, child);
                     *self = grown_node;
+                    let added = self.add_child(key, child);
                     added
                 } else {
                     added
@@ -217,10 +218,10 @@ impl ARTNode {
                 let added = n.add_child(key, child.take());
                 if !added && n.keys.len() >= NODE16_MAX {
                     // Grow to Node48
-                    let mut grown_node = self.grow();
+                    let grown_node = self.grow();
                     grown = true;
-                    let added = grown_node.add_child(key, child);
                     *self = grown_node;
+                    let added = self.add_child(key, child);
                     added
                 } else {
                     added
@@ -230,10 +231,10 @@ impl ARTNode {
                 let added = n.add_child(key, child.take());
                 if !added && n.size >= NODE48_MAX {
                     // Grow to Node256
-                    let mut grown_node = self.grow();
+                    let grown_node = self.grow();
                     grown = true;
-                    let added = grown_node.add_child(key, child);
                     *self = grown_node;
+                    let added = self.add_child(key, child);
                     added
                 } else {
                     added
@@ -268,7 +269,7 @@ impl ARTNode {
             ARTNode::Node4(n) => n.remove_child(key),
             ARTNode::Node16(n) => {
                 let removed = n.remove_child(key);
-                if n.keys.len() < NODE4_MAX {
+                if n.keys.len() < NODE4_MAX / 2 {
                     // Shrink to Node4
                     let shrunk = self.shrink();
                     *self = shrunk;
@@ -277,7 +278,7 @@ impl ARTNode {
             }
             ARTNode::Node48(n) => {
                 let removed = n.remove_child(key);
-                if n.size < NODE16_MAX {
+                if n.size < NODE16_MAX / 2 {
                     // Shrink to Node16
                     let shrunk = self.shrink();
                     *self = shrunk;
@@ -286,7 +287,7 @@ impl ARTNode {
             }
             ARTNode::Node256(n) => {
                 let removed = n.remove_child(key);
-                if n.size < NODE48_MAX {
+                if n.size < NODE48_MAX / 2 {
                     // Shrink to Node48
                     let shrunk = self.shrink();
                     *self = shrunk;
@@ -316,31 +317,29 @@ impl ARTNode {
     }
 
     // Grow to a larger node type
-    fn grow(&self) -> Self {
+    fn grow(&mut self) -> Self {
         match self {
             ARTNode::Node4(n) => {
                 let mut n16 = Node16::new();
-                n16.prefix = n.prefix.clone();
+                n16.prefix = std::mem::take(&mut n.prefix);
                 n16.is_terminal = n.is_terminal;
                 n16.score = n.score;
                 for i in 0..n.keys.len() {
-                    if let Some(child) = &n.children[i] {
-                        n16.keys.push(n.keys[i]);
-                        n16.children.push(Some(Box::new((**child).clone())));
-                    }
+                    n16.keys.push(n.keys[i]);
+                    n16.children.push(n.children[i].take());
                 }
                 ARTNode::Node16(n16)
             }
             ARTNode::Node16(n) => {
                 let mut n48 = Node48::new();
-                n48.prefix = n.prefix.clone();
+                n48.prefix = std::mem::take(&mut n.prefix);
                 n48.is_terminal = n.is_terminal;
                 n48.score = n.score;
                 let mut child_count = 0;
                 for i in 0..n.keys.len() {
-                    if let Some(child) = &n.children[i] {
+                    if let Some(child) = n.children[i].take() {
                         let key = n.keys[i] as usize;
-                        n48.children[child_count] = Some(Box::new((**child).clone()));
+                        n48.children[child_count] = Some(child);
                         n48.child_index[key] = Some(child_count as u8);
                         child_count += 1;
                     }
@@ -350,42 +349,43 @@ impl ARTNode {
             }
             ARTNode::Node48(n) => {
                 let mut n256 = Node256::new();
-                n256.prefix = n.prefix.clone();
+                n256.prefix = std::mem::take(&mut n.prefix);
                 n256.is_terminal = n.is_terminal;
                 n256.score = n.score;
                 for i in 0..256 {
                     if let Some(idx) = n.child_index[i] {
-                        if let Some(child) = &n.children[idx as usize] {
-                            n256.children[i] = Some(Box::new((**child).clone()));
+                        if let Some(child) = n.children[idx as usize].take() {
+                            n256.children[i] = Some(child);
                         }
                     }
                 }
                 n256.size = n.size;
                 ARTNode::Node256(n256)
             }
-            ARTNode::Node256(_) => self.clone(),
+            ARTNode::Node256(_) => {
+                log_error!("Node256 cannot be grown further");
+                panic!("Node256 cannot be grown further");
+            }
         }
     }
 
     // Shrink to a smaller node type
-    fn shrink(&self) -> Self {
+    fn shrink(&mut self) -> Self {
         match self {
             ARTNode::Node16(n) => {
                 let mut n4 = Node4::new();
-                n4.prefix = n.prefix.clone();
+                n4.prefix = std::mem::take(&mut n.prefix);
                 n4.is_terminal = n.is_terminal;
                 n4.score = n.score;
                 for i in 0..n.keys.len().min(NODE4_MAX) {
-                    if let Some(child) = &n.children[i] {
-                        n4.keys.push(n.keys[i]);
-                        n4.children.push(Some(Box::new((**child).clone())));
-                    }
+                    n4.keys.push(n.keys[i]);
+                    n4.children.push(n.children[i].take());
                 }
                 ARTNode::Node4(n4)
             }
             ARTNode::Node48(n) => {
                 let mut n16 = Node16::new();
-                n16.prefix = n.prefix.clone();
+                n16.prefix = std::mem::take(&mut n.prefix);
                 n16.is_terminal = n.is_terminal;
                 n16.score = n.score;
                 let mut count = 0;
@@ -394,9 +394,9 @@ impl ARTNode {
                         break;
                     }
                     if let Some(idx) = n.child_index[i] {
-                        if let Some(child) = &n.children[idx as usize] {
+                        if let Some(child) = n.children[idx as usize].take() {
                             n16.keys.push(i as KeyType);
-                            n16.children.push(Some(Box::new((**child).clone())));
+                            n16.children.push(Some(child));
                             count += 1;
                         }
                     }
@@ -405,7 +405,7 @@ impl ARTNode {
             }
             ARTNode::Node256(n) => {
                 let mut n48 = Node48::new();
-                n48.prefix = n.prefix.clone();
+                n48.prefix = std::mem::take(&mut n.prefix);
                 n48.is_terminal = n.is_terminal;
                 n48.score = n.score;
                 let mut count = 0;
@@ -413,8 +413,8 @@ impl ARTNode {
                     if count >= NODE48_MAX {
                         break;
                     }
-                    if let Some(child) = &n.children[i] {
-                        n48.children[count] = Some(Box::new((**child).clone()));
+                    if let Some(child) = n.children[i].take() {
+                        n48.children[count] = Some(child);
                         n48.child_index[i] = Some(count as u8);
                         count += 1;
                     }
@@ -422,7 +422,10 @@ impl ARTNode {
                 n48.size = count;
                 ARTNode::Node48(n48)
             }
-            _ => self.clone(),
+            _ => {
+                log_error!("Cannot shrink node smaller than Node4");
+                panic!("Cannot shrink node smaller than Node4");
+            }
         }
     }
 }
@@ -862,25 +865,33 @@ impl ART {
         let mut saw_slash = false;
         let mut started = false;
 
-        // Check if path starts with a slash and preserve it
-        let starts_with_slash = path.starts_with('/') || path.starts_with('\\');
-        if starts_with_slash {
-            result.push('/');
-            saw_slash = true;
+        let mut chars = path.chars().peekable();
+
+        // Skip leading whitespace (including Unicode whitespace)
+        while let Some(&c) = chars.peek() {
+            if c.is_whitespace() {
+                chars.next();
+            } else {
+                break;
+            }
         }
 
-        for c in path.chars() {
+        if let Some(&first) = chars.peek() {
+            if first == '/' || first == '\\' {
+                result.push('/');
+                saw_slash = true;
+                started = true;
+                chars.next();
+            }
+        }
+
+        for c in chars {
             match c {
-                // Convert any kind of slash or backslash to '/'
                 '/' | '\\' => {
                     if !saw_slash && started {
                         result.push('/');
                         saw_slash = true;
                     }
-                }
-                // Skip all whitespace
-                c if c.is_whitespace() => {
-                    // skip
                 }
                 _ => {
                     result.push(c);
@@ -1012,14 +1023,8 @@ impl ART {
             return (changed, new_path, Some(node_ref));
         }
 
-        // Next character in the path
         let c = key[next_depth];
-
-        // Look for matching child
-        let need_new_child = node_ref.find_child_mut(c).is_none();
-
-        if need_new_child {
-            // No matching child - create a new one
+        if node_ref.find_child_mut(c).is_none() {
             node_ref.add_child(c, None);
         }
 
@@ -1696,24 +1701,38 @@ mod tests_art_v4 {
         paths
     }
 
-    // Fast and robust path normalization for ART
     fn normalize_path(path: &str) -> String {
         let mut result = String::with_capacity(path.len());
         let mut saw_slash = false;
         let mut started = false;
 
-        for c in path.chars() {
+        let mut chars = path.chars().peekable();
+
+        // Skip leading whitespace (including Unicode whitespace)
+        while let Some(&c) = chars.peek() {
+            if c.is_whitespace() {
+                chars.next();
+            } else {
+                break;
+            }
+        }
+
+        if let Some(&first) = chars.peek() {
+            if first == '/' || first == '\\' {
+                result.push('/');
+                saw_slash = true;
+                started = true;
+                chars.next();
+            }
+        }
+
+        for c in chars {
             match c {
-                // Convert any kind of slash or backslash to '/'
                 '/' | '\\' => {
                     if !saw_slash && started {
                         result.push('/');
                         saw_slash = true;
                     }
-                }
-                // Skip all whitespace
-                c if c.is_whitespace() => {
-                    // skip
                 }
                 _ => {
                     result.push(c);
@@ -1893,6 +1912,36 @@ mod tests_art_v4 {
     }
 
     #[test]
+    fn test_empty_prefix_split_and_merge() {
+        let mut trie = ART::new(10);
+
+        // Insert paths that only differ at the first char
+        trie.insert("a/foo", 1.0);
+        trie.insert("b/bar", 2.0);
+
+        // Insert a path that is a prefix of another
+        trie.insert("a", 3.0);
+
+        fn check_no_chain_of_empty_prefix(node: &ARTNode, is_root: bool, parent_empty: bool, path: String) {
+            let prefix = node.get_prefix();
+            let this_empty = prefix.is_empty();
+            if !is_root && parent_empty && this_empty {
+                log_info!(&format!("Chain detected at path: {:?}", path));
+                panic!("Chain of empty prefixes detected!");
+            }
+            let path_desc = format!("{}{:#?}/", path, String::from_utf8_lossy(prefix));
+            for (_, child) in node.iter_children() {
+                check_no_chain_of_empty_prefix(child, false, this_empty, path_desc.clone());
+            }
+        }
+
+        // and in the test:
+        if let Some(ref root) = trie.root {
+            check_no_chain_of_empty_prefix(root, true, false, String::new());
+        }
+    }
+
+    #[test]
     fn test_component_split() {
         let mut trie = ART::new(10);
 
@@ -1919,7 +1968,11 @@ mod tests_art_v4 {
 
         // Verify first path is still findable
         let still_find1 = trie.find_completions(path1);
-        assert_eq!(still_find1.len(), 1, "Should still find first path");
+        assert_eq!(
+            still_find1.len(),
+            1,
+            "Should still find first path"
+        );
         assert_eq!(
             still_find1[0].0, path1,
             "First path should still match exactly"
@@ -3014,17 +3067,16 @@ mod tests_art_v4 {
         }
     }
 
-    // Add specific test case for the anomalies seen in benchmarks
     #[test]
-    fn test_escaped_space_searches() {
+    fn test_preserve_space_searches() {
         let mut trie = ART::new(10);
 
         // Create paths with backslash+space sequences that match benchmark problematic searches
         let paths = vec![
-            "./test-data-for-fuzzy-search/coconut/file1.txt",
-            "./test-data-for-fuzzy-search/blueberry/file2.txt",
-            "./test-data-for-fuzzy-search/truck/banana/raspberry/file3.txt",
-            "./test-data-for-fuzzy-search/tangerine/file4.txt",
+            "./test-data-for-fuzzy-search/ coconut/file1.txt",
+            "./test-data-for-fuzzy-search/ blueberry/file2.txt",
+            "./test-data-for-fuzzy-search/ truck/banana/ raspberry/file3.txt",
+            "./test-data-for-fuzzy-search/ tangerine/file4.txt",
         ];
 
         // Insert all paths
@@ -3068,6 +3120,76 @@ mod tests_art_v4 {
         }
     }
 
+    #[test]
+    fn test_extended_normalization() {
+        let art = ART::new(10);
+
+        // 1. Simple ASCII path
+        assert_eq!(
+            art.normalize_path("foo/bar/baz.txt"),
+            "foo/bar/baz.txt"
+        );
+
+        // 2. Mixed slashes, should be normalized
+        assert_eq!(
+            art.normalize_path("foo\\bar/baz\\qux.txt"),
+            "foo/bar/baz/qux.txt"
+        );
+
+        // 3. Leading slash and duplicate slashes
+        assert_eq!(
+            art.normalize_path("//foo///bar//baz//"),
+            "/foo/bar/baz"
+        );
+
+        // 4. Spaces inside components
+        assert_eq!(
+            art.normalize_path("dir with spaces/file name.txt"),
+            "dir with spaces/file name.txt"
+        );
+
+        // 5. Spaces at the start and end (should be preserved if inside components)
+        assert_eq!(
+            art.normalize_path(" /foo/ bar /baz "),
+            "/foo/ bar /baz "
+        );
+
+        // 6. Unicode: Chinese, emoji, diacritics
+        assert_eq!(
+            art.normalize_path("用户/桌面/🚀 rocket/naïve.txt"),
+            "用户/桌面/🚀 rocket/naïve.txt"
+        );
+
+        // 7. Combination: leading backslash, spaces, Unicode, duplicate slashes
+        assert_eq!(
+            art.normalize_path("\\用户//桌面/ 🚀  rocket//naïve.txt "),
+            "/用户/桌面/ 🚀  rocket/naïve.txt "
+        );
+
+        // 8. Only slashes (should be "/")
+        assert_eq!(
+            art.normalize_path("//////"),
+            "/"
+        );
+
+        // 9. Rooted path with component with space and unicode
+        assert_eq!(
+            art.normalize_path("/a/ b 🚗 /c"),
+            "/a/ b 🚗 /c"
+        );
+
+        // 10. Windows absolute path with mixed slashes and unicode
+        assert_eq!(
+            art.normalize_path("C:\\用户\\桌面\\My File 🚲.txt"),
+            "C:/用户/桌面/My File 🚲.txt"
+        );
+
+        // 11. Trailing slash, not root (should remove trailing)
+        assert_eq!(
+            art.normalize_path("/foo/bar/"),
+            "/foo/bar"
+        );
+    }
     #[test]
     fn test_normalization() {
         let mut trie = ART::new(10);
