@@ -1,5 +1,7 @@
 # `get_meta_data_as_json`
 
+Error Structure as json can be found [here](./error_structure.md).
+
 - All possible values which are given in the 
   - `current_running_os` filed -> https://doc.rust-lang.org/std/env/consts/constant.OS.html
   - `current_cpu_architecture` filed -> https://doc.rust-lang.org/std/env/consts/constant.ARCH.html

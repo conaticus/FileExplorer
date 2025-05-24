@@ -1,5 +1,7 @@
 # `get_system_volumes_information_as_json`
 
+Error Structure as json can be found [here](./error_structure.md).
+
 ---
 ## Parameters
 NONE
