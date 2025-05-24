@@ -9,6 +9,20 @@ use crate::search_engine::art_v4::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
 use crate::search_engine::path_cache_wrapper::PathCache;
 
+/// Configuration for path ranking algorithm with adjustable weights.
+///
+/// This struct allows fine-tuning the relative importance of different
+/// ranking factors like frequency, recency, directory context, and 
+/// file extension preferences.
+///
+/// # Example
+/// ```
+/// let config = RankingConfig {
+///     frequency_weight: 0.1,
+///     max_frequency_boost: 0.6,
+///     ..RankingConfig::default()
+/// };
+/// ```
 #[derive(Clone, Debug)]
 pub struct RankingConfig {
     /// Weight per usage count (frequency boost multiplier)
@@ -58,11 +72,12 @@ impl Default for RankingConfig {
 ///
 /// This implementation uses an Adaptive Radix Trie (ART) for prefix searching,
 /// a fuzzy matcher for approximate matching, and an LRU cache for repeated queries.
+/// Results are ranked using a configurable multi-factor scoring algorithm.
 ///
 /// # Performance Characteristics
 ///
 /// - Insertion: O(n) time complexity where n is the number of paths
-/// - Search: O(m + log n) empircal time complexity where m is query length
+/// - Search: O(m + log n) empirical time complexity where m is query length
 /// - Typical search latency: ~1ms across datasets of up to 170,000 paths
 /// - Cache speedup: 3×-7× for repeated queries
 pub struct AutocompleteEngine {
@@ -112,7 +127,7 @@ impl AutocompleteEngine {
     /// * `max_results` - The maximum number of results to return per search
     ///
     /// # Returns
-    /// A new AutocompleteEngine instance with default settings
+    /// A new AutocompleteEngine instance with default ranking configuration
     ///
     /// # Performance
     /// Initialization is O(1) as actual data structures are created empty
@@ -591,10 +606,11 @@ impl AutocompleteEngine {
     ///
     /// Scoring factors include:
     /// 1. Frequency of path usage
-    /// 2. Recency of path usage
-    /// 3. Current directory context
-    /// 4. Preferred file extensions
-    /// 5. Exact filename matches
+    /// 2. Recency of path usage (with exponential decay)
+    /// 3. Current directory context (same dir or parent dir)
+    /// 4. Preferred file extensions with position-based weighting
+    /// 5. Multiple types of filename matches (exact, prefix, contains)
+    /// 6. Normalized with sigmoid function for stable scoring
     ///
     /// # Arguments
     /// * `results` - Mutable reference to vector of (path, score) pairs to rank

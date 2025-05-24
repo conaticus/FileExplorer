@@ -7,6 +7,10 @@ use std::time::Instant;
 use crate::log_info;
 use crate::search_engine::autocomplete_engine::{AutocompleteEngine, EngineStats};
 
+/// Current operational status of the search engine.
+///
+/// Represents the various states the search engine can be in at any given time,
+/// allowing the UI to update accordingly and prevent conflicting operations.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub enum SearchEngineStatus {
     Idle,
@@ -16,6 +20,10 @@ pub enum SearchEngineStatus {
     Failed,
 }
 
+/// Progress information for ongoing indexing operations.
+///
+/// Tracks the current state of an indexing operation, including completion percentage
+/// and estimated time remaining, to provide feedback for the user interface.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct IndexingProgress {
     pub files_discovered: usize,
@@ -39,6 +47,10 @@ impl Default for IndexingProgress {
     }
 }
 
+/// Performance metrics for the search engine.
+///
+/// Collects statistics about search engine performance to help users
+/// understand system behavior and identify potential optimizations.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SearchEngineMetrics {
     pub last_indexing_duration_ms: Option<u64>,
@@ -60,6 +72,10 @@ impl Default for SearchEngineMetrics {
     }
 }
 
+/// Configuration options for the search engine.
+///
+/// Defines adjustable parameters that control search engine behavior,
+/// including result limits, file type preferences, and indexing constraints.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SearchEngineConfig {
     pub max_results: usize,
@@ -100,6 +116,10 @@ impl Default for SearchEngineConfig {
     }
 }
 
+/// User activity data related to search operations.
+///
+/// Tracks recent user interactions with the search system to provide
+/// history features and improve result relevance through usage patterns.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RecentActivity {
     pub recent_searches: Vec<String>,
@@ -115,6 +135,10 @@ impl Default for RecentActivity {
     }
 }
 
+/// Serializable version of engine statistics.
+///
+/// Provides a Serde-compatible representation of internal engine statistics
+/// for transmission to the frontend or storage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineStatsSerializable {
     pub cache_size: usize,
@@ -130,6 +154,10 @@ impl From<EngineStats> for EngineStatsSerializable {
     }
 }
 
+/// Comprehensive information about the search engine's current state.
+///
+/// Aggregates all relevant status information, metrics, and activity data
+/// into a single serializable structure for frontend display and monitoring.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SearchEngineInfo {
     pub status: SearchEngineStatus,
@@ -140,6 +168,10 @@ pub struct SearchEngineInfo {
     pub last_updated: u64,
 }
 
+/// Complete search engine state including both configuration and runtime data.
+///
+/// Contains all persistent configuration options and runtime state of the
+/// search engine system for storage and restoration between sessions.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SearchEngine {
     pub status: SearchEngineStatus,
@@ -165,12 +197,32 @@ impl Default for SearchEngine {
     }
 }
 
+/// Thread-safe container for search engine state and operations.
+///
+/// Provides synchronized access to the search engine's configuration, state,
+/// and underlying search index through a mutex-protected interface.
+/// Offers methods for searching, indexing, and managing the search engine.
 pub struct SearchEngineState {
     pub data: Arc<Mutex<SearchEngine>>,
     pub engine: Arc<Mutex<AutocompleteEngine>>,
 }
 
 impl SearchEngineState {
+    /// Creates a new SearchEngineState with default settings.
+    ///
+    /// Initializes a new search engine state with default configuration and
+    /// an empty search index. The search engine will start in Idle status
+    /// and be ready to index files or perform searches.
+    ///
+    /// # Returns
+    ///
+    /// A new SearchEngineState instance with default configuration.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let search_engine = SearchEngineState::new();
+    /// ```
     pub fn new() -> Self {
         let config = SearchEngineConfig::default();
         let engine = AutocompleteEngine::new(config.cache_size, config.max_results);
@@ -181,16 +233,57 @@ impl SearchEngineState {
         }
     }
 
+    /// Creates a default search engine configuration.
+    ///
+    /// Helper method that creates and returns a default SearchEngine instance.
+    ///
+    /// # Returns
+    ///
+    /// A SearchEngine instance with default settings.
     fn save_default_search_engine_in_state() -> SearchEngine {
         let defaults = SearchEngine::default();
         Self::save_search_engine_in_state(defaults)
     }
 
+    /// Saves a search engine configuration to state.
+    ///
+    /// Helper method to set up a search engine instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `defaults` - The SearchEngine instance to save
+    ///
+    /// # Returns
+    ///
+    /// The provided SearchEngine instance (for chaining).
     fn save_search_engine_in_state(defaults: SearchEngine) -> SearchEngine {
         defaults
     }
 
-    // Method to start indexing a folder
+    /// Starts indexing a folder for searching.
+    ///
+    /// Begins the process of scanning and indexing all files and directories
+    /// within the specified folder. If an indexing operation is already in progress,
+    /// it will be stopped before starting the new one.
+    ///
+    /// This is a blocking operation and will not return until indexing is complete.
+    /// For very large directories, consider running this in a separate thread.
+    ///
+    /// # Arguments
+    ///
+    /// * `folder` - The root folder path to index
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Indexing completed successfully
+    /// * `Err(String)` - An error occurred during indexing
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let search_engine = SearchEngineState::new();
+    /// let result = search_engine.start_indexing(PathBuf::from("/path/to/index"));
+    /// ```
     pub fn start_indexing(&self, folder: PathBuf) -> Result<(), String> {
         // Get locks on both data and engine
         let mut data = self.data.lock().unwrap();
@@ -268,7 +361,31 @@ impl SearchEngineState {
         Ok(())
     }
 
-    // Method to search using the engine
+    /// Performs a search using the indexed files.
+    ///
+    /// Searches through the indexed files for matches to the given query string.
+    /// Results are ranked by relevance and limited by the configured maximum results.
+    /// This method will fail if the engine is currently indexing or searching.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - The search string to find matching files
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<(String, f32)>)` - List of matching paths and their relevance scores
+    /// * `Err(String)` - An error occurred during searching
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let search_engine = SearchEngineState::new();
+    /// // ... index some files first ...
+    /// let results = search_engine.search("document").unwrap();
+    /// for (path, score) in results {
+    ///     println!("{} (score: {})", path, score);
+    /// }
+    /// ```
     pub fn search(&self, query: &str) -> Result<Vec<(String, f32)>, String> {
         let mut data = self.data.lock().unwrap();
         let mut engine = self.engine.lock().unwrap();
@@ -326,7 +443,34 @@ impl SearchEngineState {
         Ok(results)
     }
 
-    /// Method to search with preference for specific file extensions in order of priority
+    /// Performs a search with custom file extension preferences.
+    ///
+    /// Similar to `search`, but allows overriding the default extension preferences
+    /// specifically for this search operation. Files with the specified extensions 
+    /// will receive higher ranking in results, with priority determined by order.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - The search string to find matching files
+    /// * `extensions` - List of file extensions to prioritize, in order of preference
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<(String, f32)>)` - List of matching paths and their relevance scores
+    /// * `Err(String)` - An error occurred during searching
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let search_engine = SearchEngineState::new();
+    /// // Prioritize markdown and text files in search results
+    /// let results = search_engine.search_by_extension("document", vec!["md".to_string(), "txt".to_string()]).unwrap();
+    /// ```
+    ///
+    /// # Performance
+    ///
+    /// Similar to `search`, but with additional overhead of temporarily modifying 
+    /// and restoring extension preferences.
     pub fn search_by_extension(
         &self,
         query: &str,
@@ -424,7 +568,20 @@ impl SearchEngineState {
         Ok(results)
     }
 
-    // Method to update indexing progress
+    /// Updates the progress information for an ongoing indexing operation.
+    ///
+    /// This method updates various metrics about the indexing process including
+    /// counts of indexed files, completion percentage, and estimated time remaining.
+    ///
+    /// # Arguments
+    ///
+    /// * `indexed` - Number of files and directories that have been indexed
+    /// * `total` - Total number of files and directories discovered
+    /// * `current_path` - Optional string representing the file/directory currently being processed
+    ///
+    /// # Performance
+    ///
+    /// O(1) - Simple field updates and calculations
     #[cfg(test)]
     pub fn update_indexing_progress(
         &self,
@@ -457,13 +614,36 @@ impl SearchEngineState {
         data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
     }
 
-    // Method to get current engine stats
+    /// Returns statistics about the search engine's index and cache.
+    ///
+    /// This method retrieves information about the current size of the search index
+    /// and the cache, providing visibility into memory usage and data structure sizes.
+    ///
+    /// # Returns
+    ///
+    /// An `EngineStatsSerializable` struct containing statistics about the engine
+    ///
+    /// # Performance
+    ///
+    /// O(1) - Simple field access operations
     pub fn get_stats(&self) -> EngineStatsSerializable {
         let engine = self.engine.lock().unwrap();
         let stats = engine.get_stats();
         EngineStatsSerializable::from(stats)
     }
 
+    /// Returns comprehensive information about the search engine's current state.
+    ///
+    /// This method combines all relevant status information, metrics, and activity data
+    /// into a single serializable structure suitable for frontend display or monitoring.
+    ///
+    /// # Returns
+    ///
+    /// A `SearchEngineInfo` struct containing the complete state information
+    ///
+    /// # Performance
+    ///
+    /// O(1) - Simple field aggregation operations
     pub fn get_search_engine_info(&self) -> SearchEngineInfo {
         let data = self.data.lock().unwrap();
 
@@ -479,7 +659,23 @@ impl SearchEngineState {
         }
     }
 
-    // Method to update configuration
+    /// Updates the search engine configuration.
+    ///
+    /// This method applies a new configuration to the search engine and updates
+    /// the underlying engine components to reflect these changes.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - New configuration to apply to the search engine
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Configuration was successfully updated
+    /// * `Err(String)` - An error occurred during configuration update
+    ///
+    /// # Performance
+    ///
+    /// O(1) plus cache invalidation cost for changed preferences
     #[cfg(test)]
     pub fn update_config(&self, config: SearchEngineConfig) -> Result<(), String> {
         let mut data = self.data.lock().unwrap();
@@ -498,28 +694,76 @@ impl SearchEngineState {
         Ok(())
     }
 
-    // Method to add a single path to the index
+    /// Adds a single path to the search index.
+    ///
+    /// This method adds a single file or directory path to the search index
+    /// without recursively adding its contents if it's a directory.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to add to the search index
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Path was successfully added
+    /// * `Err(String)` - An error occurred while adding the path
     pub fn add_path(&self, path: &str) -> Result<(), String> {
         let mut engine = self.engine.lock().unwrap();
         engine.add_path(path);
         Ok(())
     }
 
-    // Method to remove a single path from the index
+    /// Removes a single path from the search index.
+    ///
+    /// This method removes a specific file or directory path from the search index
+    /// without recursively removing its contents if it's a directory.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to remove from the search index
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Path was successfully removed
+    /// * `Err(String)` - An error occurred while removing the path
     pub fn remove_path(&self, path: &str) -> Result<(), String> {
         let mut engine = self.engine.lock().unwrap();
         engine.remove_path(path);
         Ok(())
     }
 
-    // Method to remove multiple paths from the index
+    /// Recursively removes a path and all its subdirectories and files from the index.
+    ///
+    /// This method removes a directory path and all files and subdirectories contained
+    /// within it from the search index.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The root directory path to remove from the index
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Path and its contents were successfully removed
+    /// * `Err(String)` - An error occurred during removal
     pub fn remove_paths_recursive(&self, path: &str) -> Result<(), String> {
         let mut engine = self.engine.lock().unwrap();
         engine.remove_paths_recursive(path);
         Ok(())
     }
 
-    /// Stop any ongoing indexing operation
+    /// Stops any ongoing indexing operation.
+    ///
+    /// This method signals the underlying search engine to stop its current
+    /// indexing operation as soon as possible.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Stop signal was successfully sent
+    /// * `Err(String)` - No indexing operation was in progress
+    ///
+    /// # Performance
+    ///
+    /// O(1) - Simple flag operation
     #[cfg(test)] // maybe use in a later release
     pub fn stop_indexing(&self) -> Result<(), String> {
         let mut data = self.data.lock().unwrap();
@@ -545,14 +789,38 @@ impl SearchEngineState {
         Err("No indexing operation in progress".to_string())
     }
 
-    // Updated cancel_indexing for clarity - this is the user-initiated cancel
+    /// Cancels the current indexing operation at user request.
+    ///
+    /// This is a user-initiated cancellation that calls stop_indexing().
+    /// The method makes the user's intention explicit in the code.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Cancel signal was successfully sent
+    /// * `Err(String)` - No indexing operation was in progress
+    ///
+    /// # Performance
+    ///
+    /// O(1) - Delegates to stop_indexing()
     #[cfg(test)] //maybe use in a later release
     pub fn cancel_indexing(&self) -> Result<(), String> {
         self.stop_indexing()
     }
 }
 
+/// Implementation of the Clone trait for SearchEngineState.
+///
+/// Provides a way to create a new SearchEngineState instance
+/// that shares the same underlying data and engine through Arc references.
 impl Clone for SearchEngineState {
+    /// Creates a new SearchEngineState that refers to the same data and engine.
+    ///
+    /// The cloned instance shares the same mutex-protected state as the original,
+    /// allowing multiple threads to safely access and modify the shared state.
+    ///
+    /// # Returns
+    ///
+    /// A new SearchEngineState instance with the same underlying data
     fn clone(&self) -> Self {
         Self {
             data: Arc::clone(&self.data),

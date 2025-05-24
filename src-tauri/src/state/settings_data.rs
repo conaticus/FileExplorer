@@ -9,6 +9,9 @@ use std::io::{Error, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+/// File view mode for directories.
+///
+/// Controls how files and directories are displayed in the UI.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum DefaultView {
     Grid,
@@ -16,6 +19,9 @@ pub enum DefaultView {
     Details,
 }
 
+/// Font size setting for UI elements.
+///
+/// Controls the text size throughout the application.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum FontSize {
     Small,
@@ -23,12 +29,18 @@ pub enum FontSize {
     Large,
 }
 
+/// Direction for sorting files and directories.
+///
+/// Controls whether items are sorted in ascending or descending order.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum SortDirection {
     Acscending,
     Descending,
 }
 
+/// Property used for sorting files and directories.
+///
+/// Determines which attribute is used when ordering items.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum SortBy {
     Name,
@@ -37,35 +49,64 @@ pub enum SortBy {
     Type,
 }
 
+/// Behavior configuration for double-click actions.
+///
+/// Controls what happens when a user double-clicks on items.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum DoubleClick {
     OpenFilesAndFolders,
     SelectFilesAndFolders,
 }
 
+/// Application settings configuration.
+///
+/// This struct contains all configurable options for the application,
+/// including appearance, behavior, and file operation preferences.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
+    /// Whether dark mode is enabled
     pub darkmode: bool,
+    /// List of custom theme identifiers
     pub custom_themes: Vec<String>,
+    /// Currently selected theme
     pub default_theme: String,
+    /// Path to themes directory
     pub default_themes_path: PathBuf,
+    /// Default directory to open when application starts
     pub default_folder_path_on_opening: PathBuf,
+    /// Default hash algorithm for file checksums
     pub default_checksum_hash: ChecksumMethod,
+    /// Level of detail for application logs
     pub logging_level: LoggingLevel,
+    /// Default view mode for directories
     pub default_view: DefaultView,
+    /// Font size setting for UI elements
     pub font_size: FontSize,
+    /// Whether to display hidden files and folders
     pub show_hidden_files_and_folders: bool,
+    /// Whether to show the details panel by default
     pub show_details_panel: bool,
+    /// Primary UI accent color in hex format
     pub accent_color: String,
+    /// Whether to prompt for confirmation before deleting files
     pub confirm_delete: bool,
+    /// Whether to automatically refresh directory contents
     pub auto_refresh_dir: bool,
+    /// Direction for sorting items
     pub sort_direction: SortDirection,
+    /// Property to use for sorting items
     pub sort_by: SortBy,
+    /// Behavior for double-click actions
     pub double_click: DoubleClick,
+    /// Whether to display file extensions
     pub show_file_extensions: bool,
+    /// Height of the terminal panel in pixels
     pub terminal_height: u32,
+    /// Whether to enable UI animations and transitions
     pub enable_animations_and_transitions: bool,
+    /// Whether to use virtual scrolling for large directories
     pub enable_virtual_scroll_for_large_directories: bool,
+    /// Absolute path to the settings file
     pub abs_file_path_buf: PathBuf,
 }
 
@@ -99,9 +140,29 @@ impl Default for Settings {
     }
 }
 
+/// Thread-safe state for application settings.
+///
+/// This struct provides methods for reading, writing, and modifying application settings
+/// while ensuring thread safety through a mutex-protected shared state.
 pub struct SettingsState(pub Arc<Mutex<Settings>>);
 
 impl SettingsState {
+    /// Creates a new SettingsState instance.
+    ///
+    /// This method initializes settings by:
+    /// 1. Checking if a settings file exists at the default path
+    /// 2. If it exists, attempting to read settings from that file
+    /// 3. If reading fails or no file exists, creating default settings
+    ///
+    /// # Returns
+    ///
+    /// A new SettingsState instance with either loaded or default settings.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let settings_state = SettingsState::new();
+    /// ```
     pub fn new() -> Self {
         let path = Settings::default().abs_file_path_buf.to_path_buf();
 
@@ -306,10 +367,10 @@ impl SettingsState {
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "No settings were provided"))
     }
 
-    /// resets the settings file, effectively removing all saved settings.
+    /// Resets all settings to their default values.
     ///
-    /// This method deletes the settings file from the disk, meaning the application will
-    /// lose all settings
+    /// This method replaces the current settings with the default values
+    /// and writes these defaults to the settings file.
     ///
     /// # Arguments
     ///
@@ -317,16 +378,16 @@ impl SettingsState {
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - If the settings file was successfully deleted.
-    /// * `Err(io::Error)` - If there was an error during the deletion process.
+    /// * `Ok(Settings)` - The default Settings struct if successful.
+    /// * `Err(io::Error)` - If there was an error during the reset process.
     ///
     /// # Example
     ///
     /// ```rust
-    /// let result = settings_state.delete_settings();
+    /// let result = settings_state.reset_settings();
     /// match result {
-    ///     Ok(_) => println!("Settings file has been deleted."),
-    ///     Err(e) => eprintln!("Failed to delete settings: {}", e),
+    ///     Ok(settings) => println!("Settings have been reset to defaults."),
+    ///     Err(e) => eprintln!("Failed to reset settings: {}", e),
     /// }
     /// ```
     pub fn reset_settings(&self) -> Result<Settings, io::Error> {
