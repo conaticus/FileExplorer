@@ -58,7 +58,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use std::fmt;
 use std::fs;
 use std::fs::OpenOptions;
-use std::io::{Write, Seek};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use serde_json::json;
@@ -565,7 +565,7 @@ mod tests_logging {
 
         // Force log rotation by directly calling the rotate_logs method
         logger.rotate_logs(&logger.log_path);
-        
+
         // Check that the size of the new log file is small
         let new_size = fs::metadata(&original_log_path)
             .map(|m| m.len())
@@ -600,22 +600,22 @@ mod tests_logging {
 
         if let Some(archived_log) = archived_log {
             let archived_path = archived_log.path();
-            
+
             // Check if the archived log has content
             let archived_content = fs::read_to_string(&archived_path)
                 .expect("Failed to read archived log file");
-            
+
             assert!(
                 !archived_content.is_empty(),
                 "Archived log file should contain the original log content"
             );
-            
+
             // Verify the archived content has the expected log entries
             assert!(
                 archived_content.contains("Log entry #0:"),
                 "Archived log should contain the earliest log entries"
             );
-            
+
             println!("Archive log created at: {}", archived_path.display());
         }
 
@@ -625,7 +625,7 @@ mod tests_logging {
         // Verify the new entry is in the original log file path
         let new_log_content = fs::read_to_string(&original_log_path)
             .expect("Failed to read new log file");
-        
+
         assert!(
             new_log_content.contains("This entry should be added after rotation"),
             "New log entries should be written to the new log file"
