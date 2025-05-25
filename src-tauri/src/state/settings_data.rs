@@ -78,6 +78,8 @@ pub struct Settings {
     pub default_checksum_hash: ChecksumMethod,
     /// Level of detail for application logs
     pub logging_level: LoggingLevel,
+    /// Whether to log JSON formatted messages
+    pub json_log: bool,
     /// Default view mode for directories
     pub default_view: DefaultView,
     /// Font size setting for UI elements
@@ -121,6 +123,7 @@ impl Default for Settings {
             default_folder_path_on_opening: Default::default(),
             default_checksum_hash: ChecksumMethod::SHA256,
             logging_level: LoggingLevel::Full,
+            json_log: false,
             abs_file_path_buf: constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf(),
             default_view: DefaultView::Grid,
             font_size: FontSize::Medium,

@@ -38,6 +38,11 @@
 //! - **Minimal**: `INFO - Application started successfully.`
 //! - **OFF**: No log is written.
 //!
+//! ## Structured Logging
+//!
+//! If `json_log` is enabled in `SettingsState`, all entries are emitted as JSON objects with consistent fields:
+//! `{ timestamp, level, file, function, line, message }`.
+//!
 //! ## Notes
 //!
 //! - Log files are automatically truncated when they exceed the maximum file size (`MAX_FILE_SIZE`).
@@ -45,22 +50,24 @@
 //! - Ensure that the `SettingsState` is properly initialized and shared across the application to manage logging behavior effectively.
 
 use crate::constants::{ERROR_LOG_FILE_NAME, LOG_FILE_NAME, MAX_FILE_SIZE};
+use crate::error_handling::{Error, ErrorCode};
 use crate::models::LoggingLevel;
 use crate::state::SettingsState;
 use chrono::Local;
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use std::fmt;
 use std::fs;
-use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::fs::OpenOptions;
+use std::io::{Write, Seek};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use serde_json::json;
 
 #[macro_export]
 macro_rules! log_info {
     ($msg:expr) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Info,
+        $crate::state::logging::Logger::global().log(
+            $crate::state::logging::LogLevel::Info,
             file!(),
             module_path!(),
             $msg,
@@ -68,8 +75,8 @@ macro_rules! log_info {
         )
     };
     ($fmt:expr, $($arg:tt)*) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Info,
+        $crate::state::logging::Logger::global().log(
+            $crate::state::logging::LogLevel::Info,
             file!(),
             module_path!(),
             &format!($fmt, $($arg)*),
@@ -81,8 +88,8 @@ macro_rules! log_info {
 #[macro_export]
 macro_rules! log_warn {
     ($msg:expr) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Warn,
+        $crate::state::logging::Logger::global().log(
+            $crate::state::logging::LogLevel::Warn,
             file!(),
             module_path!(),
             $msg,
@@ -90,8 +97,8 @@ macro_rules! log_warn {
         )
     };
     ($fmt:expr, $($arg:tt)*) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Warn,
+        $crate::state::logging::Logger::global().log(
+            $crate::state::logging::LogLevel::Warn,
             file!(),
             module_path!(),
             &format!($fmt, $($arg)*),
@@ -103,8 +110,8 @@ macro_rules! log_warn {
 #[macro_export]
 macro_rules! log_error {
     ($msg:expr) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Error,
+        $crate::state::logging::Logger::global().log(
+            $crate::state::logging::LogLevel::Error,
             file!(),
             module_path!(),
             $msg,
@@ -112,8 +119,8 @@ macro_rules! log_error {
         )
     };
     ($fmt:expr, $($arg:tt)*) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Error,
+        $crate::state::logging::Logger::global().log(
+            $crate::state::logging::LogLevel::Error,
             file!(),
             module_path!(),
             &format!($fmt, $($arg)*),
@@ -125,8 +132,8 @@ macro_rules! log_error {
 #[macro_export]
 macro_rules! log_critical {
     ($msg:expr) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Critical,
+        $crate::state::logging::Logger::global().log(
+            $crate::state::logging::LogLevel::Critical,
             file!(),
             module_path!(),
             $msg,
@@ -134,8 +141,8 @@ macro_rules! log_critical {
         )
     };
     ($fmt:expr, $($arg:tt)*) => {
-        $crate::logging::Logger::global().log(
-            $crate::logging::LogLevel::Critical,
+        $crate::state::logging::Logger::global().log(
+            $crate::state::logging::LogLevel::Critical,
             file!(),
             module_path!(),
             &format!($fmt, $($arg)*),
@@ -144,21 +151,14 @@ macro_rules! log_critical {
     };
 }
 
+static WRITE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogLevel {
     Info,
     Warn,
     Error,
     Critical,
-}
-
-fn get_logging_state(state: Arc<Mutex<SettingsState>>) -> Result<LoggingLevel, String> {
-    let settings_state = state.lock().unwrap();
-    let inner_settings = settings_state
-        .0
-        .lock()
-        .map_err(|_| "Error while getting Logging state")?;
-    Ok(inner_settings.logging_level.clone())
 }
 
 impl fmt::Display for LogLevel {
@@ -178,10 +178,8 @@ pub struct Logger {
     state: Arc<Mutex<SettingsState>>,
 }
 
-static LOGGER: Lazy<Logger> = Lazy::new(|| {
-    let state = SettingsState::new(); // Initialize the SettingsState
-    Logger::new(Arc::new(Mutex::new(state)))
-});
+// Replace Lazy with OnceCell for more flexible initialization
+static LOGGER: OnceCell<Logger> = OnceCell::new();
 
 impl Logger {
     pub fn new(state: Arc<Mutex<SettingsState>>) -> Self {
@@ -192,19 +190,49 @@ impl Logger {
         }
     }
 
-    pub fn global() -> &'static Logger {
-        &LOGGER
+    /// Initialize the global logger instance with application settings.
+    ///
+    /// This should be called early in your application startup before any logging occurs.
+    ///
+    /// # Example
+    /// ```rust
+    /// let app_state = Arc::new(Mutex::new(SettingsState::new()));
+    /// Logger::init(app_state.clone());
+    /// ```
+    pub fn init(state: Arc<Mutex<SettingsState>>) {
+        Self::init_global_logger(state);
     }
-    
+
+    // Internal implementation function
+    fn init_global_logger(state: Arc<Mutex<SettingsState>>) {
+        if LOGGER.get().is_none() {
+            let _ = LOGGER.set(Logger::new(state));
+        }
+    }
+
+    pub fn global() -> &'static Logger {
+        LOGGER.get_or_init(|| {
+            eprintln!("Warning: Logger accessed before initialization with application state! Using default settings.");
+            eprintln!("Call Logger::init(app_state) in your application startup code.");
+            Logger::new(Arc::new(Mutex::new(SettingsState::new())))
+        })
+    }
+
     pub fn log(&self, level: LogLevel, file: &str, function: &str, message: &str, line: u32) {
         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-        // Retrieve the logging state
-        let logging_state = match get_logging_state(self.state.clone()) {
-            Ok(state) => state,
+        // Retrieve the logging state with proper error handling
+        let (logging_state, json_log) = match self.state.lock() {
+            Ok(state_guard) => match state_guard.0.lock() {
+                Ok(settings) => (settings.logging_level.clone(), settings.json_log.clone()),
+                Err(e) => {
+                    eprintln!("Failed to acquire inner settings lock: {}", e);
+                    (LoggingLevel::Minimal, false)
+                }
+            },
             Err(e) => {
-                eprintln!("Failed to retrieve logging state: {}", e);
-                return;
+                eprintln!("Failed to acquire settings state lock: {}", e);
+                (LoggingLevel::Minimal, false)
             }
         };
 
@@ -212,20 +240,43 @@ impl Logger {
             return;
         }
 
-        let entry = match logging_state {
-            LoggingLevel::Full => format!(
-                "{timestamp} - file: {file} - fn: {function} - line: {line} - {level} - {message}"
-            ),
-            LoggingLevel::Partial => format!("{timestamp} - {level} - {message}"),
-            LoggingLevel::Minimal => format!("{level} - {message}"),
-            LoggingLevel::OFF => return, // redundant due to early return, but kept for safety
+        let entry = if json_log {
+            json!({
+                "timestamp": timestamp,
+                "level": level.to_string(),
+                "file": file,
+                "function": function,
+                "line": line,
+                "message": message,
+            })
+                .to_string()
+        } else {
+            match logging_state {
+                LoggingLevel::Full => format!(
+                    "{timestamp} - file: {file} - fn: {function} - line: {line} - {level} - {message}"
+                ),
+                LoggingLevel::Partial => format!("{timestamp} - {level} - {message}"),
+                LoggingLevel::Minimal => format!("{level} - {message}"),
+                LoggingLevel::OFF => return, // redundant due to early return, but kept for safety
+            }
         };
 
         self.write_log(&entry);
-
         if matches!(level, LogLevel::Error | LogLevel::Critical) {
             self.write_error_log(&entry);
         }
+    }
+
+    /// Called when file_size > MAX_FILE_SIZE.
+    fn rotate_logs(&self, path: &PathBuf) {
+        // Use timestamp-based naming for archived logs
+        let timestamp = Local::now().format("%Y%m%d_%H%M%S");
+        let archive_path = path.with_file_name(format!("{}.{}.log",
+                                                       path.file_stem().unwrap().to_str().unwrap(),
+                                                       timestamp));
+
+        // Move current log to archive and create new file
+        let _ = fs::rename(path, &archive_path);
     }
 
     fn write_log(&self, entry: &str) {
@@ -239,77 +290,49 @@ impl Logger {
     fn write_to_file(&self, path: &PathBuf, entry: &str) {
         let metadata = fs::metadata(path).ok();
         let file_size = metadata.map(|m| m.len()).unwrap_or(0);
+        let _guard = WRITE_LOCK.lock().unwrap();
 
         // If file size exceeds the limit, truncate before writing new entry
         if file_size > MAX_FILE_SIZE {
             // For test purposes, print the file size before truncation
             #[cfg(test)]
             println!(
-                "File exceeds size limit: {} bytes. Truncating...",
+                "File exceeds size limit: {} bytes. Rotating...",
                 file_size
             );
 
             // Truncate file before writing
-            self.truncate_oldest_entry_from(path);
+            self.rotate_logs(path);
         }
 
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-            .expect("Failed to open log file");
+        // Ensure the entry ends with exactly one newline
+        let entry = entry.trim_end();
 
-        writeln!(file, "{}", entry).expect("Failed to write log");
-    }
+        // Process the entry to handle any embedded newlines
+        let formatted_entry = entry.replace('\n', "\n    | ");
 
-    fn truncate_oldest_entry_from(&self, path: &PathBuf) {
-        // Open the file for reading
-        let file = match File::open(path) {
-            Ok(f) => f,
-            Err(e) => {
-                eprintln!("Failed to open log file for truncation: {}", e);
-                return;
-            }
-        };
+        let to_write = format!("{}\n", formatted_entry);
 
-        let reader = BufReader::new(file);
-
-        // Collect lines into a vector
-        let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
-
-        // Calculate how many lines to keep (around 30% of the original to ensure significant reduction)
-        let total_lines = lines.len();
-        let lines_to_keep = if total_lines > 100 {
-            total_lines / 3
-        } else {
-            total_lines / 2
-        };
-
-        // Keep only the most recent lines
-        let recent_lines: Vec<String> = lines
-            .into_iter()
-            .skip(total_lines.saturating_sub(lines_to_keep))
-            .collect();
-
-        // Debug info for tests
-        #[cfg(test)]
-        println!(
-            "Truncating log file: keeping {} of {} lines",
-            recent_lines.len(),
-            total_lines
-        );
-
-        // Rewrite the file with only the recent lines
-        match File::create(path) {
+        match OpenOptions::new().create(true).append(true).open(path) {
             Ok(mut file) => {
-                for line in recent_lines {
-                    if let Err(e) = writeln!(file, "{}", line) {
-                        eprintln!("Failed to write line during truncation: {}", e);
-                    }
+                if let Err(e) = file.write_all(to_write.as_bytes()) {
+                    eprintln!("Failed to write to log file: {}", e);
+                    // Create an error using our error handling module but just log it
+                    let error = Error::new(
+                        ErrorCode::InternalError,
+                        format!("Failed to write to log file: {}", e)
+                    );
+                    eprintln!("Logging error: {}", error.to_json());
                 }
             }
             Err(e) => {
-                eprintln!("Failed to create log file for truncation: {}", e);
+                eprintln!("Failed to open log file for writing: {}", e);
+                // Create an error using our error handling module but just log it
+                let error = Error::new(
+                    ErrorCode::ResourceNotFound,
+                    format!("Failed to open log file for writing: {}", e)
+                );
+                eprintln!("Logging error: {}", error.to_json());
             }
         }
     }
@@ -519,12 +542,8 @@ mod tests_logging {
     }
 
     #[test]
-    fn test_log_truncation_when_max_size_reached() {
-        let (logger, _temp_dir) = setup_test_logger();
-
-        // Override the MAX_FILE_SIZE constant for this test with a smaller value
-        #[allow(dead_code)]
-        const TEST_MAX_SIZE: u64 = 50000; // 50KB is enough for testing
+    fn test_log_rotate_when_max_size_reached() {
+        let (logger, temp_dir) = setup_test_logger();
 
         // Create a log file that exceeds our test max size
         let large_entry = "X".repeat(1000); // 1KB per entry
@@ -535,51 +554,81 @@ mod tests_logging {
             logger.write_log(&format!("Log entry #{}: {}", i, large_entry));
         }
 
-        // Get the file size before triggering truncation
+        // Get the file size before triggering rotation
         let metadata_before = fs::metadata(&logger.log_path).expect("Failed to read file metadata");
         let size_before = metadata_before.len();
+        println!("Size before rotation: {} bytes", size_before);
 
-        println!("Size before truncation: {} bytes", size_before);
+        // Keep track of original log path for later comparison
+        let original_log_path = logger.log_path.clone();
+        let log_filename = original_log_path.file_name().unwrap().to_str().unwrap().to_string();
 
-        // Force truncation by directly calling the truncate method
-        logger.truncate_oldest_entry_from(&logger.log_path);
-
-        // Get the file size after truncation
-        let metadata_after = fs::metadata(&logger.log_path).expect("Failed to read file metadata");
-        let size_after = metadata_after.len();
-
-        println!("Size after truncation: {} bytes", size_after);
-
-        // Check that the file size has been reduced significantly
+        // Force log rotation by directly calling the rotate_logs method
+        logger.rotate_logs(&logger.log_path);
+        
+        // Check that the size of the new log file is small
+        let new_size = fs::metadata(&original_log_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
         assert!(
-            size_after < size_before,
-            "File size should be reduced after truncation (before: {}, after: {})",
-            size_before,
-            size_after
+            new_size < size_before,
+            "New log file should be smaller than the original"
         );
 
-        // Check that the file size is significantly smaller (at least 40% reduction)
+        // Check that an archive log file was created with timestamp in the name
+        let entries = fs::read_dir(temp_dir.path())
+            .expect("Failed to read temp directory")
+            .filter_map(Result::ok)
+            .collect::<Vec<_>>();
+
+        // Find the archived log file (should be named like "test_app.20230101_123456.log")
+        let archived_log = entries
+            .iter()
+            .find(|entry| {
+                let name = entry.file_name().to_string_lossy().to_string();
+                // Check if file name contains the original name and has timestamp pattern
+                name.starts_with(log_filename.trim_end_matches(".log")) &&
+                name != log_filename &&
+                name.ends_with(".log") &&
+                name.contains(".")
+            });
+
         assert!(
-            size_after < size_before * 6 / 10,
-            "File size should be reduced by at least 40% (before: {}, after: {})",
-            size_before,
-            size_after
+            archived_log.is_some(),
+            "Should have created an archived log file with timestamp"
         );
 
-        // Add new log entries to verify they're appended correctly after truncation
-        logger.write_log("This entry should be added after truncation");
+        if let Some(archived_log) = archived_log {
+            let archived_path = archived_log.path();
+            
+            // Check if the archived log has content
+            let archived_content = fs::read_to_string(&archived_path)
+                .expect("Failed to read archived log file");
+            
+            assert!(
+                !archived_content.is_empty(),
+                "Archived log file should contain the original log content"
+            );
+            
+            // Verify the archived content has the expected log entries
+            assert!(
+                archived_content.contains("Log entry #0:"),
+                "Archived log should contain the earliest log entries"
+            );
+            
+            println!("Archive log created at: {}", archived_path.display());
+        }
 
-        // Verify that recent logs are preserved by reading the file content
-        let log_content = fs::read_to_string(&logger.log_path).expect("Failed to read log file");
-        assert!(
-            log_content.contains("This entry should be added after truncation"),
-            "New log entries should be appended correctly after truncation"
-        );
+        // Add new log entries to verify they're written to the new log file
+        logger.write_log("This entry should be added after rotation");
 
-        // Also verify the file doesn't contain the earliest entries
+        // Verify the new entry is in the original log file path
+        let new_log_content = fs::read_to_string(&original_log_path)
+            .expect("Failed to read new log file");
+        
         assert!(
-            !log_content.contains("Log entry #0:"),
-            "Oldest log entries should be removed after truncation"
+            new_log_content.contains("This entry should be added after rotation"),
+            "New log entries should be written to the new log file"
         );
     }
 }

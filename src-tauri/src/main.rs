@@ -4,7 +4,6 @@ mod commands;
 pub mod constants;
 mod error_handling;
 mod filesystem;
-mod logging;
 pub mod models;
 mod search_engine;
 mod state;

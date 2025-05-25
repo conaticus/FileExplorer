@@ -918,44 +918,52 @@ impl ART {
 
     #[cfg(test)]
     pub fn debug_print(&self) {
+        // collect all lines into a Vec<String>
+        let mut lines = Vec::new();
+
         if let Some(root) = &self.root {
-            log_info!("ART ({} paths):", self.path_count);
-            Self::debug_print_node(root.as_ref(), 0);
+            lines.push(format!("ART ({} paths):", self.path_count));
+            Self::collect_node_lines(root.as_ref(), 0, &mut lines);
         } else {
-            log_info!("ART is empty");
+            lines.push("ART is empty".to_owned());
         }
+
+        // join once and log atomically
+        let msg = lines.join("\n");
+        log_info!("{}", msg);
     }
 
     #[cfg(test)]
-    fn debug_print_node(node: &ARTNode, indent: usize) {
+    fn collect_node_lines(node: &ARTNode, indent: usize, lines: &mut Vec<String>) {
         let pad = "  ".repeat(indent);
-        // Node type
+        // Node type, prefix, terminal flag & score
         let (node_type, prefix, is_term, score) = match node {
-            ARTNode::Node4(n) => ("Node4", &n.prefix[..], n.is_terminal, n.score),
-            ARTNode::Node16(n) => ("Node16", &n.prefix[..], n.is_terminal, n.score),
-            ARTNode::Node48(n) => ("Node48", &n.prefix[..], n.is_terminal, n.score),
+            ARTNode::Node4(n)   => ("Node4", &n.prefix[..],   n.is_terminal, n.score),
+            ARTNode::Node16(n)  => ("Node16", &n.prefix[..],  n.is_terminal, n.score),
+            ARTNode::Node48(n)  => ("Node48", &n.prefix[..],  n.is_terminal, n.score),
             ARTNode::Node256(n) => ("Node256", &n.prefix[..], n.is_terminal, n.score),
         };
-        // Decode prefix bytes as UTF-8 lossily
         let prefix_str = String::from_utf8_lossy(prefix);
-        // Header line
+
+        // header line
         if is_term {
-            log_info!(
+            lines.push(format!(
                 "{}{} [{}] (terminal, score={:?})",
                 pad, node_type, prefix_str, score
-            );
+            ));
         } else {
-            log_info!("{}{} [{}]", pad, node_type, prefix_str);
+            lines.push(format!("{}{} [{}]", pad, node_type, prefix_str));
         }
-        // Recurse into children
+
+        // recurse into children
         for (key, child) in node.iter_children() {
             let key_char = if key.is_ascii_graphic() {
                 key as char
             } else {
-                '.' // non-printable
+                '.'
             };
-            log_info!("{}  ├─ key={:?} ('{}') →", pad, key, key_char);
-            Self::debug_print_node(child, indent + 2);
+            lines.push(format!("{}  ├─ key={} ('{}') →", pad, key, key_char));
+            Self::collect_node_lines(child, indent + 2, lines);
         }
     }
 

@@ -15,9 +15,9 @@ pub static META_DATA_CONFIG_ABS_PATH: LazyLock<PathBuf> =
 
 pub static META_DATA_CONFIG_FILE_NAME: &str = "meta_data.json";
 
-pub const LOG_FILE_NAME: &str = "app.log";
+pub const LOG_FILE_NAME: &str = "logs/app.log";
 
-pub const ERROR_LOG_FILE_NAME: &str = "error.log";
+pub const ERROR_LOG_FILE_NAME: &str = "logs/error.log";
 
 pub const MAX_FILE_SIZE: u64 = 250 * 1024 * 1024; // 250 MB
 
