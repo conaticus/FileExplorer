@@ -1,7 +1,9 @@
 use smallvec::SmallVec;
 use std::cmp;
 use std::mem;
-use crate::{log_error, log_info};
+use crate::{log_error};
+#[cfg(test)]
+use crate::log_info;
 
 pub struct ART {
     root: Option<Box<ARTNode>>,
