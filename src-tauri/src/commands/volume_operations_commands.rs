@@ -137,6 +137,7 @@ pub fn get_system_volumes_information() -> Vec<VolumeInformation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::log_info;
 
     #[test]
     fn test_get_volumes() {
@@ -146,10 +147,10 @@ mod tests {
         let volumes_as_json = get_system_volumes_information_as_json();
 
         //printing the JSON string for debugging
-        println!("Volumes as JSON: {}", volumes_as_json);
+        log_info!("Volumes as JSON: {}", volumes_as_json);
 
         for volume in &volumes {
-            println!("{:?}", volume);
+            log_info!("{:?}", volume);
         }
     }
 }

@@ -44,7 +44,7 @@ pub async fn get_template_paths_as_json_impl(
         .filter_map(|p| p.to_str().map(|s| s.to_string()))
         .collect();
 
-    log_info!(format!("Found {} template paths", path_strings.len()).as_str());
+    log_info!("Found {} template paths", path_strings.len());
 
     // Serialize to JSON
     match serde_json::to_string(&path_strings) {
@@ -86,7 +86,7 @@ pub async fn add_template(
     state: State<'_, Arc<Mutex<MetaDataState>>>,
     template_path: &str,
 ) -> Result<String, String> {
-    log_info!(format!("add_template command called with path: {}", template_path).as_str());
+    log_info!("add_template command called with path: {}", template_path);
     add_template_impl(state.inner().clone(), template_path).await
 }
 
@@ -94,7 +94,7 @@ pub async fn add_template_impl(
     state: Arc<Mutex<MetaDataState>>,
     template_path: &str,
 ) -> Result<String, String> {
-    log_info!(format!("Adding template from path: {}", template_path).as_str());
+    log_info!("Adding template from path: {}", template_path);
 
     // Check if the source path exists
     if !Path::new(template_path).exists() {
@@ -115,7 +115,7 @@ pub async fn add_template_impl(
         inner_metadata.abs_folder_path_buf_for_templates.clone()
     };
 
-    log_info!(format!("Template destination path: {}", dest_path.display()).as_str());
+    log_info!("Template destination path: {}", dest_path.display());
 
     // Create destination directory if it doesn't exist
     if !dest_path.exists() {
@@ -180,12 +180,12 @@ pub async fn add_template_impl(
 /// ```
 #[tauri::command]
 pub async fn use_template(template_path: &str, dest_path: &str) -> Result<String, String> {
-    log_info!(format!("use_template command called with key: {}", template_path).as_str());
+    log_info!("use_template command called with key: {}", template_path);
     use_template_impl(template_path, dest_path).await
 }
 
 pub async fn use_template_impl(template_path: &str, dest_path: &str) -> Result<String, String> {
-    log_info!(format!("Using template from path: {}", template_path).as_str());
+    log_info!("Using template from path: {}", template_path);
 
     // Check if the template path exists
     if !Path::new(template_path).exists() {
@@ -252,7 +252,7 @@ pub async fn remove_template_impl(
     state: Arc<Mutex<MetaDataState>>,
     template_path: &str,
 ) -> Result<String, String> {
-    log_info!(format!("Removing template at path: {}", template_path).as_str());
+    log_info!("Removing template at path: {}", template_path);
 
     // Check if the template path exists
     if !Path::new(template_path).exists() {
@@ -307,7 +307,7 @@ async fn get_template_paths_from_state(
 }
 
 pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64, String> {
-    log_info!(format!("Copying from '{}' to '{}'", source_path, dest_path).as_str());
+    log_info!("Copying from '{}' to '{}'", source_path, dest_path);
 
     // Check if the source path exists
     if !Path::new(source_path).exists() {
@@ -321,11 +321,10 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
     if let Some(parent) = dest_path_buf.parent() {
         if !parent.exists() {
             match fs::create_dir_all(parent) {
-                Ok(_) => log_info!(format!(
+                Ok(_) => log_info!(
                     "Created parent directories for destination: {}",
                     parent.display()
-                )
-                .as_str()),
+                ),
                 Err(err) => {
                     let error_msg = format!(
                         "Failed to create parent directories for destination: {}",
@@ -358,11 +357,10 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
 
         // Create the destination directory
         match fs::create_dir_all(&final_dest_path) {
-            Ok(_) => log_info!(format!(
+            Ok(_) => log_info!(
                 "Created destination directory: {}",
                 final_dest_path.display()
-            )
-            .as_str()),
+            ),
             Err(err) => {
                 let error_msg = format!("Failed to create destination directory: {}", err);
                 log_error!(error_msg.as_str());
@@ -394,18 +392,17 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
             let file_name = entry.file_name();
             let dest_path_entry = final_dest_path.join(file_name);
 
-            log_info!(format!("Processing item: {}", entry_path.display()).as_str());
+            log_info!("Processing item: {}", entry_path.display());
 
             if entry_path.is_file() {
                 // Copy file
                 match fs::copy(&entry_path, &dest_path_entry) {
                     Ok(size) => {
-                        log_info!(format!(
+                        log_info!(
                             "Copied file: {} ({} bytes)",
                             entry_path.display(),
                             size
-                        )
-                        .as_str());
+                        );
                         total_size += size;
                     }
                     Err(err) => {
@@ -417,9 +414,7 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
                 }
             } else if entry_path.is_dir() {
                 // Recursively copy subdirectory - pass the dest_path_entry as destination
-                log_info!(
-                    format!("Recursively copying subdirectory: {}", entry_path.display()).as_str()
-                );
+                log_info!("Recursively copying subdirectory: {}", entry_path.display());
                 match Box::pin(copy_to_dest_path(
                     entry_path.to_str().unwrap(),
                     dest_path_entry.parent().unwrap().to_str().unwrap(),
@@ -427,32 +422,29 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
                 .await
                 {
                     Ok(sub_size) => {
-                        log_info!(format!(
+                        log_info!(
                             "Copied directory: {} ({} bytes)",
                             entry_path.display(),
                             sub_size
-                        )
-                        .as_str());
+                        );
                         total_size += sub_size;
                     }
                     Err(err) => {
-                        log_error!(format!(
+                        log_error!(
                             "Failed to copy directory '{}': {}",
                             entry_path.display(),
                             err
-                        )
-                        .as_str());
+                        );
                         return Err(err);
                     }
                 }
             }
         }
 
-        log_info!(format!(
+        log_info!(
             "Successfully copied directory with total size: {} bytes",
             total_size
-        )
-        .as_str());
+        );
         Ok(total_size)
     } else {
         log_info!("Copying single file");
@@ -461,7 +453,7 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
             if !parent.exists() {
                 match fs::create_dir_all(parent) {
                     Ok(_) => {
-                        log_info!(format!("Created parent directory: {}", parent.display()).as_str())
+                        log_info!("Created parent directory: {}", parent.display());
                     }
                     Err(err) => {
                         let error_msg = format!("Failed to create parent directory: {}", err);
@@ -475,11 +467,10 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
         // Copy a single file
         match fs::copy(source_path, dest_path) {
             Ok(size) => {
-                log_info!(format!(
+                log_info!(
                     "Copied file: {} to {} ({} bytes)",
                     source_path, dest_path, size
-                )
-                .as_str());
+                );
                 Ok(size)
             }
             Err(err) => {
@@ -585,7 +576,7 @@ mod tests_template_commands {
         // Update template paths in state - this should find our newly created templates
         {
             let meta_state = state.lock().unwrap();
-            println!("Templates dir: {:?}", templates_dir.path());
+            log_info!("Templates dir: {:?}", templates_dir.path());
 
             let inner_meta_data = &mut meta_state.0.lock().unwrap();
             inner_meta_data.template_paths = vec![template1.clone(), template2.clone()];
@@ -657,7 +648,7 @@ mod tests_template_commands {
 
         // Verify the template was copied - should be in templates_dir/source_name
         let expected_template_path = templates_dir.path().join(source_name);
-        println!("Expected template path: {:?}", expected_template_path);
+        log_info!("Expected template path: {:?}", expected_template_path);
         assert!(
             expected_template_path.exists(),
             "Template should exist at destination: {:?}",
@@ -717,7 +708,7 @@ mod tests_template_commands {
 
         // Verify the template was copied to the destination - should be in dest_dir/template_name
         let dest_template_dir = dest_dir.path().join(template_name);
-        println!("Looking for template in: {:?}", dest_template_dir);
+        log_info!("Looking for template in: {:?}", dest_template_dir);
         assert!(
             dest_template_dir.exists(),
             "Template directory should exist at destination"
@@ -888,7 +879,7 @@ mod tests_template_commands {
 
         // Get source directory name for verification
         let source_name = source_dir.path().file_name().unwrap().to_str().unwrap();
-        println!("Source directory name: {}", source_name);
+        log_info!("Source directory name: {}", source_name);
 
         // Copy the directory
         let result = copy_to_dest_path(
@@ -905,7 +896,7 @@ mod tests_template_commands {
 
         // The copied directory should be in dest_dir/source_name
         let copied_dir_path = dest_dir.path().join(source_name);
-        println!("Expected copied directory path: {:?}", copied_dir_path);
+        log_info!("Expected copied directory path: {:?}", copied_dir_path);
 
         // Verify the directory structure was copied
         assert!(
@@ -915,7 +906,7 @@ mod tests_template_commands {
 
         println!("Contents of copied directory:");
         for entry in fs::read_dir(&copied_dir_path).expect("Failed to read directory") {
-            println!("  {:?}", entry.unwrap().path());
+            log_info!("  {:?}", entry.unwrap().path());
         }
 
         let copied_file1 = copied_dir_path.join("file1.txt");

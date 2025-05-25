@@ -39,7 +39,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 
     // Check if path exists
     if !path_obj.exists() {
-        log_error!(format!("File does not exist: {}", path).as_str());
+        log_error!("File does not exist: {}", path);
         return Err(Error::new(
             ErrorCode::ResourceNotFound,
             format!("File does not exist: {}", path),
@@ -49,7 +49,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
 
     // Check if path is a file
     if !path_obj.is_file() {
-        log_error!(format!("Path is not a file: {}", path).as_str());
+        log_error!("Path is not a file: {}", path);
         return Err(Error::new(
             ErrorCode::InvalidInput,
             format!("Path is not a file: {}", path),
@@ -60,7 +60,7 @@ pub async fn open_file(path: &str) -> Result<String, String> {
     // Read the file
     //fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))
     fs::read_to_string(path).map_err(|err| {
-        log_error!(format!("Failed to open file: {}", err).as_str());
+        log_error!("Failed to open file: {}", err);
         Error::new(
             ErrorCode::InternalError,
             format!("Failed to read file: {}", err),
@@ -75,7 +75,7 @@ pub async fn open_in_default_app(path: &str) -> Result<(), String> {
 
     // Check if path exists
     if !path_obj.exists() {
-        log_error!(format!("File does not exist: {}", path).as_str());
+        log_error!("File does not exist: {}", path);
         return Err(format!("File does not exist: {}", path));
     }
 
@@ -119,7 +119,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
 
     // Check if path exists
     if !path_obj.exists() {
-        log_error!(format!("Directory does not exist: {}", path).as_str());
+        log_error!("Directory does not exist: {}", path);
         return Err(Error::new(
             ErrorCode::ResourceNotFound,
             format!("Directory does not exist: {}", path),
@@ -129,7 +129,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
 
     // Check if path is a directory
     if !path_obj.is_dir() {
-        log_error!(format!("Path is not a directory: {}", path).as_str());
+        log_error!("Path is not a directory: {}", path);
         return Err(Error::new(
             ErrorCode::InvalidInput,
             format!("Path is not a directory: {}", path),
@@ -141,7 +141,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
     let mut files = Vec::new();
 
     for entry in read_dir(path_obj).map_err(|err| {
-        log_error!(format!("Failed to read directory: {}", err).as_str());
+        log_error!("Failed to read directory: {}", err);
         Error::new(
             ErrorCode::InternalError,
             format!("Failed to read directory: {}", err),
@@ -149,7 +149,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
         .to_json()
     })? {
         let entry = entry.map_err(|err| {
-            log_error!(format!("Failed to read entry: {}", err).as_str());
+            log_error!("Failed to read entry: {}", err);
             Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to read entry: {}", err),
@@ -158,7 +158,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
         })?;
 
         let file_type = entry.file_type().map_err(|err| {
-            log_error!(format!("Failed to get file type: {}", err).as_str());
+            log_error!("Failed to get file type: {}", err);
             Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to get file type: {}", err),
@@ -168,7 +168,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
 
         let path_of_entry = entry.path();
         let metadata = entry.metadata().map_err(|err| {
-            log_error!(format!("Failed to get metadata: {}", err).as_str());
+            log_error!("Failed to get metadata: {}", err);
             Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to get metadata: {}", err),
@@ -239,7 +239,7 @@ pub async fn open_directory(path: String) -> Result<String, String> {
 
     // Convert the Entries struct to a JSON string
     let json = serde_json::to_string(&entries).map_err(|err| {
-        log_error!(format!("Failed to serialize entries: {}", err).as_str());
+        log_error!("Failed to serialize entries: {}", err);
         Error::new(
             ErrorCode::InternalError,
             format!("Failed to serialize entries: {}", err),
@@ -272,7 +272,7 @@ pub async fn create_file(folder_path_abs: &str, file_name: &str) -> Result<(), S
     // Check if the folder path exists and is valid
     let path = Path::new(folder_path_abs);
     if !path.exists() {
-        log_error!(format!("Directory does not exist: {}", folder_path_abs).as_str());
+        log_error!("Directory does not exist: {}", folder_path_abs);
         // Check if the folder path exists
         return Err(Error::new(
             ErrorCode::ResourceNotFound,
@@ -281,7 +281,7 @@ pub async fn create_file(folder_path_abs: &str, file_name: &str) -> Result<(), S
         .to_json());
     }
     if !path.is_dir() {
-        log_error!(format!("Path is no directory: {}", folder_path_abs).as_str());
+        log_error!("Path is no directory: {}", folder_path_abs);
         return Err(Error::new(
             ErrorCode::InvalidInput,
             format!("Path is no directory: {}", folder_path_abs),
@@ -296,11 +296,10 @@ pub async fn create_file(folder_path_abs: &str, file_name: &str) -> Result<(), S
     match fs::File::create(&file_path) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log_error!(format!(
+            log_error!(
                 "File could not be created: {} error: {}",
                 folder_path_abs, err
-            )
-            .as_str());
+            );
             Err(Error::new(
                 ErrorCode::InternalError,
                 format!(
@@ -336,7 +335,7 @@ pub async fn create_directory(folder_path_abs: &str, folder_name: &str) -> Resul
     // Check if the folder path exists and is valid
     let parent_path = Path::new(folder_path_abs);
     if !parent_path.exists() {
-        log_error!(format!("Parent directory does not exist: {}", folder_path_abs).as_str());
+        log_error!("Parent directory does not exist: {}", folder_path_abs);
         return Err(Error::new(
             ErrorCode::ResourceNotFound,
             format!("Parent directory does not exist: {}", folder_path_abs),
@@ -360,11 +359,10 @@ pub async fn create_directory(folder_path_abs: &str, folder_name: &str) -> Resul
     match fs::create_dir(&dir_path) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log_error!(format!(
+            log_error!(
                 "Failed to create directory: {} err: {}",
                 folder_path_abs, err
-            )
-            .as_str());
+            );
             Err(Error::new(
                 ErrorCode::InternalError,
                 format!(
@@ -402,7 +400,7 @@ pub async fn rename(old_path: &str, new_path: &str) -> Result<(), String> {
 
     // Check if the old path exists
     if !old_path_obj.exists() {
-        log_error!(format!("File does not exist: {}", old_path).as_str());
+        log_error!("File does not exist: {}", old_path);
         return Err(Error::new(
             ErrorCode::ResourceNotFound,
             format!("File does not exist: {}", old_path),
@@ -412,7 +410,7 @@ pub async fn rename(old_path: &str, new_path: &str) -> Result<(), String> {
 
     // Check if the new path is valid
     if new_path_obj.exists() {
-        log_error!(format!("New path already exists: {}", new_path).as_str());
+        log_error!("New path already exists: {}", new_path);
         return Err(Error::new(
             ErrorCode::ResourceAlreadyExists,
             format!("New path already exists: {}", new_path),
@@ -424,7 +422,7 @@ pub async fn rename(old_path: &str, new_path: &str) -> Result<(), String> {
     match fs::rename(old_path, new_path) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log_error!(format!("Failed to rename: {}", err).as_str());
+            log_error!("Failed to rename: {}", err);
             Err(Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to rename: {}", err),
@@ -457,7 +455,7 @@ pub async fn move_to_trash(path: &str) -> Result<(), String> {
     match trash::delete(path) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log_error!(format!("Failed to move file or directory to trash: {}", err).as_str());
+            log_error!("Failed to move file or directory to trash: {}", err);
             Err(Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to move file or directory to trash: {}", err),
@@ -492,7 +490,7 @@ pub async fn move_to_trash(path: &str) -> Result<(), String> {
 pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Result<u64, String> {
     // Check if the source path exists
     if !Path::new(source_path).exists() {
-        log_error!(format!("Source path does not exist: {}", source_path).as_str());
+        log_error!("Source path does not exist: {}", source_path);
         return Err(Error::new(
             ErrorCode::InvalidInput,
             format!("Source path does not exist: {}", source_path),
@@ -502,7 +500,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
 
     // Check if the destination path is valid
     if Path::new(destination_path).exists() {
-        log_error!(format!("Destination path already exists: {}", destination_path).as_str());
+        log_error!("Destination path already exists: {}", destination_path);
         return Err(Error::new(
             ErrorCode::ResourceAlreadyExists,
             format!("Destination path already exists: {}", destination_path),
@@ -516,7 +514,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
 
         // Create the destination directory
         fs::create_dir_all(destination_path).map_err(|err| {
-            log_error!(format!("Failed to create destination directory: {}", err).as_str());
+            log_error!("Failed to create destination directory: {}", err);
             Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to create destination directory: {}", err),
@@ -525,8 +523,8 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
         })?;
 
         // Read all entries in the source directory
-        for entry in fs::read_dir(source_path).map_err(|err| {
-            log_error!(format!("Failed to read source directory: {}", err).as_str());
+        for entry in read_dir(source_path).map_err(|err| {
+            log_error!("Failed to read source directory: {}", err);
             Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to read source directory: {}", err),
@@ -534,7 +532,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
             .to_json()
         })? {
             let entry = entry.map_err(|err| {
-                log_error!(format!("Failed to read directory entry: {}", err).as_str());
+                log_error!("Failed to read directory entry: {}", err);
                 Error::new(
                     ErrorCode::InternalError,
                     format!("Failed to read directory entry: {}", err),
@@ -549,7 +547,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
             if entry_path.is_file() {
                 // Copy file
                 let size = fs::copy(&entry_path, &dest_path).map_err(|err| {
-                    log_error!(format!("Failed to copy file: {}", err).as_str());
+                    log_error!("Failed to copy file: {}", err);
                     Error::new(
                         ErrorCode::InternalError,
                         format!("Failed to copy file '{}': {}", entry_path.display(), err),
@@ -572,7 +570,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
     } else {
         // Copy a single file
         let size = fs::copy(source_path, destination_path).map_err(|err| {
-            log_error!(format!("Failed to copy file: {}", err).as_str());
+            log_error!("Failed to copy file: {}", err);
             Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to copy file: {}", err),
@@ -635,7 +633,7 @@ pub async fn zip(
 
     // Create zip file
     let zip_file = fs::File::create(&zip_path).map_err(|e| {
-        log_error!(format!("Failed to create zip file: {}", e).as_str());
+        log_error!("Failed to create zip file: {}", e);
         Error::new(
             ErrorCode::InternalError,
             format!("Failed to create zip file: {}", e),
@@ -652,7 +650,7 @@ pub async fn zip(
     for source_path in source_paths {
         let source = Path::new(&source_path);
         if !source.exists() {
-            log_error!(format!("Source path does not exist: {}", source_path).as_str());
+            log_error!("Source path does not exist: {}", source_path);
             return Err(Error::new(
                 ErrorCode::ResourceNotFound,
                 format!("Source path does not exist: {}", source_path),
@@ -693,7 +691,7 @@ pub async fn zip(
 
                 if path.is_file() {
                     let relative = path.strip_prefix(source).map_err(|e| {
-                        log_error!(format!("Failed to strip prefix: {}", e).as_str());
+                        log_error!("Failed to strip prefix: {}", e);
                         Error::new(
                             ErrorCode::InternalError,
                             format!("Error creating relative path: {}", e),
@@ -710,7 +708,7 @@ pub async fn zip(
                     );
 
                     zip.start_file(&name, options).map_err(|e| {
-                        log_error!(format!("Error adding file to zip: {}", e).as_str());
+                        log_error!("Error adding file to zip: {}", e);
                         Error::new(
                             ErrorCode::InternalError,
                             format!("Error adding file to zip: {}", e),
@@ -718,7 +716,7 @@ pub async fn zip(
                         .to_json()
                     })?;
                     let content = fs::read(path).map_err(|e| {
-                        log_error!(format!("Error reading file: {}", e).as_str());
+                        log_error!("Error reading file: {}", e);
                         Error::new(
                             ErrorCode::InternalError,
                             format!("Error reading file: {}", e),
@@ -726,7 +724,7 @@ pub async fn zip(
                         .to_json()
                     })?;
                     zip.write_all(&content).map_err(|e| {
-                        log_error!(format!("Error writing to zip: {}", e).as_str());
+                        log_error!("Error writing to zip: {}", e);
                         Error::new(
                             ErrorCode::InternalError,
                             format!("Error writing to zip: {}", e),
@@ -739,7 +737,7 @@ pub async fn zip(
     }
 
     zip.finish().map_err(|e| {
-        log_error!(format!("Error finalizing zip file: {}", e).as_str());
+        log_error!("Error finalizing zip file: {}", e);
         Error::new(
             ErrorCode::InternalError,
             format!("Error finalizing zip file: {}", e),
@@ -809,7 +807,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
         }
     };
 
-    // If destination path is provided and we have multiple files, validate it exists
+    // If destination path is provided, and we have multiple files, validate it exists
     if zip_paths.len() > 1 && !dest_path.exists() {
         log_error!("Destination path does not exist");
         return Err(Error::new(
@@ -832,7 +830,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
     for zip_path in zip_paths.clone() {
         let zip_path = Path::new(&zip_path);
         if !zip_path.exists() {
-            log_error!(format!("Zip file does not exist: {}", zip_path.display()).as_str());
+            log_error!("Zip file does not exist: {}", zip_path.display());
             return Err(Error::new(
                 ErrorCode::ResourceNotFound,
                 format!("Zip file does not exist: {}", zip_path.display()),
@@ -857,7 +855,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
 
         // Create extraction directory
         if let Err(e) = fs::create_dir_all(&extract_path) {
-            log_error!(format!("Failed to create extraction directory: {}", e).as_str());
+            log_error!("Failed to create extraction directory: {}", e);
             return Err(Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to create extraction directory: {}", e),
@@ -867,7 +865,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
 
         // Open and extract zip file
         let file = fs::File::open(zip_path).map_err(|e| {
-            log_error!(format!("Failed to open zip file: {}", e).as_str());
+            log_error!("Failed to open zip file: {}", e);
             Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to open zip file: {}", e),
@@ -876,7 +874,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
         })?;
 
         let mut archive = zip::ZipArchive::new(file).map_err(|e| {
-            log_error!(format!("Failed to read zip archive: {}", e).as_str());
+            log_error!("Failed to read zip archive: {}", e);
             Error::new(
                 ErrorCode::InternalError,
                 format!("Failed to read zip archive: {}", e),
@@ -886,7 +884,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
 
         for i in 0..archive.len() {
             let mut file = archive.by_index(i).map_err(|e| {
-                log_error!(format!("Failed to read zip entry: {}", e).as_str());
+                log_error!("Failed to read zip entry: {}", e);
                 Error::new(
                     ErrorCode::InternalError,
                     format!("Failed to read zip entry: {}", e),
@@ -897,7 +895,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
 
             if file.name().ends_with('/') {
                 fs::create_dir_all(&outpath).map_err(|e| {
-                    log_error!(format!("Failed to create directory: {}", e).as_str());
+                    log_error!("Failed to create directory: {}", e);
                     Error::new(
                         ErrorCode::InternalError,
                         format!("Failed to create directory '{}': {}", outpath.display(), e),
@@ -908,7 +906,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                 if let Some(parent) = outpath.parent() {
                     if !parent.exists() {
                         fs::create_dir_all(parent).map_err(|e| {
-                            log_error!(format!("Failed to create parent directory: {}", e).as_str());
+                            log_error!("Failed to create parent directory: {}", e);
                             Error::new(
                                 ErrorCode::InternalError,
                                 format!(
@@ -922,7 +920,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                     }
                 }
                 let mut outfile = fs::File::create(&outpath).map_err(|e| {
-                    log_error!(format!("Failed to create file: {}", e).as_str());
+                    log_error!("Failed to create file: {}", e);
                     Error::new(
                         ErrorCode::InternalError,
                         format!("Failed to create file {}': {}", outpath.display(), e),
@@ -930,7 +928,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                     .to_json()
                 })?;
                 std::io::copy(&mut file, &mut outfile).map_err(|e| {
-                    log_error!(format!("Failed to write file: {}", e).as_str());
+                    log_error!("Failed to write file: {}", e);
                     Error::new(
                         ErrorCode::InternalError,
                         format!("Failed to write file '{}': {}", outpath.display(), e),
@@ -2054,7 +2052,7 @@ mod tests_file_system_operation_commands {
 
         // Create a test zip file
         let zip_path = temp_dir.path().join("test.zip");
-        let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
+        let mut zip = ZipWriter::new(fs::File::create(&zip_path).unwrap());
 
         zip.start_file::<_, ()>("test.txt", FileOptions::default())
             .unwrap();
@@ -2151,14 +2149,14 @@ mod tests_file_system_operation_commands {
         let zip2_path = temp_dir.path().join("test2.zip");
 
         // Create content for first zip
-        let mut zip1 = zip::ZipWriter::new(fs::File::create(&zip1_path).unwrap());
+        let mut zip1 = ZipWriter::new(fs::File::create(&zip1_path).unwrap());
         zip1.start_file::<_, ()>("file1.txt", FileOptions::default())
             .unwrap();
         zip1.write_all(b"Content 1").unwrap();
         zip1.finish().unwrap();
 
         // Create content for second zip
-        let mut zip2 = zip::ZipWriter::new(fs::File::create(&zip2_path).unwrap());
+        let mut zip2 = ZipWriter::new(fs::File::create(&zip2_path).unwrap());
         zip2.start_file::<_, ()>("file2.txt", FileOptions::default())
             .unwrap();
         zip2.write_all(b"Content 2").unwrap();
@@ -2206,14 +2204,14 @@ mod tests_file_system_operation_commands {
         // Create a test zip file
         let zip_path = temp_dir.path().join("test.zip");
         let zip2_path = temp_dir.path().join("test2.zip");
-        let mut zip = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
+        let mut zip = ZipWriter::new(fs::File::create(&zip_path).unwrap());
 
         zip.start_file::<_, ()>("test.txt", FileOptions::default())
             .unwrap();
         zip.write_all(b"Hello, World!").unwrap();
         zip.finish().unwrap();
 
-        let mut zip2 = zip::ZipWriter::new(fs::File::create(&zip2_path).unwrap());
+        let mut zip2 = ZipWriter::new(fs::File::create(&zip2_path).unwrap());
         zip2.start_file::<_, ()>("test2.txt", FileOptions::default())
             .unwrap();
         zip2.write_all(b"Hello, World!").unwrap();

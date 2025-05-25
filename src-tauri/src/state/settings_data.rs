@@ -167,10 +167,7 @@ impl SettingsState {
         let path = Settings::default().abs_file_path_buf.to_path_buf();
 
         let settings = if path.exists() {
-            match Self::read_settings_from_file(&path) {
-                Ok(s) => s,
-                Err(_) => Self::write_default_settings_to_file_and_save_in_state(),
-            }
+            Self::read_settings_from_file(&path).unwrap_or_else(|_| Self::write_default_settings_to_file_and_save_in_state())
         } else {
             Self::write_default_settings_to_file_and_save_in_state()
         };
@@ -202,11 +199,11 @@ impl SettingsState {
         settings: &Settings,
     ) -> Result<serde_json::Map<String, Value>, Error> {
         let settings_value = serde_json::to_value(settings)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(|e| Error::new(io::ErrorKind::Other, e))?;
 
         settings_value.as_object().cloned().ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
+            Error::new(
+                io::ErrorKind::InvalidData,
                 "Settings is not a JSON object",
             )
         })
@@ -236,9 +233,9 @@ impl SettingsState {
     /// ```
     pub fn json_map_to_settings(
         map: serde_json::Map<String, Value>,
-    ) -> Result<Settings, io::Error> {
+    ) -> Result<Settings, Error> {
         serde_json::from_value(Value::Object(map))
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+            .map_err(|e| Error::new(io::ErrorKind::InvalidData, e))
     }
 
     /// Updates a single setting field with a new value.
@@ -263,7 +260,7 @@ impl SettingsState {
     /// let result = settings_state.update_setting_field("theme", json!("dark"))?;
     /// println!("Updated settings: {:?}", result);
     /// ```
-    pub fn update_setting_field(&self, key: &str, value: Value) -> Result<Settings, io::Error> {
+    pub fn update_setting_field(&self, key: &str, value: Value) -> Result<Settings, Error> {
         let mut settings = self.0.lock().unwrap();
 
         let mut settings_map = Self::settings_to_json_map(&settings)?;
@@ -353,7 +350,7 @@ impl SettingsState {
     pub fn update_multiple_settings(
         &self,
         updates: &serde_json::Map<String, Value>,
-    ) -> Result<Settings, io::Error> {
+    ) -> Result<Settings, Error> {
         let mut last_updated_settings = None;
 
         for (key, value) in updates {
@@ -364,7 +361,7 @@ impl SettingsState {
 
         // Return the last successful update
         last_updated_settings
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "No settings were provided"))
+            .ok_or_else(|| Error::new(io::ErrorKind::InvalidInput, "No settings were provided"))
     }
 
     /// Resets all settings to their default values.
@@ -390,7 +387,7 @@ impl SettingsState {
     ///     Err(e) => eprintln!("Failed to reset settings: {}", e),
     /// }
     /// ```
-    pub fn reset_settings(&self) -> Result<Settings, io::Error> {
+    pub fn reset_settings(&self) -> Result<Settings, Error> {
         let mut settings = self.0.lock().unwrap();
 
         let default_settings = Settings::default();
@@ -449,7 +446,7 @@ impl SettingsState {
     fn write_settings_to_file(&self, settings: &Settings) -> io::Result<()> {
         let user_config_file_path = &settings.abs_file_path_buf;
         let serialized = serde_json::to_string_pretty(&settings)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(|e| Error::new(io::ErrorKind::Other, e))?;
 
         // Makes sure the parent directory exists
         if let Some(parent) = user_config_file_path.parent() {
@@ -503,7 +500,7 @@ impl SettingsState {
         let settings_state = Self(Arc::new(Mutex::new(defaults.clone())));
 
         if let Err(e) = settings_state.write_settings_to_file(&defaults) {
-            log_error!(&format!("Error writing settings to file: {}", e));
+            log_error!("Error writing settings to file: {}", e);
         }
 
         defaults
@@ -534,7 +531,7 @@ impl SettingsState {
         let mut file = File::open(path)?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
-        serde_json::from_str(&contents).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        serde_json::from_str(&contents).map_err(|e| Error::new(io::ErrorKind::InvalidData, e))
     }
 }
 

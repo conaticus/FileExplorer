@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use crate::state::SettingsState;
 use crc32fast::Hasher;
 use md5::{Digest as Md5Digest, Md5 as Md5Hasher};
@@ -42,14 +43,15 @@ impl FromStr for ChecksumMethod {
     }
 }
 
-impl ToString for HashError {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for HashError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
             HashError::SettingsLockError => "Failed to access settings".to_string(),
             HashError::InvalidChecksumMethod => "Invalid checksum method".to_string(),
             HashError::FileOperationError => "File operation failed".to_string(),
             HashError::ClipboardError => "Failed to copy to clipboard".to_string(),
-        }
+        };
+        write!(f, "{}", str)
     }
 }
 

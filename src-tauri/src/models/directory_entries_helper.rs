@@ -41,12 +41,12 @@ pub fn get_access_permission_number(permissions: Permissions, _is_directory: boo
     #[cfg(windows)]
     {
         // Unix-like octal for Windows-permissions
-        if permissions.readonly() {
-            return 0o444; // r--r--r--
+        return if permissions.readonly() {
+            0o444 // r--r--r--
         } else if _is_directory {
-            return 0o755; // rwxr-xr-x
+            0o755 // rwxr-xr-x
         } else {
-            return 0o666; // rw-rw-rw-
+            0o666 // rw-rw-rw-
         }
     }
     #[cfg(unix)]

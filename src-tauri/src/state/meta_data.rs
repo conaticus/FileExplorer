@@ -69,7 +69,7 @@ impl Default for MetaData {
 fn load_templates() -> Vec<PathBuf> {
     let templates_path = constants::TEMPLATES_ABS_PATH_FOLDER.to_path_buf();
     if templates_path.exists() {
-        std::fs::read_dir(templates_path)
+        fs::read_dir(templates_path)
             .unwrap()
             .filter_map(|entry| entry.ok())
             .map(|entry| entry.path())
@@ -78,7 +78,7 @@ fn load_templates() -> Vec<PathBuf> {
         //create the empty folder
         fs::create_dir_all(templates_path)
             .map_err(|e| {
-                log_error!(format!("Failed to create templates folder. Error: {}", e).as_str());
+                log_error!("Failed to create templates folder. Error: {}", e);
             })
             .unwrap();
         vec![]
@@ -211,7 +211,7 @@ impl MetaDataState {
 
         // Makes sure the parent directory exists
         if let Some(parent) = user_config_file_path.parent() {
-            std::fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent)?;
         }
 
         // Write to the file

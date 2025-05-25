@@ -42,10 +42,10 @@ pub fn search_impl(
     query: String,
     state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<SearchResult, String> {
-    log_info!(&format!(
+    log_info!(
         "Search implementation called with query: {}",
         query
-    ));
+    );
     let engine = state.lock().unwrap();
     engine.search(&query)
 }
@@ -92,10 +92,10 @@ pub fn search_with_extension_impl(
     extensions: Vec<String>,
     state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<SearchResult, String> {
-    log_info!(&format!(
+    log_info!(
         "Search with extension called: query='{}', extensions={:?}",
         query, extensions
-    ));
+    );
     let engine = state.lock().unwrap();
     engine.search_by_extension(&query, extensions)
 }
@@ -130,10 +130,10 @@ pub fn add_paths_recursive_impl(
     folder: String,
     state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<(), String> {
-    log_info!(&format!(
+    log_info!(
         "Add paths recursive called with folder: {}",
         folder
-    ));
+    );
     let path = PathBuf::from(folder);
     let engine = state.lock().unwrap();
     engine.start_indexing(path)
@@ -166,7 +166,7 @@ pub fn add_path(
 }
 
 pub fn add_path_impl(path: String, state: Arc<Mutex<SearchEngineState>>) -> Result<(), String> {
-    log_info!(&format!("Add path called with: {}", path));
+    log_info!("Add path called with: {}", path);
     let engine = state.lock().unwrap();
     engine.add_path(&path)
 }
@@ -201,10 +201,10 @@ pub fn remove_paths_recursive_impl(
     folder: String,
     state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<(), String> {
-    log_info!(&format!(
+    log_info!(
         "Remove paths recursive called with folder: {}",
         folder
-    ));
+    );
     let engine = state.lock().unwrap();
     engine.remove_paths_recursive(&folder)
 }
@@ -236,7 +236,7 @@ pub fn remove_path(
 }
 
 pub fn remove_path_impl(path: String, state: Arc<Mutex<SearchEngineState>>) -> Result<(), String> {
-    log_info!(&format!("Remove path called with: {}", path));
+    log_info!("Remove path called with: {}", path);
     let engine = state.lock().unwrap();
     engine.remove_path(&path)
 }

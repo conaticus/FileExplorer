@@ -33,7 +33,7 @@ struct CommandResponse {
 /// ```
 #[tauri::command]
 pub async fn execute_command(command: String) -> Result<String, String> {
-    log_info!(format!("Command: {}", command).as_str());
+    log_info!("Command: {}", command);
 
     // Split the command string into program and arguments
     let mut parts = command.split_whitespace();

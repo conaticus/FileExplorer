@@ -76,9 +76,9 @@ impl PathCache {
     ///
     /// ```rust
     /// use std::time::Duration;
-    /// 
+    ///
     /// let mut cache = PathCache::with_ttl(
-    ///     100, 
+    ///     100,
     ///     Duration::from_secs(30)
     /// );
     /// ```
@@ -90,7 +90,7 @@ impl PathCache {
     }
 
     /// Retrieves path data from the cache by its path key.
-    /// 
+    ///
     /// This method first checks the thread-local cache to avoid lock contention,
     /// then falls back to the shared LRU cache if needed. If found, the entry is
     /// moved to the front of the LRU list (marking it as most recently used).
@@ -114,7 +114,7 @@ impl PathCache {
     /// ```rust
     /// let mut cache = PathCache::new(100);
     /// cache.insert("file.txt".to_string(), vec![("file.txt".to_string(), 1.0)]);
-    /// 
+    ///
     /// match cache.get("file.txt") {
     ///     Some(data) => println!("Found {} results", data.results.len()),
     ///     None => println!("No cached results found"),
@@ -168,7 +168,7 @@ impl PathCache {
     }
 
     /// Inserts path data into the cache using the given query as the key.
-    /// 
+    ///
     /// The data is stored both in the thread-local cache and the shared LRU cache.
     /// If the shared cache is at capacity, the least recently used entry will be evicted.
     ///
@@ -186,7 +186,7 @@ impl PathCache {
     ///
     /// ```rust
     /// let mut cache = PathCache::new(100);
-    /// 
+    ///
     /// // Cache search results
     /// let results = vec![
     ///     ("C:/path/to/file.txt".to_string(), 0.95),
@@ -277,7 +277,7 @@ impl PathCache {
     /// let mut cache = PathCache::new(100);
     /// // Add some entries
     /// cache.insert("file.txt".to_string(), vec![("path/to/file.txt".to_string(), 1.0)]);
-    /// 
+    ///
     /// // Clear all entries
     /// cache.clear();
     /// assert_eq!(cache.len(), 0);
@@ -310,13 +310,13 @@ impl PathCache {
     /// ```rust
     /// use std::time::Duration;
     /// use std::thread::sleep;
-    /// 
+    ///
     /// let mut cache = PathCache::with_ttl(100, Duration::from_secs(5));
     /// cache.insert("file.txt".to_string(), vec![("path/to/file.txt".to_string(), 1.0)]);
-    /// 
+    ///
     /// // Wait for entries to expire
     /// sleep(Duration::from_secs(6));
-    /// 
+    ///
     /// // Purge expired entries
     /// let purged = cache.purge_expired();
     /// println!("Purged {} expired entries", purged);
@@ -499,10 +499,10 @@ mod tests_path_cache {
         let elapsed = start.elapsed();
 
         let avg_retrieval_time = elapsed.as_nanos() as f64 / 500.0;
-        log_info!(&format!(
+        log_info!(
             "Average retrieval time for existing paths: {:.2} ns",
             avg_retrieval_time
-        ));
+        );
 
         // Benchmark getting non-existent paths
         let start = Instant::now();
@@ -513,10 +513,10 @@ mod tests_path_cache {
         let elapsed = start.elapsed();
 
         let avg_miss_time = elapsed.as_nanos() as f64 / 500.0;
-        log_info!(&format!(
+        log_info!(
             "Average retrieval time for non-existent paths: {:.2} ns",
             avg_miss_time
-        ));
+        );
     }
 
     #[test]
@@ -542,12 +542,12 @@ mod tests_path_cache {
             }
             let elapsed = start.elapsed();
 
-            log_info!(&format!(
+            log_info!(
                 "Path cache size {}: 1000 lookups took {:?} (avg: {:.2} ns/lookup)",
                 size,
                 elapsed,
                 elapsed.as_nanos() as f64 / 1000.0
-            ));
+            );
         }
     }
 
@@ -563,7 +563,13 @@ mod tests_path_cache {
             // Fill the cache to capacity
             for i in 0..size {
                 let path = format!("/path/to/file_{}", i);
-                cache.insert(path.clone(), vec![(path.clone(), format!("metadata_{}", i).parse::<f32>().unwrap_or(1.0))]);
+                cache.insert(
+                    path.clone(),
+                    vec![(
+                        path.clone(),
+                        format!("metadata_{}", i).parse::<f32>().unwrap_or(1.0),
+                    )],
+                );
             }
 
             // Measure retrieval time (mixed hits and misses)
@@ -574,12 +580,12 @@ mod tests_path_cache {
             }
             let elapsed = start.elapsed();
 
-            log_info!(&format!(
+            log_info!(
                 "Cache size {}: 1000 lookups took {:?} (avg: {:.2} ns/lookup)",
                 size,
                 elapsed,
                 elapsed.as_nanos() as f64 / 1000.0
-            ));
+            );
         }
     }
 
@@ -612,10 +618,10 @@ mod tests_path_cache {
         }
         let elapsed = start.elapsed();
 
-        log_info!(&format!(
+        log_info!(
             "Time to insert 20 items with eviction: {:?}",
             elapsed
-        ));
+        );
 
         // Verify the first 20 items are still there (recently used)
         for i in 0..20 {
@@ -630,9 +636,9 @@ mod tests_path_cache {
             }
         }
 
-        log_info!(&format!(
+        log_info!(
             "Evicted {} items from the middle range",
             evicted_count
-        ));
+        );
     }
 }

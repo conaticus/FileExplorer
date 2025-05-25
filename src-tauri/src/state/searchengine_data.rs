@@ -293,10 +293,10 @@ impl SearchEngineState {
         if matches!(data.status, SearchEngineStatus::Indexing) {
             // Signal the engine to stop the current indexing process
             #[cfg(test)]
-            log_info!(&format!(
+            log_info!(
                 "Stopping previous indexing of '{}' before starting new indexing",
                 data.index_folder.display()
-            ));
+            );
 
             engine.stop_indexing();
         }
@@ -339,19 +339,19 @@ impl SearchEngineState {
             if engine.should_stop_indexing() {
                 data.status = SearchEngineStatus::Cancelled;
                 #[cfg(test)]
-                log_info!(&format!(
+                log_info!(
                     "Indexing of '{}' was cancelled after {:?}",
                     folder.display(),
                     elapsed
-                ));
+                );
             } else {
                 data.status = SearchEngineStatus::Idle;
                 #[cfg(test)]
-                log_info!(&format!(
+                log_info!(
                     "Indexing of '{}' completed in {:?}",
                     folder.display(),
                     elapsed
-                ));
+                );
             }
         } else {
             data.status = SearchEngineStatus::Failed;
@@ -500,10 +500,10 @@ impl SearchEngineState {
         let original_extensions = engine.get_preferred_extensions().clone();
         engine.set_preferred_extensions(extensions.clone());
         #[cfg(test)]
-        log_info!(&format!(
+        log_info!(
             "Searching with preferred extensions: {:?}",
             extensions
-        ));
+        );
 
         // Perform search
         let start_time = Instant::now();
@@ -514,7 +514,7 @@ impl SearchEngineState {
         {
             // Verify that results meet our extension preferences
             if !results.is_empty() && !extensions.is_empty() {
-                log_info!(&format!("Top search result: {}", results[0].0));
+                log_info!("Top search result: {}", results[0].0);
 
                 // Check if top result has one of our preferred extensions
                 if let Some(extension) = std::path::Path::new(&results[0].0)
@@ -522,10 +522,10 @@ impl SearchEngineState {
                     .and_then(|e| e.to_str())
                 {
                     let ext = extension.to_lowercase();
-                    log_info!(&format!(
+                    log_info!(
                         "Top result extension: {}, preferred: {:?}",
                         ext, extensions
-                    ));
+                    );
                 }
             }
         }
@@ -778,10 +778,10 @@ impl SearchEngineState {
             data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
 
             #[cfg(test)]
-            log_info!(&format!(
+            log_info!(
                 "Indexing of '{}' stopped",
                 data.index_folder.display()
-            ));
+            );
 
             return Ok(());
         }
@@ -842,10 +842,10 @@ mod tests_searchengine_state {
     fn get_test_data_path() -> PathBuf {
         let path = PathBuf::from("./test-data-for-fuzzy-search");
         if !path.exists() {
-            log_warn!(&format!(
+            log_warn!(
                 "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
                 path
-            ));
+            );
             panic!(
                 "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
                 path
@@ -1318,10 +1318,10 @@ mod tests_searchengine_state {
             // Check if we're still indexing
             if matches!(data.status, SearchEngineStatus::Indexing) {
                 // Skip this attempt if still indexing
-                log_info!(&format!(
+                log_info!(
                     "Attempt {}: Indexing still in progress, waiting...",
                     attempt + 1
-                ));
+                );
                 drop(data); // Release the lock before sleeping
                 thread::sleep(Duration::from_millis(500));
             } else {
@@ -1333,12 +1333,12 @@ mod tests_searchengine_state {
                     .to_string_lossy()
                     .to_string();
 
-                log_info!(&format!(
+                log_info!(
                     "Attempt {}: Actual folder name: '{}', Expected: '{}'",
                     attempt + 1,
                     actual_name,
                     expected_name
-                ));
+                );
 
                 // If names match or one contains the other (to handle path formatting differences)
                 if actual_name == expected_name
@@ -1408,10 +1408,10 @@ mod tests_searchengine_state {
         // Results from the current directory should be ranked higher
         if !results.is_empty() {
             let top_result = &results[0].0;
-            log_info!(&format!(
+            log_info!(
                 "Top result: {} for context dir: {}",
                 top_result, dir_context
-            ));
+            );
 
             // Count results from context directory
             let context_matches = results
@@ -1419,11 +1419,11 @@ mod tests_searchengine_state {
                 .filter(|(path, _)| path.starts_with(&dir_context))
                 .count();
 
-            log_info!(&format!(
+            log_info!(
                 "{} of {} results are from context directory",
                 context_matches,
                 results.len()
-            ));
+            );
 
             assert!(
                 context_matches > 0,
@@ -1804,47 +1804,47 @@ mod tests_searchengine_state {
         let initial_search = state
             .search(initial_search_term)
             .expect("Initial search failed");
-        log_info!(&format!(
+        log_info!(
             "Initial search for '{}' found {} results",
             initial_search_term,
             initial_search.len()
-        ));
+        );
 
         for (i, (path, score)) in initial_search.iter().take(5).enumerate() {
-            log_info!(&format!(
+            log_info!(
                 "  Initial result #{}: {} (score: {})",
                 i + 1,
                 path,
                 score
-            ));
+            );
         }
 
         let refined_search = state
             .search(refined_search_term)
             .expect("Refined search failed");
-        log_info!(&format!(
+        log_info!(
             "Refined search for '{}' found {} results",
             refined_search_term,
             refined_search.len()
-        ));
+        );
 
         for (i, (path, score)) in refined_search.iter().take(5).enumerate() {
-            log_info!(&format!(
+            log_info!(
                 "  Refined result #{}: {} (score: {})",
                 i + 1,
                 path,
                 score
-            ));
+            );
         }
 
         // Count paths that match each search term
         let do_matches = paths.iter().filter(|p| p.contains("do")).count();
         let doc_matches = paths.iter().filter(|p| p.contains("doc")).count();
 
-        log_info!(&format!(
+        log_info!(
             "Paths containing 'do': {}, paths containing 'doc': {}",
             do_matches, doc_matches
-        ));
+        );
 
         // Only assert if the dataset should logically support our assumption
         if doc_matches <= do_matches {
@@ -1867,7 +1867,7 @@ mod tests_searchengine_state {
 
         // Get real-world paths from test data (limit to 100 for stability)
         let mut paths = collect_test_paths(Some(100));
-        log_info!(&format!("Collected {} test paths", paths.len()));
+        log_info!("Collected {} test paths", paths.len());
 
         // Add some guaranteed test paths
         paths.push("./test-data-for-fuzzy-search/file1.txt".to_string());
@@ -1880,19 +1880,19 @@ mod tests_searchengine_state {
             state.add_path(path).expect("Failed to add path");
         }
         let elapsed = start.elapsed();
-        log_info!(&format!(
+        log_info!(
             "Added {} paths in {:?} ({:.2} paths/ms)",
             paths.len(),
             elapsed,
             paths.len() as f64 / elapsed.as_millis().max(1) as f64
-        ));
+        );
 
         // Get stats after adding paths
         let stats = state.get_stats();
-        log_info!(&format!(
+        log_info!(
             "Engine stats after adding paths - Cache size: {}, Trie size: {}",
             stats.cache_size, stats.trie_size
-        ));
+        );
 
         // Use multiple search queries to increase chances of finding matches
         let test_queries = ["fi", "test", "file", "txt", "md"];
@@ -1904,24 +1904,24 @@ mod tests_searchengine_state {
             let results = state.search(query).expect("Search failed");
             let search_elapsed = search_start.elapsed();
 
-            log_info!(&format!(
+            log_info!(
                 "Search for '{}' found {} results in {:?}",
                 query,
                 results.len(),
                 search_elapsed
-            ));
+            );
 
             if !results.is_empty() {
                 found_results = true;
 
                 // Log top results
                 for (i, (path, score)) in results.iter().take(3).enumerate() {
-                    log_info!(&format!(
+                    log_info!(
                         "  Result #{}: {} (score: {:.4})",
                         i + 1,
                         path,
                         score
-                    ));
+                    );
                 }
 
                 break;

@@ -67,6 +67,15 @@ macro_rules! log_info {
             line!(),
         )
     };
+    ($fmt:expr, $($arg:tt)*) => {
+        $crate::logging::Logger::global().log(
+            $crate::logging::LogLevel::Info,
+            file!(),
+            module_path!(),
+            &format!($fmt, $($arg)*),
+            line!(),
+        )
+    };
 }
 
 #[macro_export]
@@ -77,6 +86,15 @@ macro_rules! log_warn {
             file!(),
             module_path!(),
             $msg,
+            line!(),
+        )
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        $crate::logging::Logger::global().log(
+            $crate::logging::LogLevel::Warn,
+            file!(),
+            module_path!(),
+            &format!($fmt, $($arg)*),
             line!(),
         )
     };
@@ -93,6 +111,15 @@ macro_rules! log_error {
             line!(),
         )
     };
+    ($fmt:expr, $($arg:tt)*) => {
+        $crate::logging::Logger::global().log(
+            $crate::logging::LogLevel::Error,
+            file!(),
+            module_path!(),
+            &format!($fmt, $($arg)*),
+            line!(),
+        )
+    };
 }
 
 #[macro_export]
@@ -103,6 +130,15 @@ macro_rules! log_critical {
             file!(),
             module_path!(),
             $msg,
+            line!(),
+        )
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        $crate::logging::Logger::global().log(
+            $crate::logging::LogLevel::Critical,
+            file!(),
+            module_path!(),
+            &format!($fmt, $($arg)*),
             line!(),
         )
     };
@@ -159,7 +195,7 @@ impl Logger {
     pub fn global() -> &'static Logger {
         &LOGGER
     }
-
+    
     pub fn log(&self, level: LogLevel, file: &str, function: &str, message: &str, line: u32) {
         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 

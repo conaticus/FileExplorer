@@ -1,9 +1,9 @@
+use crate::log_error;
+#[cfg(test)]
+use crate::log_info;
 use smallvec::SmallVec;
 use std::cmp;
 use std::mem;
-use crate::{log_error};
-#[cfg(test)]
-use crate::log_info;
 
 pub struct ART {
     root: Option<Box<ARTNode>>,
@@ -327,7 +327,7 @@ impl ARTNode {
         match self {
             ARTNode::Node4(n) => {
                 let mut n16 = Node16::new();
-                n16.prefix = std::mem::take(&mut n.prefix);
+                n16.prefix = mem::take(&mut n.prefix);
                 n16.is_terminal = n.is_terminal;
                 n16.score = n.score;
                 for i in 0..n.keys.len() {
@@ -338,7 +338,7 @@ impl ARTNode {
             }
             ARTNode::Node16(n) => {
                 let mut n48 = Node48::new();
-                n48.prefix = std::mem::take(&mut n.prefix);
+                n48.prefix = mem::take(&mut n.prefix);
                 n48.is_terminal = n.is_terminal;
                 n48.score = n.score;
                 let mut child_count = 0;
@@ -355,7 +355,7 @@ impl ARTNode {
             }
             ARTNode::Node48(n) => {
                 let mut n256 = Node256::new();
-                n256.prefix = std::mem::take(&mut n.prefix);
+                n256.prefix = mem::take(&mut n.prefix);
                 n256.is_terminal = n.is_terminal;
                 n256.score = n.score;
                 for i in 0..256 {
@@ -380,7 +380,7 @@ impl ARTNode {
         match self {
             ARTNode::Node16(n) => {
                 let mut n4 = Node4::new();
-                n4.prefix = std::mem::take(&mut n.prefix);
+                n4.prefix = mem::take(&mut n.prefix);
                 n4.is_terminal = n.is_terminal;
                 n4.score = n.score;
                 for i in 0..n.keys.len().min(NODE4_MAX) {
@@ -391,7 +391,7 @@ impl ARTNode {
             }
             ARTNode::Node48(n) => {
                 let mut n16 = Node16::new();
-                n16.prefix = std::mem::take(&mut n.prefix);
+                n16.prefix = mem::take(&mut n.prefix);
                 n16.is_terminal = n.is_terminal;
                 n16.score = n.score;
                 let mut count = 0;
@@ -411,7 +411,7 @@ impl ARTNode {
             }
             ARTNode::Node256(n) => {
                 let mut n48 = Node48::new();
-                n48.prefix = std::mem::take(&mut n.prefix);
+                n48.prefix = mem::take(&mut n.prefix);
                 n48.is_terminal = n.is_terminal;
                 n48.score = n.score;
                 let mut count = 0;
@@ -919,7 +919,7 @@ impl ART {
     #[cfg(test)]
     pub fn debug_print(&self) {
         if let Some(root) = &self.root {
-            log_info!(&format!("ART ({} paths):", self.path_count));
+            log_info!("ART ({} paths):", self.path_count);
             Self::debug_print_node(root.as_ref(), 0);
         } else {
             log_info!("ART is empty");
@@ -931,30 +931,30 @@ impl ART {
         let pad = "  ".repeat(indent);
         // Node type
         let (node_type, prefix, is_term, score) = match node {
-            ARTNode::Node4(n)   => ("Node4", &n.prefix[..], n.is_terminal, n.score),
-            ARTNode::Node16(n)  => ("Node16", &n.prefix[..], n.is_terminal, n.score),
-            ARTNode::Node48(n)  => ("Node48", &n.prefix[..], n.is_terminal, n.score),
+            ARTNode::Node4(n) => ("Node4", &n.prefix[..], n.is_terminal, n.score),
+            ARTNode::Node16(n) => ("Node16", &n.prefix[..], n.is_terminal, n.score),
+            ARTNode::Node48(n) => ("Node48", &n.prefix[..], n.is_terminal, n.score),
             ARTNode::Node256(n) => ("Node256", &n.prefix[..], n.is_terminal, n.score),
         };
         // Decode prefix bytes as UTF-8 lossily
         let prefix_str = String::from_utf8_lossy(prefix);
         // Header line
         if is_term {
-            log_info!(&format!(
+            log_info!(
                 "{}{} [{}] (terminal, score={:?})",
                 pad, node_type, prefix_str, score
-            ));
+            );
         } else {
-            log_info!(&format!("{}{} [{}]", pad, node_type, prefix_str));
+            log_info!("{}{} [{}]", pad, node_type, prefix_str);
         }
         // Recurse into children
         for (key, child) in node.iter_children() {
             let key_char = if key.is_ascii_graphic() {
                 key as char
             } else {
-                '.'  // non-printable
+                '.' // non-printable
             };
-                log_info!(&format!("{}  ├─ key={:?} ('{}') →", pad, key, key_char));
+            log_info!("{}  ├─ key={:?} ('{}') →", pad, key, key_char);
             Self::debug_print_node(child, indent + 2);
         }
     }
@@ -1686,10 +1686,10 @@ mod tests_art_v4 {
     fn get_test_data_path() -> PathBuf {
         let path = PathBuf::from("./test-data-for-fuzzy-search");
         if !path.exists() {
-            log_warn!(&format!(
+            log_warn!(
                 "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
                 path
-            ));
+            );
             panic!(
                 "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
                 path
@@ -1834,17 +1834,17 @@ mod tests_art_v4 {
 
         // Check the count
         assert_eq!(trie.len(), 3);
-        log_info!(&format!("Trie contains {} paths", trie.len()));
+        log_info!("Trie contains {} paths", trie.len());
 
         // Find completions
         let prefix = Path::new("C:").join("Users").to_string_lossy().to_string();
         let completions = trie.find_completions(&prefix);
         assert_eq!(completions.len(), 3);
-        log_info!(&format!(
+        log_info!(
             "Found {} completions for '{}'",
             completions.len(),
             prefix
-        ));
+        );
 
         // Check specific completion
         let docs = completions.iter().find(|(path, _)| path == &docs_path);
@@ -1914,27 +1914,27 @@ mod tests_art_v4 {
         let test_path = "test_path";
 
         // 1. Log the bytes directly
-        log_info!(&format!("Original path: '{}'", test_path));
-        log_info!(&format!("Original bytes: {:?}", test_path.as_bytes()));
+        log_info!("Original path: '{}'", test_path);
+        log_info!("Original bytes: {:?}", test_path.as_bytes());
 
         // 2. Insert the path
         let success = trie.insert(test_path, 1.0);
-        log_info!(&format!("Insertion success: {}", success));
+        log_info!("Insertion success: {}", success);
 
         // 3. Try to find the path
         let completions = trie.find_completions(test_path);
-        log_info!(&format!("Found {} completions", completions.len()));
+        log_info!("Found {} completions", completions.len());
 
         // 4. Directly examine normalized versions
         let normalized_for_insert = trie.normalize_path(test_path);
-        log_info!(&format!(
+        log_info!(
             "Normalized for insert: '{}'",
             normalized_for_insert
-        ));
-        log_info!(&format!(
+        );
+        log_info!(
             "Normalized bytes: {:?}",
             normalized_for_insert.as_bytes()
-        ));
+        );
 
         // 5. Add debug to your normalize_path method
         // Add this temporarily to your normalize_path method:
@@ -1946,18 +1946,18 @@ mod tests_art_v4 {
 
         // 6. Test with a path containing backslashes
         let backslash_path = r"dir1\file2.txt";
-        log_info!(&format!("Backslash path: '{}'", backslash_path));
-        log_info!(&format!(
+        log_info!("Backslash path: '{}'", backslash_path);
+        log_info!(
             "Backslash path bytes: {:?}",
             backslash_path.as_bytes()
-        ));
+        );
 
         let normalized_bs = trie.normalize_path(backslash_path);
-        log_info!(&format!("Normalized backslash path: '{}'", normalized_bs));
-        log_info!(&format!(
+        log_info!("Normalized backslash path: '{}'", normalized_bs);
+        log_info!(
             "Normalized backslash bytes: {:?}",
             normalized_bs.as_bytes()
-        ));
+        );
     }
 
     #[test]
@@ -1993,10 +1993,18 @@ mod tests_art_v4 {
 
         // Additional check to verify that paths are correctly inserted
         let results = trie.find_completions("a");
-        assert_eq!(results.len(), 2, "There should be two paths starting with 'a'");
+        assert_eq!(
+            results.len(),
+            2,
+            "There should be two paths starting with 'a'"
+        );
 
         let results = trie.find_completions("b");
-        assert_eq!(results.len(), 1, "There should be one path starting with 'b'");
+        assert_eq!(
+            results.len(),
+            1,
+            "There should be one path starting with 'b'"
+        );
     }
 
     #[test]
@@ -2026,11 +2034,7 @@ mod tests_art_v4 {
 
         // Verify first path is still findable
         let still_find1 = trie.find_completions(path1);
-        assert_eq!(
-            still_find1.len(),
-            1,
-            "Should still find first path"
-        );
+        assert_eq!(still_find1.len(), 1, "Should still find first path");
         assert_eq!(
             still_find1[0].0, path1,
             "First path should still match exactly"
@@ -2115,15 +2119,15 @@ mod tests_art_v4 {
 
         // Check that path1 exists - use the same string reference
         let before_completions = trie.find_completions(path1);
-        log_info!(&format!(
+        log_info!(
             "Before removal: found {} completions for '{}'",
             before_completions.len(),
             path1
-        ));
-        log_info!(&format!(
+        );
+        log_info!(
             "is_in_trie: {}",
             trie.find_completions(path1).len() > 0
-        ));
+        );
         assert_eq!(
             before_completions.len(),
             1,
@@ -2133,12 +2137,12 @@ mod tests_art_v4 {
         // If needed, verify the exact string (for debugging)
         if !before_completions.is_empty() {
             let found_path = &before_completions[0].0;
-            log_info!(&format!(
+            log_info!(
                 "Found path: '{}', Expected: '{}'",
                 found_path, path1
-            ));
-            log_info!(&format!("Path bytes: {:?}", found_path.as_bytes()));
-            log_info!(&format!("Expected bytes: {:?}", path1.as_bytes()));
+            );
+            log_info!("Path bytes: {:?}", found_path.as_bytes());
+            log_info!("Expected bytes: {:?}", path1.as_bytes());
         }
 
         // Remove path1
@@ -2202,11 +2206,11 @@ mod tests_art_v4 {
                 "Failed for prefix: {}",
                 prefix
             );
-            log_info!(&format!(
+            log_info!(
                 "Prefix '{}' returned {} completions",
                 prefix,
                 completions.len()
-            ));
+            );
         }
     }
 
@@ -2254,9 +2258,9 @@ mod tests_art_v4 {
         assert_eq!(found.len(), 1, "Should find the exact path with extension");
 
         // Log for debugging
-        log_info!(&format!("Paths found for '{}': {}", path1, found.len()));
+        log_info!("Paths found for '{}': {}", path1, found.len());
         for (i, (path, score)) in found.iter().enumerate() {
-            log_info!(&format!("  Path {}: {} (score: {})", i, path, score));
+            log_info!("  Path {}: {} (score: {})", i, path, score);
         }
     }
 
@@ -2278,10 +2282,10 @@ mod tests_art_v4 {
         assert!(completions[1].0.ends_with(&normalize_path("/medium")));
         assert!(completions[2].0.ends_with(&normalize_path("/low")));
 
-        log_info!(&format!(
+        log_info!(
             "Completions correctly sorted by score: {:.1} > {:.1} > {:.1}",
             completions[0].1, completions[1].1, completions[2].1
-        ));
+        );
     }
 
     // Performance tests with real-world data
@@ -2292,7 +2296,7 @@ mod tests_art_v4 {
 
         // Get real-world paths from test data
         let paths = collect_test_paths(Some(500));
-        log_info!(&format!("Collected {} test paths", paths.len()));
+        log_info!("Collected {} test paths", paths.len());
 
         // Only insert unique, normalized paths and count them
         let mut unique_normalized = std::collections::HashSet::new();
@@ -2308,12 +2312,12 @@ mod tests_art_v4 {
         }
         let elapsed = start.elapsed();
 
-        log_info!(&format!(
+        log_info!(
             "Inserted {} paths in {:?} ({:.2} paths/ms)",
             paths.len(),
             elapsed,
             paths.len() as f64 / elapsed.as_millis().max(1) as f64
-        ));
+        );
 
         assert_eq!(trie.len(), unique_normalized.len());
     }
@@ -2325,7 +2329,7 @@ mod tests_art_v4 {
 
         // Get real-world paths from test data
         let paths = collect_test_paths(Some(1000));
-        log_info!(&format!("Collected {} test paths", paths.len()));
+        log_info!("Collected {} test paths", paths.len());
 
         // Insert all paths
         for (i, path) in paths.iter().enumerate() {
@@ -2371,18 +2375,18 @@ mod tests_art_v4 {
             let completions = trie.find_completions(&prefix);
             let elapsed = start.elapsed();
 
-            log_info!(&format!(
+            log_info!(
                 "Found {} completions for '{}' in {:?}",
                 completions.len(),
                 prefix,
                 elapsed
-            ));
+            );
 
             if completions.len() > 0 {
-                log_info!(&format!(
+                log_info!(
                     "First completion: {} (score: {:.1})",
                     completions[0].0, completions[0].1
-                ));
+                );
             }
         }
     }
@@ -2406,7 +2410,7 @@ mod tests_art_v4 {
             assert_eq!(found[0].0, full_path, "Path should match exactly");
 
             // Log the path for verification
-            log_info!(&format!("Inserted and verified path: {}", full_path));
+            log_info!("Inserted and verified path: {}", full_path);
         }
 
         // Test base path search
@@ -2422,7 +2426,7 @@ mod tests_art_v4 {
                 "Path {} should be found in completions",
                 expected_path
             );
-            log_info!(&format!("Found expected path {}: {}", i, expected_path));
+            log_info!("Found expected path {}: {}", i, expected_path);
         }
 
         // Test partially matching path
@@ -2465,7 +2469,7 @@ mod tests_art_v4 {
             trie.insert(&path, 1.0);
         }
 
-        log_info!(&format!("Inserted {} paths with common prefix", trie.len()));
+        log_info!("Inserted {} paths with common prefix", trie.len());
 
         // Check that we get all the completions
         let completions = trie.find_completions(&prefix);
@@ -2478,10 +2482,10 @@ mod tests_art_v4 {
             assert!(trie.remove(&path));
         }
 
-        log_info!(&format!(
+        log_info!(
             "Removed 90 paths, trie now contains {} paths",
             trie.len()
-        ));
+        );
 
         // Check we can still find the remaining paths
         let completions = trie.find_completions(&prefix);
@@ -2617,14 +2621,14 @@ mod tests_art_v4 {
 
         // Get all available test paths
         let paths = collect_test_paths(Some(500));
-        log_info!(&format!("Collected {} test paths", paths.len()));
+        log_info!("Collected {} test paths", paths.len());
 
         // Insert paths with slightly decreasing scores
         for (i, path) in paths.iter().enumerate() {
             trie.insert(path, 1.0 - (i as f32 * 0.001));
         }
 
-        log_info!(&format!("Inserted {} paths into trie", trie.len()));
+        log_info!("Inserted {} paths into trie", trie.len());
 
         // Extract some common prefixes from the data for testing
         let mut test_prefixes: Vec<String> = if !paths.is_empty() {
@@ -2699,18 +2703,18 @@ mod tests_art_v4 {
             let completions = trie.find_completions(&original_prefix);
             let elapsed = start.elapsed();
 
-            log_info!(&format!(
+            log_info!(
                 "Found {} completions for prefix '{}' in {:?}",
                 completions.len(),
                 original_prefix,
                 elapsed
-            ));
+            );
 
             if !completions.is_empty() {
-                log_info!(&format!(
+                log_info!(
                     "First result: {} (score: {:.2})",
                     completions[0].0, completions[0].1
-                ));
+                );
 
                 // Verify that results actually match the normalized prefix
                 let valid_matches = completions
@@ -2718,13 +2722,13 @@ mod tests_art_v4 {
                     .filter(|(path, _)| path.starts_with(&normalized_prefix))
                     .count();
 
-                log_info!(&format!(
+                log_info!(
                     "{} of {} results are valid prefix matches for '{}' (normalized: '{}')",
                     valid_matches,
                     completions.len(),
                     original_prefix,
                     normalized_prefix
-                ));
+                );
 
                 assert!(
                     valid_matches > 0,
@@ -2745,7 +2749,7 @@ mod tests_art_v4 {
             }
         }
 
-        log_info!(&format!("Successfully removed {} paths", removed));
+        log_info!("Successfully removed {} paths", removed);
         assert_eq!(trie.len(), paths.len() - removed);
     }
 
@@ -2758,7 +2762,7 @@ mod tests_art_v4 {
         let paths = collect_test_paths(None); // Get all available paths
         let path_count = paths.len();
 
-        log_info!(&format!("Collected {} test paths", path_count));
+        log_info!("Collected {} test paths", path_count);
 
         // Store all the original paths for verification
         let all_paths = paths.clone();
@@ -2783,7 +2787,7 @@ mod tests_art_v4 {
 
             // Verify insertion every 10000 paths
             if i % 10000 == 0 && i > 0 {
-                log_info!(&format!("Inserted {} paths, verifying...", i));
+                log_info!("Inserted {} paths, verifying...", i);
 
                 // Calculate expected unique count up to this point
                 let expected_unique_count = i + 1; // Maximum possible - actual will be lower due to duplicates
@@ -2799,19 +2803,19 @@ mod tests_art_v4 {
         }
 
         let insert_time = start_insert.elapsed();
-        log_info!(&format!(
+        log_info!(
             "Inserted {} paths in {:?} ({:.2} paths/ms)",
             all_paths.len(),
             insert_time,
             all_paths.len() as f64 / insert_time.as_millis().max(1) as f64
-        ));
+        );
 
         // Verify the final count matches expectation (accounting for duplicates)
-        log_info!(&format!(
+        log_info!(
             "Expected unique paths: {}, Actual in trie: {}",
             unique_normalized_paths.len(),
             trie.len()
-        ));
+        );
 
         // Create a function to generate a diverse set of queries that will have matches
         fn extract_guaranteed_queries(paths: &[String], limit: usize) -> Vec<String> {
@@ -2976,19 +2980,19 @@ mod tests_art_v4 {
         // Use our function to generate guaranteed-to-match queries
         let test_queries = extract_guaranteed_queries(&all_paths, 15);
 
-        log_info!(&format!(
+        log_info!(
             "Generated {} guaranteed-to-match queries",
             test_queries.len()
-        ));
+        );
 
         // Pre-test queries to verify they match something
         for query in &test_queries {
             let results = trie.search(query, None, false);
             if results.is_empty() {
-                log_info!(&format!(
+                log_info!(
                     "Warning: Query '{}' didn't match any paths",
                     query
-                ));
+                );
             }
         }
 
@@ -3009,12 +3013,12 @@ mod tests_art_v4 {
             }
 
             let subset_insert_time = start_insert_subset.elapsed();
-            log_info!(&format!("\n=== BENCHMARK WITH {} PATHS ===", subset_size));
-            log_info!(&format!(
+            log_info!("\n=== BENCHMARK WITH {} PATHS ===", subset_size);
+            log_info!(
                 "Subset insertion time: {:?} ({:.2} paths/ms)",
                 subset_insert_time,
                 subset_size as f64 / subset_insert_time.as_millis().max(1) as f64
-            ));
+            );
 
             // Generate test queries specifically for this subset
             let subset_paths = all_paths
@@ -3024,10 +3028,10 @@ mod tests_art_v4 {
                 .collect::<Vec<_>>();
             let subset_queries = extract_guaranteed_queries(&subset_paths, 15);
 
-            log_info!(&format!(
+            log_info!(
                 "Generated {} subset-specific queries",
                 subset_queries.len()
-            ));
+            );
 
             // Run a single warmup search to prime any caches
             subset_trie.search("./", None, false);
@@ -3048,12 +3052,12 @@ mod tests_art_v4 {
                 times.push((query.clone(), elapsed, completions.len()));
 
                 // Print top 3 results for each search
-                //log_info!(&format!("Top results for '{}' (found {})", normalize_path(query), completions.len()));
+                //log_info!("Top results for '{}' (found {})", normalize_path(query), completions.len()));
                 //for (i, (path, score)) in completions.iter().take(3).enumerate() {
-                //    log_info!(&format!("    #{}: '{}' (score: {:.3})", i+1, path, score));
+                //    log_info!("    #{}: '{}' (score: {:.3})", i+1, path, score));
                 //}
                 //if completions.len() > 3 {
-                //    log_info!(&format!("    ... and {} more results", completions.len() - 3));
+                //    log_info!("    ... and {} more results", completions.len() - 3));
                 //}
             }
 
@@ -3072,32 +3076,32 @@ mod tests_art_v4 {
                 0
             };
 
-            log_info!(&format!("Ran {} prefix searches", subset_queries.len()));
-            log_info!(&format!("Average search time: {:?}", avg_time));
-            log_info!(&format!("Average results per search: {}", avg_results));
+            log_info!("Ran {} prefix searches", subset_queries.len());
+            log_info!("Average search time: {:?}", avg_time);
+            log_info!("Average results per search: {}", avg_results);
 
             // Log the slowest searches
             log_info!("Slowest searches:");
             for (i, (query, time, count)) in times.iter().take(3).enumerate() {
-                log_info!(&format!(
+                log_info!(
                     "  #{}: '{:40}' - {:?} ({} results)",
                     i + 1,
                     normalize_path(query),
                     time,
                     count
-                ));
+                );
             }
 
             // Log the fastest searches
             log_info!("Fastest searches:");
             for (i, (query, time, count)) in times.iter().rev().take(3).enumerate() {
-                log_info!(&format!(
+                log_info!(
                     "  #{}: '{:40}' - {:?} ({} results)",
                     i + 1,
                     normalize_path(query),
                     time,
                     count
-                ));
+                );
             }
 
             // Log search times for different result counts
@@ -3117,10 +3121,10 @@ mod tests_art_v4 {
 
             log_info!("Average search times by result count:");
             for (count, avg_time, num_searches) in by_result_count {
-                log_info!(&format!(
+                log_info!(
                     "  ≥ {:3} results: {:?} (from {} searches)",
                     count, avg_time, num_searches
-                ));
+                );
             }
         }
     }
@@ -3183,10 +3187,7 @@ mod tests_art_v4 {
         let art = ART::new(10);
 
         // 1. Simple ASCII path
-        assert_eq!(
-            art.normalize_path("foo/bar/baz.txt"),
-            "foo/bar/baz.txt"
-        );
+        assert_eq!(art.normalize_path("foo/bar/baz.txt"), "foo/bar/baz.txt");
 
         // 2. Mixed slashes, should be normalized
         assert_eq!(
@@ -3195,10 +3196,7 @@ mod tests_art_v4 {
         );
 
         // 3. Leading slash and duplicate slashes
-        assert_eq!(
-            art.normalize_path("//foo///bar//baz//"),
-            "/foo/bar/baz"
-        );
+        assert_eq!(art.normalize_path("//foo///bar//baz//"), "/foo/bar/baz");
 
         // 4. Spaces inside components
         assert_eq!(
@@ -3207,10 +3205,7 @@ mod tests_art_v4 {
         );
 
         // 5. Spaces at the start and end (should be preserved if inside components)
-        assert_eq!(
-            art.normalize_path(" /foo/ bar /baz "),
-            "/foo/ bar /baz "
-        );
+        assert_eq!(art.normalize_path(" /foo/ bar /baz "), "/foo/ bar /baz ");
 
         // 6. Unicode: Chinese, emoji, diacritics
         assert_eq!(
@@ -3225,16 +3220,10 @@ mod tests_art_v4 {
         );
 
         // 8. Only slashes (should be "/")
-        assert_eq!(
-            art.normalize_path("//////"),
-            "/"
-        );
+        assert_eq!(art.normalize_path("//////"), "/");
 
         // 9. Rooted path with component with space and unicode
-        assert_eq!(
-            art.normalize_path("/a/ b 🚗 /c"),
-            "/a/ b 🚗 /c"
-        );
+        assert_eq!(art.normalize_path("/a/ b 🚗 /c"), "/a/ b 🚗 /c");
 
         // 10. Windows absolute path with mixed slashes and unicode
         assert_eq!(
@@ -3243,10 +3232,7 @@ mod tests_art_v4 {
         );
 
         // 11. Trailing slash, not root (should remove trailing)
-        assert_eq!(
-            art.normalize_path("/foo/bar/"),
-            "/foo/bar"
-        );
+        assert_eq!(art.normalize_path("/foo/bar/"), "/foo/bar");
     }
     #[test]
     fn test_normalization() {

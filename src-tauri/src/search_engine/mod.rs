@@ -8,6 +8,7 @@ mod path_cache_wrapper;
 pub mod test_generate_test_data {
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
+    use crate::log_info;
 
     /// Generates a test data directory structure with random folder and file names.
     /// This function creates a hierarchical directory structure with random file and folder names
@@ -45,13 +46,13 @@ pub mod test_generate_test_data {
 
         // Remove the directory if it already exists
         if base_path.exists() {
-            println!("Removing existing test data at: {:?}", base_path);
+            log_info!("Removing existing test data at: {:?}", base_path);
             std::fs::remove_dir_all(&base_path)?;
         }
 
         // Create the base directory
         create_dir_all(&base_path)?;
-        println!("Creating test data at: {:?}", base_path);
+        log_info!("Creating test data at: {:?}", base_path);
 
         let start_time = Instant::now();
 
@@ -107,7 +108,7 @@ pub mod test_generate_test_data {
                 if let Ok(mut count) = counter.lock() {
                     *count += 1;
                     if *count % 1000 == 0 {
-                        println!("Created {} entries so far...", *count);
+                        log_info!("Created {} entries so far...", *count);
                     }
                 }
             }
@@ -159,9 +160,9 @@ pub mod test_generate_test_data {
         let total_count = *entry_count.lock().unwrap();
         let elapsed = start_time.elapsed();
 
-        println!("Test data generation complete!");
-        println!("Created {} total entries in {:?}", total_count, elapsed);
-        println!("Path: {:?}", base_path);
+        log_info!("Test data generation complete!");
+        log_info!("Created {} total entries in {:?}", total_count, elapsed);
+        log_info!("Path: {:?}", base_path);
 
         Ok(base_path)
     }

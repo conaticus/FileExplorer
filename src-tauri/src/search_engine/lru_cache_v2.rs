@@ -1,31 +1,31 @@
 //! # LRU Cache Implementation
-//! 
+//!
 //! This module provides an optimal LRU (Least Recently Used) cache implementation
 //! using a combination of a HashMap and a doubly-linked list:
-//! 
+//!
 //! - **HashMap<K, NonNull<Node<K,V>>>**: For O(1) key lookup
 //! - **Doubly-linked list**: For maintaining usage order
-//! 
+//!
 //! ## Performance Characteristics
-//! 
+//!
 //! | Operation | Time Complexity | Notes |
 //! |-----------|----------------|-------|
 //! | Get       | O(1)           | Hash lookup + linked list update |
 //! | Insert    | O(1)           | Hash insert + list prepend (may include eviction) |
 //! | Remove    | O(1)           | Hash removal + list detachment |
 //! | Clear     | O(n)           | Where n is the current cache size |
-//! 
+//!
 //! ## Empirical Scaling
-//! 
+//!
 //! Benchmarks show that as cache size increases by 10×, lookup time increases only slightly:
-//! 
+//!
 //! | Cache Size | Avg Lookup Time (ns) | Scaling Factor |
 //! |------------|----------------------|----------------|
 //! | 100        | 57.4                 | -              |
 //! | 1,000      | 141.9                | ~2.5×          |
 //! | 10,000     | 204                  | ~1.4×          |
 //! | 100,000    | 265.2                | ~1.3×          |
-//! 
+//!
 //! This confirms the near O(1) performance with only a slight increase due to memory effects.
 
 use std::collections::HashMap;
@@ -121,9 +121,9 @@ where
     ///
     /// ```rust
     /// use std::time::Duration;
-    /// 
+    ///
     /// let cache: LruPathCache<String, String> = LruPathCache::with_ttl(
-    ///     100, 
+    ///     100,
     ///     Duration::from_secs(30)
     /// );
     /// ```
@@ -154,7 +154,7 @@ where
     /// ```rust
     /// let mut cache = LruPathCache::new(100);
     /// cache.insert("key1".to_string(), "value1".to_string());
-    /// 
+    ///
     /// if cache.check_ttl(&"key1".to_string()) {
     ///     println!("Key exists and is not expired");
     /// }
@@ -177,9 +177,9 @@ where
     }
 
     /// Retrieves a value from the cache by its key.
-    /// 
+    ///
     /// If the entry exists and is not expired, it is moved to the front of the cache
-    /// (marking it as most recently used) and its value is returned. If the entry has 
+    /// (marking it as most recently used) and its value is returned. If the entry has
     /// expired, it is removed from the cache and None is returned.
     ///
     /// # Time Complexity
@@ -200,7 +200,7 @@ where
     /// ```rust
     /// let mut cache = LruPathCache::new(100);
     /// cache.insert("key1".to_string(), "value1".to_string());
-    /// 
+    ///
     /// match cache.get(&"key1".to_string()) {
     ///     Some(value) => println!("Found value: {}", value),
     ///     None => println!("Key not found or expired"),
@@ -256,7 +256,7 @@ where
     /// ```rust
     /// let mut cache = LruPathCache::new(100);
     /// cache.insert("key1".to_string(), "value1".to_string());
-    /// 
+    ///
     /// if cache.remove(&"key1".to_string()) {
     ///     println!("Entry was successfully removed");
     /// } else {
@@ -300,10 +300,10 @@ where
     ///
     /// ```rust
     /// let mut cache = LruPathCache::new(100);
-    /// 
+    ///
     /// // Insert a new entry
     /// cache.insert("key1".to_string(), "value1".to_string());
-    /// 
+    ///
     /// // Update an existing entry
     /// cache.insert("key1".to_string(), "updated_value".to_string());
     /// ```
@@ -365,7 +365,7 @@ where
     /// let mut cache = LruPathCache::new(100);
     /// cache.insert("key1".to_string(), "value1".to_string());
     /// cache.insert("key2".to_string(), "value2".to_string());
-    /// 
+    ///
     /// cache.clear();
     /// assert_eq!(cache.len(), 0);
     /// ```
@@ -398,7 +398,7 @@ where
     /// let mut cache = LruPathCache::new(100);
     /// cache.insert("key1".to_string(), "value1".to_string());
     /// cache.insert("key2".to_string(), "value2".to_string());
-    /// 
+    ///
     /// assert_eq!(cache.len(), 2);
     /// ```
     pub fn len(&self) -> usize {
@@ -421,7 +421,7 @@ where
     /// ```rust
     /// let mut cache = LruPathCache::new(100);
     /// assert!(cache.is_empty());
-    /// 
+    ///
     /// cache.insert("key1".to_string(), "value1".to_string());
     /// assert!(!cache.is_empty());
     /// ```
@@ -437,7 +437,7 @@ where
     /// - O(n) - Linear in the number of elements in the cache
     ///
     /// This method checks all entries and removes any that have expired
-    /// based on their TTL. If the cache does not have a TTL set, this 
+    /// based on their TTL. If the cache does not have a TTL set, this
     /// method does nothing.
     ///
     /// # Returns
@@ -449,10 +449,10 @@ where
     /// ```rust
     /// use std::time::Duration;
     /// use std::thread::sleep;
-    /// 
+    ///
     /// let mut cache = LruPathCache::with_ttl(100, Duration::from_millis(100));
     /// cache.insert("key1".to_string(), "value1".to_string());
-    /// 
+    ///
     /// sleep(Duration::from_millis(150));
     /// let purged = cache.purge_expired();
     /// assert_eq!(purged, 1);
@@ -699,10 +699,10 @@ mod tests_lru_cache_v2 {
         let elapsed = start.elapsed();
 
         let avg_retrieval_time = elapsed.as_nanos() as f64 / 500.0;
-        log_info!(&format!(
+        log_info!(
             "Average retrieval time for existing paths: {:.2} ns",
             avg_retrieval_time
-        ));
+        );
 
         // Benchmark getting non-existent paths
         let start = Instant::now();
@@ -713,10 +713,10 @@ mod tests_lru_cache_v2 {
         let elapsed = start.elapsed();
 
         let avg_miss_time = elapsed.as_nanos() as f64 / 500.0;
-        log_info!(&format!(
+        log_info!(
             "Average retrieval time for non-existent paths: {:.2} ns",
             avg_miss_time
-        ));
+        );
     }
 
     #[test]
@@ -742,12 +742,12 @@ mod tests_lru_cache_v2 {
             }
             let elapsed = start.elapsed();
 
-            log_info!(&format!(
+            log_info!(
                 "Cache size {}: 1000 lookups took {:?} (avg: {:.2} ns/lookup)",
                 size,
                 elapsed,
                 elapsed.as_nanos() as f64 / 1000.0
-            ));
+            );
         }
     }
 
@@ -774,10 +774,10 @@ mod tests_lru_cache_v2 {
         }
         let elapsed = start.elapsed();
 
-        log_info!(&format!(
+        log_info!(
             "Time to insert 20 items with eviction: {:?}",
             elapsed
-        ));
+        );
 
         // Verify the first 20 items are still there (recently used)
         for i in 0..20 {
@@ -792,9 +792,9 @@ mod tests_lru_cache_v2 {
             }
         }
 
-        log_info!(&format!(
+        log_info!(
             "Evicted {} items from the middle range",
             evicted_count
-        ));
+        );
     }
 }
