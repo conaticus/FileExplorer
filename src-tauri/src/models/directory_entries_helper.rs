@@ -221,6 +221,7 @@ pub fn format_system_time(system_time: SystemTime) -> String {
 ///  let size = get_directory_size_in_bytes(path);
 ///  println!("Directory size: {} bytes", size);
 /// }
+#[allow(dead_code)]
 pub fn get_directory_size_in_bytes(path: &str) -> u64 {
     WalkDir::new(path)
         .into_iter()
@@ -253,6 +254,7 @@ pub fn get_directory_size_in_bytes(path: &str) -> u64 {
 ///  let (file_count, dir_count) = count_subfiles_and_directories(&path);
 ///  println!("Files: {}, Directories: {}", file_count, dir_count);
 /// }
+#[allow(dead_code)]
 pub fn count_subfiles_and_subdirectories(path: &str) -> (usize, usize) {
     let mut file_count = 0;
     let mut dir_count = 0;
