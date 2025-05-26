@@ -1,5 +1,3 @@
-use crate::commands::hash_commands::ChecksumMethod;
-use crate::models::LoggingLevel;
 use crate::{constants, log_error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -8,6 +6,7 @@ use std::io;
 use std::io::{Error, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use crate::models::backend_settings::BackendSettings;
 
 /// File view mode for directories.
 ///
@@ -74,12 +73,6 @@ pub struct Settings {
     pub default_themes_path: PathBuf,
     /// Default directory to open when application starts
     pub default_folder_path_on_opening: PathBuf,
-    /// Default hash algorithm for file checksums
-    pub default_checksum_hash: ChecksumMethod,
-    /// Level of detail for application logs
-    pub logging_level: LoggingLevel,
-    /// Whether to log JSON formatted messages
-    pub json_log: bool,
     /// Default view mode for directories
     pub default_view: DefaultView,
     /// Font size setting for UI elements
@@ -110,6 +103,10 @@ pub struct Settings {
     pub enable_virtual_scroll_for_large_directories: bool,
     /// Absolute path to the settings file
     pub abs_file_path_buf: PathBuf,
+    
+    
+    /// Backend settings for the application
+    pub backend_settings: BackendSettings,
 }
 
 //TODO implement the default settings -> talk to Lauritz for further more information
@@ -121,9 +118,6 @@ impl Default for Settings {
             default_theme: "".to_string(),
             default_themes_path: Default::default(),
             default_folder_path_on_opening: Default::default(),
-            default_checksum_hash: ChecksumMethod::SHA256,
-            logging_level: LoggingLevel::Full,
-            json_log: false,
             abs_file_path_buf: constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf(),
             default_view: DefaultView::Grid,
             font_size: FontSize::Medium,
@@ -139,6 +133,7 @@ impl Default for Settings {
             terminal_height: 240,
             enable_animations_and_transitions: true,
             enable_virtual_scroll_for_large_directories: false,
+            backend_settings: BackendSettings::default(),
         }
     }
 }
@@ -268,14 +263,36 @@ impl SettingsState {
 
         let mut settings_map = Self::settings_to_json_map(&settings)?;
 
-        // Update the field
-        if settings_map.contains_key(key) {
-            settings_map.insert(key.to_string(), value);
+        // Handle nested fields with dot notation (e.g., "backend_settings.logging_config.logging_level")
+        if key.contains('.') {
+            let path: Vec<&str> = key.split('.').collect();
+            
+            // Check if top-level key exists
+            if !settings_map.contains_key(path[0]) {
+                return Err(Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Unknown settings key: {}", key),
+                ));
+            }
+            
+            let success = Self::update_nested_field(&mut settings_map, &path, value.clone())?;
+            
+            if !success {
+                return Err(Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Failed to update nested field: {}", key),
+                ));
+            }
         } else {
-            return Err(Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("Unknown settings key: {}", key),
-            ));
+            // Update the top-level field
+            if settings_map.contains_key(key) {
+                settings_map.insert(key.to_string(), value);
+            } else {
+                return Err(Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Unknown settings key: {}", key),
+                ));
+            }
         }
 
         let updated_settings = Self::json_map_to_settings(settings_map)?;
@@ -283,6 +300,47 @@ impl SettingsState {
         self.write_settings_to_file(&updated_settings)?;
 
         Ok(updated_settings)
+    }
+
+    /// Helper method to update a nested field in a JSON object using a path.
+    ///
+    /// # Arguments
+    ///
+    /// * `obj` - The JSON object to modify
+    /// * `path` - Vector of path segments (field names)
+    /// * `value` - The new value to set
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(bool)` - True if the update was successful
+    /// * `Err(Error)` - If the path is invalid
+    fn update_nested_field(
+        obj: &mut serde_json::Map<String, Value>,
+        path: &[&str],
+        value: Value,
+    ) -> Result<bool, Error> {
+        if path.is_empty() {
+            return Ok(false);
+        }
+
+        if path.len() == 1 {
+            // Base case: directly update the field
+            obj.insert(path[0].to_string(), value);
+            return Ok(true);
+        }
+
+        // Recursive case: traverse the path
+        let field = path[0];
+        
+        if let Some(Value::Object(nested_obj)) = obj.get_mut(field) {
+            let sub_path = &path[1..];
+            return Self::update_nested_field(nested_obj, sub_path, value);
+        }
+
+        Err(Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Invalid nested path at: {}", field),
+        ))
     }
 
     /// Retrieves the value of a specific setting field.
@@ -311,6 +369,13 @@ impl SettingsState {
             serde_json::to_value(&*settings).map_err(|e| Error::new(io::ErrorKind::Other, e))?;
 
         if let Some(obj) = settings_value.as_object() {
+            // Handle nested fields with dot notation
+            if key.contains('.') {
+                let path: Vec<&str> = key.split('.').collect();
+                return Self::get_nested_field(obj, &path);
+            }
+
+            // Handle top-level fields
             obj.get(key).cloned().ok_or_else(|| {
                 Error::new(
                     io::ErrorKind::InvalidInput,
@@ -323,6 +388,53 @@ impl SettingsState {
                 "Failed to serialize settings to object",
             ))
         }
+    }
+
+    /// Helper method to get a nested field from a JSON object using a path.
+    ///
+    /// # Arguments
+    ///
+    /// * `obj` - The JSON object to retrieve from
+    /// * `path` - Vector of path segments (field names)
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Value)` - The value at the specified path if found
+    /// * `Err(Error)` - If the path is invalid or not found
+    fn get_nested_field(
+        obj: &serde_json::Map<String, Value>,
+        path: &[&str],
+    ) -> Result<Value, Error> {
+        if path.is_empty() {
+            return Err(Error::new(
+                io::ErrorKind::InvalidInput,
+                "Empty path provided",
+            ));
+        }
+
+        let field = path[0];
+        
+        if let Some(value) = obj.get(field) {
+            if path.len() == 1 {
+                // Base case: return the value
+                return Ok(value.clone());
+            }
+
+            // Recursive case: continue traversing
+            if let Some(nested_obj) = value.as_object() {
+                return Self::get_nested_field(nested_obj, &path[1..]);
+            } else {
+                return Err(Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Cannot traverse into non-object field: {}", field),
+                ));
+            }
+        }
+
+        Err(Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Unknown settings key: {}", path.join(".")),
+        ))
     }
 
     /// Updates multiple settings fields at once.
@@ -543,6 +655,8 @@ mod tests_settings {
     use super::*;
     use serde_json::{json, Map, Value};
     use tempfile::tempdir;
+    use crate::models::LoggingLevel;
+    use crate::commands::hash_commands::ChecksumMethod;
 
     /// Tests that the default settings have the expected initial values.
     ///
@@ -556,8 +670,8 @@ mod tests_settings {
         assert_eq!(settings.default_theme, "".to_string());
         //assert_eq!(settings.default_themes_path, Default::default());
         //assert_eq!(settings.default_folder_path_on_opening, Default::default());
-        assert_eq!(settings.default_checksum_hash, ChecksumMethod::SHA256);
-        assert_eq!(settings.logging_level, LoggingLevel::Full);
+        assert_eq!(settings.backend_settings.default_checksum_hash, ChecksumMethod::SHA256);
+        assert_eq!(settings.backend_settings.logging_config.logging_level, LoggingLevel::Full);
         assert_eq!(
             settings.abs_file_path_buf,
             constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf()
@@ -643,7 +757,7 @@ mod tests_settings {
         // Create a custom metadata object
         let mut settings = Settings::default();
         settings.abs_file_path_buf = test_path.clone();
-        settings.logging_level = LoggingLevel::Partial;
+        settings.backend_settings.logging_config.logging_level = LoggingLevel::Partial;
         settings.default_folder_path_on_opening = PathBuf::from("temp_dir");
 
         // Create a MetaDataState and write the custom metadata
@@ -706,9 +820,9 @@ mod tests_settings {
             tempfile::NamedTempFile::new().unwrap().path().to_path_buf(),
         );
 
-        let result = state.update_setting_field("default_checksum_hash", json!("MD5"));
+        let result = state.update_setting_field("backend_settings.default_checksum_hash", json!("MD5"));
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().default_checksum_hash, ChecksumMethod::MD5);
+        assert_eq!(result.unwrap().backend_settings.default_checksum_hash, ChecksumMethod::MD5);
     }
 
     /// Tests updating the custom_themes setting field.
@@ -764,9 +878,9 @@ mod tests_settings {
             tempfile::NamedTempFile::new().unwrap().path().to_path_buf(),
         );
 
-        let result = state.update_setting_field("logging_level", json!("Minimal"));
+        let result = state.update_setting_field("backend_settings.logging_config.logging_level", json!("Minimal"));
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().logging_level, LoggingLevel::Minimal);
+        assert_eq!(result.unwrap().backend_settings.logging_config.logging_level, LoggingLevel::Minimal);
     }
 
     /// Tests error handling when attempting to update a non-existent key.

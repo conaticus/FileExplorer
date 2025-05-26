@@ -14,7 +14,10 @@ pub use directory_entries_helper::{
     get_access_permission_number, get_access_permission_string,
 };
 
-mod logging_level;
+pub mod logging_level;
 pub mod ranking_config;
+pub mod backend_settings;
+pub mod search_engine_config;
+mod logging_config;
 
 pub use logging_level::LoggingLevel;

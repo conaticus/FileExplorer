@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 /// Configuration for path ranking algorithm with adjustable weights.
 ///
 /// This struct allows fine-tuning the relative importance of different
@@ -12,7 +14,7 @@
 ///     ..RankingConfig::default()
 /// };
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RankingConfig {
     /// Weight per usage count (frequency boost multiplier)
     pub frequency_weight: f32,

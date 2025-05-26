@@ -63,7 +63,7 @@ async fn get_checksum_method(
         .0
         .lock()
         .map_err(|_| HashError::SettingsLockError)?;
-    Ok(inner_settings.default_checksum_hash.clone())
+    Ok(inner_settings.backend_settings.default_checksum_hash.clone())
 }
 
 fn calculate_md5(data: &[u8]) -> String {

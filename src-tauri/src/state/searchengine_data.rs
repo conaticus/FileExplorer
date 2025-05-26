@@ -6,6 +6,8 @@ use std::time::Instant;
 #[cfg(test)]
 use crate::log_info;
 use crate::search_engine::autocomplete_engine::{AutocompleteEngine, EngineStats};
+use crate::models::search_engine_config::SearchEngineConfig;
+use crate::state::SettingsState;
 
 /// Current operational status of the search engine.
 ///
@@ -68,50 +70,6 @@ impl Default for SearchEngineMetrics {
             cache_hit_rate: None,
             total_searches: 0,
             cache_hits: 0,
-        }
-    }
-}
-
-/// Configuration options for the search engine.
-///
-/// Defines adjustable parameters that control search engine behavior,
-/// including result limits, file type preferences, and indexing constraints.
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct SearchEngineConfig {
-    pub max_results: usize,
-    pub preferred_extensions: Vec<String>,
-    pub indexing_depth: Option<usize>, // None means unlimited depth
-    pub excluded_patterns: Vec<String>,
-    pub cache_size: usize,
-    pub current_directory: Option<String>,
-}
-
-impl Default for SearchEngineConfig {
-    fn default() -> Self {
-        Self {
-            max_results: 20,
-            preferred_extensions: vec![
-                "txt".to_string(),
-                "pdf".to_string(),
-                "docx".to_string(),
-                "xlsx".to_string(),
-                "md".to_string(),
-                "rs".to_string(),
-                "js".to_string(),
-                "html".to_string(),
-                "css".to_string(),
-                "json".to_string(),
-                "png".to_string(),
-                "jpg".to_string(),
-            ],
-            indexing_depth: None,
-            excluded_patterns: vec![
-                ".git".to_string(),
-                "node_modules".to_string(),
-                "target".to_string(),
-            ],
-            cache_size: 1000,
-            current_directory: None,
         }
     }
 }
@@ -180,6 +138,7 @@ pub struct SearchEngine {
     pub metrics: SearchEngineMetrics,
     pub config: SearchEngineConfig,
     pub recent_activity: RecentActivity,
+    pub current_directory: Option<String>,
     pub last_updated: u64, // timestamp in milliseconds
 }
 
@@ -192,6 +151,7 @@ impl Default for SearchEngine {
             metrics: SearchEngineMetrics::default(),
             config: SearchEngineConfig::default(),
             recent_activity: RecentActivity::default(),
+            current_directory: None,
             last_updated: chrono::Utc::now().timestamp_millis() as u64,
         }
     }
@@ -404,7 +364,7 @@ impl SearchEngineState {
         data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
 
         // Set current directory context if available
-        if let Some(current_dir) = &data.config.current_directory {
+        if let Some(current_dir) = &data.current_directory {
             engine.set_current_directory(Some(current_dir.clone()));
         }
 
@@ -492,7 +452,7 @@ impl SearchEngineState {
         data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
 
         // Set current directory context if available
-        if let Some(current_dir) = &data.config.current_directory {
+        if let Some(current_dir) = &data.current_directory {
             engine.set_current_directory(Some(current_dir.clone()));
         }
 
@@ -677,19 +637,17 @@ impl SearchEngineState {
     ///
     /// O(1) plus cache invalidation cost for changed preferences
     #[cfg(test)]
-    pub fn update_config(&self, config: SearchEngineConfig) -> Result<(), String> {
+    pub fn update_config(&self, config: SearchEngineConfig, path: Option<String>) -> Result<(), String> {
         let mut data = self.data.lock().unwrap();
         let mut engine = self.engine.lock().unwrap();
-
+        
         data.config = config.clone();
         data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
 
+        // Update the current directory in the data structure
+        data.current_directory = path.clone();
+
         engine.set_preferred_extensions(config.preferred_extensions);
-        if let Some(current_dir) = &config.current_directory {
-            engine.set_current_directory(Some(current_dir.clone()));
-        } else {
-            engine.set_current_directory(None);
-        }
 
         Ok(())
     }
@@ -1391,13 +1349,12 @@ mod tests_searchengine_state {
         } else {
             get_test_data_path().to_string_lossy().to_string()
         };
-
+        
         // Set current directory context
         let config = SearchEngineConfig {
-            current_directory: Some(dir_context.clone()),
             ..SearchEngineConfig::default()
         };
-        let _ = state.update_config(config);
+        let _ = state.update_config(config, Some(dir_context.clone()));
 
         // Search for a generic term
         let search_result = state.search("file");
@@ -1575,16 +1532,16 @@ mod tests_searchengine_state {
 
         // Create a custom configuration
         let custom_config = SearchEngineConfig {
+            search_engine_enabled: true,
             max_results: 30,
             preferred_extensions: vec!["rs".to_string(), "js".to_string()],
             indexing_depth: Some(5),
             excluded_patterns: vec!["target".to_string(), "node_modules".to_string()],
             cache_size: 500,
-            current_directory: Some("/home/user".to_string()),
         };
 
         // Update the configuration
-        let result = state.update_config(custom_config.clone());
+        let result = state.update_config(custom_config.clone(), Some("/home/user".to_string()));
         assert!(result.is_ok());
 
         // Check that configuration was updated
@@ -1597,7 +1554,7 @@ mod tests_searchengine_state {
         assert_eq!(data.config.indexing_depth, Some(5));
         assert_eq!(data.config.cache_size, 500);
         assert_eq!(
-            data.config.current_directory,
+            data.current_directory,
             Some("/home/user".to_string())
         );
     }

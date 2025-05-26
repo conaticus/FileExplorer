@@ -224,7 +224,7 @@ impl Logger {
         // Retrieve the logging state with proper error handling
         let (logging_state, json_log) = match self.state.lock() {
             Ok(state_guard) => match state_guard.0.lock() {
-                Ok(settings) => (settings.logging_level.clone(), settings.json_log.clone()),
+                Ok(settings) => (settings.backend_settings.logging_config.logging_level.clone(), settings.backend_settings.logging_config.json_log.clone()),
                 Err(e) => {
                     eprintln!("Failed to acquire inner settings lock: {}", e);
                     (LoggingLevel::Minimal, false)
@@ -403,7 +403,7 @@ mod tests_logging {
         {
             let state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
-            inner_settings.logging_level = LoggingLevel::Full;
+            inner_settings.backend_settings.logging_config.logging_level = LoggingLevel::Full;
         }
 
         logger.log(
@@ -443,7 +443,7 @@ mod tests_logging {
         {
             let state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
-            inner_settings.logging_level = LoggingLevel::Partial;
+            inner_settings.backend_settings.logging_config.logging_level = LoggingLevel::Partial;
         }
 
         logger.log(
@@ -483,7 +483,7 @@ mod tests_logging {
         {
             let state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
-            inner_settings.logging_level = LoggingLevel::Minimal;
+            inner_settings.backend_settings.logging_config.logging_level = LoggingLevel::Minimal;
         }
 
         logger.log(
@@ -523,7 +523,7 @@ mod tests_logging {
         {
             let state = logger.state.lock().unwrap();
             let mut inner_settings = state.0.lock().unwrap();
-            inner_settings.logging_level = LoggingLevel::OFF;
+            inner_settings.backend_settings.logging_config.logging_level = LoggingLevel::OFF;
         }
 
         logger.log(
