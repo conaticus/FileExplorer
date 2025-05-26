@@ -342,10 +342,12 @@ mod tests_autocomplete_commands {
     use std::fs::File;
     use std::io::Write;
     use tempfile::TempDir;
+    use crate::state::SettingsState;
 
     // Helper function to create a test SearchEngineState
     fn create_test_search_engine_state() -> Arc<Mutex<SearchEngineState>> {
-        Arc::new(Mutex::new(SearchEngineState::new()))
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        Arc::new(Mutex::new(SearchEngineState::new(settings_state)))
     }
 
     // Helper to create a temporary file with content

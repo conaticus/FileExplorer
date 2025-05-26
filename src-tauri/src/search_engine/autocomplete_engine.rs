@@ -213,6 +213,31 @@ impl AutocompleteEngine {
         self.cache.purge_expired();
     }
 
+    /// Adds a path to both search engines if it's not excluded
+    ///
+    /// This method first checks if the path should be excluded based on patterns,
+    /// and only adds non-excluded paths to both the trie and fuzzy matcher.
+    ///
+    /// # Arguments
+    /// * `path` - The path to potentially add
+    /// * `excluded_patterns` - Optional patterns to exclude
+    ///
+    /// # Performance
+    /// O(m + p) where m is path length and p is number of patterns
+    pub fn add_path_with_exclusion_check(&mut self, path: &str, excluded_patterns: Option<&[String]>) {
+        // Check if path should be excluded
+        if let Some(patterns) = excluded_patterns {
+            if self.should_exclude_path(path, patterns) {
+                #[cfg(test)]
+                log_info!("Skipping excluded path in add_path: {}", path);
+                return;
+            }
+        }
+
+        // If not excluded, add normally
+        self.add_path(path);
+    }
+
     /// Signals the engine to stop any ongoing indexing operation.
     ///
     /// Used to safely interrupt long-running recursive indexing operations.
@@ -246,6 +271,42 @@ impl AutocompleteEngine {
         self.stop_indexing.load(Ordering::SeqCst)
     }
 
+    /// Checks if a path should be excluded based on excluded patterns.
+    ///
+    /// This method determines if a path matches any of the excluded patterns
+    /// and therefore should be skipped during indexing.
+    ///
+    /// # Arguments
+    /// * `path` - The path to check
+    /// * `excluded_patterns` - List of patterns to exclude
+    ///
+    /// # Returns
+    /// `true` if the path should be excluded, `false` otherwise
+    ///
+    /// # Performance
+    /// O(n) where n is the number of excluded patterns
+    pub fn should_exclude_path(&self, path: &str, excluded_patterns: &[String]) -> bool {
+        if excluded_patterns.is_empty() {
+            return false;
+        }
+
+        // Normalize path for consistent matching
+        let normalized_path = self.normalize_path(path);
+        
+        for pattern in excluded_patterns {
+            // Convert backslashes in pattern to forward slashes for consistency
+            let normalized_pattern = pattern.replace('\\', "/");
+            
+            if normalized_path.contains(&normalized_pattern) {
+                #[cfg(test)]
+                log_info!("Excluding path '{}' due to pattern '{}'", normalized_path, normalized_pattern);
+                return true;
+            }
+        }
+        
+        false
+    }
+
     /// Recursively adds a path and all its subdirectories and files to the index.
     ///
     /// This method walks the directory tree starting at the given path,
@@ -254,18 +315,28 @@ impl AutocompleteEngine {
     ///
     /// # Arguments
     /// * `path` - The root path to start indexing from
+    /// * `excluded_patterns` - Optional list of patterns to exclude from indexing
     ///
     /// # Performance
     /// - O(n) where n is the number of files and directories under the path
     /// - Scales linearly with ~300 paths/ms throughput for large directories
-    pub fn add_paths_recursive(&mut self, path: &str) {
+    pub fn add_paths_recursive(&mut self, path: &str, excluded_patterns: Option<&[String]>) {
         // Reset stop flag at the beginning of a new indexing operation
         self.reset_stop_flag();
 
-        // add the path itself first
+        // Check if the path itself should be excluded
+        if let Some(patterns) = excluded_patterns {
+            if self.should_exclude_path(path, patterns) {
+                #[cfg(test)]
+                log_info!("Skipping excluded path: {}", path);
+                return;
+            }
+        }
+
+        // Add the path itself first - since we've already checked it
         self.add_path(path);
 
-        // check if dir
+        // Check if dir
         let path_obj = std::path::Path::new(path);
         if !path_obj.is_dir() {
             return;
@@ -290,12 +361,21 @@ impl AutocompleteEngine {
 
             let entry_path = entry.path();
             if let Some(entry_str) = Some(entry_path.to_string_lossy().to_string()) {
-                // Add this path
+                // Check if this path should be excluded
+                if let Some(patterns) = excluded_patterns {
+                    if self.should_exclude_path(&entry_str, patterns) {
+                        #[cfg(test)]
+                        log_info!("Skipping excluded entry: {}", entry_str);
+                        continue; // Skip this path
+                    }
+                }
+
+                // Add this path - we know it's not excluded at this point
                 self.add_path(&entry_str);
 
                 // If it's a dir, recurse
                 if entry_path.is_dir() {
-                    self.add_paths_recursive(&entry_str);
+                    self.add_paths_recursive(&entry_str, excluded_patterns);
 
                     // Check again
                     if self.should_stop_indexing() {
@@ -932,7 +1012,7 @@ mod tests_autocomplete_engine {
         let mut engine = AutocompleteEngine::new(100, 10);
 
         // Add paths recursively
-        engine.add_paths_recursive(temp_dir_str);
+        engine.add_paths_recursive(temp_dir_str, None);
 
         // Test that all files are indexed
         let results = engine.search(temp_dir_str);
@@ -968,6 +1048,36 @@ mod tests_autocomplete_engine {
     }
 
     #[test]
+    fn test_add_paths_recursive_with_exclusions() {
+        let temp_dir = create_temp_dir_structure();
+        let temp_dir_str = temp_dir.to_str().unwrap();
+
+        let mut engine = AutocompleteEngine::new(100, 10);
+
+        // Add paths recursively with exclusions
+        let excluded_patterns = vec!["nested".to_string(), "file2".to_string()];
+        engine.add_paths_recursive(temp_dir_str, Some(&excluded_patterns));
+
+        // Test that excluded files are not indexed
+        let nested_results = engine.search("nested_file.txt");
+        log_info!("Nested results: {:?}", nested_results);
+        assert!(!nested_results.iter().any(|(path, _)| path.contains("nested")), "Should not find nested file");
+
+        let file2_results = engine.search("file2.txt");
+        assert!(!file2_results.iter().any(|(path, _)| path.contains("file2.txt")), "Should not find file2");
+
+        // Test that other files are still indexed
+        let root_file_results = engine.search("root_file.txt");
+        assert!(!root_file_results.is_empty(), "Should find root file");
+
+        let file1_results = engine.search("file1.txt");
+        assert!(!file1_results.is_empty(), "Should find file1");
+
+        // Clean up - best effort, don't panic if it fails
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
     fn test_remove_paths_recursive() {
         let temp_dir = create_temp_dir_structure();
         let temp_dir_str = temp_dir.to_str().unwrap();
@@ -976,7 +1086,7 @@ mod tests_autocomplete_engine {
         let mut engine = AutocompleteEngine::new(100, 10);
 
         // First add all paths recursively
-        engine.add_paths_recursive(temp_dir_str);
+        engine.add_paths_recursive(temp_dir_str, None);
 
         // Verify initial indexing
         let initial_stats = engine.get_stats();
@@ -1053,7 +1163,7 @@ mod tests_autocomplete_engine {
         let mut engine = AutocompleteEngine::new(100, 10);
 
         // Add paths recursively - should handle the permission error gracefully
-        engine.add_paths_recursive(temp_dir_str);
+        engine.add_paths_recursive(temp_dir_str, None);
 
         // Test that we can still search and find files in accessible directories - use full filename
         let root_file_results = engine.search("root_file.txt");
@@ -1062,7 +1172,7 @@ mod tests_autocomplete_engine {
         // Try to add the restricted directory specifically
         // This should not crash, just log a warning
         let restricted_dir_str = restricted_dir.to_str().unwrap();
-        engine.add_paths_recursive(restricted_dir_str);
+        engine.add_paths_recursive(restricted_dir_str, None);
 
         // Now test removing paths with permission issues
         engine.remove_paths_recursive(restricted_dir_str);
@@ -1088,7 +1198,7 @@ mod tests_autocomplete_engine {
 
         // Try to add a non-existent path recursively
         let nonexistent_path = "/path/that/does/not/exist";
-        engine.add_paths_recursive(nonexistent_path);
+        engine.add_paths_recursive(nonexistent_path, None);
 
         // Verify that the engine state is still valid
         let results = engine.search("path");

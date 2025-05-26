@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-
+use crate::log_error;
 #[cfg(test)]
 use crate::log_info;
 use crate::search_engine::autocomplete_engine::{AutocompleteEngine, EngineStats};
@@ -165,6 +165,7 @@ impl Default for SearchEngine {
 pub struct SearchEngineState {
     pub data: Arc<Mutex<SearchEngine>>,
     pub engine: Arc<Mutex<AutocompleteEngine>>,
+    settings_state: Arc<Mutex<SettingsState>>,
 }
 
 impl SearchEngineState {
@@ -174,6 +175,10 @@ impl SearchEngineState {
     /// an empty search index. The search engine will start in Idle status
     /// and be ready to index files or perform searches.
     ///
+    /// # Arguments
+    ///
+    /// * `settings_state` - Application settings state containing search engine configuration
+    ///
     /// # Returns
     ///
     /// A new SearchEngineState instance with default configuration.
@@ -181,15 +186,23 @@ impl SearchEngineState {
     /// # Example
     ///
     /// ```rust
-    /// let search_engine = SearchEngineState::new();
+    /// let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+    /// let search_engine = SearchEngineState::new(settings_state);
     /// ```
-    pub fn new() -> Self {
-        let config = SearchEngineConfig::default();
+    pub fn new(settings_state: Arc<Mutex<SettingsState>>) -> Self {
+        // Get config from settings_state
+        let config = {
+            let settings = settings_state.lock().unwrap();
+            let inner_settings = settings.0.lock().unwrap();
+            inner_settings.backend_settings.search_engine_config.clone()
+        };
+        
         let engine = AutocompleteEngine::new(config.cache_size, config.max_results);
 
         Self {
-            data: Arc::new(Mutex::new(Self::save_default_search_engine_in_state())),
+            data: Arc::new(Mutex::new(Self::save_default_search_engine_in_state(config))),
             engine: Arc::new(Mutex::new(engine)),
+            settings_state,
         }
     }
 
@@ -200,8 +213,9 @@ impl SearchEngineState {
     /// # Returns
     ///
     /// A SearchEngine instance with default settings.
-    fn save_default_search_engine_in_state() -> SearchEngine {
-        let defaults = SearchEngine::default();
+    fn save_default_search_engine_in_state(config: SearchEngineConfig) -> SearchEngine {
+        let mut defaults = SearchEngine::default();
+        defaults.config = config;
         Self::save_search_engine_in_state(defaults)
     }
 
@@ -249,6 +263,12 @@ impl SearchEngineState {
         let mut data = self.data.lock().unwrap();
         let mut engine = self.engine.lock().unwrap();
 
+        // Check if search engine is enabled
+        if !data.config.search_engine_enabled {
+            log_error!("Search engine is disabled in configuration.");
+            return Err("Search engine is disabled in configuration".to_string());
+        }
+
         // Check if we're already indexing - if so, stop it first
         if matches!(data.status, SearchEngineStatus::Indexing) {
             // Signal the engine to stop the current indexing process
@@ -277,6 +297,9 @@ impl SearchEngineState {
         // Clear previous index if switching folders
         engine.clear();
 
+        // Get excluded patterns from config
+        let excluded_patterns = data.config.excluded_patterns.clone();
+
         // Actually start the indexing
         if let Some(folder_str) = folder.to_str() {
             // Release the locks before starting the recursive operation
@@ -286,7 +309,7 @@ impl SearchEngineState {
             // Get the engine again for the recursive operation
             {
                 let mut engine = self.engine.lock().unwrap();
-                engine.add_paths_recursive(folder_str);
+                engine.add_paths_recursive(folder_str, Some(&excluded_patterns));
             }
 
             // Update status and metrics after indexing completes or stops
@@ -349,6 +372,12 @@ impl SearchEngineState {
     pub fn search(&self, query: &str) -> Result<Vec<(String, f32)>, String> {
         let mut data = self.data.lock().unwrap();
         let mut engine = self.engine.lock().unwrap();
+
+        // Check if search engine is enabled
+        if !data.config.search_engine_enabled {
+            log_error!("Search engine is disabled in configuration.");
+            return Err("Search engine is disabled in configuration".to_string());
+        }
 
         // Check if engine is busy
         if matches!(data.status, SearchEngineStatus::Indexing) {
@@ -438,6 +467,12 @@ impl SearchEngineState {
     ) -> Result<Vec<(String, f32)>, String> {
         let mut data = self.data.lock().unwrap();
         let mut engine = self.engine.lock().unwrap();
+
+        // Check if search engine is enabled
+        if !data.config.search_engine_enabled {
+            log_error!("Search engine is disabled in configuration.");
+            return Err("Search engine is disabled in configuration".to_string());
+        }
 
         // Check if engine is busy
         if matches!(data.status, SearchEngineStatus::Indexing) {
@@ -619,14 +654,14 @@ impl SearchEngineState {
         }
     }
 
-    /// Updates the search engine configuration.
+    /// Updates the search engine configuration from settings state.
     ///
-    /// This method applies a new configuration to the search engine and updates
-    /// the underlying engine components to reflect these changes.
+    /// This method retrieves the latest configuration from the settings state 
+    /// and applies it to the search engine.
     ///
     /// # Arguments
     ///
-    /// * `config` - New configuration to apply to the search engine
+    /// * `path` - Optional string representing current directory context
     ///
     /// # Returns
     ///
@@ -637,9 +672,16 @@ impl SearchEngineState {
     ///
     /// O(1) plus cache invalidation cost for changed preferences
     #[cfg(test)]
-    pub fn update_config(&self, config: SearchEngineConfig, path: Option<String>) -> Result<(), String> {
+    pub fn update_config(&self, path: Option<String>) -> Result<(), String> {
         let mut data = self.data.lock().unwrap();
         let mut engine = self.engine.lock().unwrap();
+        
+        // Get fresh config from settings state
+        let config = {
+            let settings = self.settings_state.lock().unwrap();
+            let inner_settings = settings.0.lock().unwrap();
+            inner_settings.backend_settings.search_engine_config.clone()
+        };
         
         data.config = config.clone();
         data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
@@ -666,8 +708,21 @@ impl SearchEngineState {
     /// * `Ok(())` - Path was successfully added
     /// * `Err(String)` - An error occurred while adding the path
     pub fn add_path(&self, path: &str) -> Result<(), String> {
+        let data = self.data.lock().unwrap();
+        
+        // Check if search engine is enabled
+        if !data.config.search_engine_enabled {
+            log_error!("Search engine is disabled in configuration.");
+            return Err("Search engine is disabled in configuration".to_string());
+        }
+        
+        // Get the excluded patterns to pass to the engine
+        let excluded_patterns = data.config.excluded_patterns.clone();
+        drop(data);
+        
         let mut engine = self.engine.lock().unwrap();
-        engine.add_path(path);
+        // Use the new method to check exclusions before adding
+        engine.add_path_with_exclusion_check(path, Some(&excluded_patterns));
         Ok(())
     }
 
@@ -685,6 +740,16 @@ impl SearchEngineState {
     /// * `Ok(())` - Path was successfully removed
     /// * `Err(String)` - An error occurred while removing the path
     pub fn remove_path(&self, path: &str) -> Result<(), String> {
+        let data = self.data.lock().unwrap();
+        
+        // Check if search engine is enabled
+        if !data.config.search_engine_enabled {
+            log_error!("Search engine is disabled in configuration.");
+            return Err("Search engine is disabled in configuration".to_string());
+        }
+        
+        drop(data);
+        
         let mut engine = self.engine.lock().unwrap();
         engine.remove_path(path);
         Ok(())
@@ -704,6 +769,16 @@ impl SearchEngineState {
     /// * `Ok(())` - Path and its contents were successfully removed
     /// * `Err(String)` - An error occurred during removal
     pub fn remove_paths_recursive(&self, path: &str) -> Result<(), String> {
+        let data = self.data.lock().unwrap();
+        
+        // Check if search engine is enabled
+        if !data.config.search_engine_enabled {
+            log_error!("Search engine is disabled in configuration.");
+            return Err("Search engine is disabled in configuration".to_string());
+        }
+        
+        drop(data);
+        
         let mut engine = self.engine.lock().unwrap();
         engine.remove_paths_recursive(path);
         Ok(())
@@ -783,6 +858,7 @@ impl Clone for SearchEngineState {
         Self {
             data: Arc::clone(&self.data),
             engine: Arc::clone(&self.engine),
+            settings_state: Arc::clone(&self.settings_state),
         }
     }
 }
@@ -927,7 +1003,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_initialization() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Check default values
         let data = state.data.lock().unwrap();
@@ -941,7 +1018,8 @@ mod tests_searchengine_state {
     #[cfg(feature = "long-tests")]
     #[test]
     fn test_start_indexing() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
         let test_dir = get_test_dir_for_indexing();
 
         // Start indexing
@@ -964,7 +1042,8 @@ mod tests_searchengine_state {
     #[cfg(feature = "long-tests")]
     #[test]
     fn test_stop_indexing() {
-        let state = Arc::new(SearchEngineState::new());
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = Arc::new(SearchEngineState::new(settings_state));
         let test_dir = get_test_dir_for_indexing();
 
         // Create test files to ensure indexing takes enough time
@@ -1031,7 +1110,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_cancel_indexing() {
-        let state = Arc::new(SearchEngineState::new());
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = Arc::new(SearchEngineState::new(settings_state));
         let test_dir = get_test_dir_for_indexing();
 
         // Create a LOT of test files to ensure indexing takes enough time
@@ -1098,7 +1178,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_search() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Get paths and add them directly to the engine
         let paths = collect_test_paths(Some(100));
@@ -1141,7 +1222,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_multiple_searches() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Get paths and add them directly to the engine
         let paths = collect_test_paths(Some(100));
@@ -1186,7 +1268,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_concurrent_operations() {
-        let state = Arc::new(SearchEngineState::new());
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = Arc::new(SearchEngineState::new(settings_state));
 
         // Get a test directory for indexing
         let (test_dir, subdir) = get_test_subdirs();
@@ -1328,7 +1411,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_directory_context_for_search() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Get paths from test data
         let paths = collect_test_paths(Some(200));
@@ -1350,11 +1434,8 @@ mod tests_searchengine_state {
             get_test_data_path().to_string_lossy().to_string()
         };
         
-        // Set current directory context
-        let config = SearchEngineConfig {
-            ..SearchEngineConfig::default()
-        };
-        let _ = state.update_config(config, Some(dir_context.clone()));
+        // Update configuration with directory context
+        let _ = state.update_config(Some(dir_context.clone()));
 
         // Search for a generic term
         let search_result = state.search("file");
@@ -1391,7 +1472,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_sequential_indexing() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Get two subdirectories for sequential indexing
         let (subdir1, subdir2) = get_test_subdirs();
@@ -1454,7 +1536,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_empty_search_query() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Add some test paths
         let paths = collect_test_paths(Some(50));
@@ -1473,7 +1556,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_update_indexing_progress() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Set initial state for testing progress updates
         let start_time = chrono::Utc::now().timestamp_millis() as u64;
@@ -1502,7 +1586,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_get_stats() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Get initial stats
         let initial_stats = state.get_stats();
@@ -1528,31 +1613,15 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_update_config() {
-        let state = SearchEngineState::new();
-
-        // Create a custom configuration
-        let custom_config = SearchEngineConfig {
-            search_engine_enabled: true,
-            max_results: 30,
-            preferred_extensions: vec!["rs".to_string(), "js".to_string()],
-            indexing_depth: Some(5),
-            excluded_patterns: vec!["target".to_string(), "node_modules".to_string()],
-            cache_size: 500,
-        };
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Update the configuration
-        let result = state.update_config(custom_config.clone(), Some("/home/user".to_string()));
+        let result = state.update_config(Some("/home/user".to_string()));
         assert!(result.is_ok());
 
         // Check that configuration was updated
         let data = state.data.lock().unwrap();
-        assert_eq!(data.config.max_results, 30);
-        assert_eq!(
-            data.config.preferred_extensions,
-            vec!["rs".to_string(), "js".to_string()]
-        );
-        assert_eq!(data.config.indexing_depth, Some(5));
-        assert_eq!(data.config.cache_size, 500);
         assert_eq!(
             data.current_directory,
             Some("/home/user".to_string())
@@ -1561,7 +1630,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_add_and_remove_path() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Add a path
         let result = state.add_path("/test/path.txt");
@@ -1589,7 +1659,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_start_indexing_invalid_path() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Try to index an invalid path
         let invalid_path = PathBuf::from("/path/that/does/not/exist");
@@ -1609,7 +1680,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_stop_indexing_when_not_indexing() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Set state to Idle to ensure we're not indexing
         {
@@ -1630,7 +1702,8 @@ mod tests_searchengine_state {
     #[cfg(feature = "long-tests")]
     #[test]
     fn test_thread_safety() {
-        let state = Arc::new(SearchEngineState::new());
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = Arc::new(SearchEngineState::new(settings_state));
         let state_clone = Arc::clone(&state);
         let test_dir = get_test_dir_for_indexing();
 
@@ -1714,7 +1787,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_clone_implementation() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Test that we can clone the state
         let cloned_state = state.clone();
@@ -1736,7 +1810,8 @@ mod tests_searchengine_state {
     #[test]
     fn test_interactive_search_scenarios() {
         // This test simulates a user interacting with the search engine
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
         let mut paths = collect_test_paths(Some(100)); // Reduced for test stability
 
         // Ensure we have distinct paths with predictable content
@@ -1820,7 +1895,8 @@ mod tests_searchengine_state {
     #[test]
     fn test_with_real_world_data() {
         log_info!("Testing SearchEngineState with real-world test data");
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Get real-world paths from test data (limit to 100 for stability)
         let mut paths = collect_test_paths(Some(100));
@@ -1893,7 +1969,8 @@ mod tests_searchengine_state {
 
     #[test]
     fn test_search_by_extension() {
-        let state = SearchEngineState::new();
+        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
+        let state = SearchEngineState::new(settings_state);
 
         // Add paths with different extensions
         state.add_path("/test/document.pdf").unwrap();
@@ -1995,3 +2072,4 @@ mod tests_searchengine_state {
         }
     }
 }
+

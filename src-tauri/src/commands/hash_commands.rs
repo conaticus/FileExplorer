@@ -287,7 +287,7 @@ mod tests_hash_commands {
         let state = create_test_settings_state();
         let state_guard = state.lock().unwrap();
         state_guard
-            .update_setting_field("default_checksum_hash", json!(method))
+            .update_setting_field("backend_settings.default_checksum_hash", json!(method))
             .unwrap();
         state.clone()
     }
@@ -503,7 +503,7 @@ mod tests_hash_commands {
         for method in methods {
             let state_guard = state.lock().unwrap();
             state_guard
-                .update_setting_field("default_checksum_hash", json!(method.clone()))
+                .update_setting_field("backend_settings.default_checksum_hash", json!(method.clone()))
                 .unwrap();
             drop(state_guard);
 

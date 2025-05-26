@@ -38,7 +38,7 @@ pub fn setup_app_state(app: Builder<Wry>) -> Builder<Wry> {
     // Create our shared state instances
     let meta_data_state = Arc::new(Mutex::new(MetaDataState::new()));
     let settings_state = Arc::new(Mutex::new(SettingsState::new()));
-    let search_engine_state = Arc::new(Mutex::new(SearchEngineState::new()));
+    let search_engine_state = Arc::new(Mutex::new(SearchEngineState::new(settings_state.clone())));
     
     // Initialize the logger with the settings state
     Logger::init(settings_state.clone());
