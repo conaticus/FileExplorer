@@ -46,11 +46,26 @@ bundle.identifier = "com.software.fileexplorer"
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
+
+# Benchmark fetures
+benchmarks = ["bench"]
+bench = []
+
+# Logging features
+log-all = ["search-error-logging", "index-error-logging", "search-progress-logging", "index-progress-logging"]
+log-search = ["search-progress-logging", "search-error-logging"]
+search-progress-logging = []
+search-error-logging = []
+log-index = ["index-progress-logging", "index-error-logging"]
+index-progress-logging = []
+index-error-logging = []
+
+# Testing features
+full = ["long-tests", "generate-test-data", "benchmarks", "open-file-in-app"]
+full-no-generate-test-data = ["long-tests", "benchmarks", "open-file-in-app"]
 open-file-in-app = []
 generate-test-data = []
 long-tests = []
-benchmarks = ["bench"]
-bench = []
-full = ["long-tests", "generate-test-data", "benchmarks", "open-file-in-app"]
-full-no-generate-test-data = ["long-tests", "benchmarks", "open-file-in-app"]
+
+# SearchEngine features
 
