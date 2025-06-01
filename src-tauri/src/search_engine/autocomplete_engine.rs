@@ -11,7 +11,7 @@ use crate::log_info;
 use crate::log_error;
 #[cfg(feature = "index-error-logging")]
 use crate::log_error;
-use crate::search_engine::art_v4::ART;
+use crate::search_engine::art_v5::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
 use crate::search_engine::path_cache_wrapper::PathCache;
 
