@@ -103,8 +103,12 @@ pub struct Settings {
     pub enable_virtual_scroll_for_large_directories: bool,
     /// Absolute path to the settings file
     pub abs_file_path_buf: PathBuf,
-    
-    
+    // need to implement
+    /// Whether to enable suggestions in the application
+    pub enable_suggestions: bool,
+    /// Whether to highlight matches in search results
+    pub highlight_matches: bool,
+
     /// Backend settings for the application
     pub backend_settings: BackendSettings,
 }
@@ -133,7 +137,10 @@ impl Default for Settings {
             terminal_height: 240,
             enable_animations_and_transitions: true,
             enable_virtual_scroll_for_large_directories: false,
+            enable_suggestions: true, //implement?
+            highlight_matches: true, // implement?
             backend_settings: BackendSettings::default(),
+            
         }
     }
 }
@@ -266,7 +273,7 @@ impl SettingsState {
         // Handle nested fields with dot notation (e.g., "backend_settings.logging_config.logging_level")
         if key.contains('.') {
             let path: Vec<&str> = key.split('.').collect();
-            
+
             // Check if top-level key exists
             if !settings_map.contains_key(path[0]) {
                 return Err(Error::new(
@@ -274,9 +281,9 @@ impl SettingsState {
                     format!("Unknown settings key: {}", key),
                 ));
             }
-            
+
             let success = Self::update_nested_field(&mut settings_map, &path, value.clone())?;
-            
+
             if !success {
                 return Err(Error::new(
                     io::ErrorKind::InvalidInput,
@@ -331,7 +338,7 @@ impl SettingsState {
 
         // Recursive case: traverse the path
         let field = path[0];
-        
+
         if let Some(Value::Object(nested_obj)) = obj.get_mut(field) {
             let sub_path = &path[1..];
             return Self::update_nested_field(nested_obj, sub_path, value);
@@ -413,7 +420,7 @@ impl SettingsState {
         }
 
         let field = path[0];
-        
+
         if let Some(value) = obj.get(field) {
             if path.len() == 1 {
                 // Base case: return the value

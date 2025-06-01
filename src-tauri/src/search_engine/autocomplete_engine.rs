@@ -3,10 +3,15 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-#[cfg(test)]
+#[cfg(feature = "search-progress-logging")]
 use crate::log_info;
-use crate::log_warn;
-use crate::search_engine::art_v4::ART;
+#[cfg(feature = "index-progress-logging")]
+use crate::log_info;
+#[cfg(feature = "search-error-logging")]
+use crate::log_error;
+#[cfg(feature = "index-error-logging")]
+use crate::log_error;
+use crate::search_engine::art_v5::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
 use crate::search_engine::path_cache_wrapper::PathCache;
 
@@ -15,7 +20,7 @@ use crate::search_engine::path_cache_wrapper::PathCache;
 ///
 /// This implementation uses an Adaptive Radix Trie (ART) for prefix searching,
 /// a fuzzy matcher for approximate matching, and an LRU cache for repeated queries.
-/// Results are ranked using a configurable multi-factor scoring algorithm.
+/// Results are ranked using a configurable multifactor scoring algorithm.
 ///
 /// # Performance Characteristics
 ///
@@ -68,16 +73,17 @@ impl AutocompleteEngine {
     /// # Arguments
     /// * `cache_size` - The maximum number of query results to cache
     /// * `max_results` - The maximum number of results to return per search
+    /// * `ranking_config` - Configuration for ranking search results
     ///
     /// # Returns
-    /// A new AutocompleteEngine instance with default ranking configuration
+    /// A new AutocompleteEngine instance with provided ranking configuration
     ///
     /// # Performance
     /// Initialization is O(1) as actual data structures are created empty
-    pub fn new(cache_size: usize, max_results: usize) -> Self {
+    pub fn new(cache_size: usize, max_results: usize, ttl: Duration, ranking_config: RankingConfig) -> Self {
         let cap = max_results * 2;
         Self {
-            cache: PathCache::with_ttl(cache_size, Duration::from_secs(300)), // 5 minute TTL
+            cache: PathCache::with_ttl(cache_size, ttl),
             trie: ART::new(max_results * 2),
             fuzzy_matcher: PathMatcher::new(),
             max_results,
@@ -101,7 +107,7 @@ impl AutocompleteEngine {
                 "mp3".to_string(),
             ],
             stop_indexing: AtomicBool::new(false),
-            ranking_config: RankingConfig::default(),
+            ranking_config, // Use the provided ranking_config instead of default
             results_buffer: Vec::with_capacity(cap),
             results_capacity: cap,
         }
@@ -199,18 +205,34 @@ impl AutocompleteEngine {
     /// - Average case: O(m) where m is the length of the path
     /// - Paths are added with ~300 paths/ms throughput
     pub fn add_path(&mut self, path: &str) {
+        #[cfg(feature = "index-progress-logging")]
+        let start_time = Instant::now();
+        
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Adding path: '{}'", path);
+        
         let normalized_path = self.normalize_path(path);
+        
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Normalized path: '{}'", normalized_path);
+        
         let mut score = 1.0;
 
         // check if we have existing frequency data to adjust score and boost score for frequently accessed paths
         if let Some(freq) = self.frequency_map.get(&normalized_path) {
             score += (*freq as f32) * 0.01;
+            
+            #[cfg(feature = "index-progress-logging")]
+            log_info!("Boosting path score based on frequency ({}): {:.3}", freq, score);
         }
 
         // Update all modules and clean cache
         self.trie.insert(&normalized_path, score);
         self.fuzzy_matcher.add_path(&normalized_path);
         self.cache.purge_expired();
+        
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Path added successfully in {:?}", start_time.elapsed());
     }
 
     /// Adds a path to both search engines if it's not excluded
@@ -224,16 +246,23 @@ impl AutocompleteEngine {
     ///
     /// # Performance
     /// O(m + p) where m is path length and p is number of patterns
-    pub fn add_path_with_exclusion_check(&mut self, path: &str, excluded_patterns: Option<&[String]>) {
+    pub fn add_path_with_exclusion_check(&mut self, path: &str, excluded_patterns: Option<&Vec<String>>) {
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Checking path for exclusion: '{}'", path);
+        
         // Check if path should be excluded
         if let Some(patterns) = excluded_patterns {
-            if self.should_exclude_path(path, patterns) {
-                #[cfg(test)]
-                log_info!("Skipping excluded path in add_path: {}", path);
+            if self.should_exclude_path(path, &patterns) {
+                #[cfg(feature = "index-progress-logging")]
+                log_info!("Path excluded by pattern: '{}'", path);
+                
                 return;
             }
         }
 
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Path passed exclusion check: '{}'", path);
+        
         // If not excluded, add normally
         self.add_path(path);
     }
@@ -245,6 +274,9 @@ impl AutocompleteEngine {
     /// # Performance
     /// O(1) - Simple atomic flag operation
     pub fn stop_indexing(&mut self) {
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Signal received to stop indexing operation");
+        
         self.stop_indexing.store(true, Ordering::SeqCst);
     }
 
@@ -255,6 +287,9 @@ impl AutocompleteEngine {
     /// # Performance
     /// O(1) - Simple atomic flag operation
     pub fn reset_stop_flag(&mut self) {
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Resetting indexing stop flag");
+        
         self.stop_indexing.store(false, Ordering::SeqCst);
     }
 
@@ -268,7 +303,14 @@ impl AutocompleteEngine {
     /// # Performance
     /// O(1) - Simple atomic flag read operation
     pub fn should_stop_indexing(&self) -> bool {
-        self.stop_indexing.load(Ordering::SeqCst)
+        let should_stop = self.stop_indexing.load(Ordering::SeqCst);
+        
+        #[cfg(feature = "index-progress-logging")]
+        if should_stop {
+            log_info!("Indexing stop flag is set, will stop indexing");
+        }
+        
+        should_stop
     }
 
     /// Checks if a path should be excluded based on excluded patterns.
@@ -285,7 +327,7 @@ impl AutocompleteEngine {
     ///
     /// # Performance
     /// O(n) where n is the number of excluded patterns
-    pub fn should_exclude_path(&self, path: &str, excluded_patterns: &[String]) -> bool {
+    pub fn should_exclude_path(&self, path: &str, excluded_patterns: &Vec<String>) -> bool {
         if excluded_patterns.is_empty() {
             return false;
         }
@@ -298,8 +340,9 @@ impl AutocompleteEngine {
             let normalized_pattern = pattern.replace('\\', "/");
             
             if normalized_path.contains(&normalized_pattern) {
-                #[cfg(test)]
+                #[cfg(feature = "index-progress-logging")]
                 log_info!("Excluding path '{}' due to pattern '{}'", normalized_path, normalized_pattern);
+                
                 return true;
             }
         }
@@ -320,15 +363,22 @@ impl AutocompleteEngine {
     /// # Performance
     /// - O(n) where n is the number of files and directories under the path
     /// - Scales linearly with ~300 paths/ms throughput for large directories
-    pub fn add_paths_recursive(&mut self, path: &str, excluded_patterns: Option<&[String]>) {
+    pub fn add_paths_recursive(&mut self, path: &str, excluded_patterns: Option<&Vec<String>>) {
+        #[cfg(feature = "index-progress-logging")]
+        let index_start = Instant::now();
+        
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Starting recursive indexing of path: '{}'", path);
+        
         // Reset stop flag at the beginning of a new indexing operation
         self.reset_stop_flag();
 
         // Check if the path itself should be excluded
         if let Some(patterns) = excluded_patterns {
             if self.should_exclude_path(path, patterns) {
-                #[cfg(test)]
-                log_info!("Skipping excluded path: {}", path);
+                #[cfg(feature = "index-progress-logging")]
+                log_info!("Skipping excluded path: '{}'", path);
+                
                 return;
             }
         }
@@ -339,14 +389,22 @@ impl AutocompleteEngine {
         // Check if dir
         let path_obj = std::path::Path::new(path);
         if !path_obj.is_dir() {
+            #[cfg(feature = "index-progress-logging")]
+            log_info!("Path is not a directory, skipping recursion: '{}'", path);
+            
             return;
         }
-
+        
+        #[allow(unused_variables)]
+        let mut indexed_count = 1;
+        
         // Walk dir
         let walk_dir = match std::fs::read_dir(path) {
             Ok(dir) => dir,
-            Err(err) => {
-                log_warn!("Failed to read directory '{}': {}", path, err);
+            Err(_err) => {
+                #[cfg(feature = "index-error-logging")]
+                log_error!("Failed to read directory '{}': {}", path, err);
+                
                 return;
             }
         };
@@ -354,8 +412,10 @@ impl AutocompleteEngine {
         for entry in walk_dir.filter_map(Result::ok) {
             // Check if we should stop indexing
             if self.should_stop_indexing() {
-                #[cfg(test)]
-                log_info!("Indexing of '{}' stopped prematurely", path);
+                #[cfg(feature = "index-progress-logging")]
+                log_info!("Indexing of '{}' stopped prematurely after indexing {} paths", 
+                         path, indexed_count);
+                
                 return;
             }
 
@@ -364,25 +424,50 @@ impl AutocompleteEngine {
                 // Check if this path should be excluded
                 if let Some(patterns) = excluded_patterns {
                     if self.should_exclude_path(&entry_str, patterns) {
-                        #[cfg(test)]
-                        log_info!("Skipping excluded entry: {}", entry_str);
+                        #[cfg(feature = "index-progress-logging")]
+                        log_info!("Skipping excluded entry: '{}'", entry_str);
+                        
                         continue; // Skip this path
                     }
                 }
 
                 // Add this path - we know it's not excluded at this point
                 self.add_path(&entry_str);
+                
+                indexed_count += 1;
 
                 // If it's a dir, recurse
                 if entry_path.is_dir() {
+                    #[cfg(feature = "index-progress-logging")]
+                    log_info!("Recursing into directory: '{}'", entry_str);
+                    
                     self.add_paths_recursive(&entry_str, excluded_patterns);
+                    
+                    #[cfg(feature = "index-progress-logging")]
+                    log_info!("Returned from recursion into: '{}'", entry_str);
 
                     // Check again
                     if self.should_stop_indexing() {
+                        #[cfg(feature = "index-progress-logging")]
+                        log_info!("Indexing stopped after directory recursion: '{}'", entry_str);
+                        
                         return;
                     }
                 }
             }
+        }
+        
+        #[cfg(feature = "index-progress-logging")]
+        {
+            let elapsed = index_start.elapsed();
+            let paths_per_ms = if elapsed.as_millis() > 0 {
+                indexed_count as f64 / elapsed.as_millis() as f64
+            } else {
+                indexed_count as f64 // Avoid division by zero
+            };
+            
+            log_info!("Completed indexing '{}': {} paths in {:?} ({:.2} paths/ms)",
+                     path, indexed_count, elapsed, paths_per_ms);
         }
     }
 
@@ -397,17 +482,42 @@ impl AutocompleteEngine {
     /// # Performance
     /// O(m) where m is the length of the path, plus cache invalidation cost
     pub fn remove_path(&mut self, path: &str) {
+        #[cfg(feature = "index-progress-logging")]
+        let start_time = Instant::now();
+        
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Removing path: '{}'", path);
+        
         let normalized_path = self.normalize_path(path);
+        
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Normalized path for removal: '{}'", normalized_path);
+        
         // Remove from modules
         self.trie.remove(&normalized_path);
         self.fuzzy_matcher.remove_path(&normalized_path);
 
         // Clear the entire cache (this is a simplification, because of previous bugs)
         self.cache.clear();
+        
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Cache cleared after path removal");
 
         // remove from frequency and recency maps
-        self.frequency_map.remove(&normalized_path);
-        self.recency_map.remove(&normalized_path);
+        let _had_frequency = self.frequency_map.remove(&normalized_path).is_some();
+        let _had_recency = self.recency_map.remove(&normalized_path).is_some();
+        
+        #[cfg(feature = "index-progress-logging")]
+        {
+            if had_frequency {
+                log_info!("Removed frequency data for path");
+            }
+            if had_recency {
+                log_info!("Removed recency data for path");
+            }
+            
+            log_info!("Path removal completed in {:?}", start_time.elapsed());
+        }
     }
 
     /// Recursively removes a path and all its subdirectories and files from the index.
@@ -421,20 +531,38 @@ impl AutocompleteEngine {
     /// # Performance
     /// O(n) where n is the number of files and directories under the path
     pub fn remove_paths_recursive(&mut self, path: &str) {
+        #[cfg(feature = "index-progress-logging")]
+        let start_time = Instant::now();
+        
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Starting recursive removal of path: '{}'", path);
+        
         // Remove the path itself first
         self.remove_path(path);
 
         // Check if dir
         let path_obj = std::path::Path::new(path);
         if !path_obj.exists() || !path_obj.is_dir() {
+            #[cfg(feature = "index-progress-logging")]
+            {
+                if !path_obj.exists() {
+                    log_info!("Path doesn't exist, skipping recursion: '{}'", path);
+                } else {
+                    log_info!("Path is not a directory, skipping recursion: '{}'", path);
+                }
+            }
+            
             return;
         }
 
-        #[cfg(test)]
+        #[cfg(feature = "index-progress-logging")]
         log_info!(
             "Recursively removing directory from index: {}",
             path
         );
+        
+        #[allow(unused_variables)]
+        let mut removed_count = 1;
 
         let mut paths_to_remove = Vec::new();
 
@@ -447,21 +575,73 @@ impl AutocompleteEngine {
                 }
             }
         } else {
-            #[cfg(test)]
-            log_warn!("Failed to read directory '{}' for removal", path);
+            #[cfg(feature = "index-error-logging")]
+            log_error!("Failed to read directory '{}' for removal", path);
         }
+
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Found {} child paths to remove under '{}'", paths_to_remove.len(), path);
 
         // Now remove each path
         for path_to_remove in paths_to_remove {
             if std::path::Path::new(&path_to_remove).is_dir() {
+                #[cfg(feature = "index-progress-logging")]
+                log_info!("Recursing into directory for removal: '{}'", path_to_remove);
+                
                 self.remove_paths_recursive(&path_to_remove);
+                
+                removed_count += 1;
             } else {
                 self.remove_path(&path_to_remove);
+                
+                removed_count += 1;
             }
         }
 
         // Ensure the cache is purged of any entries that might contain references to removed paths
         self.cache.purge_expired();
+        
+        #[cfg(feature = "index-progress-logging")]
+        {
+            let elapsed = start_time.elapsed();
+            let paths_per_ms = if elapsed.as_millis() > 0 {
+                removed_count as f64 / elapsed.as_millis() as f64
+            } else {
+                removed_count as f64 // Avoid division by zero
+            };
+            
+            log_info!("Completed recursive removal of '{}': {} paths in {:?} ({:.2} paths/ms)",
+                     path, removed_count, elapsed, paths_per_ms);
+        }
+    }
+
+    /// Clears all data and caches in the engine.
+    ///
+    /// This removes all indexed paths, cached results, frequency and recency data.
+    ///
+    /// # Performance
+    /// O(1) - Constant time as it simply replaces internal data structures
+    pub fn clear(&mut self) {
+        #[cfg(feature = "index-progress-logging")]
+        {
+            let trie_size = self.trie.len();
+            let cache_size = self.cache.len();
+            let frequency_size = self.frequency_map.len();
+            let recency_size = self.recency_map.len();
+            
+            log_info!("Clearing all engine data - trie: {} items, cache: {} items, frequency map: {} items, recency map: {} items",
+                     trie_size, cache_size, frequency_size, recency_size);
+        }
+        
+        self.trie.clear();
+        self.cache.clear();
+        self.frequency_map.clear();
+        self.recency_map.clear();
+
+        self.fuzzy_matcher = PathMatcher::new();
+        
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Engine data cleared successfully");
     }
 
     /// Records that a path was used, updating frequency and recency data for ranking.
@@ -531,23 +711,39 @@ impl AutocompleteEngine {
     /// - Cache provides 3×-7× speedup for repeated queries
     #[inline]
     pub fn search(&mut self, query: &str) -> Vec<(String, f32)> {
+        #[cfg(feature = "search-progress-logging")]
+        let search_start = Instant::now();
+        
+        #[cfg(feature = "search-progress-logging")]
+        log_info!("Search started for query: '{}'", query);
+        
         if query.is_empty() {
+            #[cfg(feature = "search-progress-logging")]
+            log_info!("Empty query provided, returning empty results");
+            
             return Vec::new();
         }
 
         let normalized_query = query.trim().to_string();
 
+        #[cfg(feature = "search-progress-logging")]
+        log_info!("Normalized query: '{}'", normalized_query);
+
         // 1. Check cache first
         if let Some(path_data) = self.cache.get(&normalized_query) {
-            #[cfg(test)]
-            log_info!("Cache hit for query: '{}'", normalized_query);
+            #[cfg(feature = "search-progress-logging")]
+            log_info!("Cache hit for query: '{}', returning {} cached results", 
+                     normalized_query, path_data.results.len());
+            
+            #[cfg(feature = "search-progress-logging")]
+            log_info!("Search completed in {:?}", search_start.elapsed());
+            
             return path_data.results;
         }
+        #[cfg(feature = "search-progress-logging")]
+        log_info!("Cache miss for query: '{}', performing full search", normalized_query);
 
-        #[cfg(test)]
-        log_info!("Cache miss for query: '{}'", normalized_query);
-
-        #[cfg(test)]
+        #[cfg(feature = "search-progress-logging")]
         let prefix_start = Instant::now();
 
         // 2. Reuse buffer for results
@@ -565,13 +761,13 @@ impl AutocompleteEngine {
             None, // should add current_dif_ref, but rn not very performant
             false,
         );
-
-        #[cfg(test)]
+        
+        #[cfg(feature = "search-progress-logging")]
         {
             let prefix_duration = prefix_start.elapsed();
             log_info!(
-                "prefix search found {} results in {:?}",
-                &prefix_results.len(),
+                "Prefix search found {} results in {:?}",
+                prefix_results.len(),
                 prefix_duration
             );
         }
@@ -580,49 +776,110 @@ impl AutocompleteEngine {
 
         // 4. Only use fuzzy search if we don't have enough results
         if results.len() < self.max_results.min(10) {
-            #[cfg(test)]
+            #[cfg(feature = "search-progress-logging")]
             let fuzzy_start = Instant::now();
+
+            #[cfg(feature = "search-progress-logging")]
+            log_info!(
+                "Insufficient prefix results ({}), performing fuzzy search for up to {} more results", 
+                results.len(), 
+                self.max_results - results.len()
+            );
 
             let fuzzy_results = self
                 .fuzzy_matcher
                 .search(&normalized_query, self.max_results - results.len());
-            #[cfg(test)]
+            
+            #[cfg(feature = "search-progress-logging")]
             {
                 let fuzzy_duration = fuzzy_start.elapsed();
                 log_info!(
                     "Fuzzy search found {} results in {:?}",
-                    &fuzzy_results.len(),
+                    fuzzy_results.len(),
                     fuzzy_duration
                 );
             }
 
             let mut seen: HashSet<String> = results.iter().map(|(p, _)| p.clone()).collect();
+            #[allow(unused_variables)]
+            let mut added_fuzzy = 0;
+            
             for (p, s) in fuzzy_results {
                 if !seen.contains(&p) {
                     seen.insert(p.clone());
                     results.push((p, s));
+                    added_fuzzy += 1;
+                }
+            }
+            
+            #[cfg(feature = "search-progress-logging")]
+            log_info!("Added {} unique fuzzy results after deduplication", added_fuzzy);
+        }
+        
+        if results.is_empty() {
+            #[cfg(feature = "search-error-logging")]
+            log_error!("No results found for query: '{}'", normalized_query);
+            
+            #[cfg(feature = "search-progress-logging")]
+            log_info!("Search completed with no results in {:?}", search_start.elapsed());
+            
+            return Vec::new();
+        }
+
+        // 4. Rank combined results
+        #[cfg(feature = "search-progress-logging")]
+        let ranking_start = Instant::now();
+        
+        #[cfg(feature = "search-progress-logging")]
+        log_info!("Ranking {} combined results", results.len());
+        
+        self.rank_results(&mut results, &normalized_query);
+        
+        #[cfg(feature = "search-progress-logging")]
+        log_info!("Ranking completed in {:?}", ranking_start.elapsed());
+
+        // 5. Limit to max results
+        let _original_len = results.len();
+        if results.len() > self.max_results {
+            results.truncate(self.max_results);
+            
+            #[cfg(feature = "search-progress-logging")]
+            log_info!("Truncated {} results to max_results: {}", original_len, self.max_results);
+        }
+
+        // Reserve capacity for cache top N
+        let mut top_n = Vec::with_capacity(results.len().min(5));
+        for (p, s) in results.iter().take(5) {
+            top_n.push((p.clone(), *s));
+        }
+        
+        #[cfg(feature = "search-progress-logging")]
+        log_info!("Caching top {} results for query: '{}'", top_n.len(), normalized_query);
+        
+        self.cache.insert(normalized_query.to_string().clone(), top_n);
+        
+        if !results.is_empty() {
+            #[cfg(feature = "search-progress-logging")]
+            log_info!("Recording usage for top result: '{}'", results[0].0);
+            
+            self.record_path_usage(&results[0].0);
+        }
+        
+        self.results_buffer = results.clone();
+        
+        #[cfg(feature = "search-progress-logging")]
+        {
+            let total_duration = search_start.elapsed();
+            log_info!("Search completed in {:?} with {} results", total_duration, results.len());
+            
+            if !results.is_empty() {
+                log_info!("Top 3 results:");
+                for (i, (path, score)) in results.iter().take(3).enumerate() {
+                    log_info!("  #{}: '{}' (score: {:.4})", i + 1, path, score);
                 }
             }
         }
-        if !results.is_empty() {
-            // 4. Rank combined results
-            self.rank_results(&mut results, &normalized_query);
-
-            // 5. Limit to max results
-            if results.len() > self.max_results {
-                results.truncate(self.max_results);
-            }
-
-            // Reserve capacity for cache top N
-            let mut top_n = Vec::with_capacity(results.len().min(5));
-            for (p, s) in results.iter().take(5) {
-                top_n.push((p.clone(), *s));
-            }
-            self.cache
-                .insert(normalized_query.to_string().clone(), top_n);
-            self.record_path_usage(&results[0].0);
-        }
-        self.results_buffer = results.clone();
+        
         results
     }
 
@@ -634,7 +891,8 @@ impl AutocompleteEngine {
     /// 3. Current directory context (same dir or parent dir)
     /// 4. Preferred file extensions with position-based weighting
     /// 5. Multiple types of filename matches (exact, prefix, contains)
-    /// 6. Normalized with sigmoid function for stable scoring
+    /// 6. Directory boost when prefer_directories is enabled
+    /// 7. Normalized with sigmoid function for stable scoring
     ///
     /// # Arguments
     /// * `results` - Mutable reference to vector of (path, score) pairs to rank
@@ -643,24 +901,45 @@ impl AutocompleteEngine {
     /// # Performance
     /// O(k log k) where k is the number of results to rank
     fn rank_results(&self, results: &mut Vec<(String, f32)>, query: &str) {
+        #[cfg(feature = "search-progress-logging")]
+        let ranking_detailed_start = Instant::now();
+        
         // Precompute lowercase query once
         let q_lc = query.to_lowercase();
+        
+        #[cfg(feature = "search-progress-logging")]
+        log_info!("Starting ranking for {} results with query: '{}'", results.len(), query);
+        
         // Precompute lowercase preferred extensions
         let pref_exts_lc: Vec<String> = self
             .preferred_extensions
             .iter()
             .map(|e| e.to_lowercase())
             .collect();
+            
+        #[cfg(feature = "search-progress-logging")]
+        log_info!("Using {} preferred extensions for ranking", pref_exts_lc.len());
+
+        // Track how many results get each type of boost for logging
+        #[cfg(feature = "search-progress-logging")]
+        let mut boost_counts = HashMap::new();
 
         // Recalculate scores based on frequency, recency, and context
         for (path, score) in results.iter_mut() {
             let mut new_score = *score;
+            let _original_score = *score;
 
             // 1. Boost for frequency
             if let Some(frequency) = self.frequency_map.get(path) {
                 let boost = (*frequency as f32) * self.ranking_config.frequency_weight;
                 // More frequently used paths get a boost
-                new_score += boost.min(self.ranking_config.max_frequency_boost);
+                let final_boost = boost.min(self.ranking_config.max_frequency_boost);
+                new_score += final_boost;
+                
+                #[cfg(feature = "search-progress-logging")]
+                {
+                    *boost_counts.entry("frequency").or_insert(0) += 1;
+                }
             }
 
             // 2. Boost for recency
@@ -669,6 +948,11 @@ impl AutocompleteEngine {
                 let rec_boost_approx = self.ranking_config.recency_weight
                     / (1.0 + age * self.ranking_config.recency_lambda);
                 new_score += rec_boost_approx;
+                
+                #[cfg(feature = "search-progress-logging")]
+                {
+                    *boost_counts.entry("recency").or_insert(0) += 1;
+                }
             }
 
             // 3. Boost for current directory context
@@ -676,11 +960,21 @@ impl AutocompleteEngine {
                 if path.starts_with(current_dir) {
                     // Paths in the current directory get a significant boost
                     new_score += self.ranking_config.context_same_dir_boost;
+                    
+                    #[cfg(feature = "search-progress-logging")]
+                    {
+                        *boost_counts.entry("same_dir").or_insert(0) += 1;
+                    }
                 } else if let Some(parent_dir) = std::path::Path::new(current_dir).parent() {
                     if let Some(parent_str) = parent_dir.to_str() {
                         if path.starts_with(parent_str) {
                             // Paths in the parent directory get a smaller boost
                             new_score += self.ranking_config.context_parent_dir_boost;
+                            
+                            #[cfg(feature = "search-progress-logging")]
+                            {
+                                *boost_counts.entry("parent_dir").or_insert(0) += 1;
+                            }
                         }
                     }
                 }
@@ -695,9 +989,19 @@ impl AutocompleteEngine {
                 if let Some(pos) = pref_exts_lc.iter().position(|e| e == &ext_lc) {
                     let position_factor = 1.0 - (pos as f32 / pref_exts_lc.len() as f32);
                     new_score += self.ranking_config.extension_boost * position_factor;
+                    
+                    #[cfg(feature = "search-progress-logging")]
+                    {
+                        *boost_counts.entry("extension").or_insert(0) += 1;
+                    }
                 }
                 if q_lc.contains(&ext_lc) {
                     new_score += self.ranking_config.extension_query_boost;
+                    
+                    #[cfg(feature = "search-progress-logging")]
+                    {
+                        *boost_counts.entry("extension_query").or_insert(0) += 1;
+                    }
                 }
             }
 
@@ -709,35 +1013,85 @@ impl AutocompleteEngine {
                 let f_lc = name.to_lowercase();
                 if f_lc == q_lc {
                     new_score += self.ranking_config.exact_match_boost;
+                    
+                    #[cfg(feature = "search-progress-logging")]
+                    {
+                        *boost_counts.entry("exact_match").or_insert(0) += 1;
+                    }
                 } else if f_lc.starts_with(&q_lc) {
                     new_score += self.ranking_config.prefix_match_boost;
+                    
+                    #[cfg(feature = "search-progress-logging")]
+                    {
+                        *boost_counts.entry("prefix_match").or_insert(0) += 1;
+                    }
                 } else if f_lc.contains(&q_lc) {
                     new_score += self.ranking_config.contains_match_boost;
+                    
+                    #[cfg(feature = "search-progress-logging")]
+                    {
+                        *boost_counts.entry("contains_match").or_insert(0) += 1;
+                    }
                 }
             }
+
+            // 6. Boost for directories if prefer_directories is enabled
+            let path_obj = std::path::Path::new(path);
+            if path_obj.is_dir() {
+                new_score += self.ranking_config.directory_ranking_boost;
+                
+                #[cfg(feature = "search-progress-logging")]
+                {
+                    *boost_counts.entry("directory").or_insert(0) += 1;
+                }
+            }
+
             // Normalize score to be between 0 and 1 with sigmoid function
             new_score = 1.0 / (1.0 + (-new_score).exp());
+            
+            #[cfg(feature = "search-progress-logging")]
+            if new_score > original_score + 0.1 {
+                // Only log significant score changes
+                log_info!("Path score boost: '{}' - {:.3} → {:.3}", path, original_score, new_score);
+            }
 
             *score = new_score;
         }
+        
+        #[cfg(feature = "search-progress-logging")]
+        {
+            // Log boost statistics
+            log_info!("Boost statistics for {} results:", results.len());
+            for (boost_type, count) in boost_counts.iter() {
+                log_info!("  {}: {} paths ({:.1}%)", 
+                         boost_type, 
+                         count, 
+                         (*count as f32 / results.len() as f32) * 100.0);
+            }
+        }
 
         // Sort by score (descending)
+        #[cfg(feature = "search-progress-logging")]
+        let sort_start = Instant::now();
+        
         results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    }
-
-    /// Clears all data and caches in the engine.
-    ///
-    /// This removes all indexed paths, cached results, frequency and recency data.
-    ///
-    /// # Performance
-    /// O(1) - Constant time as it simply replaces internal data structures
-    pub fn clear(&mut self) {
-        self.trie.clear();
-        self.cache.clear();
-        self.frequency_map.clear();
-        self.recency_map.clear();
-
-        self.fuzzy_matcher = PathMatcher::new();
+        
+        #[cfg(feature = "search-progress-logging")]
+        {
+            let sort_duration = sort_start.elapsed();
+            log_info!("Sorted {} results in {:?}", results.len(), sort_duration);
+            
+            let total_ranking_duration = ranking_detailed_start.elapsed();
+            log_info!("Total ranking time: {:?}", total_ranking_duration);
+            
+            // Log score distribution
+            if !results.is_empty() {
+                log_info!("Score distribution - Top: {:.4}, Median: {:.4}, Bottom: {:.4}",
+                         results.first().unwrap().1,
+                         results[results.len()/2].1,
+                         results.last().unwrap().1);
+            }
+        }
     }
 
     /// Returns statistics about the engine's internal state.
@@ -771,10 +1125,11 @@ mod tests_autocomplete_engine {
     use super::*;
     use std::fs;
     use std::thread::sleep;
+    use crate::{log_info, log_warn};
 
     #[test]
     fn test_basic_search() {
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Add some test paths
         engine.add_path("/home/user/documents/report.pdf");
@@ -801,7 +1156,7 @@ mod tests_autocomplete_engine {
 
     #[test]
     fn test_fuzzy_search_fallback() {
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Add some test paths
         engine.add_path("/home/user/documents/report.pdf");
@@ -820,7 +1175,7 @@ mod tests_autocomplete_engine {
 
     #[test]
     fn test_recency_and_frequency_ranking() {
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Add some test paths
         engine.add_path("/path/a.txt");
@@ -849,7 +1204,7 @@ mod tests_autocomplete_engine {
 
     #[test]
     fn test_current_directory_context() {
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Add paths in different directories
         engine.add_path("/home/user/docs/file1.txt");
@@ -869,7 +1224,7 @@ mod tests_autocomplete_engine {
 
     #[test]
     fn test_extension_preference() {
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Add paths with different extensions
         engine.add_path("/docs/report.pdf");
@@ -886,7 +1241,7 @@ mod tests_autocomplete_engine {
 
     #[test]
     fn test_removal() {
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Add paths
         engine.add_path("/path/file1.txt");
@@ -907,7 +1262,7 @@ mod tests_autocomplete_engine {
 
     #[test]
     fn test_cache_expiration() {
-        let mut engine = AutocompleteEngine::new(10, 5);
+        let mut engine = AutocompleteEngine::new(10, 5, Duration::from_secs(300), RankingConfig::default());
 
         // Add a path
         engine.add_path("/test/file.txt");
@@ -932,7 +1287,7 @@ mod tests_autocomplete_engine {
 
     #[test]
     fn test_stats() {
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Add some paths
         for i in 0..5 {
@@ -1009,7 +1364,7 @@ mod tests_autocomplete_engine {
         let temp_dir = create_temp_dir_structure();
         let temp_dir_str = temp_dir.to_str().unwrap();
 
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Add paths recursively
         engine.add_paths_recursive(temp_dir_str, None);
@@ -1052,7 +1407,7 @@ mod tests_autocomplete_engine {
         let temp_dir = create_temp_dir_structure();
         let temp_dir_str = temp_dir.to_str().unwrap();
 
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Add paths recursively with exclusions
         let excluded_patterns = vec!["nested".to_string(), "file2".to_string()];
@@ -1083,7 +1438,7 @@ mod tests_autocomplete_engine {
         let temp_dir_str = temp_dir.to_str().unwrap();
         let subdir1_str = temp_dir.join("subdir1").to_str().unwrap().to_string();
 
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // First add all paths recursively
         engine.add_paths_recursive(temp_dir_str, None);
@@ -1160,7 +1515,7 @@ mod tests_autocomplete_engine {
             fs::set_permissions(&restricted_dir, perms).expect("Failed to set permissions");
         }
 
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Add paths recursively - should handle the permission error gracefully
         engine.add_paths_recursive(temp_dir_str, None);
@@ -1194,7 +1549,7 @@ mod tests_autocomplete_engine {
 
     #[test]
     fn test_add_and_remove_with_nonexistent_paths() {
-        let mut engine = AutocompleteEngine::new(100, 10);
+        let mut engine = AutocompleteEngine::new(100, 10, Duration::from_secs(300), RankingConfig::default());
 
         // Try to add a non-existent path recursively
         let nonexistent_path = "/path/that/does/not/exist";
@@ -1301,7 +1656,7 @@ mod tests_autocomplete_engine {
         log_info!("Testing autocomplete engine with real-world test data");
 
         // Create a new engine with reasonable parameters
-        let mut engine = AutocompleteEngine::new(100, 20);
+        let mut engine = AutocompleteEngine::new(100, 20, Duration::from_secs(300), RankingConfig::default());
 
         // Get real-world paths from test data
         let paths = collect_test_paths(Some(500));
@@ -1550,7 +1905,7 @@ mod tests_autocomplete_engine {
         log_info!("Testing autocomplete engine with all available test data paths");
 
         // Create a new engine with reasonable parameters
-        let mut engine = AutocompleteEngine::new(100, 20);
+        let mut engine = AutocompleteEngine::new(100, 20, Duration::from_secs(300), RankingConfig::default());
 
         // Get ALL available test paths (no limit)
         let paths = collect_test_paths(None);
@@ -1955,7 +2310,7 @@ mod tests_autocomplete_engine {
             let subset_size = batch_size.min(all_paths.len());
 
             // Create a fresh engine with only the needed paths
-            let mut subset_engine = AutocompleteEngine::new(1000, 20);
+            let mut subset_engine = AutocompleteEngine::new(1000, 20, Duration::from_secs(300), RankingConfig::default());
             let start_insert_subset = Instant::now();
 
             for i in 0..subset_size {
