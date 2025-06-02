@@ -1,4 +1,4 @@
-pub mod autocomplete_engine;
+pub mod search_core;
 mod fast_fuzzy_v2;
 mod lru_cache_v2;
 mod path_cache_wrapper;

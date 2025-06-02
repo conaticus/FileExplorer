@@ -5,7 +5,7 @@ use std::time::Instant;
 use crate::log_error;
 #[cfg(test)]
 use crate::log_info;
-use crate::search_engine::autocomplete_engine::{AutocompleteEngine, EngineStats};
+use crate::search_engine::search_core::{AutocompleteEngine, EngineStats};
 use crate::models::search_engine_config::SearchEngineConfig;
 use crate::state::SettingsState;
 
