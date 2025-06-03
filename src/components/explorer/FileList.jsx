@@ -18,14 +18,23 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
     // Handle container click (click on empty space)
     const handleContainerClick = (e) => {
         // Only clear if clicking directly on the container, not on items
-        if (e.target === e.currentTarget) {
+        // Also check that it's not a scroll-related interaction
+        if (e.target === e.currentTarget && e.detail !== 0) {
             clearSelection();
             setLastSelectedIndex(-1);
         }
     };
 
     // Handle context menu
-    const handleContextMenu = (e, item) => {
+    const handleContextMenu = (e) => {
+        // Always prevent default browser context menu in our container
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Determine if we clicked on an item or empty space
+        const clickedItem = e.target.closest('[data-path]');
+        const item = clickedItem ? sortedItems.find(item => item.path === clickedItem.dataset.path) : null;
+
         openContextMenu(e, item);
     };
 
@@ -41,6 +50,14 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
             setIsCtrlKeyPressed(e.ctrlKey || e.metaKey);
         };
 
+        // Prevent default browser context menu - but allow scrolling
+        const preventDefaultContextMenu = (e) => {
+            // Only prevent if the target is within our file list AND it's actually a right-click
+            if (e.button === 2 && (e.target.closest('.file-list-container') || e.target.closest('.empty-state-container'))) {
+                e.preventDefault();
+            }
+        };
+
         // Listen for select-item events from context menu
         const handleSelectItem = (e) => {
             if (e.detail && e.detail.item) {
@@ -54,14 +71,17 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
             setLastSelectedIndex(-1);
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
+        // Use passive listeners where possible to improve scroll performance
+        window.addEventListener('keydown', handleKeyDown, { passive: true });
+        window.addEventListener('keyup', handleKeyUp, { passive: true });
+        window.addEventListener('mousedown', preventDefaultContextMenu, { passive: false });
         document.addEventListener('select-item', handleSelectItem);
         document.addEventListener('clear-selection', handleClearSelection);
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('mousedown', preventDefaultContextMenu);
             document.removeEventListener('select-item', handleSelectItem);
             document.removeEventListener('clear-selection', handleClearSelection);
         };
@@ -92,9 +112,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
                 <div
                     className="empty-state-container"
                     onClick={handleContainerClick}
-                    onContextMenu={(e) => {
-                        handleContextMenu(e, null);
-                    }}
+                    onContextMenu={handleContextMenu}
                     style={{ height: '100%', width: '100%' }}
                 >
                     <EmptyState
@@ -174,7 +192,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
                 // Use the correct API for opening files in default app
                 const openFile = async () => {
                     try {
-                        await invoke('open_in_default_app', { file_path: item.path });
+                        await invoke('open_in_default_app', { path: item.path });
                     } catch (error) {
                         console.error('Failed to open file:', error);
                         showError(`Failed to open file: ${error.message || error}`);
@@ -231,11 +249,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
             <div
                 className={`file-list-container view-mode-${viewMode} scrollable-content`}
                 onClick={handleContainerClick}
-                onContextMenu={(e) => {
-                    if (e.target === e.currentTarget) {
-                        handleContextMenu(e, null);
-                    }
-                }}
+                onContextMenu={handleContextMenu}
             >
                 {viewMode === 'details' && (
                     <div className="file-list-header">
@@ -287,7 +301,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
                             isSelected={selectedItems.some(selected => selected.path === item.path)}
                             onClick={(e) => handleItemClick(item, index)}
                             onDoubleClick={() => handleItemClick(item, index, true)}
-                            onContextMenu={(e) => handleContextMenu(e, item)}
+                            onContextMenu={handleContextMenu}
                         />
                     ))}
                 </div>
