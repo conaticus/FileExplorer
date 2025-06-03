@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import FileIcon from './FileIcon';
 import RenameModal from '../common/RenameModal';
 import { formatFileSize, formatDate, getFileType } from '../../utils/formatters';
+import { replaceFileName } from '../../utils/pathUtils.js';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useHistory } from '../../providers/HistoryProvider';
@@ -44,19 +45,24 @@ const FileItem = ({
         };
     }, [item.path]);
 
-    // Handle rename
+    // Handle rename with robust path handling
     const handleRename = async (item, newName) => {
         if (!newName || newName === item.name) return;
 
+        console.log(`!!! Renaming "${replaceFileName(item.path, newName)}"`);
+
         try {
-            const pathParts = item.path.split('/');
-            pathParts[pathParts.length - 1] = newName;
-            const newPath = pathParts.join('/');
+            // Use the robust path utility to create the new path
+            const newPath = replaceFileName(item.path, newName);
+
+            console.log(`Renaming: "${item.path}" -> "${newPath}"`);
 
             await invoke('rename', {
                 oldPath: item.path,
                 newPath: newPath
             });
+
+            console.log('Rename operation completed successfully');
 
             // Reload current directory
             if (currentPath) {

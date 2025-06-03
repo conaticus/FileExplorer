@@ -27,6 +27,7 @@ import ThisPCView from '../components/thisPc/ThisPCView';
 import TemplateList from '../components/templates/TemplateList';
 
 import '../styles/layouts/mainLayout.css';
+import {replaceFileName} from "../utils/pathUtils.js";
 
 const MainLayout = () => {
     const { theme, toggleTheme } = useTheme();
@@ -221,10 +222,20 @@ const MainLayout = () => {
     const handleRename = async (item, newName) => {
         if (!newName || newName === item.name) return;
 
+        console.log(`!!! Renaming "${replaceFileName(item.path, newName)}"`);
+
+
         try {
-            const pathParts = item.path.split('/');
+            const separator = item.path.includes('\\') ? '\\' : '/';
+
+            console.log("Debug - separator detected:", separator);
+            console.log("Debug - original path:", item.path);
+
+            const pathParts = item.path.split(separator);
             pathParts[pathParts.length - 1] = newName;
-            const newPath = pathParts.join('/');
+            const newPath = pathParts.join(separator);
+
+            console.log("Debug - new path:", newPath);
 
             await invoke('rename', {
                 oldPath: item.path,

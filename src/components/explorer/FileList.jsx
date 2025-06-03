@@ -151,7 +151,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
                 // Use the correct API for opening files in default app
                 const openFile = async () => {
                     try {
-                        await invoke('open_in_default_app', { path: item.path });
+                        await invoke('open_in_default_app', { file_path: item.path });
                     } catch (error) {
                         console.error('Failed to open file:', error);
                         showError(`Failed to open file: ${error.message || error}`);

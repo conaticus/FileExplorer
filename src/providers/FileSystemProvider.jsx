@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useHistory } from './HistoryProvider';
+import { getDirectoryPath } from '../utils/pathUtils';
 
 // Create file system context
 const FileSystemContext = createContext({
@@ -243,7 +244,7 @@ export default function FileSystemProvider({ children }) {
         try {
             await invoke('create_file', {
                 folderPathAbs: folderPath,
-                fileName
+                fileName: fileName
             });
 
             // Reload directory to show the new file
@@ -264,7 +265,7 @@ export default function FileSystemProvider({ children }) {
         try {
             await invoke('create_directory', {
                 folderPathAbs: folderPath,
-                directoryName
+                directory_name: directoryName
             });
 
             // Reload directory to show the new directory
@@ -277,16 +278,23 @@ export default function FileSystemProvider({ children }) {
         }
     }, [loadDirectory]);
 
-    // Rename an item (file or directory)
+    // Rename an item (file or directory) with robust path handling
     const renameItem = useCallback(async (oldPath, newPath) => {
         setIsLoading(true);
         setError(null);
 
+        console.log(`!!! Renaming "${oldPath}" -> "${newPath}"`);
+
+
         try {
+            console.log(`FileSystemProvider: Renaming "${oldPath}" -> "${newPath}"`);
+
             await invoke('rename', { oldPath, newPath });
 
-            // Extract directory path from the old path to reload
-            const dirPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
+            console.log('FileSystemProvider: Rename operation completed successfully');
+
+            // Extract directory path from the old path to reload using robust path utility
+            const dirPath = getDirectoryPath(oldPath);
             await loadDirectory(dirPath);
         } catch (err) {
             console.error(`Failed to rename item: ${oldPath}`, err);
