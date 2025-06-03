@@ -23,13 +23,8 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "icon": [
-      "icons/logo_32x32.png",
-      "icons/logo_128x128.png",
-      "icons/logo.icns",
-      "icons/logo.ico"
-    ],
+    "targets": ["deb", "rpm"],
+    "icon": ["icons/logo_32x32.png", "icons/logo_128x128.png", "icons/logo.icns", "icons/logo.ico"],
     "windows": {
       "wix": {
         "language": "en-US"
