@@ -13,6 +13,41 @@ Error Structure as json can be found [here](./error_structure.md).
 - [Zip a Dir or File](#zip-endpoint)
 - [Unzip a Dir or File](#unzip-endpoint)
 
+
+
+# `copy_file_or_dir`
+
+--- 
+
+## Parameters
+
+- `source_path`: The absolute path to the source file or directory to copy. This must be a valid path and must exist.
+- `destination_path`: The absolute path to the destination where the source should be copied. This path must not already exist.
+
+## Returns
+
+- Ok(u64) - The total size in bytes of the copied file(s) or directory.
+- Err(String) - An error message if the source path is invalid, the destination already exists, or any I/O operation fails during the copy.
+
+## Example call
+
+```typescript jsx
+useEffect(() => {
+  const copyData = async () => {
+    try {
+      const totalSize = await invoke("copy_file_or_dir", {
+        source_path: "/path/to/source",
+        destination_path: "/path/to/destination"
+      });
+      console.log("Copied successfully, total bytes:", totalSize);
+    } catch (error) {
+      console.error("Error during copy operation:", error);
+    }
+  };
+
+  copyData();
+}, []);
+
 # `open_file` endpoint CURRENTLY NOT ACTIVE
 
 ---
