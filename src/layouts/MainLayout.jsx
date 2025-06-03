@@ -67,7 +67,7 @@ const MainLayout = () => {
         }
     }, [volumes, currentDirData, currentPath]);
 
-    // Listen for custom events
+    // Listen for custom events - VERBESSERT MIT DEBUG
     useEffect(() => {
         const handleOpenTemplates = () => {
             setCurrentView('templates');
@@ -97,20 +97,30 @@ const MainLayout = () => {
             }
         };
 
+        // VERBESSERTE HASH EVENT HANDLERS MIT DEBUG
         const handleOpenHashFileModal = (e) => {
+            console.log('🎯 MainLayout: Received open-hash-file-modal event:', e.detail);
             if (e.detail && e.detail.item) {
+                console.log('✅ Opening Hash File Modal for:', e.detail.item.name);
                 setHashModalItem(e.detail.item);
                 setIsHashFileModalOpen(true);
+            } else {
+                console.log('❌ Invalid event detail:', e.detail);
             }
         };
 
         const handleOpenHashCompareModal = (e) => {
+            console.log('🎯 MainLayout: Received open-hash-compare-modal event:', e.detail);
             if (e.detail && e.detail.item) {
+                console.log('✅ Opening Hash Compare Modal for:', e.detail.item.name);
                 setHashModalItem(e.detail.item);
                 setIsHashCompareModalOpen(true);
+            } else {
+                console.log('❌ Invalid event detail:', e.detail);
             }
         };
 
+        // Event Listeners registrieren
         document.addEventListener('open-templates', handleOpenTemplates);
         document.addEventListener('show-properties', handleShowProperties);
         document.addEventListener('open-this-pc', handleOpenThisPC);
@@ -119,6 +129,8 @@ const MainLayout = () => {
         document.addEventListener('open-rename-modal', handleOpenRenameModal);
         document.addEventListener('open-hash-file-modal', handleOpenHashFileModal);
         document.addEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
+
+        console.log('📥 MainLayout: All event listeners registered');
 
         return () => {
             document.removeEventListener('open-templates', handleOpenTemplates);
@@ -129,6 +141,7 @@ const MainLayout = () => {
             document.removeEventListener('open-rename-modal', handleOpenRenameModal);
             document.removeEventListener('open-hash-file-modal', handleOpenHashFileModal);
             document.removeEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
+            console.log('📤 MainLayout: All event listeners removed');
         };
     }, []);
 
@@ -445,10 +458,11 @@ const MainLayout = () => {
                 onRename={handleRename}
             />
 
-            {/* Hash Modals */}
+            {/* Hash Modals - MIT DEBUG */}
             <HashFileModal
                 isOpen={isHashFileModalOpen}
                 onClose={() => {
+                    console.log('🔴 Closing Hash File Modal');
                     setIsHashFileModalOpen(false);
                     setHashModalItem(null);
                 }}
@@ -458,6 +472,7 @@ const MainLayout = () => {
             <HashCompareModal
                 isOpen={isHashCompareModalOpen}
                 onClose={() => {
+                    console.log('🔴 Closing Hash Compare Modal');
                     setIsHashCompareModalOpen(false);
                     setHashModalItem(null);
                 }}

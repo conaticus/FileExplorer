@@ -261,52 +261,78 @@ export default function ContextMenuProvider({ children }) {
         }
     }, [currentPath, loadDirectory]);
 
-    // Generate hash for a file
+    // Generate hash for a file - VERBESSERT MIT DEBUG
     const generateHash = useCallback(async (item) => {
+        console.log('🔧 generateHash called with:', item?.name, item?.path);
+
         if (!item || item.isDirectory || 'sub_file_count' in item) {
+            console.log('❌ Item invalid for hash generation');
             showError('Hash generation is only available for files.');
             return;
         }
 
+        console.log('🚀 Starting hash generation...');
         setIsProcessing(true);
+
         try {
+            console.log('📞 Calling Tauri invoke gen_hash_and_return_string...');
             const hash = await invoke('gen_hash_and_return_string', { path: item.path });
+
+            console.log('✅ Hash generated:', hash.substring(0, 20) + '...');
 
             // Copy hash to clipboard
             await navigator.clipboard.writeText(hash);
             showSuccess(`Hash generated and copied to clipboard: ${hash.substring(0, 16)}...`);
         } catch (error) {
-            console.error('Hash generation failed:', error);
+            console.error('💥 Hash generation failed:', error);
             showError(`Failed to generate hash: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
     }, []);
 
-    // Generate hash and save to file - trigger modal
+    // Generate hash and save to file - VERBESSERT MIT DEBUG
     const generateHashToFile = useCallback((item) => {
+        console.log('🔧 generateHashToFile called with:', item?.name);
+
         if (!item || item.isDirectory || 'sub_file_count' in item) {
+            console.log('❌ Item invalid for hash file generation');
             showError('Hash generation is only available for files.');
             return;
         }
 
+        console.log('📤 Dispatching open-hash-file-modal event...');
+
         // Dispatch event to open hash file modal
-        document.dispatchEvent(new CustomEvent('open-hash-file-modal', {
-            detail: { item }
-        }));
+        const event = new CustomEvent('open-hash-file-modal', {
+            detail: { item },
+            bubbles: true
+        });
+
+        document.dispatchEvent(event);
+        console.log('✅ Event dispatched successfully');
     }, []);
 
-    // Compare file with hash - trigger modal
+    // Compare file with hash - VERBESSERT MIT DEBUG
     const compareHash = useCallback((item) => {
+        console.log('🔧 compareHash called with:', item?.name);
+
         if (!item || item.isDirectory || 'sub_file_count' in item) {
+            console.log('❌ Item invalid for hash comparison');
             showError('Hash comparison is only available for files.');
             return;
         }
 
+        console.log('📤 Dispatching open-hash-compare-modal event...');
+
         // Dispatch event to open hash compare modal
-        document.dispatchEvent(new CustomEvent('open-hash-compare-modal', {
-            detail: { item }
-        }));
+        const event = new CustomEvent('open-hash-compare-modal', {
+            detail: { item },
+            bubbles: true
+        });
+
+        document.dispatchEvent(event);
+        console.log('✅ Event dispatched successfully');
     }, []);
 
     // Get current folder metadata by loading parent directory
@@ -541,8 +567,9 @@ export default function ContextMenuProvider({ children }) {
             );
         }
 
-        // Add hash options for files only - as submenu
+        // Add hash options for files only - as submenu - MIT DEBUG
         if (isFile && selectedItems.length === 1) {
+            console.log('🔨 Adding hash submenu for file:', contextTarget.name);
             menuItems.push(
                 { type: 'separator' },
                 {
@@ -556,14 +583,20 @@ export default function ContextMenuProvider({ children }) {
                             label: 'Generate & Copy to Clipboard',
                             icon: 'hash',
                             disabled: isProcessing,
-                            action: () => generateHash(contextTarget)
+                            action: () => {
+                                console.log('🎯 Generate Hash clicked!', contextTarget?.name);
+                                generateHash(contextTarget);
+                            }
                         },
                         {
                             id: 'generate-hash-file',
                             label: 'Save Hash to File...',
                             icon: 'hash',
                             disabled: isProcessing,
-                            action: () => generateHashToFile(contextTarget)
+                            action: () => {
+                                console.log('🎯 Hash to File clicked!', contextTarget?.name);
+                                generateHashToFile(contextTarget);
+                            }
                         },
                         { type: 'separator' },
                         {
@@ -571,7 +604,10 @@ export default function ContextMenuProvider({ children }) {
                             label: 'Compare with Hash...',
                             icon: 'hash',
                             disabled: isProcessing,
-                            action: () => compareHash(contextTarget)
+                            action: () => {
+                                console.log('🎯 Compare Hash clicked!', contextTarget?.name);
+                                compareHash(contextTarget);
+                            }
                         }
                     ]
                 }
@@ -614,6 +650,8 @@ export default function ContextMenuProvider({ children }) {
     // Open context menu
     const openContextMenu = useCallback((e, contextTarget = null) => {
         e.preventDefault();
+
+        console.log('🎯 Opening context menu for:', contextTarget?.name || 'empty space');
 
         const menuItems = getMenuItemsForContext(contextTarget);
 

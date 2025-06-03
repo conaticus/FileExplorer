@@ -31,7 +31,7 @@ const HashCompareModal = ({ isOpen, onClose, item }) => {
         try {
             const matches = await invoke('compare_file_or_dir_with_hash', {
                 path: item.path,
-                hash_to_compare: hashValue.trim()
+                hashToCompare: hashValue.trim()
             });
 
             if (matches) {
