@@ -49,8 +49,6 @@ const FileItem = ({
     const handleRename = async (item, newName) => {
         if (!newName || newName === item.name) return;
 
-        console.log(`!!! Renaming "${replaceFileName(item.path, newName)}"`);
-
         try {
             // Use the robust path utility to create the new path
             const newPath = replaceFileName(item.path, newName);

@@ -265,7 +265,7 @@ export default function FileSystemProvider({ children }) {
         try {
             await invoke('create_directory', {
                 folderPathAbs: folderPath,
-                directory_name: directoryName
+                folderName: directoryName
             });
 
             // Reload directory to show the new directory
@@ -282,9 +282,6 @@ export default function FileSystemProvider({ children }) {
     const renameItem = useCallback(async (oldPath, newPath) => {
         setIsLoading(true);
         setError(null);
-
-        console.log(`!!! Renaming "${oldPath}" -> "${newPath}"`);
-
 
         try {
             console.log(`FileSystemProvider: Renaming "${oldPath}" -> "${newPath}"`);

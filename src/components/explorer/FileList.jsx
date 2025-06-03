@@ -15,6 +15,20 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
     const [isCtrlKeyPressed, setIsCtrlKeyPressed] = useState(false);
     const [lastSelectedIndex, setLastSelectedIndex] = useState(-1);
 
+    // Handle container click (click on empty space)
+    const handleContainerClick = (e) => {
+        // Only clear if clicking directly on the container, not on items
+        if (e.target === e.currentTarget) {
+            clearSelection();
+            setLastSelectedIndex(-1);
+        }
+    };
+
+    // Handle context menu
+    const handleContextMenu = (e, item) => {
+        openContextMenu(e, item);
+    };
+
     // Handle keyboard events for multi-selection
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -75,10 +89,19 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
     if (!data || (!data.directories?.length && !data.files?.length)) {
         return (
             <div className="file-list-container">
-                <EmptyState
-                    type={isSearching ? 'no-results' : 'empty-folder'}
-                    searchTerm={isSearching ? "your search" : undefined}
-                />
+                <div
+                    className="empty-state-container"
+                    onClick={handleContainerClick}
+                    onContextMenu={(e) => {
+                        handleContextMenu(e, null);
+                    }}
+                    style={{ height: '100%', width: '100%' }}
+                >
+                    <EmptyState
+                        type={isSearching ? 'no-results' : 'empty-folder'}
+                        searchTerm={isSearching ? "your search" : undefined}
+                    />
+                </div>
             </div>
         );
     }
@@ -200,20 +223,6 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
                 selectItem(item, false);
                 setLastSelectedIndex(index);
             }
-        }
-    };
-
-    // Handle context menu
-    const handleContextMenu = (e, item) => {
-        openContextMenu(e, item);
-    };
-
-    // Handle container click (click on empty space)
-    const handleContainerClick = (e) => {
-        // Only clear if clicking directly on the container, not on items
-        if (e.target === e.currentTarget) {
-            clearSelection();
-            setLastSelectedIndex(-1);
         }
     };
 

@@ -222,9 +222,6 @@ const MainLayout = () => {
     const handleRename = async (item, newName) => {
         if (!newName || newName === item.name) return;
 
-        console.log(`!!! Renaming "${replaceFileName(item.path, newName)}"`);
-
-
         try {
             const separator = item.path.includes('\\') ? '\\' : '/';
 
