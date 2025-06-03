@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileSystem } from './FileSystemProvider';
 import { useHistory } from './HistoryProvider';
+import { showNotification, showError, showSuccess, showConfirm } from '../utils/NotificationSystem';
 
 const ContextMenuContext = createContext({
     isOpen: false,
@@ -24,6 +25,17 @@ export default function ContextMenuProvider({ children }) {
     const { selectedItems, loadDirectory, clearSelection } = useFileSystem();
     const { currentPath } = useHistory();
 
+    // Check if item is in favorites
+    const isInFavorites = useCallback((item) => {
+        try {
+            const existingFavorites = JSON.parse(localStorage.getItem('fileExplorerFavorites') || '[]');
+            return existingFavorites.some(fav => fav.path === item.path);
+        } catch (error) {
+            console.error('Failed to check favorites:', error);
+            return false;
+        }
+    }, []);
+
     // Add to favorites with live update
     const addToFavorites = useCallback((item) => {
         try {
@@ -32,7 +44,7 @@ export default function ContextMenuProvider({ children }) {
             // Check if already in favorites
             const alreadyExists = existingFavorites.some(fav => fav.path === item.path);
             if (alreadyExists) {
-                alert('This item is already in your favorites.');
+                showNotification('This item is already in your favorites.');
                 return;
             }
 
@@ -52,10 +64,10 @@ export default function ContextMenuProvider({ children }) {
                 newValue: JSON.stringify(updatedFavorites)
             }));
 
-            alert(`Added "${item.name}" to favorites.`);
+            showSuccess(`Added "${item.name}" to favorites.`);
         } catch (error) {
             console.error('Failed to add to favorites:', error);
-            alert('Failed to add to favorites.');
+            showError('Failed to add to favorites.');
         }
     }, []);
 
@@ -129,16 +141,14 @@ export default function ContextMenuProvider({ children }) {
                 if (clipboard.operation === 'cut') {
                     // Move operation
                     await invoke('rename', {
-                        old_path: sourcePath,
-                        new_path: destPath
+                        oldPath: sourcePath,
+                        newPath: destPath
                     });
                 } else {
-                    // Copy operation - we need to use system copy command
-                    const command = process.platform === 'win32'
-                        ? `copy "${sourcePath}" "${destPath}"`
-                        : `cp -r "${sourcePath}" "${destPath}"`;
-
-                    await invoke('execute_command', { command });
+                    // Copy operation - for now we'll skip the complex copy logic
+                    // In a real implementation, you'd use a proper file copy API
+                    console.warn('Copy operation not fully implemented');
+                    throw new Error('Copy operation not available - use cut/move instead');
                 }
             }
 
@@ -151,7 +161,7 @@ export default function ContextMenuProvider({ children }) {
             await loadDirectory(currentPath);
         } catch (error) {
             console.error('Paste operation failed:', error);
-            alert(`Failed to paste: ${error.message || error}`);
+            showError(`Failed to paste: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
@@ -164,7 +174,9 @@ export default function ContextMenuProvider({ children }) {
         const itemNames = items.map(item => item.name).join(', ');
         const confirmMessage = `Are you sure you want to move ${items.length === 1 ? itemNames : `${items.length} items`} to trash?`;
 
-        if (!confirm(confirmMessage)) return;
+        // Use custom confirm dialog
+        const shouldDelete = await showConfirm(confirmMessage, 'Move to Trash');
+        if (!shouldDelete) return;
 
         setIsProcessing(true);
         try {
@@ -176,41 +188,74 @@ export default function ContextMenuProvider({ children }) {
             await loadDirectory(currentPath);
         } catch (error) {
             console.error('Delete operation failed:', error);
-            alert(`Failed to delete: ${error.message || error}`);
+            showError(`Failed to delete: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
     }, [currentPath, loadDirectory, clearSelection]);
 
-    // Rename item
-    const renameItem = useCallback(async (item, newName) => {
-        if (!newName || newName === item.name) return;
+    // Rename item - dispatch event to open rename modal
+    const renameItem = useCallback((item) => {
+        document.dispatchEvent(new CustomEvent('open-rename-modal', {
+            detail: { item }
+        }));
+    }, []);
 
-        const pathParts = item.path.split('/');
-        pathParts[pathParts.length - 1] = newName;
-        const newPath = pathParts.join('/');
+    // Zip items
+    const zipItems = useCallback(async (items) => {
+        if (!items.length) return;
+
+        const sourcePaths = items.map(item => item.path);
+        let destinationPath = null;
+
+        if (items.length === 1) {
+            // For single item, use its name as base for zip name
+            const item = items[0];
+            const baseName = item.name;
+            destinationPath = `${currentPath}/${baseName}.zip`;
+        } else {
+            // For multiple items, ask user for zip name
+            const zipName = window.prompt('Enter name for the zip file:', 'archive.zip');
+            if (!zipName) return;
+            destinationPath = `${currentPath}/${zipName}`;
+            if (!destinationPath.endsWith('.zip')) {
+                destinationPath += '.zip';
+            }
+        }
 
         setIsProcessing(true);
         try {
-            await invoke('rename', {
-                old_path: item.path,
-                new_path: newPath
+            await invoke('zip', {
+                sourcePaths: sourcePaths,
+                destinationPath: destinationPath
             });
 
             await loadDirectory(currentPath);
+            showSuccess(`Successfully created ${destinationPath.split('/').pop()}`);
         } catch (error) {
-            console.error('Rename operation failed:', error);
-            if (error.message && error.message.includes('already exists')) {
-                const shouldCreateCopy = confirm(`A file named "${newName}" already exists. Create a copy instead?`);
-                if (shouldCreateCopy) {
-                    const extension = newName.includes('.') ? newName.split('.').pop() : '';
-                    const baseName = extension ? newName.replace(`.${extension}`, '') : newName;
-                    const copyName = extension ? `${baseName} - Copy.${extension}` : `${baseName} - Copy`;
-                    await renameItem(item, copyName);
-                }
-            } else {
-                alert(`Failed to rename: ${error.message || error}`);
-            }
+            console.error('Zip operation failed:', error);
+            showError(`Failed to create zip: ${error.message || error}`);
+        } finally {
+            setIsProcessing(false);
+        }
+    }, [currentPath, loadDirectory]);
+
+    // Unzip item
+    const unzipItem = useCallback(async (item) => {
+        if (!item.name.toLowerCase().endsWith('.zip')) return;
+
+        setIsProcessing(true);
+        try {
+            await invoke('unzip', {
+                zipPaths: [item.path],
+                destinationPath: currentPath
+            });
+
+            await loadDirectory(currentPath);
+            showSuccess(`Successfully extracted ${item.name}`);
+        } catch (error) {
+            console.error('Unzip operation failed:', error);
+            showError(`Failed to extract: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
@@ -233,6 +278,7 @@ export default function ContextMenuProvider({ children }) {
         const isFile = contextTarget && !('sub_file_count' in contextTarget);
         const isDirectory = contextTarget && ('sub_file_count' in contextTarget);
         const hasClipboard = clipboard.items.length > 0;
+        const isZipFile = contextTarget && contextTarget.name.toLowerCase().endsWith('.zip');
 
         // Empty space context menu
         if (!contextTarget) {
@@ -280,8 +326,9 @@ export default function ContextMenuProvider({ children }) {
 
         // File/folder context menu
         const targetItems = selectedItems.length > 1 ? selectedItems : [contextTarget];
+        const itemIsInFavorites = isInFavorites(contextTarget);
 
-        return [
+        const menuItems = [
             {
                 id: 'open',
                 label: 'Open',
@@ -293,10 +340,10 @@ export default function ContextMenuProvider({ children }) {
                         updateNavigationHistory(contextTarget.path);
                     } else {
                         try {
-                            await invoke('open_file', { file_path: contextTarget.path });
+                            await invoke('open_in_default_app', { path: contextTarget.path });
                         } catch (error) {
                             console.error('Failed to open file:', error);
-                            alert(`Failed to open file: ${error.message || error}`);
+                            showError(`Failed to open file: ${error.message || error}`);
                         }
                     }
                 }
@@ -329,12 +376,7 @@ export default function ContextMenuProvider({ children }) {
                 label: 'Rename',
                 icon: 'rename',
                 disabled: selectedItems.length > 1 || isProcessing,
-                action: () => {
-                    const newName = prompt('Enter new name:', contextTarget.name);
-                    if (newName) {
-                        renameItem(contextTarget, newName);
-                    }
-                }
+                action: () => renameItem(contextTarget)
             },
             {
                 id: 'delete',
@@ -342,15 +384,54 @@ export default function ContextMenuProvider({ children }) {
                 icon: 'delete',
                 disabled: isProcessing,
                 action: () => deleteItems(targetItems)
-            },
+            }
+        ];
+
+        // Add zip/unzip options
+        if (isZipFile && selectedItems.length === 1) {
+            menuItems.push(
+                { type: 'separator' },
+                {
+                    id: 'extract',
+                    label: 'Extract Here',
+                    icon: 'extract',
+                    disabled: isProcessing,
+                    action: () => unzipItem(contextTarget)
+                }
+            );
+        } else if (!isZipFile) {
+            menuItems.push(
+                { type: 'separator' },
+                {
+                    id: 'compress',
+                    label: selectedItems.length > 1 ? 'Add to Archive...' : 'Compress to ZIP',
+                    icon: 'compress',
+                    disabled: isProcessing,
+                    action: () => zipItems(targetItems)
+                }
+            );
+        }
+
+        // Add favorites option
+        menuItems.push(
             { type: 'separator' },
             {
-                id: 'add-to-favorites',
-                label: 'Add to Favorites',
+                id: itemIsInFavorites ? 'remove-from-favorites' : 'add-to-favorites',
+                label: itemIsInFavorites ? 'Remove from Favorites' : 'Add to Favorites',
                 icon: 'star',
                 disabled: selectedItems.length > 1,
-                action: () => addToFavorites(contextTarget)
-            },
+                action: () => {
+                    if (itemIsInFavorites) {
+                        removeFromFavorites(contextTarget.path);
+                    } else {
+                        addToFavorites(contextTarget);
+                    }
+                }
+            }
+        );
+
+        // Add properties at the end
+        menuItems.push(
             { type: 'separator' },
             {
                 id: 'properties',
@@ -359,8 +440,10 @@ export default function ContextMenuProvider({ children }) {
                 disabled: selectedItems.length > 1,
                 action: () => showProperties(contextTarget)
             }
-        ];
-    }, [selectedItems, clipboard, isProcessing, currentPath, copyToClipboard, cutToClipboard, pasteFromClipboard, deleteItems, renameItem, loadDirectory, showProperties, addToFavorites, updateNavigationHistory]);
+        );
+
+        return menuItems;
+    }, [selectedItems, clipboard, isProcessing, currentPath, copyToClipboard, cutToClipboard, pasteFromClipboard, deleteItems, renameItem, loadDirectory, showProperties, addToFavorites, removeFromFavorites, updateNavigationHistory, zipItems, unzipItem, isInFavorites]);
 
     // Open context menu
     const openContextMenu = useCallback((e, contextTarget = null) => {

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useContextMenu } from '../../providers/ContextMenuProvider';
+import { invoke } from '@tauri-apps/api/core';
+import { showError } from '../../utils/NotificationSystem';
 import FileItem from './FileItem';
 import EmptyState from './EmptyState';
 import './fileList.css';
@@ -146,14 +148,13 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
             if (item.isDirectory) {
                 loadDirectory(item.path);
             } else {
-                // Open file using the open_file endpoint
+                // Use the correct API for opening files in default app
                 const openFile = async () => {
                     try {
-                        const { invoke } = await import('@tauri-apps/api/core');
-                        await invoke('open_file', { file_path: item.path });
+                        await invoke('open_in_default_app', { path: item.path });
                     } catch (error) {
                         console.error('Failed to open file:', error);
-                        alert(`Failed to open file: ${error.message || error}`);
+                        showError(`Failed to open file: ${error.message || error}`);
                     }
                 };
                 openFile();

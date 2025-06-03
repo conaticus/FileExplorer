@@ -3,6 +3,8 @@ import { useTheme } from '../providers/ThemeProvider';
 import { useFileSystem } from '../providers/FileSystemProvider';
 import { useContextMenu } from '../providers/ContextMenuProvider';
 import { useHistory } from '../providers/HistoryProvider';
+import { invoke } from '@tauri-apps/api/core';
+import { showError, showConfirm, showSuccess } from '../utils/NotificationSystem';
 
 // Core Components
 import Sidebar from '../components/sidebar/Sidebar';
@@ -14,8 +16,9 @@ import DetailsPanel from '../components/explorer/DetailsPanel';
 import ContextMenu from '../components/contextMenu/ContextMenu';
 import ViewModes from '../components/explorer/ViewModes';
 
-//  Components
+// Additional Components
 import CreateFileButton from '../components/explorer/CreateFileButton';
+import RenameModal from '../components/common/RenameModal';
 import Terminal from '../components/terminal/Terminal';
 import TabManager from '../components/tabs/TabManager';
 import GlobalSearch from '../components/search/GlobalSearch';
@@ -43,6 +46,8 @@ const MainLayout = () => {
     const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+    const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+    const [renameItem, setRenameItem] = useState(null);
 
     // Load default location on first render
     useEffect(() => {
@@ -75,11 +80,19 @@ const MainLayout = () => {
             setIsTerminalOpen(prev => !prev);
         };
 
+        const handleOpenRenameModal = (e) => {
+            if (e.detail && e.detail.item) {
+                setRenameItem(e.detail.item);
+                setIsRenameModalOpen(true);
+            }
+        };
+
         document.addEventListener('open-templates', handleOpenTemplates);
         document.addEventListener('show-properties', handleShowProperties);
         document.addEventListener('open-this-pc', handleOpenThisPC);
         document.addEventListener('open-settings', handleOpenSettings);
         document.addEventListener('toggle-terminal', handleToggleTerminal);
+        document.addEventListener('open-rename-modal', handleOpenRenameModal);
 
         return () => {
             document.removeEventListener('open-templates', handleOpenTemplates);
@@ -87,6 +100,7 @@ const MainLayout = () => {
             document.removeEventListener('open-this-pc', handleOpenThisPC);
             document.removeEventListener('open-settings', handleOpenSettings);
             document.removeEventListener('toggle-terminal', handleToggleTerminal);
+            document.removeEventListener('open-rename-modal', handleOpenRenameModal);
         };
     }, []);
 
@@ -150,6 +164,14 @@ const MainLayout = () => {
                 document.dispatchEvent(new CustomEvent('create-file'));
             }
 
+            // Rename: F2
+            if (e.key === 'F2' && selectedItems.length === 1) {
+                e.preventDefault();
+                document.dispatchEvent(new CustomEvent('open-rename-modal', {
+                    detail: { item: selectedItems[0] }
+                }));
+            }
+
             // Toggle terminal: Ctrl+`
             if ((e.ctrlKey || e.metaKey) && e.key === '`') {
                 e.preventDefault();
@@ -164,7 +186,7 @@ const MainLayout = () => {
 
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [selectedItems]);
 
     // Copy current path to clipboard
     const copyCurrentPath = useCallback(async () => {
@@ -194,6 +216,40 @@ const MainLayout = () => {
             console.error('Failed to copy path:', error);
         }
     }, [currentPath]);
+
+    // Handle rename
+    const handleRename = async (item, newName) => {
+        if (!newName || newName === item.name) return;
+
+        try {
+            const pathParts = item.path.split('/');
+            pathParts[pathParts.length - 1] = newName;
+            const newPath = pathParts.join('/');
+
+            await invoke('rename', {
+                oldPath: item.path,
+                newPath: newPath
+            });
+
+            // Reload current directory
+            if (currentPath) {
+                await loadDirectory(currentPath);
+            }
+        } catch (error) {
+            console.error('Rename operation failed:', error);
+            if (error.message && error.message.includes('already exists')) {
+                const shouldCreateCopy = await showConfirm(`A file named "${newName}" already exists. Create a copy instead?`, 'File Exists');
+                if (shouldCreateCopy) {
+                    const extension = newName.includes('.') ? newName.split('.').pop() : '';
+                    const baseName = extension ? newName.replace(`.${extension}`, '') : newName;
+                    const copyName = extension ? `${baseName} - Copy.${extension}` : `${baseName} - Copy`;
+                    handleRename(item, copyName);
+                }
+            } else {
+                showError(`Failed to rename: ${error.message || error}`);
+            }
+        }
+    };
 
     // Clear search when changing directory
     useEffect(() => {
@@ -343,6 +399,13 @@ const MainLayout = () => {
             <SettingsPanel
                 isOpen={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
+            />
+
+            <RenameModal
+                isOpen={isRenameModalOpen}
+                onClose={() => setIsRenameModalOpen(false)}
+                item={renameItem}
+                onRename={handleRename}
             />
         </div>
     );
