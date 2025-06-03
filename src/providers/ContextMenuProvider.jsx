@@ -144,11 +144,12 @@ export default function ContextMenuProvider({ children }) {
                         oldPath: sourcePath,
                         newPath: destPath
                     });
-                } else {
-                    // Copy operation - for now we'll skip the complex copy logic
-                    // In a real implementation, you'd use a proper file copy API
-                    console.warn('Copy operation not fully implemented');
-                    throw new Error('Copy operation not available - use cut/move instead');
+                } else if (clipboard.operation === 'copy') {
+                    // Copy operation
+                    await invoke('copy_file_or_dir', {
+                        sourcePath: sourcePath,
+                        destinationPath: destPath
+                    });
                 }
             }
 
@@ -159,6 +160,11 @@ export default function ContextMenuProvider({ children }) {
 
             // Reload directory
             await loadDirectory(currentPath);
+
+            // Show success message
+            const itemCount = clipboard.items.length;
+            const operationText = clipboard.operation === 'cut' ? 'moved' : 'copied';
+            showSuccess(`Successfully ${operationText} ${itemCount} ${itemCount === 1 ? 'item' : 'items'}`);
         } catch (error) {
             console.error('Paste operation failed:', error);
             showError(`Failed to paste: ${error.message || error}`);
