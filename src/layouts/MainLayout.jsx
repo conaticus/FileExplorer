@@ -26,6 +26,10 @@ import SettingsPanel from '../components/settings/SettingsPanel';
 import ThisPCView from '../components/thisPc/ThisPCView';
 import TemplateList from '../components/templates/TemplateList';
 
+// Hash Modals
+import HashFileModal from '../components/common/HashFileModal.jsx';
+import HashCompareModal from '../components/common/HashCompareModal.jsx';
+
 import '../styles/layouts/mainLayout.css';
 import {replaceFileName} from "../utils/pathUtils.js";
 
@@ -49,6 +53,11 @@ const MainLayout = () => {
     const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const [renameItem, setRenameItem] = useState(null);
+
+    // Hash Modal states
+    const [isHashFileModalOpen, setIsHashFileModalOpen] = useState(false);
+    const [isHashCompareModalOpen, setIsHashCompareModalOpen] = useState(false);
+    const [hashModalItem, setHashModalItem] = useState(null);
 
     // Load default location on first render
     useEffect(() => {
@@ -88,12 +97,28 @@ const MainLayout = () => {
             }
         };
 
+        const handleOpenHashFileModal = (e) => {
+            if (e.detail && e.detail.item) {
+                setHashModalItem(e.detail.item);
+                setIsHashFileModalOpen(true);
+            }
+        };
+
+        const handleOpenHashCompareModal = (e) => {
+            if (e.detail && e.detail.item) {
+                setHashModalItem(e.detail.item);
+                setIsHashCompareModalOpen(true);
+            }
+        };
+
         document.addEventListener('open-templates', handleOpenTemplates);
         document.addEventListener('show-properties', handleShowProperties);
         document.addEventListener('open-this-pc', handleOpenThisPC);
         document.addEventListener('open-settings', handleOpenSettings);
         document.addEventListener('toggle-terminal', handleToggleTerminal);
         document.addEventListener('open-rename-modal', handleOpenRenameModal);
+        document.addEventListener('open-hash-file-modal', handleOpenHashFileModal);
+        document.addEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
 
         return () => {
             document.removeEventListener('open-templates', handleOpenTemplates);
@@ -102,6 +127,8 @@ const MainLayout = () => {
             document.removeEventListener('open-settings', handleOpenSettings);
             document.removeEventListener('toggle-terminal', handleToggleTerminal);
             document.removeEventListener('open-rename-modal', handleOpenRenameModal);
+            document.removeEventListener('open-hash-file-modal', handleOpenHashFileModal);
+            document.removeEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
         };
     }, []);
 
@@ -221,6 +248,8 @@ const MainLayout = () => {
     // Handle rename
     const handleRename = async (item, newName) => {
         if (!newName || newName === item.name) return;
+
+        console.log(`!!! Renaming "${replaceFileName(item.path, newName)}"`);
 
         try {
             const separator = item.path.includes('\\') ? '\\' : '/';
@@ -414,6 +443,25 @@ const MainLayout = () => {
                 onClose={() => setIsRenameModalOpen(false)}
                 item={renameItem}
                 onRename={handleRename}
+            />
+
+            {/* Hash Modals */}
+            <HashFileModal
+                isOpen={isHashFileModalOpen}
+                onClose={() => {
+                    setIsHashFileModalOpen(false);
+                    setHashModalItem(null);
+                }}
+                item={hashModalItem}
+            />
+
+            <HashCompareModal
+                isOpen={isHashCompareModalOpen}
+                onClose={() => {
+                    setIsHashCompareModalOpen(false);
+                    setHashModalItem(null);
+                }}
+                item={hashModalItem}
             />
         </div>
     );
