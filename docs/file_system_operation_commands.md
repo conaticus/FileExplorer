@@ -48,9 +48,7 @@ useEffect(() => {
 
 ---
 
-## Parameters
-
-- `path`: The path to the file to be opened. This should be a string representing the absolute
+## Parameter `path`: The path to the file to be opened. This should be a string representing the absolute
   path to the file.
 
 ## Returns
