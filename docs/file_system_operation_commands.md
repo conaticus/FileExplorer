@@ -50,7 +50,7 @@ useEffect(() => {
 
 ## Parameters
 
-- `file_path`: The path to the file to be opened. This should be a string representing the absolute
+- `path`: The path to the file to be opened. This should be a string representing the absolute
   path to the file.
 
 ## Returns
