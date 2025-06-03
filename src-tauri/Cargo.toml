@@ -2,7 +2,7 @@
 name = "src-tauri"
 version = "0.1.0"
 description = "File Explorer"
-authors = ["Conaticus", "ProtogenDelta", ]
+authors = ["Conaticus", "ProtogenDelta", "Marco Brandt", "Lauritz Wiebusch", "Daniel Schatz", "Sören Panten"]
 license = ""
 repository = ""
 edition = "2021"
