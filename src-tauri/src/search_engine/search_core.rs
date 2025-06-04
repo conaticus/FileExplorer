@@ -3,14 +3,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-#[cfg(feature = "search-progress-logging")]
+#[cfg(any(feature = "search-progress-logging", feature = "index-progress-logging"))]
 use crate::log_info;
-#[cfg(feature = "index-progress-logging")]
-use crate::log_info;
-#[cfg(feature = "search-error-logging")]
-use crate::log_error;
-#[cfg(feature = "index-error-logging")]
-use crate::log_error;
+#[cfg(any(feature = "search-error-logging", feature = "index-error-logging"))]
+use crate::log_error ;
 use crate::search_engine::art_v5::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
 use crate::search_engine::path_cache_wrapper::PathCache;
@@ -509,10 +505,10 @@ impl AutocompleteEngine {
         
         #[cfg(feature = "index-progress-logging")]
         {
-            if had_frequency {
+            if _had_frequency {
                 log_info!("Removed frequency data for path");
             }
-            if had_recency {
+            if _had_recency {
                 log_info!("Removed recency data for path");
             }
             
@@ -844,7 +840,7 @@ impl AutocompleteEngine {
             results.truncate(self.max_results);
             
             #[cfg(feature = "search-progress-logging")]
-            log_info!("Truncated {} results to max_results: {}", original_len, self.max_results);
+            log_info!("Truncated {} results to max_results: {}", _original_len, self.max_results);
         }
 
         // Reserve capacity for cache top N
@@ -1050,9 +1046,9 @@ impl AutocompleteEngine {
             new_score = 1.0 / (1.0 + (-new_score).exp());
             
             #[cfg(feature = "search-progress-logging")]
-            if new_score > original_score + 0.1 {
+            if new_score > _original_score + 0.1 {
                 // Only log significant score changes
-                log_info!("Path score boost: '{}' - {:.3} → {:.3}", path, original_score, new_score);
+                log_info!("Path score boost: '{}' - {:.3} → {:.3}", path, _original_score, new_score);
             }
 
             *score = new_score;
