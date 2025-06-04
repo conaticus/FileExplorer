@@ -212,17 +212,15 @@ impl Logger {
     // Create log directories if they don't exist
     fn ensure_log_directories_exist() {
         if let Some(parent) = LOG_FILE_ABS_PATH.parent() {
-            match std::fs::create_dir_all(parent) {
-                Ok(_) => println!("Log directory created or already exists at: {}", parent.display()),
-                Err(e) => eprintln!("Failed to create parent log directory: {}", e),
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                eprintln!("Failed to create parent log directory: {}", e);
             }
         }
         
         if let Some(parent) = ERROR_LOG_FILE_ABS_PATH.parent() {
             if parent != LOG_FILE_ABS_PATH.parent().unwrap() {
-                match std::fs::create_dir_all(parent) {
-                    Ok(_) => println!("Error log directory created or already exists at: {}", parent.display()),
-                    Err(e) => eprintln!("Failed to create parent error log directory: {}", e),
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    eprintln!("Failed to create parent error log directory: {}", e);
                 }
             }
         }
@@ -231,15 +229,13 @@ impl Logger {
     // Create empty log files if they don't exist
     fn ensure_log_files_exist() {
         // Create empty app.log if it doesn't exist
-        match OpenOptions::new().write(true).create(true).open(&*LOG_FILE_ABS_PATH) {
-            Ok(_) => println!("Log file created or already exists at: {}", LOG_FILE_ABS_PATH.display()),
-            Err(e) => eprintln!("Failed to create log file: {}", e),
+        if let Err(e) = OpenOptions::new().write(true).create(true).open(&*LOG_FILE_ABS_PATH) {
+            eprintln!("Failed to create log file: {}", e);
         }
         
         // Create empty error.log if it doesn't exist
-        match OpenOptions::new().write(true).create(true).open(&*ERROR_LOG_FILE_ABS_PATH) {
-            Ok(_) => println!("Error log file created or already exists at: {}", ERROR_LOG_FILE_ABS_PATH.display()),
-            Err(e) => eprintln!("Failed to create error log file: {}", e),
+        if let Err(e) = OpenOptions::new().write(true).create(true).open(&*ERROR_LOG_FILE_ABS_PATH) {
+            eprintln!("Failed to create error log file: {}", e);
         }
     }
 
