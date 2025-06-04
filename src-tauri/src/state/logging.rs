@@ -49,7 +49,7 @@
 //! - Error and critical logs are also written to a separate error log file for easier debugging.
 //! - Ensure that the `SettingsState` is properly initialized and shared across the application to manage logging behavior effectively.
 
-use crate::constants::{ERROR_LOG_FILE_NAME, LOG_FILE_NAME, MAX_FILE_SIZE};
+use crate::constants::{ERROR_LOG_FILE_ABS_PATH, LOG_FILE_ABS_PATH, MAX_FILE_SIZE};
 use crate::error_handling::{Error, ErrorCode};
 use crate::models::LoggingLevel;
 use crate::state::SettingsState;
@@ -184,8 +184,8 @@ static LOGGER: OnceCell<Logger> = OnceCell::new();
 impl Logger {
     pub fn new(state: Arc<Mutex<SettingsState>>) -> Self {
         Logger {
-            log_path: PathBuf::from(LOG_FILE_NAME),
-            error_log_path: PathBuf::from(ERROR_LOG_FILE_NAME),
+            log_path: LOG_FILE_ABS_PATH.to_path_buf(),
+            error_log_path: ERROR_LOG_FILE_ABS_PATH.to_path_buf(),
             state,
         }
     }

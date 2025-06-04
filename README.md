@@ -124,7 +124,7 @@ thousand paths:
 
 | Operation   | Fast File Explorer | Windows Explorer |
 | ----------- | :----------------: | :--------------: |
-| File search |        ~5ms        |   (3min 45sec)   |
+| File search |        ~2ms        |   (3min 45sec)   |
 
 ## 🤝 Contributing
 
