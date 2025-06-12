@@ -10,6 +10,9 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "security": {
+      "csp": null
+    },
     "windows": [
       {
         "label": "main",
@@ -17,13 +20,14 @@
         "width": 800,
         "height": 600,
         "resizable": true,
+        "visible": true,
         "fullscreen": false
       }
     ]
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "rpm"],
+    "targets": ["deb", "rpm", "dmg"],
     "icon": ["icons/logo_32x32.png", "icons/logo_128x128.png", "icons/logo.icns", "icons/logo.ico"],
     "windows": {
       "wix": {
@@ -32,6 +36,25 @@
       "nsis": {
         "installMode": "perMachine"
       }
+    },
+    "macOS": {
+      "dmg": {
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        },
+        "windowSize": {
+          "height": 400,
+          "width": 660
+        }
+      },
+      "files": {},
+      "hardenedRuntime": true,
+      "minimumSystemVersion": "10.13"
     }
   }
 }
