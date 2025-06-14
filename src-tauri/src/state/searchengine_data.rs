@@ -5,7 +5,7 @@ use std::time::Instant;
 use crate::log_error;
 #[cfg(test)]
 use crate::log_info;
-use crate::search_engine::search_core::{AutocompleteEngine, EngineStats};
+use crate::search_engine::search_core::{SearchCore, EngineStats};
 use crate::models::search_engine_config::SearchEngineConfig;
 use crate::state::SettingsState;
 
@@ -164,7 +164,7 @@ impl Default for SearchEngine {
 /// Offers methods for searching, indexing, and managing the search engine.
 pub struct SearchEngineState {
     pub data: Arc<Mutex<SearchEngine>>,
-    pub engine: Arc<Mutex<AutocompleteEngine>>,
+    pub engine: Arc<Mutex<SearchCore>>,
     settings_state: Arc<Mutex<SettingsState>>,
 }
 
@@ -205,7 +205,7 @@ impl SearchEngineState {
         }
         
         // Pass the ranking_config from settings to the autocomplete engine
-        let engine = AutocompleteEngine::new(
+        let engine = SearchCore::new(
             config.cache_size, 
             config.max_results,
             config.cache_ttl.unwrap(),
