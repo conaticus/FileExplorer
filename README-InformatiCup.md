@@ -1,44 +1,41 @@
 # InformatiCup 2025
 
-Hallo liebes Team. Schön euch hier zu sehen. Im folgenden befindet sich eine Anleitung um den
-Explorer laufen zu lassen. Diese ist teilweise gleich, wie im README des Repos, bis auf das, dass
-wir hier den dev modus nutzen und auch die tests laufen lassen werden. Falls es zu Problemen kommen
-sollte, bitte meldet euch umgehend bei mir per e-mail unter welcher wir unsere Abgabe getätigt
-haben. Ich werde mich so schnell wie möglich um die Probleme kümmern. (Es sollte keine geben, jedoch
-haben wir alle nötigen dependencies auf unseren Maschinen installiert, welche die Anleitung auch
-beinhalten sollte, aber es kann immer zu Schwierigkeiten kommen)
+Hello dear team. Nice to see you here. Below is a guide to get the Explorer running. This is
+partially the same as the README of the repository, except that here we are using dev mode and will
+also run the tests. If there are any problems, please contact me immediately via the email address
+we used to submit our project. I will take care of the issues as quickly as possible. (There
+shouldn’t be any, but we have installed all the necessary dependencies on our machines, which the
+instructions also include, although difficulties can always occur.)
 
-## Komplettlandleitung
+## Complete Guide
 
-### Voraussetzungen
+### Requirements
 
-- Cargo (mindestens Version 1.80.0) -> damit auch rust
-- Node.js (mindestens Version 20.0.0)
-- Tauri CLI (mindestens Version 2.4.0)
-- npm (mindestens Version 9.0.0)
+- Cargo (at least version 1.80.0) -> which includes Rust
+- Node.js (at least version 20.0.0)
+- Tauri CLI (at least version 2.4.0)
+- npm (at least version 9.0.0)
 
-### Clonen des Projektes
+### Cloning the project
 
 ```bash
 git clone https://github.com/CodeMarco05/FileExplorer
 cd FileExplorer
 ```
 
-### Abhängigkeiten installieren
+### Installing dependencies
 
-Die Tauri cli kann auch anders installiert werden. Eine Möglichkeit ist eine locale Installation mit
-npm. Im Folgenden wird die Installation mit cargo gezeigt, da dies die offizielle ist und auch die
-von Tauri empfohlene Variante.
+The Tauri CLI can also be installed differently. One option is a local installation using npm.
+Below, installation via cargo is shown, as this is the official and Tauri-recommended method.
 
 ```bash
 npm install
-cargo install tauri-cli # The version should be >2.4.0 or best ist 2.4.1 with the next comand
+cargo install tauri-cli # The version should be >2.4.0 or best is 2.4.1 with the next command
 cargo install tauri-cli --force --version 2.4.1
 ```
 
-Es kann sein, dass die umgebung von Ihnen noch weitere Abhängigkeiten benötigt, wie zum Beispiel im
-Folgenden gezeigt. Diese sollten aber nur hinzugefügt werden, wenn es zu Problemen kommt. Sonst
-einfach bei erstem build weiter machen.
+It may be that your environment requires additional dependencies, as shown below. These should only
+be added if problems occur. Otherwise, simply continue with the first build.
 
 ### Linux
 
@@ -58,24 +55,24 @@ brew install coreutils
 
 Visual Studio build tools.
 
-## Erster Build
+## First build
 
-Dieser kann je nach Leistung des Systems und Internetverbindung einige Minuten dauern. Wenn der
-Build fertig ist, wird dies angezeigt und das Programm sollte sich direkt starten.
+This may take several minutes depending on system performance and internet connection. Once the
+build is complete, it will be indicated and the program should start immediately.
 
 ```bash
 cargo tauri dev
 ```
 
-Dieser Befehl startet den Tauri-Entwicklungsmodus, welcher auch alle Features des Explorers enthält.
+This command starts the Tauri development mode, which includes all features of the Explorer.
 
-## Build der binary
+## Building the binary
 
-Der Build der Binary kann einige Minuten dauern. Wenn der Build fertig ist, kann das Programm über
-die Commandline gestartet werden. Der Build wird im Ordner `./target/release/` abgelegt mit dem
-Namen `src-tauri`. (Wird sich später noch ändern, aber ist noch in aktiver Entwicklung). Dieser
-Binary kann ausgeführt werden, um den Explorer zu starten. Diese lässt sich auch den Systembynaries
-hinzufügen, sodass sie über die Kommandozeile gestartet werden kann.
+Building the binary may take several minutes. Once the build is complete, the program can be started
+via the command line. The build is placed in the folder `./target/release/` with the name
+`src-tauri`. (This will change later, but is still in active development.) This binary can be
+executed to start the Explorer. It can also be added to system binaries so that it can be started
+via the command line.
 
 ```bash
 cargo tauri build
@@ -83,31 +80,31 @@ cargo tauri build
 
 # Tests
 
-Die Tests können mit dem folgenden Befehl ausgeführt werden. Diese sollten alle erfolgreich
-durchlaufen. Falls nicht, bitte umgehend bei uns melden.
+The tests can be executed with the following command. All of them should pass successfully. If not,
+please contact us immediately.
 
 ```bash
-# Zuerst die nötigen Testdaten generieren.
-# Dies generiert die Testdaten in ./src-tauri/test-data-for-fuzzy-search
-# Es werden 176,840 leere Dateien generiert, welche dann für das indizieren dienen.
-# Logs werden in ./src-tauri/logs/ erstellt.
+# First generate the necessary test data.
+# This generates test data in ./src-tauri/test-data-for-fuzzy-search
+# 176,840 empty files are generated, which are then used for indexing.
+# Logs are created in ./src-tauri/logs/
 cargo test create_test_data --features "generate-test-data" -- --nocapture
 
-# Dann die Tests ausführen
-# Es werden eine selektion für wichtige Tests ausgeführt, welche die Funktionalität des Explorers testen,
-# jedoch nicht die Performance explizit testen. Trotzdem werden für alles logs erstellt, sodass auch unter
-# ./src-tauri/logs/ error logs erstellt werden, falls es zu welchen kommt. Wichtig ist, dass manche Errors dort
-# mit Absicht auftreten, da diese getestet werden.
+# Then run the tests
+# A selection of important tests is executed, which test the functionality of the Explorer,
+# but not explicitly the performance. Logs are still created for everything,
+# so error logs are also created in ./src-tauri/logs/ if any occur. It is important to note that
+# some errors appear there on purpose, as they are being tested.
 cargo test
 
-# Um die Performance zu testen, kann der folgende Befehl ausgeführt werden.
-# WICHTIG es werden auch default apps geöffnet um dies zu testen, nicht erschrecken lassen.
-# Wichtig, es kann sein dass Tests fehlschlagen, einer dieser ist das Generieren der Testdaten.
+# To test performance, the following command can be run.
+# IMPORTANT: Default apps will also be opened during this test — don’t be alarmed.
+# Note: Some tests may fail, one of which is the generation of test data.
 cargo test --features "full"
 ```
 
-Die einzelnen Tests können gerne nachvollziehbar eingesehen werden. Diese befinden sich immer in den
-entsprechenden Modulen. Entweder können diese durch den Output in der Konsole während des testens
-gefunden werden. Sonst auch gene in allen source Dateien. Wichtig ist das zum Beispiel der State von
-Tauri während des Startens generiert wird. Diesen initialisieren wir während den Tests selber. Der
-Sourcecode ist unter `./src-tauri/src/` zu finden.
+You are welcome to review the individual tests for transparency. These are always located in the
+corresponding modules. They can be found either through the console output during testing or by
+looking through all source files. It’s important to note that, for example, the state of Tauri is
+generated during startup. We initialize this ourselves during the tests. The source code can be
+found under `./src-tauri/src/`.
