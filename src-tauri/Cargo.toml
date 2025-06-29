@@ -7,12 +7,8 @@ license = ""
 repository = ""
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-
 [dependencies]
-# Replace "0.1" with the correct version of the `explorer` crate
-tauri = { version = "2.4", features = ["unstable"] }  # Removed "log" feature
+tauri = { version = "2.4", features = ["unstable"] }
 serde = { version = "1", features = ["derive"] }
 sysinfo = "0.33.1"
 walkdir = "2.3.3"
@@ -36,8 +32,13 @@ smallvec = "1.15.0"
 open = "5.3.2"
 rustc-hash = "2.1.1"
 
+# macOS-spezifische Dependencies
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"
+cocoa = "0.25"
+
 [build-dependencies]
-tauri-build = { version = "2.1", features = [] }  # Removed "log" feature
+tauri-build = { version = "2.1", features = [] }
 
 [package.metadata.tauri]
 bundle.identifier = "com.software.fileexplorer"
@@ -66,6 +67,3 @@ full-no-generate-test-data = ["long-tests", "benchmarks", "open-file-in-app"]
 open-file-in-app = []
 generate-test-data = []
 long-tests = []
-
-# SearchEngine features
-
