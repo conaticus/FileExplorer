@@ -8,14 +8,16 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use crate::models::backend_settings::BackendSettings;
 
+//In this file we should change everything to lowercase for the json -> first step is done in DefaultView
 /// File view mode for directories.
 ///
 /// Controls how files and directories are displayed in the UI.
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[allow(non_camel_case_types)]
 pub enum DefaultView {
-    Grid,
-    List,
-    Details,
+    grid,
+    list,
+    details,
 }
 
 /// Font size setting for UI elements.
@@ -123,7 +125,7 @@ impl Default for Settings {
             default_themes_path: Default::default(),
             default_folder_path_on_opening: Default::default(),
             abs_file_path_buf: constants::SETTINGS_CONFIG_ABS_PATH.to_path_buf(),
-            default_view: DefaultView::Grid,
+            default_view: DefaultView::grid,
             font_size: FontSize::Medium,
             show_hidden_files_and_folders: false,
             show_details_panel: false,

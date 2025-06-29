@@ -97,10 +97,13 @@ cargo test create_test_data --features "generate-test-data" -- --nocapture
 # some errors appear there on purpose, as they are being tested.
 cargo test
 
-# To test performance, the following command can be run.
+# To test performance and the complete feature set, the following command can be run.
 # IMPORTANT: Default apps will also be opened during this test — don’t be alarmed.
-# Note: Some tests may fail, one of which is the generation of test data.
-cargo test --features "full"
+# The test may also take a while. If you dont want to wait, then <Ctr-c> to stop it.
+cargo test --features "full-no-generate-test-data"
+
+# To run a specific test, you can use the following command.
+cargo test <test-target-name>
 ```
 
 You are welcome to review the individual tests for transparency. These are always located in the
@@ -108,3 +111,30 @@ corresponding modules. They can be found either through the console output durin
 looking through all source files. It’s important to note that, for example, the state of Tauri is
 generated during startup. We initialize this ourselves during the tests. The source code can be
 found under `./src-tauri/src/`.
+
+
+# Better Testruner
+You can use more advanced test runners like nextest or cargo-watch to run the tests.
+In the following you can find commands to use with nextest which offer a greater range of input and output parameters.
+
+```bash
+# Install nextest
+cargo install nextest
+``` 
+
+```bash
+# Run all tests with nextest
+cargo nextest run
+
+# More detailed starting view
+cargo nextest run --nocapture --test-threads 1 --no-fail-fast
+
+# Run a specific test with nextest
+cargo nextest run --test <test-target-name>
+
+# You can also test how it performs when stuff is force split to multiple threads
+cargo nextest run --test-threads=4
+```
+
+# Create Performance Report
+To create performance reports there are multiple tools. One of them is 
