@@ -80,28 +80,7 @@ The current settings consist of the following fields. A nearer explanation of ea
          "cache_ttl":{
             "secs":300,
             "nanos":0
-         },
-         "collect_usage_stats":true,
-         "indexing_logging_enabled":false,
-         "search_logging_enabled":false,
-         "search_timeout_ms":5000,
-         "result_score_threshold":0.1,
-         "min_query_length":null,
-         "max_indexed_files":null,
-         "max_index_depth":null,
-         "index_hidden_files":false,
-         "follow_symlinks":false,
-         "fuzzy_trigram_threshold":0.5,
-         "fuzzy_search_enabled":true,
-         "case_sensitive_search":false,
-         "group_results_by_directory":true,
-         "persistent_index_path":null,
-         "index_compression_enabled":true,
-         "indexing_priority":1,
-         "default_search_operator":"AND",
-         "enable_wildcard_search":false,
-         "indexing_batch_size":100,
-         "retry_failed_indexing":true
+         }
       },
       "logging_config":{
          "logging_level":"Full",
@@ -111,6 +90,36 @@ The current settings consist of the following fields. A nearer explanation of ea
    }
 }
 ```
+
+### Search Engine Configuration
+
+**search_engine_enabled**: Enables or disables the search engine feature.  
+**max_results**: Maximum number of results returned by the search engine.  
+**preferred_extensions**: List of file extensions that are prioritized during search.  
+**excluded_patterns**: List of directory or file patterns to exclude from indexing and searching.  
+**cache_size**: Number of entries the search cache can hold.
+
+#### Ranking Configuration
+
+**ranking_config.frequency_weight**: Weight factor for how often a file is accessed (frequency).  
+**ranking_config.max_frequency_boost**: Maximum boost value from frequency-based ranking.  
+**ranking_config.recency_weight**: Weight factor for how recently a file was accessed.  
+**ranking_config.recency_lambda**: Decay rate for recency scoring, based on time since last access.  
+**ranking_config.context_same_dir_boost**: Boost for files located in the same directory as current context.  
+**ranking_config.context_parent_dir_boost**: Boost for files in the parent directory of the context.  
+**ranking_config.extension_boost**: General boost for preferred file extensions.  
+**ranking_config.extension_query_boost**: Additional boost when the query matches the file extension.  
+**ranking_config.exact_match_boost**: Boost for exact query matches.  
+**ranking_config.prefix_match_boost**: Boost for matches where the file name starts with the query.  
+**ranking_config.contains_match_boost**: Boost for matches where the query appears anywhere in the name.  
+**ranking_config.directory_ranking_boost**: Boost applied to directories to affect their ranking.
+
+**prefer_directories**: If true, directories are preferred over files in the result ranking.
+
+#### Cache TTL
+
+**cache_ttl.secs**: Time-to-live for cache entries in seconds.  
+**cache_ttl.nanos**: Nanoseconds component of the cache TTL.
 
 # `get_settings_as_json` endpoint
 
