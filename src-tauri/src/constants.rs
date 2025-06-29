@@ -2,7 +2,7 @@ use std::env;
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
-pub static VERSION: &str = "0.1.0";
+pub static VERSION: &str = "0.2.3";
 
 pub static CONFIG_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
     env::current_dir()
