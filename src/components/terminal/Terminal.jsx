@@ -14,14 +14,15 @@ const Terminal = ({ isOpen, onToggle }) => {
     const { currentPath } = useHistory();
     const { settings } = useSettings();
 
-    const terminalHeight = settings.terminalHeight || 240;
+    // Get terminal height from settings
+    const terminalHeight = settings.terminal_height || 240;
 
     // Initialize with welcome message
     useEffect(() => {
         if (commandHistory.length === 0) {
             const welcomeMessage = {
                 type: 'system',
-                content: `Fast File Explorer Terminal
+                content: `File Explorer Terminal
 Current directory: ${currentPath || '/'}
 Type 'help' to see available commands.`,
                 timestamp: new Date().toLocaleTimeString(),
@@ -52,6 +53,7 @@ Type 'help' to see available commands.`,
     // Scroll to bottom when command history changes
     useEffect(() => {
         if (terminalRef.current) {
+            // Ensure proper scrolling without pushing content off screen
             terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
         }
     }, [commandHistory]);
@@ -64,20 +66,115 @@ Type 'help' to see available commands.`,
         return `${username}@${hostname}:${pathDisplay}$`;
     };
 
-    // Execute command
+    // Execute command - Format output properly
     const executeCommand = async (command) => {
         setIsExecuting(true);
 
         try {
             const output = await invoke('execute_command', { command });
+
+            // Format the response properly
+            if (typeof output === 'string') {
+                try {
+                    // Check if it's JSON
+                    const parsedOutput = JSON.parse(output);
+
+                    // Handle empty results
+                    if (parsedOutput.stdout === "" && parsedOutput.stderr === "" && parsedOutput.status === 0) {
+                        return { type: 'output', content: '' };
+                    }
+
+                    // Handle status 1 with empty stdout/stderr (command not found)
+                    if (parsedOutput.status === 1) {
+                        if (parsedOutput.stdout === "" && parsedOutput.stderr === "") {
+                            return { type: 'error', content: `Command not found: ${command.split(' ')[0]}` };
+                        } else if (parsedOutput.stderr) {
+                            return { type: 'error', content: parsedOutput.stderr.trim() };
+                        }
+                    }
+
+                    // Handle actual output
+                    if (parsedOutput.stdout && parsedOutput.stdout.trim()) {
+                        return { type: 'output', content: parsedOutput.stdout.trim() };
+                    }
+
+                    // Handle error output
+                    if (parsedOutput.stderr && parsedOutput.stderr.trim()) {
+                        return { type: 'error', content: parsedOutput.stderr.trim() };
+                    }
+
+                    // Handle other output based on status
+                    return {
+                        type: parsedOutput.status === 0 ? 'output' : 'error',
+                        content: parsedOutput.status === 0 ?
+                            (output || '') :
+                            `Command failed with status ${parsedOutput.status}`
+                    };
+                } catch (e) {
+                    // Not JSON, return as is
+                    return { type: 'output', content: output || '' };
+                }
+            } else if (typeof output === 'object') {
+                // Handle object response
+                if (output.stdout === "" && output.stderr === "" && output.status === 0) {
+                    return { type: 'output', content: '' };
+                }
+
+                // Handle command not found
+                if (output.status === 1) {
+                    if (output.stdout === "" && output.stderr === "") {
+                        return { type: 'error', content: `Command not found: ${command.split(' ')[0]}` };
+                    } else if (output.stderr) {
+                        return { type: 'error', content: output.stderr };
+                    }
+                }
+
+                if (output.stdout) {
+                    return { type: 'output', content: output.stdout };
+                }
+
+                // Empty response
+                return {
+                    type: output.status === 0 ? 'output' : 'error',
+                    content: output.status === 0 ? '' : `Command failed with status ${output.status}`
+                };
+            }
+
             return {
                 type: 'output',
-                content: output || 'Command completed successfully.',
+                content: output || '',
             };
         } catch (error) {
+            // Format error messages properly
+            let errorMessage = '';
+
+            try {
+                if (typeof error === 'string') {
+                    try {
+                        // Try to parse JSON error
+                        const parsedError = JSON.parse(error);
+                        errorMessage = parsedError.custom_message ||
+                            parsedError.message_from_code ||
+                            parsedError.message ||
+                            error;
+                    } catch {
+                        errorMessage = error;
+                    }
+                } else if (typeof error === 'object') {
+                    errorMessage = error.custom_message ||
+                        error.message_from_code ||
+                        error.message ||
+                        JSON.stringify(error);
+                } else {
+                    errorMessage = String(error);
+                }
+            } catch {
+                errorMessage = String(error);
+            }
+
             return {
                 type: 'error',
-                content: `Error: ${error.message || error}`,
+                content: `Error: ${errorMessage}`,
             };
         } finally {
             setIsExecuting(false);
@@ -293,8 +390,8 @@ Type 'help' to see available commands.`,
             response = await executeCommand(command);
         }
 
-        // Add response to history
-        if (response) {
+        // Add response to history if there's content or it's a system message
+        if (response && (response.content || response.type === 'system')) {
             setCommandHistory(prev => [...prev, {
                 ...response,
                 timestamp: new Date().toLocaleTimeString(),
@@ -369,7 +466,7 @@ Type 'help' to see available commands.`,
                         onClick={() => setCommandHistory([])}
                         title="Clear terminal"
                     >
-                        <span className="icon icon-clear"></span>
+                        <span className="icon icon-delete"></span>
                     </button>
                     <button
                         className="terminal-control"

@@ -64,6 +64,9 @@ const MainLayout = () => {
     const [isHashCompareModalOpen, setIsHashCompareModalOpen] = useState(false);
     const [hashModalItem, setHashModalItem] = useState(null);
 
+    // Get terminal height for padding calculations
+    const terminalHeight = settings.terminal_height || 240;
+
     // Update UI state when settings change
     useEffect(() => {
         if (settings.show_details_panel !== undefined) {
@@ -382,7 +385,7 @@ const MainLayout = () => {
     };
 
     return (
-        <div className="main-layout">
+        <div className={`main-layout ${isTerminalOpen ? 'with-terminal' : ''}`}>
             {/* Settings Applier - applies settings to DOM */}
             <SettingsApplier />
 
@@ -452,7 +455,10 @@ const MainLayout = () => {
                     </div>
 
                     {/* Main content with file list and optional details panel */}
-                    <div className="main-content">
+                    <div
+                        className="main-content"
+                        style={isTerminalOpen ? { paddingBottom: `${terminalHeight}px` } : {}}
+                    >
                         {renderMainContent()}
 
                         {/* Details panel (when selected) */}
@@ -467,13 +473,15 @@ const MainLayout = () => {
                         )}
                     </div>
 
-                    {/* Terminal (when opened) */}
-                    {isTerminalOpen && (
-                        <Terminal
-                            isOpen={isTerminalOpen}
-                            onToggle={() => setIsTerminalOpen(!isTerminalOpen)}
-                        />
-                    )}
+                    {/* Terminal positioned absolutely at the bottom */}
+                    <div className="terminal-wrapper">
+                        {isTerminalOpen && (
+                            <Terminal
+                                isOpen={isTerminalOpen}
+                                onToggle={() => setIsTerminalOpen(!isTerminalOpen)}
+                            />
+                        )}
+                    </div>
                 </TabManager>
             </div>
 
