@@ -3,6 +3,7 @@ import { useTheme } from '../providers/ThemeProvider';
 import { useFileSystem } from '../providers/FileSystemProvider';
 import { useContextMenu } from '../providers/ContextMenuProvider';
 import { useHistory } from '../providers/HistoryProvider';
+import { useSettings } from '../providers/SettingsProvider';
 import { invoke } from '@tauri-apps/api/core';
 import { showError, showConfirm, showSuccess } from '../utils/NotificationSystem';
 
@@ -30,6 +31,9 @@ import TemplateList from '../components/templates/TemplateList';
 import HashFileModal from '../components/common/HashFileModal.jsx';
 import HashCompareModal from '../components/common/HashCompareModal.jsx';
 
+// Settings Applier
+import SettingsApplier from '../utils/SettingsApplier.js';
+
 import '../styles/layouts/mainLayout.css';
 import {replaceFileName} from "../utils/pathUtils.js";
 
@@ -38,11 +42,12 @@ const MainLayout = () => {
     const { isLoading, currentDirData, selectedItems, loadDirectory, volumes } = useFileSystem();
     const { isOpen: isContextMenuOpen, position, items, closeContextMenu } = useContextMenu();
     const { currentPath } = useHistory();
+    const { settings } = useSettings();
 
-    // UI State
-    const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
+    // UI State - Initialize from settings
+    const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(settings.show_details_panel || false);
     const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-    const [viewMode, setViewMode] = useState('grid');
+    const [viewMode, setViewMode] = useState(settings.default_view || 'Grid');
     const [searchValue, setSearchValue] = useState('');
     const [searchResults, setSearchResults] = useState(null);
     const [currentView, setCurrentView] = useState('explorer'); // 'explorer', 'this-pc', 'templates'
@@ -58,6 +63,19 @@ const MainLayout = () => {
     const [isHashFileModalOpen, setIsHashFileModalOpen] = useState(false);
     const [isHashCompareModalOpen, setIsHashCompareModalOpen] = useState(false);
     const [hashModalItem, setHashModalItem] = useState(null);
+
+    // Update UI state when settings change
+    useEffect(() => {
+        if (settings.show_details_panel !== undefined) {
+            setIsDetailsPanelOpen(settings.show_details_panel);
+        }
+    }, [settings.show_details_panel]);
+
+    useEffect(() => {
+        if (settings.default_view) {
+            setViewMode(settings.default_view);
+        }
+    }, [settings.default_view]);
 
     // Load default location on first render
     useEffect(() => {
@@ -301,6 +319,31 @@ const MainLayout = () => {
         }
     };
 
+    // Handle view mode change with settings persistence
+    const handleViewModeChange = useCallback(async (newMode) => {
+        setViewMode(newMode);
+
+        // Save to settings
+        try {
+            await invoke('update_settings_field', { key: 'default_view', value: newMode });
+        } catch (error) {
+            console.error('Failed to save view mode setting:', error);
+        }
+    }, []);
+
+    // Handle details panel toggle with settings persistence
+    const handleDetailsPanelToggle = useCallback(async () => {
+        const newState = !isDetailsPanelOpen;
+        setIsDetailsPanelOpen(newState);
+
+        // Save to settings
+        try {
+            await invoke('update_settings_field', { key: 'show_details_panel', value: newState });
+        } catch (error) {
+            console.error('Failed to save details panel setting:', error);
+        }
+    }, [isDetailsPanelOpen]);
+
     // Clear search when changing directory
     useEffect(() => {
         setSearchValue('');
@@ -340,6 +383,9 @@ const MainLayout = () => {
 
     return (
         <div className="main-layout">
+            {/* Settings Applier - applies settings to DOM */}
+            <SettingsApplier />
+
             {/* Sidebar */}
             <Sidebar
                 onTerminalToggle={() => setIsTerminalOpen(!isTerminalOpen)}
@@ -381,13 +427,13 @@ const MainLayout = () => {
                             {currentView === 'explorer' && (
                                 <ViewModes
                                     currentMode={viewMode}
-                                    onChange={setViewMode}
+                                    onChange={handleViewModeChange}
                                 />
                             )}
 
                             <button
                                 className={`icon-button ${isDetailsPanelOpen ? 'active' : ''}`}
-                                onClick={() => setIsDetailsPanelOpen(!isDetailsPanelOpen)}
+                                onClick={handleDetailsPanelToggle}
                                 title="Details Panel"
                                 aria-label="Toggle details panel"
                             >

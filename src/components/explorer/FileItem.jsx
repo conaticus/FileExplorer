@@ -100,7 +100,7 @@ const FileItem = ({
     return (
         <>
             <div
-                className={`file-item view-mode-${viewMode} ${isSelected ? 'selected' : ''} ${isDirectory ? 'directory' : 'file'}`}
+                className={`file-item view-mode-${viewMode.toLowerCase()} ${isSelected ? 'selected' : ''} ${isDirectory ? 'directory' : 'file'}`}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
                 onContextMenu={handleContextMenu}

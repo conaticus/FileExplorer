@@ -72,8 +72,9 @@ export default function ThemeProvider({ children }) {
         setThemeState(newTheme);
 
         try {
-            // Save to settings (this will be handled by SettingsProvider)
-            await invoke('update_settings_field', { key: 'theme', value: newTheme });
+            // Save to settings using the correct key 'darkmode'
+            const isDark = newTheme === 'dark';
+            await invoke('update_settings_field', { key: 'darkmode', value: isDark });
             console.log('Theme saved to settings successfully');
         } catch (error) {
             console.error('Failed to save theme setting:', error);
@@ -93,14 +94,15 @@ export default function ThemeProvider({ children }) {
             setIsLoading(true);
 
             try {
-                // Try to get theme from settings
+                // Try to get theme from settings using the correct key 'darkmode'
                 console.log('Loading theme from settings...');
-                const savedTheme = await invoke('get_setting_field', { key: 'theme' });
+                const isDarkMode = await invoke('get_setting_field', { key: 'darkmode' });
 
-                if (savedTheme) {
-                    console.log(`Loaded theme from settings: ${savedTheme}`);
-                    setThemeState(savedTheme);
-                    applyThemeToDOM(savedTheme);
+                if (isDarkMode !== null && isDarkMode !== undefined) {
+                    const themeValue = isDarkMode ? 'dark' : 'light';
+                    console.log(`Loaded theme from settings: ${themeValue} (darkmode: ${isDarkMode})`);
+                    setThemeState(themeValue);
+                    applyThemeToDOM(themeValue);
                 } else {
                     console.log('No saved theme found, checking system preference');
                     // Try to match system preference
@@ -138,8 +140,8 @@ export default function ThemeProvider({ children }) {
         const handleSystemThemeChange = async (e) => {
             try {
                 // Only auto-update if user hasn't explicitly set a theme
-                const savedTheme = await invoke('get_setting_field', { key: 'theme' });
-                if (!savedTheme || savedTheme === 'system') {
+                const savedDarkMode = await invoke('get_setting_field', { key: 'darkmode' });
+                if (savedDarkMode === null || savedDarkMode === undefined) {
                     const newTheme = e.matches ? 'dark' : 'light';
                     setThemeState(newTheme);
                     applyThemeToDOM(newTheme);

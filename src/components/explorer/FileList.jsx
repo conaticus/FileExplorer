@@ -247,7 +247,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
     return (
         <div className="file-list-wrapper">
             <div
-                className={`file-list-container view-mode-${viewMode} scrollable-content`}
+                className={`file-list-container view-mode-${viewMode.toLowerCase()} scrollable-content`}
                 onClick={handleContainerClick}
                 onContextMenu={handleContextMenu}
             >
@@ -292,7 +292,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
                     </div>
                 )}
 
-                <div className={`file-list view-mode-${viewMode}`}>
+                <div className={`file-list view-mode-${viewMode.toLowerCase()} scrollable-content`}>
                     {sortedItems.map((item, index) => (
                         <FileItem
                             key={item.path}

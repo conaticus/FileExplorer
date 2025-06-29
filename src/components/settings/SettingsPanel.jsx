@@ -450,10 +450,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         </div>
                     )}
                     <div className="settings-footer-buttons">
-                        <Button variant="ghost" onClick={reloadSettings}>
-                            Reload
+                        <Button variant="primary" onClick={reloadSettings}>
+                            Save & Apply
                         </Button>
-                        <Button variant="primary" onClick={onClose}>
+                        <Button variant="ghost" onClick={onClose}>
                             Close
                         </Button>
                     </div>
