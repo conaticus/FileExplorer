@@ -47,7 +47,7 @@ const MainLayout = () => {
     // UI State - Initialize from settings
     const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(settings.show_details_panel || false);
     const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-    const [viewMode, setViewMode] = useState(settings.default_view || 'Grid');
+    const [viewMode, setViewMode] = useState(settings.default_view || 'grid');
     const [searchValue, setSearchValue] = useState('');
     const [searchResults, setSearchResults] = useState(null);
     const [currentView, setCurrentView] = useState('explorer'); // 'explorer', 'this-pc', 'templates'

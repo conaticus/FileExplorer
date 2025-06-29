@@ -9,7 +9,7 @@ const defaultSettings = {
     default_theme: "",
     default_themes_path: "",
     default_folder_path_on_opening: "",
-    default_view: "Grid", // Grid, List, Details
+    default_view: "grid", // Grid, List, Details
     font_size: "Medium", // Small, Medium, Large
     show_hidden_files_and_folders: false,
     show_details_panel: false,

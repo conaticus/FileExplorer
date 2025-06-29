@@ -24,9 +24,9 @@ const SettingsPanel = ({ isOpen, onClose }) => {
     ];
 
     const viewModes = [
-        { id: 'Grid', label: 'Grid View' },
-        { id: 'List', label: 'List View' },
-        { id: 'Details', label: 'Details View' }
+        { id: 'grid', label: 'Grid View' },
+        { id: 'list', label: 'List View' },
+        { id: 'details', label: 'Details View' }
     ];
 
     const fontSizes = [

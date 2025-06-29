@@ -13,13 +13,13 @@
     overflow-x: hidden;
     position: relative;
     padding: var(--space-md);
+    padding-top: 0px;
     background-color: var(--background);
     min-height: 0; /* Wichtig für Flexbox scrolling */
     height: 100%;
 }
 
 .scrollable-content {
-    height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
 }
