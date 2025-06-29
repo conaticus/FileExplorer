@@ -10,14 +10,13 @@
 
 <img src="assets/screenshot_ThisPC.png" alt="Fast Search Feature" width="1000px"/>
 
-
 </div>
 
 ## 🔍 Current Status
 
 Cross platform compatibility is given and it supports all common Linux distros, which are supported
 by Tauri. If there is an interest of contributing feel free to join the
-[discord channel](https://discord.com/invite/dnVJQtNXjr) from Connaticus.
+[discord channel](https://discord.com/invite/dnVJQtNXjr) from Connaticus or message me or my team.
 
 ## Coming Soon
 
@@ -27,8 +26,8 @@ by Tauri. If there is an interest of contributing feel free to join the
 
 # 🛠️ Installation
 
-For the installation there are packages provided with the current stable version. If there are no
-packages for your system you can compile the Explorer from source with the given instructions.
+Our plan is to provide installers for the supported operating systems or common package installers.
+Unfortunately we have serious Problems with Tauri and creating installers.
 
 ## Installation from source
 
@@ -93,6 +92,7 @@ cargo tauri build
 ```
 
 ## 📸 Images
+
 <div align="center">
 <img src="assets/screenshot_details.png" width="700px"/>
 
@@ -133,7 +133,8 @@ Contributions are welcome! Before contributing, please read our
 
 ## 📝 License
 
-This project is licensed under the GNU General Public License v3.0 – see the LICENSE file for details.
+This project is licensed under the GNU General Public License v3.0 – see the LICENSE file for
+details.
 
 ## 📬 Contact
 
