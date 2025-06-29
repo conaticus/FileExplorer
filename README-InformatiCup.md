@@ -135,6 +135,3 @@ cargo nextest run --test <test-target-name>
 # You can also test how it performs when stuff is force split to multiple threads
 cargo nextest run --test-threads=4
 ```
-
-# Create Performance Report
-To create performance reports there are multiple tools. One of them is 
