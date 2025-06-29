@@ -1,9 +1,9 @@
 import React from 'react';
+import SettingsProvider from './providers/SettingsProvider';
 import ThemeProvider from './providers/ThemeProvider';
 import AppStateProvider from './providers/AppStateProvider';
 import HistoryProvider from './providers/HistoryProvider';
 import FileSystemProvider from './providers/FileSystemProvider';
-import SettingsProvider from './providers/SettingsProvider';
 import ContextMenuProvider from './providers/ContextMenuProvider';
 import MainLayout from './layouts/MainLayout';
 
@@ -65,25 +65,28 @@ class App extends React.Component {
         }
 
         // Render normal application with all providers
-        // The order of providers is important:
-        // - ThemeProvider should be outermost as other components may depend on theme variables
-        // - HistoryProvider should come before FileSystemProvider since navigation depends on history
-        // - ContextMenuProvider should come after FileSystemProvider to access selected items
+        // IMPORTANT: Provider order matters for proper initialization:
+        // 1. SettingsProvider should be first as other providers may depend on settings
+        // 2. ThemeProvider depends on settings and should come second
+        // 3. AppStateProvider provides general app state
+        // 4. HistoryProvider should come before FileSystemProvider since navigation depends on history
+        // 5. FileSystemProvider provides file system operations
+        // 6. ContextMenuProvider should come after FileSystemProvider to access selected items
         return (
             <div className="app-container">
-                <ThemeProvider>
-                    <AppStateProvider>
-                        <HistoryProvider>
-                            <FileSystemProvider>
-                                <SettingsProvider>
+                <SettingsProvider>
+                    <ThemeProvider>
+                        <AppStateProvider>
+                            <HistoryProvider>
+                                <FileSystemProvider>
                                     <ContextMenuProvider>
                                         <MainLayout />
                                     </ContextMenuProvider>
-                                </SettingsProvider>
-                            </FileSystemProvider>
-                        </HistoryProvider>
-                    </AppStateProvider>
-                </ThemeProvider>
+                                </FileSystemProvider>
+                            </HistoryProvider>
+                        </AppStateProvider>
+                    </ThemeProvider>
+                </SettingsProvider>
             </div>
         );
     }
