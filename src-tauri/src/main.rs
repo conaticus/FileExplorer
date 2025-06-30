@@ -60,6 +60,10 @@ fn all_commands() -> fn(Invoke) -> bool {
         search_engine_commands::remove_paths_recursive,
         search_engine_commands::clear_search_engine,
         search_engine_commands::get_search_engine_info,
+        search_engine_commands::add_paths_recursive_async,
+        search_engine_commands::get_indexing_progress,
+        search_engine_commands::get_indexing_status,
+        search_engine_commands::stop_indexing,
     ]
 }
 

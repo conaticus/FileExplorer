@@ -272,6 +272,7 @@ impl SearchEngineState {
     /// let search_engine = SearchEngineState::new();
     /// let result = search_engine.start_indexing(PathBuf::from("/path/to/index"));
     /// ```
+    #[allow(dead_code)]
     pub fn start_indexing(&self, folder: PathBuf) -> Result<(), String> {
         // Get locks on both data and engine
         let mut data = self.data.lock().unwrap();
@@ -386,7 +387,6 @@ impl SearchEngineState {
 
         // Check if we're already indexing - if so, stop it first
         if matches!(data.status, SearchEngineStatus::Indexing) {
-            // Signal the engine to stop the current indexing process
             #[cfg(test)]
             log_info!(
                 "Stopping previous indexing of '{}' before starting new chunked indexing",
@@ -416,7 +416,7 @@ impl SearchEngineState {
         let excluded_patterns = data.config.excluded_patterns.clone();
 
         // Actually start the chunked indexing
-        if let Some(folder_str) = folder.to_str() {
+        if let Some(_folder_str) = folder.to_str() {
             // Release the locks before starting the recursive operation
             drop(data);
             drop(engine);
@@ -439,50 +439,12 @@ impl SearchEngineState {
 
             // Process paths in chunks
             let mut files_indexed = 0;
-            let mut chunk_number = 0;
+            let mut _chunk_number = 0;
 
             for chunk in paths.chunks(chunk_size) {
-                chunk_number += 1;
+                _chunk_number += 1;
 
-                // Update progress with current chunk info
-                {
-                    let mut data = self.data.lock().unwrap();
-                    data.progress.files_discovered = total_paths;
-                    data.progress.files_indexed = files_indexed;
-                    data.progress.percentage_complete = if total_paths > 0 {
-                        (files_indexed as f32 / total_paths as f32) * 100.0
-                    } else {
-                        100.0
-                    };
-
-                    // Set current path to the first file in this chunk
-                    if let Some(first_path) = chunk.first() {
-                        data.progress.current_path = Some(first_path.clone());
-                    }
-
-                    // Calculate estimated time remaining
-                    if let Some(start_time_ms) = data.progress.start_time {
-                        let elapsed_ms = chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
-                        if files_indexed > 0 {
-                            let avg_time_per_file = elapsed_ms as f32 / files_indexed as f32;
-                            let remaining_files = total_paths.saturating_sub(files_indexed);
-                            let estimated_ms = (avg_time_per_file * remaining_files as f32) as u64;
-                            data.progress.estimated_time_remaining = Some(estimated_ms);
-                        }
-                    }
-
-                    data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
-
-                    #[cfg(test)]
-                    log_info!(
-                        "Processing chunk {} ({} files): {:.1}% complete",
-                        chunk_number,
-                        chunk.len(),
-                        data.progress.percentage_complete
-                    );
-                }
-
-                // Check if indexing should stop
+                // Check if indexing should stop before processing chunk
                 {
                     let engine = self.engine.lock().unwrap();
                     if engine.should_stop_indexing() {
@@ -516,6 +478,18 @@ impl SearchEngineState {
                             } else {
                                 100.0
                             };
+
+                            // Calculate estimated time remaining
+                            if let Some(start_time_ms) = data.progress.start_time {
+                                let elapsed_ms = chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
+                                if files_indexed + i + 1 > 0 {
+                                    let avg_time_per_file = elapsed_ms as f32 / (files_indexed + i + 1) as f32;
+                                    let remaining_files = total_paths.saturating_sub(files_indexed + i + 1);
+                                    let estimated_ms = (avg_time_per_file * remaining_files as f32) as u64;
+                                    data.progress.estimated_time_remaining = Some(estimated_ms);
+                                }
+                            }
+
                             data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
                         }
 
@@ -542,6 +516,38 @@ impl SearchEngineState {
 
                 // Update indexed count after processing chunk
                 files_indexed += chunk.len();
+
+                // Update progress after each chunk
+                {
+                    let mut data = self.data.lock().unwrap();
+                    data.progress.files_indexed = files_indexed;
+                    data.progress.percentage_complete = if total_paths > 0 {
+                        (files_indexed as f32 / total_paths as f32) * 100.0
+                    } else {
+                        100.0
+                    };
+
+                    // Calculate estimated time remaining
+                    if let Some(start_time_ms) = data.progress.start_time {
+                        let elapsed_ms = chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
+                        if files_indexed > 0 {
+                            let avg_time_per_file = elapsed_ms as f32 / files_indexed as f32;
+                            let remaining_files = total_paths.saturating_sub(files_indexed);
+                            let estimated_ms = (avg_time_per_file * remaining_files as f32) as u64;
+                            data.progress.estimated_time_remaining = Some(estimated_ms);
+                        }
+                    }
+
+                    data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
+
+                    #[cfg(test)]
+                    log_info!(
+                        "Processing chunk {} ({} files): {:.1}% complete",
+                        _chunk_number,
+                        chunk.len(),
+                        data.progress.percentage_complete
+                    );
+                }
 
                 // Small delay between chunks to allow UI updates and other operations
                 thread::sleep(Duration::from_millis(5));
@@ -642,7 +648,6 @@ impl SearchEngineState {
                 }
             }
         } else {
-            #[cfg(test)]
             log_warn!("Failed to read directory: {}", dir.display());
         }
 
@@ -2027,51 +2032,33 @@ mod tests_searchengine_state {
         // Use more reliable synchronization
         let (status_tx, status_rx) = std::sync::mpsc::channel();
 
-        // Start indexing in another thread
         let test_dir_clone = test_dir.clone();
 
         let indexing_thread = thread::spawn(move || {
-            // First manually set the status to Indexing to guarantee we're in that state
             {
                 let mut data = state_clone.data.lock().unwrap();
                 data.status = SearchEngineStatus::Indexing;
-
-                // Signal the test thread that we've set the status
                 status_tx.send(()).unwrap();
             }
 
-            // Now start the actual indexing (which may take a while)
             state_clone.start_indexing(test_dir_clone).unwrap();
         });
 
-        // Wait for the signal that the status has been explicitly set to Indexing
         status_rx.recv().unwrap();
 
-        // Double-check that we're in the Indexing state before proceeding
         {
             let data = state.data.lock().unwrap();
-            assert_eq!(
-                data.status,
-                SearchEngineStatus::Indexing,
-                "Should be in Indexing state before testing thread safety"
-            );
+            assert_eq!(data.status, SearchEngineStatus::Indexing);
         }
 
-        // Try to search from the main thread - should return an error while indexing
+        // Try to search from main thread - should fail while indexing
         let search_result = state.search("document");
-        assert!(
-            search_result.is_err(),
-            "Search should fail with an error when engine is indexing"
-        );
-        assert!(
-            search_result.unwrap_err().contains("indexing"),
-            "Error should mention indexing"
-        );
+        assert!(search_result.is_err());
+        assert!(search_result.unwrap_err().contains("indexing"));
 
-        // Now stop the indexing operation
+        // Stop the indexing operation
         let _ = state.stop_indexing();
 
-        // Wait for indexing thread to complete
         indexing_thread.join().unwrap();
 
         // Set status back to Idle to allow successful search
@@ -2082,10 +2069,7 @@ mod tests_searchengine_state {
 
         // Now search should work
         let after_search = state.search("document");
-        assert!(
-            after_search.is_ok(),
-            "Search should succeed after indexing is complete"
-        );
+        assert!(after_search.is_ok());
 
         // Clean up test files (best effort, don't fail test if cleanup fails)
         for file in test_files {
@@ -2643,7 +2627,7 @@ mod tests_searchengine_state {
         let search_result = state.search(&search_term);
         assert!(search_result.is_ok());
 
-        let results = search_result.unwrap();
+        let _results = search_result.unwrap();
         // Results might be empty if no files contain "test", which is acceptable
 
         // Check that searches are recorded
@@ -2705,10 +2689,23 @@ mod tests_searchengine_state {
                 status_tx.send(()).unwrap();
             }
 
-            state_clone.start_chunked_indexing(test_dir_clone, 20).unwrap();
+            // Use larger chunk size to make indexing take longer
+            let result = state_clone.start_chunked_indexing(test_dir_clone, 5); // Small chunks for longer execution
+            result
         });
 
-        status_rx.recv().unwrap();
+        // Wait for indexing to start with timeout
+        match status_rx.recv_timeout(Duration::from_secs(5)) {
+            Ok(_) => {
+                log_info!("Received indexing start signal");
+            },
+            Err(_) => {
+                panic!("Timeout waiting for indexing to start");
+            }
+        }
+
+        // Give indexing some time to actually begin processing
+        thread::sleep(Duration::from_millis(100));
 
         {
             let data = state.data.lock().unwrap();
@@ -2720,14 +2717,47 @@ mod tests_searchengine_state {
         assert!(search_result.is_err());
         assert!(search_result.unwrap_err().contains("indexing"));
 
-        // Try to start another chunked indexing operation
-        let second_index_result = state.start_chunked_indexing(subdir.clone(), 30);
+        // Try to start another chunked indexing operation - this should stop the first one
+        log_info!("Starting second indexing operation to interrupt the first");
+        let second_index_result = state.start_chunked_indexing(subdir.clone(), 10);
         assert!(second_index_result.is_ok());
 
-        indexing_thread.join().unwrap();
+        // Wait for the first indexing thread to complete with timeout
+        let join_result = indexing_thread.join();
 
-        // Allow time for second indexing to complete
-        thread::sleep(Duration::from_millis(1000));
+        match join_result {
+            Ok(result) => {
+                log_info!("First indexing thread completed with result: {:?}", result);
+                // The first indexing should have been interrupted, so it might return Ok or be cancelled
+                assert!(result.is_ok(), "First indexing should complete (even if cancelled)");
+            },
+            Err(_) => {
+                panic!("First indexing thread panicked");
+            }
+        }
+
+        // Allow time for second indexing to complete with timeout
+        let mut attempts = 0;
+        let max_attempts = 50; // 5 seconds total
+        loop {
+            thread::sleep(Duration::from_millis(100));
+            attempts += 1;
+
+            let data = state.data.lock().unwrap();
+            if !matches!(data.status, SearchEngineStatus::Indexing) {
+                log_info!("Second indexing completed after {} attempts", attempts);
+                break;
+            }
+
+            if attempts >= max_attempts {
+                // Force stop if still indexing
+                log_warn!("Second indexing taking too long, forcing stop");
+                drop(data);
+                let mut engine = state.engine.lock().unwrap();
+                engine.stop_indexing();
+                break;
+            }
+        }
 
         // Clean up test files
         for file in test_files {
@@ -3063,7 +3093,7 @@ mod tests_searchengine_state {
         let pdf_results = state.search_by_extension("document", vec!["pdf".to_string()]).unwrap();
 
         // Search with multiple extension preferences
-        let txt_pdf_results = state.search_by_extension("document", vec!["txt".to_string(), "pdf".to_string()]).unwrap();
+        let _txt_pdf_results = state.search_by_extension("document", vec!["txt".to_string(), "pdf".to_string()]).unwrap();
 
         // Verify extension preferences affect ranking
         if !txt_results.is_empty() && !pdf_results.is_empty() {
@@ -3231,8 +3261,7 @@ mod bench_indexing_methods {
         // Fall back to creating a temporary directory
         log_warn!("Real test data not available, using temporary directory for benchmarking");
         tempfile::tempdir()
-            .expect("Failed to create temp directory")
-            .into_path()
+            .expect("Failed to create temp directory").path().to_path_buf()
     }
 
     // Helper function to clean up test files (only synthetic ones)
@@ -3286,7 +3315,7 @@ mod bench_indexing_methods {
     }
 
     // Helper function to verify indexing worked correctly
-    fn verify_indexing_results(state: &SearchEngineState, expected_files: usize) -> bool {
+    fn verify_indexing_results(state: &SearchEngineState, _expected_files: usize) -> bool {
         // Wait a moment for indexing to complete
         thread::sleep(Duration::from_millis(100));
 

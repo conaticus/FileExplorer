@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
-use crate::log_info;
-use crate::state::searchengine_data::{SearchEngineInfo, SearchEngineState};
+use crate::{log_error, log_info};
+use crate::state::searchengine_data::{IndexingProgress, SearchEngineInfo, SearchEngineState, SearchEngineStatus};
 
 // Type alias for the search result type returned by the engine
 type SearchResult = Vec<(String, f32)>;
@@ -129,6 +129,19 @@ pub fn add_paths_recursive(
     add_paths_recursive_impl(folder, search_engine_state.inner().clone())
 }
 
+#[tauri::command]
+pub async fn add_paths_recursive_async(
+    folder: String,
+    search_engine_state: State<'_, Arc<Mutex<SearchEngineState>>>,
+) -> Result<(), String> {
+    let state = search_engine_state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        add_paths_recursive_impl(folder, state)
+    })
+        .await
+        .map_err(|e| format!("Indexing thread error: {:?}", e))?
+}
+
 pub fn add_paths_recursive_impl(
     folder: String,
     state: Arc<Mutex<SearchEngineState>>,
@@ -138,11 +151,28 @@ pub fn add_paths_recursive_impl(
         folder
     );
     
-    // Use chunked indexing with optimal chunk size for better performance
-    let default_chunk_size = 350; // Optimal chunk size based on benchmarks
-    let path = PathBuf::from(folder);
-    let engine = state.lock().unwrap();
-    engine.start_chunked_indexing(path, default_chunk_size)
+    // Use chunked indexing with smaller chunk size for more frequent progress updates
+    let default_chunk_size = 350; // Smaller chunk size for more frequent progress updates
+    let path = PathBuf::from(&folder);
+
+    // Verify the path exists before starting
+    if !path.exists() {
+        let error_msg = format!("Path does not exist: {}", folder);
+        log_error!("{}", error_msg);
+        return Err(error_msg);
+    }
+
+    log_info!("Starting chunked indexing for path: {} with chunk size: {}", folder, default_chunk_size);
+
+    let engine_state = state.lock().unwrap();
+    let result = engine_state.start_chunked_indexing(path, default_chunk_size);
+
+    match &result {
+        Ok(_) => log_info!("Chunked indexing started successfully for: {}", folder),
+        Err(e) => log_error!("Chunked indexing failed for {}: {}", folder, e),
+    }
+
+    result
 }
 
 /// Adds a single file to the search engine index.
@@ -327,8 +357,8 @@ pub fn clear_search_engine_impl(state: Arc<Mutex<SearchEngineState>>) -> Result<
 /// }
 /// ```
 #[tauri::command]
-pub fn get_search_engine_info(
-    search_engine_state: State<Arc<Mutex<SearchEngineState>>>,
+pub async fn get_search_engine_info(
+    search_engine_state: State<'_, Arc<Mutex<SearchEngineState>>>,
 ) -> Result<SearchEngineInfo, String> {
     get_search_engine_info_impl(search_engine_state.inner().clone())
 }
@@ -339,6 +369,64 @@ pub fn get_search_engine_info_impl(
     log_info!("Get search engine info called");
     let engine = state.lock().unwrap();
     Ok(engine.get_search_engine_info())
+}
+
+#[tauri::command]
+pub async fn get_indexing_progress(
+    search_engine_state: State<'_, Arc<Mutex<SearchEngineState>>>,
+) -> Result<IndexingProgress, String> {
+    let state = search_engine_state.lock().map_err(|e| e.to_string())?;
+    let data = state.data.lock().map_err(|e| e.to_string())?;
+    let progress = data.progress.clone();
+
+    // Add debug logging
+    log_info!(
+        "Progress request: files_indexed={}, files_discovered={}, percentage={:.1}%, current_path={:?}",
+        progress.files_indexed,
+        progress.files_discovered,
+        progress.percentage_complete,
+        progress.current_path
+    );
+
+    Ok(progress)
+}
+
+#[tauri::command]
+pub async fn get_indexing_status(
+    search_engine_state: State<'_, Arc<Mutex<SearchEngineState>>>,
+) -> Result<String, String> {
+    let state = search_engine_state.lock().map_err(|e| e.to_string())?;
+    let data = state.data.lock().map_err(|e| e.to_string())?;
+    let status = format!("{:?}", data.status);
+
+    // Add debug logging
+    log_info!("Status request: {}", status);
+
+    Ok(status)
+}
+
+#[tauri::command]
+pub async fn stop_indexing(
+    search_engine_state: State<'_, Arc<Mutex<SearchEngineState>>>,
+) -> Result<(), String> {
+    log_info!("Stopping indexing process");
+
+    let state = search_engine_state.lock().map_err(|e| e.to_string())?;
+
+    // Lock the state data to update status
+    let mut data = state.data.lock().map_err(|e| e.to_string())?;
+
+    // Lock the engine to call stop_indexing
+    let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
+
+    // Call stop_indexing on the engine
+    engine.stop_indexing();
+
+    // Update status
+    data.status = SearchEngineStatus::Cancelled;
+    data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
+
+    Ok(())
 }
 
 #[cfg(test)]

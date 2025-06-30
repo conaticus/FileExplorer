@@ -399,7 +399,7 @@ impl SearchCore {
             Ok(dir) => dir,
             Err(_err) => {
                 #[cfg(feature = "index-error-logging")]
-                log_error!("Failed to read directory '{}': {}", path, err);
+                log_error!("Failed to read directory '{}': {}", path, _err);
                 
                 return;
             }
