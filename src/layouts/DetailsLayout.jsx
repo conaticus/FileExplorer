@@ -3,6 +3,14 @@ import { useFileSystem } from '../providers/FileSystemProvider';
 import DetailsPanel from '../components/explorer/DetailsPanel';
 import './detailsLayout.css';
 
+/**
+ * DetailsLayout component that provides a resizable details panel.
+ * This component renders a main content area alongside a resizable details panel.
+ *
+ * @param {Object} props - Component props
+ * @param {React.ReactNode} props.children - Child components to render in the main content area
+ * @returns {JSX.Element} The DetailsLayout component
+ */
 const DetailsLayout = ({ children }) => {
     const { selectedItems } = useFileSystem();
     const [panelWidth, setPanelWidth] = useState(300); // Default width
@@ -11,7 +19,12 @@ const DetailsLayout = ({ children }) => {
     const startXRef = useRef(0);
     const startWidthRef = useRef(0);
 
-    // Handle resize start
+    /**
+     * Handles the start of a resize operation.
+     * Sets up necessary state and styles for resizing.
+     *
+     * @param {React.MouseEvent} e - The mouse down event
+     */
     const handleResizeStart = (e) => {
         setIsResizing(true);
         startXRef.current = e.clientX;
@@ -22,8 +35,16 @@ const DetailsLayout = ({ children }) => {
         document.body.style.cursor = 'col-resize';
     };
 
-    // Handle resize during mouse move
+    /**
+     * Effect hook to handle resizing operations.
+     * Adds event listeners for mouse movements and cleanup.
+     */
     useEffect(() => {
+        /**
+         * Handles resize calculations during mouse movement.
+         *
+         * @param {MouseEvent} e - The mouse move event
+         */
         const handleResize = (e) => {
             if (!isResizing) return;
 
@@ -37,6 +58,10 @@ const DetailsLayout = ({ children }) => {
             setPanelWidth(newWidth);
         };
 
+        /**
+         * Handles the end of a resize operation.
+         * Resets styles and state.
+         */
         const handleResizeEnd = () => {
             setIsResizing(false);
             document.body.style.userSelect = '';

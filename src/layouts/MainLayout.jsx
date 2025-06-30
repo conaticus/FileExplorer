@@ -37,6 +37,12 @@ import SettingsApplier from '../utils/SettingsApplier.js';
 import '../styles/layouts/mainLayout.css';
 import {replaceFileName} from "../utils/pathUtils.js";
 
+/**
+ * MainLayout component that serves as the primary layout structure for the application.
+ * Manages UI state, event handling, and renders the main application interface.
+ *
+ * @returns {JSX.Element} The MainLayout component
+ */
 const MainLayout = () => {
     const { theme, toggleTheme } = useTheme();
     const { isLoading, currentDirData, selectedItems, loadDirectory, volumes } = useFileSystem();
@@ -67,20 +73,27 @@ const MainLayout = () => {
     // Get terminal height for padding calculations
     const terminalHeight = settings.terminal_height || 240;
 
-    // Update UI state when settings change
+    /**
+     * Effect to update UI state when settings change
+     */
     useEffect(() => {
         if (settings.show_details_panel !== undefined) {
             setIsDetailsPanelOpen(settings.show_details_panel);
         }
     }, [settings.show_details_panel]);
 
+    /**
+     * Effect to update view mode when settings change
+     */
     useEffect(() => {
         if (settings.default_view) {
             setViewMode(settings.default_view);
         }
     }, [settings.default_view]);
 
-    // Load default location on first render
+    /**
+     * Effect to load default location on first render
+     */
     useEffect(() => {
         if (volumes.length > 0 && !currentDirData && !currentPath) {
             // Show This PC view by default
@@ -88,29 +101,51 @@ const MainLayout = () => {
         }
     }, [volumes, currentDirData, currentPath]);
 
-    // Listen for custom events - VERBESSERT MIT DEBUG
+    /**
+     * Effect to listen for custom events
+     * Improved with debug information
+     */
     useEffect(() => {
+        /**
+         * Handler for opening templates view
+         */
         const handleOpenTemplates = () => {
             setCurrentView('templates');
             setIsTemplatesOpen(true);
         };
 
+        /**
+         * Handler for showing properties panel
+         */
         const handleShowProperties = (e) => {
             setIsDetailsPanelOpen(true);
         };
 
+        /**
+         * Handler for opening This PC view
+         */
         const handleOpenThisPC = () => {
             setCurrentView('this-pc');
         };
 
+        /**
+         * Handler for opening settings panel
+         */
         const handleOpenSettings = () => {
             setIsSettingsOpen(true);
         };
 
+        /**
+         * Handler for toggling terminal visibility
+         */
         const handleToggleTerminal = () => {
             setIsTerminalOpen(prev => !prev);
         };
 
+        /**
+         * Handler for opening rename modal
+         * @param {CustomEvent} e - Event with item details
+         */
         const handleOpenRenameModal = (e) => {
             if (e.detail && e.detail.item) {
                 setRenameItem(e.detail.item);
@@ -118,30 +153,38 @@ const MainLayout = () => {
             }
         };
 
-        // VERBESSERTE HASH EVENT HANDLERS MIT DEBUG
+        // Improved hash event handlers with debug information
+        /**
+         * Handler for opening hash file modal
+         * @param {CustomEvent} e - Event with item details
+         */
         const handleOpenHashFileModal = (e) => {
-            console.log('🎯 MainLayout: Received open-hash-file-modal event:', e.detail);
+            console.log('MainLayout: Received open-hash-file-modal event:', e.detail);
             if (e.detail && e.detail.item) {
-                console.log('✅ Opening Hash File Modal for:', e.detail.item.name);
+                console.log('Opening Hash File Modal for:', e.detail.item.name);
                 setHashModalItem(e.detail.item);
                 setIsHashFileModalOpen(true);
             } else {
-                console.log('❌ Invalid event detail:', e.detail);
+                console.log('Invalid event detail:', e.detail);
             }
         };
 
+        /**
+         * Handler for opening hash compare modal
+         * @param {CustomEvent} e - Event with item details
+         */
         const handleOpenHashCompareModal = (e) => {
-            console.log('🎯 MainLayout: Received open-hash-compare-modal event:', e.detail);
+            console.log('MainLayout: Received open-hash-compare-modal event:', e.detail);
             if (e.detail && e.detail.item) {
-                console.log('✅ Opening Hash Compare Modal for:', e.detail.item.name);
+                console.log('Opening Hash Compare Modal for:', e.detail.item.name);
                 setHashModalItem(e.detail.item);
                 setIsHashCompareModalOpen(true);
             } else {
-                console.log('❌ Invalid event detail:', e.detail);
+                console.log('Invalid event detail:', e.detail);
             }
         };
 
-        // Event Listeners registrieren
+        // Register event listeners
         document.addEventListener('open-templates', handleOpenTemplates);
         document.addEventListener('show-properties', handleShowProperties);
         document.addEventListener('open-this-pc', handleOpenThisPC);
@@ -151,7 +194,7 @@ const MainLayout = () => {
         document.addEventListener('open-hash-file-modal', handleOpenHashFileModal);
         document.addEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
 
-        console.log('📥 MainLayout: All event listeners registered');
+        console.log('MainLayout: All event listeners registered');
 
         return () => {
             document.removeEventListener('open-templates', handleOpenTemplates);
@@ -162,18 +205,23 @@ const MainLayout = () => {
             document.removeEventListener('open-rename-modal', handleOpenRenameModal);
             document.removeEventListener('open-hash-file-modal', handleOpenHashFileModal);
             document.removeEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
-            console.log('📤 MainLayout: All event listeners removed');
+            console.log('MainLayout: All event listeners removed');
         };
     }, []);
 
-    // Switch to explorer view when navigating to a directory
+    /**
+     * Effect to switch to explorer view when navigating to a directory
+     */
     useEffect(() => {
         if (currentPath && currentView !== 'explorer') {
             setCurrentView('explorer');
         }
     }, [currentPath]);
 
-    // Handle search
+    /**
+     * Handles search functionality
+     * @param {string} value - The search query
+     */
     const handleSearch = useCallback((value) => {
         setSearchValue(value);
 
@@ -199,8 +247,14 @@ const MainLayout = () => {
         }
     }, [currentDirData]);
 
-    // Handle keyboard shortcuts
+    /**
+     * Effect to handle keyboard shortcuts
+     */
     useEffect(() => {
+        /**
+         * Keyboard event handler for shortcuts
+         * @param {KeyboardEvent} e - The keyboard event
+         */
         const handleKeyDown = (e) => {
             // Global search: Ctrl+Shift+F
             if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
@@ -250,7 +304,9 @@ const MainLayout = () => {
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [selectedItems]);
 
-    // Copy current path to clipboard
+    /**
+     * Copies current path to clipboard
+     */
     const copyCurrentPath = useCallback(async () => {
         if (!currentPath) return;
 
@@ -279,11 +335,15 @@ const MainLayout = () => {
         }
     }, [currentPath]);
 
-    // Handle rename
+    /**
+     * Handles renaming a file or directory
+     * @param {Object} item - The item to rename
+     * @param {string} newName - The new name
+     */
     const handleRename = async (item, newName) => {
         if (!newName || newName === item.name) return;
 
-        console.log(`!!! Renaming "${replaceFileName(item.path, newName)}"`);
+        console.log(`Renaming "${replaceFileName(item.path, newName)}"`);
 
         try {
             const separator = item.path.includes('\\') ? '\\' : '/';
@@ -322,7 +382,10 @@ const MainLayout = () => {
         }
     };
 
-    // Handle view mode change with settings persistence
+    /**
+     * Handles view mode change with settings persistence
+     * @param {string} newMode - The new view mode
+     */
     const handleViewModeChange = useCallback(async (newMode) => {
         setViewMode(newMode);
 
@@ -334,7 +397,9 @@ const MainLayout = () => {
         }
     }, []);
 
-    // Handle details panel toggle with settings persistence
+    /**
+     * Handles details panel toggle with settings persistence
+     */
     const handleDetailsPanelToggle = useCallback(async () => {
         const newState = !isDetailsPanelOpen;
         setIsDetailsPanelOpen(newState);
@@ -347,7 +412,9 @@ const MainLayout = () => {
         }
     }, [isDetailsPanelOpen]);
 
-    // Clear search when changing directory
+    /**
+     * Effect to clear search when changing directory
+     */
     useEffect(() => {
         setSearchValue('');
         setSearchResults(null);
@@ -356,7 +423,10 @@ const MainLayout = () => {
     // Get the data to display
     const displayData = searchResults || currentDirData;
 
-    // Render main content based on current view
+    /**
+     * Renders the main content based on current view
+     * @returns {JSX.Element} The main content component
+     */
     const renderMainContent = () => {
         switch (currentView) {
             case 'this-pc':
@@ -512,11 +582,11 @@ const MainLayout = () => {
                 onRename={handleRename}
             />
 
-            {/* Hash Modals - MIT DEBUG */}
+            {/* Hash Modals - with debug info */}
             <HashFileModal
                 isOpen={isHashFileModalOpen}
                 onClose={() => {
-                    console.log('🔴 Closing Hash File Modal');
+                    console.log('Closing Hash File Modal');
                     setIsHashFileModalOpen(false);
                     setHashModalItem(null);
                 }}
@@ -526,7 +596,7 @@ const MainLayout = () => {
             <HashCompareModal
                 isOpen={isHashCompareModalOpen}
                 onClose={() => {
-                    console.log('🔴 Closing Hash Compare Modal');
+                    console.log('Closing Hash Compare Modal');
                     setIsHashCompareModalOpen(false);
                     setHashModalItem(null);
                 }}
