@@ -152,26 +152,26 @@ pub fn add_paths_recursive_impl(
     );
     
     // Use chunked indexing with smaller chunk size for more frequent progress updates
-    let default_chunk_size = 50; // Smaller chunk size for more frequent progress updates
+    let default_chunk_size = 350; // Smaller chunk size for more frequent progress updates
     let path = PathBuf::from(&folder);
-    
+
     // Verify the path exists before starting
     if !path.exists() {
         let error_msg = format!("Path does not exist: {}", folder);
         log_error!("{}", error_msg);
         return Err(error_msg);
     }
-    
+
     log_info!("Starting chunked indexing for path: {} with chunk size: {}", folder, default_chunk_size);
-    
+
     let engine_state = state.lock().unwrap();
     let result = engine_state.start_chunked_indexing(path, default_chunk_size);
-    
+
     match &result {
         Ok(_) => log_info!("Chunked indexing started successfully for: {}", folder),
         Err(e) => log_error!("Chunked indexing failed for {}: {}", folder, e),
     }
-    
+
     result
 }
 
@@ -378,7 +378,7 @@ pub async fn get_indexing_progress(
     let state = search_engine_state.lock().map_err(|e| e.to_string())?;
     let data = state.data.lock().map_err(|e| e.to_string())?;
     let progress = data.progress.clone();
-    
+
     // Add debug logging
     log_info!(
         "Progress request: files_indexed={}, files_discovered={}, percentage={:.1}%, current_path={:?}",
@@ -387,7 +387,7 @@ pub async fn get_indexing_progress(
         progress.percentage_complete,
         progress.current_path
     );
-    
+
     Ok(progress)
 }
 
@@ -398,10 +398,10 @@ pub async fn get_indexing_status(
     let state = search_engine_state.lock().map_err(|e| e.to_string())?;
     let data = state.data.lock().map_err(|e| e.to_string())?;
     let status = format!("{:?}", data.status);
-    
+
     // Add debug logging
     log_info!("Status request: {}", status);
-    
+
     Ok(status)
 }
 
@@ -412,7 +412,7 @@ pub async fn stop_indexing(
     log_info!("Stopping indexing process");
 
     let state = search_engine_state.lock().map_err(|e| e.to_string())?;
-    
+
     // Lock the state data to update status
     let mut data = state.data.lock().map_err(|e| e.to_string())?;
 
@@ -421,11 +421,11 @@ pub async fn stop_indexing(
 
     // Call stop_indexing on the engine
     engine.stop_indexing();
-    
+
     // Update status
     data.status = SearchEngineStatus::Cancelled;
     data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
-    
+
     Ok(())
 }
 

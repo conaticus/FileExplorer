@@ -439,10 +439,10 @@ impl SearchEngineState {
 
             // Process paths in chunks
             let mut files_indexed = 0;
-            let mut chunk_number = 0;
+            let mut _chunk_number = 0;
 
             for chunk in paths.chunks(chunk_size) {
-                chunk_number += 1;
+                _chunk_number += 1;
 
                 // Check if indexing should stop before processing chunk
                 {
@@ -543,7 +543,7 @@ impl SearchEngineState {
                     #[cfg(test)]
                     log_info!(
                         "Processing chunk {} ({} files): {:.1}% complete",
-                        chunk_number,
+                        _chunk_number,
                         chunk.len(),
                         data.progress.percentage_complete
                     );
@@ -648,7 +648,6 @@ impl SearchEngineState {
                 }
             }
         } else {
-            #[cfg(test)]
             log_warn!("Failed to read directory: {}", dir.display());
         }
 
@@ -2628,7 +2627,7 @@ mod tests_searchengine_state {
         let search_result = state.search(&search_term);
         assert!(search_result.is_ok());
 
-        let results = search_result.unwrap();
+        let _results = search_result.unwrap();
         // Results might be empty if no files contain "test", which is acceptable
 
         // Check that searches are recorded
@@ -2725,7 +2724,7 @@ mod tests_searchengine_state {
 
         // Wait for the first indexing thread to complete with timeout
         let join_result = indexing_thread.join();
-        
+
         match join_result {
             Ok(result) => {
                 log_info!("First indexing thread completed with result: {:?}", result);
@@ -3094,7 +3093,7 @@ mod tests_searchengine_state {
         let pdf_results = state.search_by_extension("document", vec!["pdf".to_string()]).unwrap();
 
         // Search with multiple extension preferences
-        let txt_pdf_results = state.search_by_extension("document", vec!["txt".to_string(), "pdf".to_string()]).unwrap();
+        let _txt_pdf_results = state.search_by_extension("document", vec!["txt".to_string(), "pdf".to_string()]).unwrap();
 
         // Verify extension preferences affect ranking
         if !txt_results.is_empty() && !pdf_results.is_empty() {
@@ -3316,7 +3315,7 @@ mod bench_indexing_methods {
     }
 
     // Helper function to verify indexing worked correctly
-    fn verify_indexing_results(state: &SearchEngineState, expected_files: usize) -> bool {
+    fn verify_indexing_results(state: &SearchEngineState, _expected_files: usize) -> bool {
         // Wait a moment for indexing to complete
         thread::sleep(Duration::from_millis(100));
 
