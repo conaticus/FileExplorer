@@ -33,6 +33,46 @@ const TemplateList = ({ onClose }) => {
     const addTemplateInputRef = useRef(null);
 
     /**
+     * Convert template paths to template objects
+     * @param {Array<string>} templatePaths - Array of template paths
+     * @returns {Array<Object>} Array of template objects
+     */
+    const convertPathsToTemplates = (templatePaths) => {
+        if (!Array.isArray(templatePaths)) {
+            console.error('Expected array of template paths, got:', templatePaths);
+            return [];
+        }
+
+        return templatePaths.map((path, index) => {
+            // Handle case where path might already be an object
+            if (typeof path === 'object' && path !== null) {
+                return path;
+            }
+
+            // Convert string path to template object
+            if (typeof path !== 'string') {
+                console.error('Invalid template path:', path);
+                return null;
+            }
+
+            const pathSegments = path.split(/[/\\]/);
+            const name = pathSegments[pathSegments.length - 1] || `Template ${index + 1}`;
+
+            // Determine if it's a file or folder based on extension
+            const hasExtension = name.includes('.') && !name.startsWith('.');
+            const type = hasExtension ? 'file' : 'folder';
+
+            return {
+                name: name,
+                path: path,
+                type: type,
+                size: 0, // We don't have size info from paths
+                createdAt: new Date().toISOString().split('T')[0] // Default to today
+            };
+        }).filter(template => template !== null); // Remove any null entries
+    };
+
+    /**
      * Load templates on component mount
      * Also sets up event listener for template updates
      */
@@ -42,14 +82,20 @@ const TemplateList = ({ onClose }) => {
             setError(null);
 
             try {
+                console.log('Loading templates from backend...');
                 const templatePaths = await getTemplatePaths();
-                setTemplates(templatePaths);
+                console.log('Raw template paths from backend:', templatePaths);
+
+                const templateObjects = convertPathsToTemplates(templatePaths);
+                console.log('Converted template objects:', templateObjects);
+
+                setTemplates(templateObjects);
             } catch (err) {
                 console.error('Failed to load templates:', err);
                 setError('Failed to load templates. Please try again.');
 
-                // Mock data for development
-                setTemplates([
+                // Mock data for development - properly structured
+                const mockTemplates = [
                     {
                         name: 'Project Template',
                         path: '/templates/project-template',
@@ -71,7 +117,8 @@ const TemplateList = ({ onClose }) => {
                         size: 4096,
                         createdAt: '2023-05-10'
                     }
-                ]);
+                ];
+                setTemplates(mockTemplates);
             } finally {
                 setIsLoading(false);
             }
@@ -96,6 +143,12 @@ const TemplateList = ({ onClose }) => {
      * @param {Object} template - The template to use
      */
     const handleUseTemplate = (template) => {
+        if (!template || !template.path) {
+            console.error('Invalid template for use:', template);
+            showError('Invalid template selected.');
+            return;
+        }
+
         setSelectedTemplate(template);
         setDestinationPath(currentPath || '');
         setIsUseModalOpen(true);
@@ -131,6 +184,12 @@ const TemplateList = ({ onClose }) => {
      * @async
      */
     const handleRemoveTemplate = async (template) => {
+        if (!template || !template.path) {
+            console.error('Invalid template for removal:', template);
+            showError('Invalid template selected.');
+            return;
+        }
+
         try {
             await removeTemplate(template.path);
 
@@ -170,7 +229,8 @@ const TemplateList = ({ onClose }) => {
 
             // Reload templates
             const templatePaths = await getTemplatePaths();
-            setTemplates(templatePaths);
+            const templateObjects = convertPathsToTemplates(templatePaths);
+            setTemplates(templateObjects);
 
             setIsAddModalOpen(false);
             setNewTemplatePath('');
@@ -254,14 +314,22 @@ const TemplateList = ({ onClose }) => {
                     />
                 ) : (
                     <div className="template-grid">
-                        {templates.map((template, index) => (
-                            <TemplateItem
-                                key={template.path || index}
-                                template={template}
-                                onUse={() => handleUseTemplate(template)}
-                                onRemove={() => handleRemoveTemplate(template)}
-                            />
-                        ))}
+                        {templates.map((template, index) => {
+                            // Additional safety check
+                            if (!template || typeof template !== 'object') {
+                                console.warn('Skipping invalid template:', template);
+                                return null;
+                            }
+
+                            return (
+                                <TemplateItem
+                                    key={template.path || `template-${index}`}
+                                    template={template}
+                                    onUse={() => handleUseTemplate(template)}
+                                    onRemove={() => handleRemoveTemplate(template)}
+                                />
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -368,4 +436,3 @@ const TemplateList = ({ onClose }) => {
 };
 
 export default TemplateList;
-

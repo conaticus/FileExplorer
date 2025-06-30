@@ -22,51 +22,68 @@ import './templates.css';
 const TemplateItem = ({ template, onUse, onRemove }) => {
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
 
+    // Safety check for template object
+    if (!template || typeof template !== 'object') {
+        console.error('TemplateItem: Invalid template prop:', template);
+        return null;
+    }
+
+    // Provide defaults for required properties
+    const safeName = template.name || 'Unknown Template';
+    const safePath = template.path || '';
+    const safeType = template.type || 'file';
+
     /**
      * Determines the appropriate icon based on template type and file extension
+     * Uses only icons that actually exist in the CSS files, with fallbacks
      * @returns {string} Icon name to use
      */
     const getTemplateIcon = () => {
-        if (template.type === 'folder') {
-            return 'folder';
+        if (safeType === 'folder') {
+            return 'folder'; // maps to icon-folder (exists in contextMenu.css)
         }
 
-        // For files, extract extension
-        const extension = template.name.split('.').pop()?.toLowerCase();
+        // For files, try to determine the type but fall back to basic file icon
+        if (!safeName || typeof safeName !== 'string') {
+            return 'file';
+        }
 
+        const extension = safeName.includes('.')
+            ? safeName.split('.').pop()?.toLowerCase()
+            : '';
+
+        if (!extension) {
+            return 'file';
+        }
+
+        // Only use specific icons if we're confident they exist
+        // Otherwise fall back to the basic file icon
         switch (extension) {
-            case 'doc':
-            case 'docx':
-            case 'txt':
-            case 'md':
-                return 'document';
-            case 'xls':
-            case 'xlsx':
-            case 'csv':
-                return 'spreadsheet';
-            case 'ppt':
-            case 'pptx':
-                return 'presentation';
             case 'pdf':
-                return 'pdf';
+                return 'pdf'; // Only if icon-pdf exists in CSS
             case 'jpg':
             case 'jpeg':
             case 'png':
             case 'gif':
             case 'svg':
-                return 'image';
-            case 'mp3':
-            case 'wav':
-            case 'ogg':
-                return 'audio';
+            case 'webp':
+                return 'image'; // Only if icon-image exists in CSS
             case 'mp4':
             case 'avi':
             case 'mov':
-                return 'video';
+            case 'mkv':
+                return 'video'; // Only if icon-video exists in CSS
+            case 'mp3':
+            case 'wav':
+            case 'ogg':
+            case 'flac':
+                return 'audio'; // Only if icon-audio exists in CSS
             case 'zip':
             case 'rar':
             case '7z':
-                return 'archive';
+            case 'tar':
+            case 'gz':
+                return 'archive'; // Only if icon-archive exists in CSS
             case 'html':
             case 'css':
             case 'js':
@@ -74,9 +91,13 @@ const TemplateItem = ({ template, onUse, onRemove }) => {
             case 'ts':
             case 'tsx':
             case 'json':
-                return 'code';
+            case 'py':
+            case 'java':
+            case 'c':
+            case 'cpp':
+                return 'code'; // Only if icon-code exists in CSS
             default:
-                return 'file';
+                return 'file'; // Safe fallback
         }
     };
 
@@ -87,6 +108,7 @@ const TemplateItem = ({ template, onUse, onRemove }) => {
      */
     const formatSize = (bytes) => {
         if (!bytes && bytes !== 0) return 'Unknown size';
+        if (typeof bytes !== 'number') return 'Unknown size';
 
         const units = ['B', 'KB', 'MB', 'GB', 'TB'];
         let size = bytes;
@@ -110,6 +132,9 @@ const TemplateItem = ({ template, onUse, onRemove }) => {
 
         try {
             const date = new Date(dateStr);
+            if (isNaN(date.getTime())) {
+                return 'Invalid date';
+            }
             return date.toLocaleDateString(undefined, {
                 year: 'numeric',
                 month: 'short',
@@ -134,7 +159,18 @@ const TemplateItem = ({ template, onUse, onRemove }) => {
      */
     const confirmDelete = () => {
         setIsConfirmDeleteOpen(false);
-        onRemove();
+        if (typeof onRemove === 'function') {
+            onRemove();
+        }
+    };
+
+    /**
+     * Handles use button click
+     */
+    const handleUseClick = () => {
+        if (typeof onUse === 'function') {
+            onUse();
+        }
     };
 
     return (
@@ -145,10 +181,12 @@ const TemplateItem = ({ template, onUse, onRemove }) => {
                 </div>
 
                 <div className="template-details">
-                    <h3 className="template-name">{template.name}</h3>
+                    <h3 className="template-name" title={safeName}>{safeName}</h3>
 
                     <div className="template-meta">
-                        <span className="template-type">{template.type === 'folder' ? 'Folder' : 'File'}</span>
+                        <span className="template-type">
+                            {safeType === 'folder' ? 'Folder' : 'File'}
+                        </span>
                         {template.size && (
                             <span className="template-size">{formatSize(template.size)}</span>
                         )}
@@ -159,16 +197,18 @@ const TemplateItem = ({ template, onUse, onRemove }) => {
                 </div>
 
                 <div className="template-actions">
-                    <IconButton
-                        icon="trash"
-                        tooltip="Delete template"
+                    <button
+                        className="template-delete-btn"
                         onClick={handleDeleteClick}
+                        title="Delete template"
                         aria-label="Delete template"
-                    />
+                    >
+                        <span className="icon icon-delete"></span>
+                    </button>
                     <Button
                         variant="primary"
                         size="sm"
-                        onClick={onUse}
+                        onClick={handleUseClick}
                     >
                         Use
                     </Button>
@@ -199,7 +239,7 @@ const TemplateItem = ({ template, onUse, onRemove }) => {
                 }
             >
                 <p>
-                    Are you sure you want to delete the template "{template.name}"?
+                    Are you sure you want to delete the template "{safeName}"?
                     This action cannot be undone.
                 </p>
             </Modal>

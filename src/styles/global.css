@@ -232,3 +232,9 @@ img, svg {
     position: relative;
     z-index: 10;
 }
+
+
+
+#root > div > div > div.content-area > div > div.tab-content-area > div.toolbar > div.toolbar-right > button:nth-child(1) {
+    display: none;
+}

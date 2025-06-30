@@ -114,6 +114,10 @@
     flex-wrap: wrap;
     gap: var(--space-sm);
     font-size: var(--font-size-xs);
+    color: transparent;
+}
+
+.template-meta span {
     color: var(--text-tertiary);
 }
 
@@ -148,6 +152,40 @@
 /* Icon placeholders */
 .icon-x {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E");
+}
+
+/* Add this to your templates.css file */
+
+.template-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    background-color: transparent;
+    color: var(--text-tertiary);
+    border: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.template-delete-btn:hover {
+    background-color: var(--surface-hover);
+    color: var(--error);
+}
+
+.template-delete-btn .icon {
+    width: 16px;
+    height: 16px;
+}
+
+/* Make sure the icon-delete class exists */
+.icon-delete {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3 6 5 6 21 6'%3E%3C/polyline%3E%3Cpath d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'%3E%3C/path%3E%3C/svg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
 }
 
 /* Responsive adjustments */
