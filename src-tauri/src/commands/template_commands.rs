@@ -310,7 +310,8 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
     log_info!("Copying from '{}' to '{}'", source_path, dest_path);
 
     // Check if the source path exists
-    if !Path::new(source_path).exists() {
+    let source_path_buf = Path::new(source_path);
+    if !source_path_buf.exists() {
         let error_msg = format!("Source path does not exist: {}", source_path);
         log_error!(error_msg.as_str());
         return Err(error_msg);
@@ -337,13 +338,13 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
         }
     }
 
-    if Path::new(source_path).is_dir() {
+    if source_path_buf.is_dir() {
         log_info!("Copying directory recursively");
         // If the source is a directory, recursively copy it
         let mut total_size = 0;
 
         // Get the source directory name
-        let source_dir_name = match Path::new(source_path).file_name() {
+        let source_dir_name = match source_path_buf.file_name() {
             Some(name) => name,
             None => {
                 let error_msg = "Invalid source directory name".to_string();
@@ -353,7 +354,7 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
         };
 
         // Create the final destination directory including the source directory name
-        let final_dest_path = Path::new(dest_path).join(source_dir_name);
+        let final_dest_path = dest_path_buf.join(source_dir_name);
 
         // Create the destination directory
         match fs::create_dir_all(&final_dest_path) {
@@ -448,13 +449,25 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
         Ok(total_size)
     } else {
         log_info!("Copying single file");
+
+        // For single files, construct the full destination path including filename
+        let file_name = match source_path_buf.file_name() {
+            Some(name) => name,
+            None => {
+                let error_msg = "Invalid source file name".to_string();
+                log_error!(error_msg.as_str());
+                return Err(error_msg);
+            }
+        };
+
+        // Join the destination directory with the source filename
+        let final_dest_path = Path::new(dest_path).join(file_name);
+
         // Create parent directory for the file if it doesn't exist
-        if let Some(parent) = PathBuf::from(dest_path).parent() {
+        if let Some(parent) = final_dest_path.parent() {
             if !parent.exists() {
                 match fs::create_dir_all(parent) {
-                    Ok(_) => {
-                        log_info!("Created parent directory: {}", parent.display());
-                    }
+                    Ok(_) => log_info!("Created parent directory: {}", parent.display()),
                     Err(err) => {
                         let error_msg = format!("Failed to create parent directory: {}", err);
                         log_error!(error_msg.as_str());
@@ -464,12 +477,12 @@ pub async fn copy_to_dest_path(source_path: &str, dest_path: &str) -> Result<u64
             }
         }
 
-        // Copy a single file
-        match fs::copy(source_path, dest_path) {
+        // Copy the file to the final destination path
+        match fs::copy(source_path, final_dest_path.to_str().unwrap()) {
             Ok(size) => {
                 log_info!(
                     "Copied file: {} to {} ({} bytes)",
-                    source_path, dest_path, size
+                    source_path, final_dest_path.display(), size
                 );
                 Ok(size)
             }
@@ -841,18 +854,22 @@ mod tests_template_commands {
         let source_file = source_dir.path().join("test.txt");
         create_test_file(&source_file, b"Test file content").expect("Failed to create test file");
 
-        // Create destination file path
-        let dest_file = dest_dir.path().join("test.txt");
-
-        // Copy the file
-        let result =
-            copy_to_dest_path(source_file.to_str().unwrap(), dest_file.to_str().unwrap()).await;
+        // Copy the file to the destination directory (not to a specific file path)
+        let result = copy_to_dest_path(
+            source_file.to_str().unwrap(),
+            dest_dir.path().to_str().unwrap(),
+        )
+        .await;
 
         assert!(
             result.is_ok(),
             "Copying file should succeed: {:?}",
             result.err()
         );
+
+        // The file should be copied as dest_dir/test.txt
+        let file_name = source_file.file_name().unwrap();
+        let dest_file = dest_dir.path().join(file_name);
 
         // Verify the file was copied
         assert!(dest_file.exists(), "Destination file should exist");
@@ -927,4 +944,51 @@ mod tests_template_commands {
         assert_eq!(content1, "File 1 content", "File1 content should match");
         assert_eq!(content2, "File 2 content", "File2 content should match");
     }
+
+    #[tokio::test]
+    async fn test_add_template_single_file() {
+        // Create temp directories for template storage and metadata
+        let templates_dir = tempdir().expect("Failed to create temporary templates directory");
+        let metadata_dir = tempdir().expect("Failed to create temporary metadata directory");
+
+        let metadata_file = metadata_dir.path().join("meta_data.json");
+        let state = create_test_metadata_state(metadata_file, templates_dir.path().to_path_buf());
+
+        // Create a single test file to be used as template
+        let source_dir = tempdir().expect("Failed to create source directory");
+        let source_file = source_dir.path().join("template_file.txt");
+        create_test_file(&source_file, b"Single file template content")
+            .expect("Failed to create test file");
+
+        // Add the file as a template
+        let result = add_template_impl(state.clone(), source_file.to_str().unwrap()).await;
+
+        assert!(
+            result.is_ok(),
+            "Adding file template should succeed: {:?}",
+            result.err()
+        );
+
+        // Get the file name for verification
+        let file_name = source_file.file_name().unwrap().to_str().unwrap();
+
+        // For a single file, it should be copied directly to the templates directory
+        let expected_template_path = templates_dir.path().join(file_name);
+        log_info!("Expected template file path: {:?}", expected_template_path);
+
+        assert!(
+            expected_template_path.exists(),
+            "Template file should exist at destination: {:?}",
+            expected_template_path
+        );
+
+        // Verify the file content was preserved
+        let content = fs::read_to_string(expected_template_path).expect("Failed to read template file");
+        assert_eq!(
+            content,
+            "Single file template content",
+            "File content should match"
+        );
+    }
 }
+
