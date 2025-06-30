@@ -49,7 +49,7 @@
 //! - Error and critical logs are also written to a separate error log file for easier debugging.
 //! - Ensure that the `SettingsState` is properly initialized and shared across the application to manage logging behavior effectively.
 
-use crate::constants::{ERROR_LOG_FILE_NAME, LOG_FILE_NAME, MAX_FILE_SIZE};
+use crate::constants::{ERROR_LOG_FILE_ABS_PATH, LOG_FILE_ABS_PATH, MAX_FILE_SIZE};
 use crate::error_handling::{Error, ErrorCode};
 use crate::models::LoggingLevel;
 use crate::state::SettingsState;
@@ -184,8 +184,8 @@ static LOGGER: OnceCell<Logger> = OnceCell::new();
 impl Logger {
     pub fn new(state: Arc<Mutex<SettingsState>>) -> Self {
         Logger {
-            log_path: PathBuf::from(LOG_FILE_NAME),
-            error_log_path: PathBuf::from(ERROR_LOG_FILE_NAME),
+            log_path: LOG_FILE_ABS_PATH.to_path_buf(),
+            error_log_path: ERROR_LOG_FILE_ABS_PATH.to_path_buf(),
             state,
         }
     }
@@ -200,7 +200,43 @@ impl Logger {
     /// Logger::init(app_state.clone());
     /// ```
     pub fn init(state: Arc<Mutex<SettingsState>>) {
+        // Ensure log directories exist before initializing the logger
+        Self::ensure_log_directories_exist();
+        
+        // Create empty log files if they don't exist
+        Self::ensure_log_files_exist();
+        
         Self::init_global_logger(state);
+    }
+
+    // Create log directories if they don't exist
+    fn ensure_log_directories_exist() {
+        if let Some(parent) = LOG_FILE_ABS_PATH.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                eprintln!("Failed to create parent log directory: {}", e);
+            }
+        }
+        
+        if let Some(parent) = ERROR_LOG_FILE_ABS_PATH.parent() {
+            if parent != LOG_FILE_ABS_PATH.parent().unwrap() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    eprintln!("Failed to create parent error log directory: {}", e);
+                }
+            }
+        }
+    }
+    
+    // Create empty log files if they don't exist
+    fn ensure_log_files_exist() {
+        // Create empty app.log if it doesn't exist
+        if let Err(e) = OpenOptions::new().write(true).create(true).open(&*LOG_FILE_ABS_PATH) {
+            eprintln!("Failed to create log file: {}", e);
+        }
+        
+        // Create empty error.log if it doesn't exist
+        if let Err(e) = OpenOptions::new().write(true).create(true).open(&*ERROR_LOG_FILE_ABS_PATH) {
+            eprintln!("Failed to create error log file: {}", e);
+        }
     }
 
     // Internal implementation function
@@ -288,6 +324,16 @@ impl Logger {
     }
 
     fn write_to_file(&self, path: &PathBuf, entry: &str) {
+        // Double-check parent directory exists before attempting to write to file
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    eprintln!("Failed to create log directory {}: {}", parent.display(), e);
+                    return;
+                }
+            }
+        }
+
         let metadata = fs::metadata(path).ok();
         let file_size = metadata.map(|m| m.len()).unwrap_or(0);
         let _guard = WRITE_LOCK.lock().unwrap();
@@ -327,6 +373,8 @@ impl Logger {
             }
             Err(e) => {
                 eprintln!("Failed to open log file for writing: {}", e);
+                eprintln!("Path: {}", path.display());
+                eprintln!("Parent exists: {}", path.parent().map_or(false, |p| p.exists()));
                 // Create an error using our error handling module but just log it
                 let error = Error::new(
                     ErrorCode::ResourceNotFound,

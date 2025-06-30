@@ -10,14 +10,13 @@
 
 <img src="assets/screenshot_ThisPC.png" alt="Fast Search Feature" width="1000px"/>
 
-
 </div>
 
 ## 🔍 Current Status
 
 Cross platform compatibility is given and it supports all common Linux distros, which are supported
 by Tauri. If there is an interest of contributing feel free to join the
-[discord channel](https://discord.com/invite/dnVJQtNXjr) from Connaticus.
+[discord channel](https://discord.com/invite/dnVJQtNXjr) from Connaticus or message me or my team.
 
 ## Coming Soon
 
@@ -27,8 +26,10 @@ by Tauri. If there is an interest of contributing feel free to join the
 
 # 🛠️ Installation
 
-For the installation there are packages provided with the current stable version. If there are no
-packages for your system you can compile the Explorer from source with the given instructions.
+Our plan is to provide installers for the supported operating systems or common package installers.
+Unfortunately we have serious Problems with Tauri and creating installers. There are some installers
+for linux under `dist-builds`. In the future there will be ready to go packages for macOS, Linux and
+Windows until then please refer to the compilation from source for your computer.
 
 ## Installation from source
 
@@ -36,6 +37,12 @@ packages for your system you can compile the Explorer from source with the given
 
 - [NodeJS](https://nodejs.org/) (stable version)
 - [Rust](https://www.rust-lang.org/) (stable version)
+- [Tauri CLI](https://tauri.app/v1/guides/getting-started/prerequisites/) (version >2.4.0)
+- [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) (comes with Rust)
+- [Vite](https://vitejs.dev/guide/#scaffolding-your-first-vite-project) (comes with Tauri CLI)
+
+Other required dependencies are installed automatically by the Tauri CLI. If they are not please
+contact us.
 
 ### Install with compiling from source
 
@@ -43,20 +50,20 @@ Note that on macOS you need XCode installed with the build tools.
 
 ```bash
 # Install Tauri CLI
-cargo install tauri-cli # The version should be >2.4.0
+cargo install tauri-cli # The version should be >2.4.0 if not already installed
 
 # Build for production
 cargo tauri build
 ```
 
-After that you need to follow the instructions for your operating system because now the installer
-for your system is created and you need to install the application.
+Go into the build directory and run the created binary. The binary is located in
+`FileExplorer/src-tauri/target/release/bundle/`. The name of the binary is `file-explorer` or
 
 ### 🐧 Linux
 
 Under Linux the given command generates an `.deb`, `.rpm`, `AppImage` in the
-`FileExplorer/src-tauri/target/release/bundle` folder. From there on open the file and drag it into
-the applications folder. Then it should be available.
+`FileExplorer/src-tauri/target/release/bundle` folder. Select the one which fits your distribution.
+Either run the AppImage, Binary or install the `.deb` or `.rpm` package.
 
 #### For the `AppImage`
 
@@ -67,10 +74,25 @@ chmod +x yourapp-x.y.z.AppImage
 ./yourapp-x.y.z.AppImage
 ```
 
+Recommended is to use the binary created in `FileExplorer/src-tauri/target/release/src-tauri`. Give
+it executable permissions and then run it from the terminal. You can also put it into your user
+binaries folder, e.g. `~/bin`, and add it to your PATH variable.
+
 ### 🍎 macOS
 
+```bash
+# Install Tauri CLI
+cargo install tauri-cli # The version should be >2.4.0 if not already installed
+
+# Build for production
+cargo tauri build
+```
+
 Tauri creates an `.dmg` or `.app` bundle under the folder
-`FileExplorer/src-tauri/target/release/bundle/macos/`. Open the
+`FileExplorer/src-tauri/target/release/bundle/macos/`. Recommended is to use the binary created in
+`FileExplorer/src-tauri/target/release/src-tauri`. Give it executable permissions and then run it
+from the terminal. You can also put it into your user binaries folder, e.g. `~/bin`, and add it to
+your PATH variable.
 
 ### 🪟 Windows
 
@@ -85,14 +107,15 @@ application. Then you can completely remove the `FileExplorer` folder.
 # Install Tauri CLI
 cargo install tauri-cli # The version should be >2.4.0
 
-# Run in development mode
-cargo tauri dev
-
 # Build for production
 cargo tauri build
+
+# Run the development server
+cargo tauri dev
 ```
 
 ## 📸 Images
+
 <div align="center">
 <img src="assets/screenshot_details.png" width="700px"/>
 
@@ -124,7 +147,7 @@ thousand paths:
 
 | Operation   | Fast File Explorer | Windows Explorer |
 | ----------- | :----------------: | :--------------: |
-| File search |        ~5ms        |   (3min 45sec)   |
+| File search |        ~2ms        |   (3min 45sec)   |
 
 ## 🤝 Contributing
 
@@ -133,7 +156,8 @@ Contributions are welcome! Before contributing, please read our
 
 ## 📝 License
 
-This project is licensed under the GNU General Public License v3.0 – see the LICENSE file for details.
+This project is licensed under the GNU General Public License v3.0 – see the LICENSE file for
+details.
 
 ## 📬 Contact
 

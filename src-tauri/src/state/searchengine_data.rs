@@ -5,7 +5,7 @@ use std::time::Instant;
 use crate::log_error;
 #[cfg(test)]
 use crate::log_info;
-use crate::search_engine::autocomplete_engine::{AutocompleteEngine, EngineStats};
+use crate::search_engine::search_core::{SearchCore, EngineStats};
 use crate::models::search_engine_config::SearchEngineConfig;
 use crate::state::SettingsState;
 
@@ -164,7 +164,7 @@ impl Default for SearchEngine {
 /// Offers methods for searching, indexing, and managing the search engine.
 pub struct SearchEngineState {
     pub data: Arc<Mutex<SearchEngine>>,
-    pub engine: Arc<Mutex<AutocompleteEngine>>,
+    pub engine: Arc<Mutex<SearchCore>>,
     settings_state: Arc<Mutex<SettingsState>>,
 }
 
@@ -197,7 +197,20 @@ impl SearchEngineState {
             inner_settings.backend_settings.search_engine_config.clone()
         };
         
-        let engine = AutocompleteEngine::new(config.cache_size, config.max_results);
+        // Create a new RankingConfig with the directory boost enabled/disabled
+        // based on the prefer_directories setting
+        let mut ranking_config = config.ranking_config.clone();
+        if !config.prefer_directories {
+            ranking_config.directory_ranking_boost = 0.0; // Disable directory boost if not preferred
+        }
+        
+        // Pass the ranking_config from settings to the autocomplete engine
+        let engine = SearchCore::new(
+            config.cache_size, 
+            config.max_results,
+            config.cache_ttl.unwrap(),
+            ranking_config,
+        );
 
         Self {
             data: Arc::new(Mutex::new(Self::save_default_search_engine_in_state(config))),
@@ -309,7 +322,7 @@ impl SearchEngineState {
             // Get the engine again for the recursive operation
             {
                 let mut engine = self.engine.lock().unwrap();
-                engine.add_paths_recursive(folder_str, Some(&excluded_patterns));
+                engine.add_paths_recursive(folder_str, Some(&excluded_patterns.unwrap()));
             }
 
             // Update status and metrics after indexing completes or stops
@@ -722,7 +735,7 @@ impl SearchEngineState {
         
         let mut engine = self.engine.lock().unwrap();
         // Use the new method to check exclusions before adding
-        engine.add_path_with_exclusion_check(path, Some(&excluded_patterns));
+        engine.add_path_with_exclusion_check(path, Some(&excluded_patterns.unwrap()));
         Ok(())
     }
 

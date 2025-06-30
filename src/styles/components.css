@@ -605,3 +605,7 @@
 .list-item-interactive:hover {
     background-color: var(--surface-hover);
 }
+
+.theme-dark .icon {
+    filter: invert();
+}

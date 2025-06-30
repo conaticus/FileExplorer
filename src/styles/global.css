@@ -177,3 +177,58 @@ img, svg {
 .panel-resize-handle:hover {
     background-color: var(--accent);
 }
+
+.main-layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+}
+
+.terminal-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin-left: 240px;
+    z-index: 100;
+}
+
+.main-layout.with-terminal .content-section {
+    overflow-y: auto;
+}
+
+.terminal-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-color);
+    margin-left: 8px;
+}
+
+.terminal-toggle:hover {
+    background-color: var(--hover-color);
+}
+
+.terminal-toggle.active {
+    color: var(--accent-color);
+}
+
+.terminal-toggle .icon {
+    font-size: 16px;
+}
+
+.main-layout.with-terminal .main-content {
+    overflow-y: auto;
+    transition: padding-bottom 0.2s ease;
+}
+
+.terminal-wrapper {
+    position: relative;
+    z-index: 10;
+}

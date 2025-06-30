@@ -3,6 +3,9 @@ import { useTheme } from '../providers/ThemeProvider';
 import { useFileSystem } from '../providers/FileSystemProvider';
 import { useContextMenu } from '../providers/ContextMenuProvider';
 import { useHistory } from '../providers/HistoryProvider';
+import { useSettings } from '../providers/SettingsProvider';
+import { invoke } from '@tauri-apps/api/core';
+import { showError, showConfirm, showSuccess } from '../utils/NotificationSystem';
 
 // Core Components
 import Sidebar from '../components/sidebar/Sidebar';
@@ -14,8 +17,9 @@ import DetailsPanel from '../components/explorer/DetailsPanel';
 import ContextMenu from '../components/contextMenu/ContextMenu';
 import ViewModes from '../components/explorer/ViewModes';
 
-//  Components
+// Additional Components
 import CreateFileButton from '../components/explorer/CreateFileButton';
+import RenameModal from '../components/common/RenameModal';
 import Terminal from '../components/terminal/Terminal';
 import TabManager from '../components/tabs/TabManager';
 import GlobalSearch from '../components/search/GlobalSearch';
@@ -23,18 +27,27 @@ import SettingsPanel from '../components/settings/SettingsPanel';
 import ThisPCView from '../components/thisPc/ThisPCView';
 import TemplateList from '../components/templates/TemplateList';
 
+// Hash Modals
+import HashFileModal from '../components/common/HashFileModal.jsx';
+import HashCompareModal from '../components/common/HashCompareModal.jsx';
+
+// Settings Applier
+import SettingsApplier from '../utils/SettingsApplier.js';
+
 import '../styles/layouts/mainLayout.css';
+import {replaceFileName} from "../utils/pathUtils.js";
 
 const MainLayout = () => {
     const { theme, toggleTheme } = useTheme();
     const { isLoading, currentDirData, selectedItems, loadDirectory, volumes } = useFileSystem();
     const { isOpen: isContextMenuOpen, position, items, closeContextMenu } = useContextMenu();
     const { currentPath } = useHistory();
+    const { settings } = useSettings();
 
-    // UI State
-    const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
+    // UI State - Initialize from settings
+    const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(settings.show_details_panel || false);
     const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-    const [viewMode, setViewMode] = useState('grid');
+    const [viewMode, setViewMode] = useState(settings.default_view || 'grid');
     const [searchValue, setSearchValue] = useState('');
     const [searchResults, setSearchResults] = useState(null);
     const [currentView, setCurrentView] = useState('explorer'); // 'explorer', 'this-pc', 'templates'
@@ -43,6 +56,29 @@ const MainLayout = () => {
     const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+    const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+    const [renameItem, setRenameItem] = useState(null);
+
+    // Hash Modal states
+    const [isHashFileModalOpen, setIsHashFileModalOpen] = useState(false);
+    const [isHashCompareModalOpen, setIsHashCompareModalOpen] = useState(false);
+    const [hashModalItem, setHashModalItem] = useState(null);
+
+    // Get terminal height for padding calculations
+    const terminalHeight = settings.terminal_height || 240;
+
+    // Update UI state when settings change
+    useEffect(() => {
+        if (settings.show_details_panel !== undefined) {
+            setIsDetailsPanelOpen(settings.show_details_panel);
+        }
+    }, [settings.show_details_panel]);
+
+    useEffect(() => {
+        if (settings.default_view) {
+            setViewMode(settings.default_view);
+        }
+    }, [settings.default_view]);
 
     // Load default location on first render
     useEffect(() => {
@@ -52,7 +88,7 @@ const MainLayout = () => {
         }
     }, [volumes, currentDirData, currentPath]);
 
-    // Listen for custom events
+    // Listen for custom events - VERBESSERT MIT DEBUG
     useEffect(() => {
         const handleOpenTemplates = () => {
             setCurrentView('templates');
@@ -75,11 +111,47 @@ const MainLayout = () => {
             setIsTerminalOpen(prev => !prev);
         };
 
+        const handleOpenRenameModal = (e) => {
+            if (e.detail && e.detail.item) {
+                setRenameItem(e.detail.item);
+                setIsRenameModalOpen(true);
+            }
+        };
+
+        // VERBESSERTE HASH EVENT HANDLERS MIT DEBUG
+        const handleOpenHashFileModal = (e) => {
+            console.log('🎯 MainLayout: Received open-hash-file-modal event:', e.detail);
+            if (e.detail && e.detail.item) {
+                console.log('✅ Opening Hash File Modal for:', e.detail.item.name);
+                setHashModalItem(e.detail.item);
+                setIsHashFileModalOpen(true);
+            } else {
+                console.log('❌ Invalid event detail:', e.detail);
+            }
+        };
+
+        const handleOpenHashCompareModal = (e) => {
+            console.log('🎯 MainLayout: Received open-hash-compare-modal event:', e.detail);
+            if (e.detail && e.detail.item) {
+                console.log('✅ Opening Hash Compare Modal for:', e.detail.item.name);
+                setHashModalItem(e.detail.item);
+                setIsHashCompareModalOpen(true);
+            } else {
+                console.log('❌ Invalid event detail:', e.detail);
+            }
+        };
+
+        // Event Listeners registrieren
         document.addEventListener('open-templates', handleOpenTemplates);
         document.addEventListener('show-properties', handleShowProperties);
         document.addEventListener('open-this-pc', handleOpenThisPC);
         document.addEventListener('open-settings', handleOpenSettings);
         document.addEventListener('toggle-terminal', handleToggleTerminal);
+        document.addEventListener('open-rename-modal', handleOpenRenameModal);
+        document.addEventListener('open-hash-file-modal', handleOpenHashFileModal);
+        document.addEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
+
+        console.log('📥 MainLayout: All event listeners registered');
 
         return () => {
             document.removeEventListener('open-templates', handleOpenTemplates);
@@ -87,6 +159,10 @@ const MainLayout = () => {
             document.removeEventListener('open-this-pc', handleOpenThisPC);
             document.removeEventListener('open-settings', handleOpenSettings);
             document.removeEventListener('toggle-terminal', handleToggleTerminal);
+            document.removeEventListener('open-rename-modal', handleOpenRenameModal);
+            document.removeEventListener('open-hash-file-modal', handleOpenHashFileModal);
+            document.removeEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
+            console.log('📤 MainLayout: All event listeners removed');
         };
     }, []);
 
@@ -150,6 +226,14 @@ const MainLayout = () => {
                 document.dispatchEvent(new CustomEvent('create-file'));
             }
 
+            // Rename: F2
+            if (e.key === 'F2' && selectedItems.length === 1) {
+                e.preventDefault();
+                document.dispatchEvent(new CustomEvent('open-rename-modal', {
+                    detail: { item: selectedItems[0] }
+                }));
+            }
+
             // Toggle terminal: Ctrl+`
             if ((e.ctrlKey || e.metaKey) && e.key === '`') {
                 e.preventDefault();
@@ -164,7 +248,7 @@ const MainLayout = () => {
 
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [selectedItems]);
 
     // Copy current path to clipboard
     const copyCurrentPath = useCallback(async () => {
@@ -194,6 +278,74 @@ const MainLayout = () => {
             console.error('Failed to copy path:', error);
         }
     }, [currentPath]);
+
+    // Handle rename
+    const handleRename = async (item, newName) => {
+        if (!newName || newName === item.name) return;
+
+        console.log(`!!! Renaming "${replaceFileName(item.path, newName)}"`);
+
+        try {
+            const separator = item.path.includes('\\') ? '\\' : '/';
+
+            console.log("Debug - separator detected:", separator);
+            console.log("Debug - original path:", item.path);
+
+            const pathParts = item.path.split(separator);
+            pathParts[pathParts.length - 1] = newName;
+            const newPath = pathParts.join(separator);
+
+            console.log("Debug - new path:", newPath);
+
+            await invoke('rename', {
+                oldPath: item.path,
+                newPath: newPath
+            });
+
+            // Reload current directory
+            if (currentPath) {
+                await loadDirectory(currentPath);
+            }
+        } catch (error) {
+            console.error('Rename operation failed:', error);
+            if (error.message && error.message.includes('already exists')) {
+                const shouldCreateCopy = await showConfirm(`A file named "${newName}" already exists. Create a copy instead?`, 'File Exists');
+                if (shouldCreateCopy) {
+                    const extension = newName.includes('.') ? newName.split('.').pop() : '';
+                    const baseName = extension ? newName.replace(`.${extension}`, '') : newName;
+                    const copyName = extension ? `${baseName} - Copy.${extension}` : `${baseName} - Copy`;
+                    handleRename(item, copyName);
+                }
+            } else {
+                showError(`Failed to rename: ${error.message || error}`);
+            }
+        }
+    };
+
+    // Handle view mode change with settings persistence
+    const handleViewModeChange = useCallback(async (newMode) => {
+        setViewMode(newMode);
+
+        // Save to settings
+        try {
+            await invoke('update_settings_field', { key: 'default_view', value: newMode });
+        } catch (error) {
+            console.error('Failed to save view mode setting:', error);
+        }
+    }, []);
+
+    // Handle details panel toggle with settings persistence
+    const handleDetailsPanelToggle = useCallback(async () => {
+        const newState = !isDetailsPanelOpen;
+        setIsDetailsPanelOpen(newState);
+
+        // Save to settings
+        try {
+            await invoke('update_settings_field', { key: 'show_details_panel', value: newState });
+        } catch (error) {
+            console.error('Failed to save details panel setting:', error);
+        }
+    }, [isDetailsPanelOpen]);
 
     // Clear search when changing directory
     useEffect(() => {
@@ -233,7 +385,10 @@ const MainLayout = () => {
     };
 
     return (
-        <div className="main-layout">
+        <div className={`main-layout ${isTerminalOpen ? 'with-terminal' : ''}`}>
+            {/* Settings Applier - applies settings to DOM */}
+            <SettingsApplier />
+
             {/* Sidebar */}
             <Sidebar
                 onTerminalToggle={() => setIsTerminalOpen(!isTerminalOpen)}
@@ -275,13 +430,13 @@ const MainLayout = () => {
                             {currentView === 'explorer' && (
                                 <ViewModes
                                     currentMode={viewMode}
-                                    onChange={setViewMode}
+                                    onChange={handleViewModeChange}
                                 />
                             )}
 
                             <button
                                 className={`icon-button ${isDetailsPanelOpen ? 'active' : ''}`}
-                                onClick={() => setIsDetailsPanelOpen(!isDetailsPanelOpen)}
+                                onClick={handleDetailsPanelToggle}
                                 title="Details Panel"
                                 aria-label="Toggle details panel"
                             >
@@ -300,7 +455,10 @@ const MainLayout = () => {
                     </div>
 
                     {/* Main content with file list and optional details panel */}
-                    <div className="main-content">
+                    <div
+                        className="main-content"
+                        style={isTerminalOpen ? { paddingBottom: `${terminalHeight}px` } : {}}
+                    >
                         {renderMainContent()}
 
                         {/* Details panel (when selected) */}
@@ -315,13 +473,15 @@ const MainLayout = () => {
                         )}
                     </div>
 
-                    {/* Terminal (when opened) */}
-                    {isTerminalOpen && (
-                        <Terminal
-                            isOpen={isTerminalOpen}
-                            onToggle={() => setIsTerminalOpen(!isTerminalOpen)}
-                        />
-                    )}
+                    {/* Terminal positioned absolutely at the bottom */}
+                    <div className="terminal-wrapper">
+                        {isTerminalOpen && (
+                            <Terminal
+                                isOpen={isTerminalOpen}
+                                onToggle={() => setIsTerminalOpen(!isTerminalOpen)}
+                            />
+                        )}
+                    </div>
                 </TabManager>
             </div>
 
@@ -343,6 +503,34 @@ const MainLayout = () => {
             <SettingsPanel
                 isOpen={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
+            />
+
+            <RenameModal
+                isOpen={isRenameModalOpen}
+                onClose={() => setIsRenameModalOpen(false)}
+                item={renameItem}
+                onRename={handleRename}
+            />
+
+            {/* Hash Modals - MIT DEBUG */}
+            <HashFileModal
+                isOpen={isHashFileModalOpen}
+                onClose={() => {
+                    console.log('🔴 Closing Hash File Modal');
+                    setIsHashFileModalOpen(false);
+                    setHashModalItem(null);
+                }}
+                item={hashModalItem}
+            />
+
+            <HashCompareModal
+                isOpen={isHashCompareModalOpen}
+                onClose={() => {
+                    console.log('🔴 Closing Hash Compare Modal');
+                    setIsHashCompareModalOpen(false);
+                    setHashModalItem(null);
+                }}
+                item={hashModalItem}
             />
         </div>
     );

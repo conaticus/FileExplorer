@@ -6,9 +6,10 @@ import Button from '../common/Button';
 import './settings.css';
 
 const SettingsPanel = ({ isOpen, onClose }) => {
-    const { settings, updateSetting, resetSettings } = useSettings();
+    const { settings, error, updateSetting, resetSettings, reloadSettings } = useSettings();
     const [isResetting, setIsResetting] = useState(false);
     const [activeTab, setActiveTab] = useState('appearance');
+    const [localError, setLocalError] = useState(null);
 
     const tabs = [
         { id: 'appearance', label: 'Appearance', icon: 'palette' },
@@ -18,9 +19,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
     ];
 
     const themes = [
-        { id: 'light', label: 'Light' },
-        { id: 'dark', label: 'Dark' },
-        { id: 'system', label: 'System' }
+        { id: false, label: 'Light' },
+        { id: true, label: 'Dark' }
     ];
 
     const viewModes = [
@@ -30,17 +30,43 @@ const SettingsPanel = ({ isOpen, onClose }) => {
     ];
 
     const fontSizes = [
-        { id: 'small', label: 'Small' },
-        { id: 'medium', label: 'Medium' },
-        { id: 'large', label: 'Large' }
+        { id: 'Small', label: 'Small' },
+        { id: 'Medium', label: 'Medium' },
+        { id: 'Large', label: 'Large' }
     ];
 
     const sortOptions = [
-        { id: 'name', label: 'Name' },
-        { id: 'size', label: 'Size' },
-        { id: 'modified', label: 'Date Modified' },
-        { id: 'type', label: 'Type' }
+        { id: 'Name', label: 'Name' },
+        { id: 'Size', label: 'Size' },
+        { id: 'Modified', label: 'Date Modified' },
+        { id: 'Type', label: 'Type' }
     ];
+
+    const sortDirections = [
+        { id: 'Ascending', label: 'Ascending' },
+        { id: 'Descending', label: 'Descending' }
+    ];
+
+    const doubleClickOptions = [
+        { id: 'OpenFilesAndFolders', label: 'Open files and folders' },
+        { id: 'SelectFilesAndFolders', label: 'Select files and folders' }
+    ];
+
+    const hashAlgorithms = [
+        { id: 'MD5', label: 'MD5' },
+        { id: 'SHA256', label: 'SHA-256' },
+        { id: 'SHA384', label: 'SHA-384' },
+        { id: 'SHA512', label: 'SHA-512' },
+        { id: 'CRC32', label: 'CRC32' }
+    ];
+
+    // Clear local error after some time
+    useEffect(() => {
+        if (localError) {
+            const timer = setTimeout(() => setLocalError(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [localError]);
 
     const handleReset = async () => {
         if (!confirm('Are you sure you want to reset all settings to default? This cannot be undone.')) {
@@ -50,12 +76,23 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         setIsResetting(true);
         try {
             await resetSettings();
+            setLocalError(null);
             alert('Settings have been reset to default.');
         } catch (error) {
             console.error('Failed to reset settings:', error);
-            alert('Failed to reset settings. Please try again.');
+            setLocalError('Failed to reset settings. Please try again.');
         } finally {
             setIsResetting(false);
+        }
+    };
+
+    const handleClearSearchIndex = async () => {
+        try {
+            await invoke('clear_search_engine');
+            alert('Search index has been cleared.');
+        } catch (error) {
+            console.error('Failed to clear search index:', error);
+            setLocalError('Failed to clear search index.');
         }
     };
 
@@ -65,13 +102,13 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                 <h3>Theme</h3>
                 <div className="radio-group">
                     {themes.map(theme => (
-                        <label key={theme.id} className="radio-option">
+                        <label key={theme.id.toString()} className="radio-option">
                             <input
                                 type="radio"
-                                name="theme"
+                                name="darkmode"
                                 value={theme.id}
-                                checked={settings.theme === theme.id}
-                                onChange={(e) => updateSetting('theme', e.target.value)}
+                                checked={settings.darkmode === theme.id}
+                                onChange={(e) => updateSetting('darkmode', e.target.value === 'true')}
                             />
                             <span>{theme.label}</span>
                         </label>
@@ -86,10 +123,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         <label key={mode.id} className="radio-option">
                             <input
                                 type="radio"
-                                name="defaultView"
+                                name="default_view"
                                 value={mode.id}
-                                checked={settings.defaultView === mode.id}
-                                onChange={(e) => updateSetting('defaultView', e.target.value)}
+                                checked={settings.default_view === mode.id}
+                                onChange={(e) => updateSetting('default_view', e.target.value)}
                             />
                             <span>{mode.label}</span>
                         </label>
@@ -100,8 +137,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
             <div className="settings-section">
                 <h3>Font Size</h3>
                 <select
-                    value={settings.fontSize || 'medium'}
-                    onChange={(e) => updateSetting('fontSize', e.target.value)}
+                    value={settings.font_size || 'Medium'}
+                    onChange={(e) => updateSetting('font_size', e.target.value)}
                     className="settings-select"
                 >
                     {fontSizes.map(size => (
@@ -112,15 +149,16 @@ const SettingsPanel = ({ isOpen, onClose }) => {
 
             <div className="settings-section">
                 <h3>Accent Color</h3>
-                <div className="color-options">
-                    {['blue', 'green', 'purple', 'orange', 'pink'].map(color => (
-                        <button
-                            key={color}
-                            className={`color-option color-${color} ${settings.accentColor === color ? 'selected' : ''}`}
-                            onClick={() => updateSetting('accentColor', color)}
-                            aria-label={`${color} theme`}
-                        />
-                    ))}
+                <div className="form-group">
+                    <input
+                        type="color"
+                        value={settings.accent_color || '#0672ef'}
+                        onChange={(e) => updateSetting('accent_color', e.target.value)}
+                        className="color-picker"
+                    />
+                    <div className="input-hint">
+                        Choose your preferred accent color for the interface.
+                    </div>
                 </div>
             </div>
 
@@ -128,10 +166,19 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
-                        checked={settings.showDetailsPanel || false}
-                        onChange={(e) => updateSetting('showDetailsPanel', e.target.checked)}
+                        checked={settings.show_details_panel || false}
+                        onChange={(e) => updateSetting('show_details_panel', e.target.checked)}
                     />
                     <span>Show details panel by default</span>
+                </label>
+
+                <label className="checkbox-option">
+                    <input
+                        type="checkbox"
+                        checked={settings.show_file_extensions !== false}
+                        onChange={(e) => updateSetting('show_file_extensions', e.target.checked)}
+                    />
+                    <span>Show file extensions</span>
                 </label>
             </div>
         </div>
@@ -144,8 +191,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
-                        checked={settings.confirmDelete !== false}
-                        onChange={(e) => updateSetting('confirmDelete', e.target.checked)}
+                        checked={settings.confirm_delete !== false}
+                        onChange={(e) => updateSetting('confirm_delete', e.target.checked)}
                     />
                     <span>Confirm before deleting files</span>
                 </label>
@@ -153,8 +200,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
-                        checked={settings.showHiddenFiles || false}
-                        onChange={(e) => updateSetting('showHiddenFiles', e.target.checked)}
+                        checked={settings.show_hidden_files_and_folders || false}
+                        onChange={(e) => updateSetting('show_hidden_files_and_folders', e.target.checked)}
                     />
                     <span>Show hidden files and folders</span>
                 </label>
@@ -162,8 +209,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
-                        checked={settings.autoRefresh !== false}
-                        onChange={(e) => updateSetting('autoRefresh', e.target.checked)}
+                        checked={settings.auto_refresh_dir !== false}
+                        onChange={(e) => updateSetting('auto_refresh_dir', e.target.checked)}
                     />
                     <span>Auto-refresh directories</span>
                 </label>
@@ -175,8 +222,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                     <div className="form-group">
                         <label>Sort by:</label>
                         <select
-                            value={settings.sortBy || 'name'}
-                            onChange={(e) => updateSetting('sortBy', e.target.value)}
+                            value={settings.sort_by || 'Name'}
+                            onChange={(e) => updateSetting('sort_by', e.target.value)}
                             className="settings-select"
                         >
                             {sortOptions.map(option => (
@@ -188,12 +235,13 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                     <div className="form-group">
                         <label>Direction:</label>
                         <select
-                            value={settings.sortDirection || 'asc'}
-                            onChange={(e) => updateSetting('sortDirection', e.target.value)}
+                            value={settings.sort_direction || 'Ascending'}
+                            onChange={(e) => updateSetting('sort_direction', e.target.value)}
                             className="settings-select"
                         >
-                            <option value="asc">Ascending</option>
-                            <option value="desc">Descending</option>
+                            {sortDirections.map(option => (
+                                <option key={option.id} value={option.id}>{option.label}</option>
+                            ))}
                         </select>
                     </div>
                 </div>
@@ -202,26 +250,18 @@ const SettingsPanel = ({ isOpen, onClose }) => {
             <div className="settings-section">
                 <h3>Double-click Behavior</h3>
                 <div className="radio-group">
-                    <label className="radio-option">
-                        <input
-                            type="radio"
-                            name="doubleClickBehavior"
-                            value="open"
-                            checked={(settings.doubleClickBehavior || 'open') === 'open'}
-                            onChange={(e) => updateSetting('doubleClickBehavior', e.target.value)}
-                        />
-                        <span>Open files and folders</span>
-                    </label>
-                    <label className="radio-option">
-                        <input
-                            type="radio"
-                            name="doubleClickBehavior"
-                            value="select"
-                            checked={settings.doubleClickBehavior === 'select'}
-                            onChange={(e) => updateSetting('doubleClickBehavior', e.target.value)}
-                        />
-                        <span>Select files and folders</span>
-                    </label>
+                    {doubleClickOptions.map(option => (
+                        <label key={option.id} className="radio-option">
+                            <input
+                                type="radio"
+                                name="double_click"
+                                value={option.id}
+                                checked={settings.double_click === option.id}
+                                onChange={(e) => updateSetting('double_click', e.target.value)}
+                            />
+                            <span>{option.label}</span>
+                        </label>
+                    ))}
                 </div>
             </div>
         </div>
@@ -234,8 +274,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
-                        checked={settings.searchCaseSensitive || false}
-                        onChange={(e) => updateSetting('searchCaseSensitive', e.target.checked)}
+                        checked={settings.case_sensitive_search || false}
+                        onChange={(e) => updateSetting('case_sensitive_search', e.target.checked)}
                     />
                     <span>Case-sensitive search by default</span>
                 </label>
@@ -243,19 +283,37 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
-                        checked={settings.searchIncludeHidden || false}
-                        onChange={(e) => updateSetting('searchIncludeHidden', e.target.checked)}
+                        checked={settings.index_hidden_files || false}
+                        onChange={(e) => updateSetting('index_hidden_files', e.target.checked)}
                     />
-                    <span>Include hidden files in search</span>
+                    <span>Include hidden files in search index</span>
                 </label>
 
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
-                        checked={settings.searchWholeWords || false}
-                        onChange={(e) => updateSetting('searchWholeWords', e.target.checked)}
+                        checked={settings.fuzzy_search_enabled !== false}
+                        onChange={(e) => updateSetting('fuzzy_search_enabled', e.target.checked)}
                     />
-                    <span>Match whole words only</span>
+                    <span>Enable fuzzy search</span>
+                </label>
+
+                <label className="checkbox-option">
+                    <input
+                        type="checkbox"
+                        checked={settings.enable_suggestions !== false}
+                        onChange={(e) => updateSetting('enable_suggestions', e.target.checked)}
+                    />
+                    <span>Enable search suggestions</span>
+                </label>
+
+                <label className="checkbox-option">
+                    <input
+                        type="checkbox"
+                        checked={settings.highlight_matches !== false}
+                        onChange={(e) => updateSetting('highlight_matches', e.target.checked)}
+                    />
+                    <span>Highlight search matches</span>
                 </label>
             </div>
 
@@ -266,23 +324,15 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
-                        checked={settings.enableSearchIndex !== false}
-                        onChange={(e) => updateSetting('enableSearchIndex', e.target.checked)}
+                        checked={settings.search_engine_enabled !== false}
+                        onChange={(e) => updateSetting('search_engine_enabled', e.target.checked)}
                     />
                     <span>Enable search indexing</span>
                 </label>
 
                 <Button
                     variant="secondary"
-                    onClick={async () => {
-                        try {
-                            await invoke('clear_search_engine');
-                            alert('Search index has been cleared.');
-                        } catch (error) {
-                            console.error('Failed to clear search index:', error);
-                            alert('Failed to clear search index.');
-                        }
-                    }}
+                    onClick={handleClearSearchIndex}
                 >
                     Clear Search Index
                 </Button>
@@ -300,8 +350,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         type="number"
                         min="200"
                         max="600"
-                        value={settings.terminalHeight || 240}
-                        onChange={(e) => updateSetting('terminalHeight', parseInt(e.target.value))}
+                        value={settings.terminal_height || 240}
+                        onChange={(e) => updateSetting('terminal_height', parseInt(e.target.value))}
                         className="settings-input"
                     />
                 </div>
@@ -309,8 +359,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
-                        checked={settings.enableAnimations !== false}
-                        onChange={(e) => updateSetting('enableAnimations', e.target.checked)}
+                        checked={settings.enable_animations_and_transitions !== false}
+                        onChange={(e) => updateSetting('enable_animations_and_transitions', e.target.checked)}
                     />
                     <span>Enable animations and transitions</span>
                 </label>
@@ -318,27 +368,47 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
-                        checked={settings.enableVirtualScrolling || false}
-                        onChange={(e) => updateSetting('enableVirtualScrolling', e.target.checked)}
+                        checked={settings.enable_virtual_scroll_for_large_directories || false}
+                        onChange={(e) => updateSetting('enable_virtual_scroll_for_large_directories', e.target.checked)}
                     />
                     <span>Enable virtual scrolling for large directories</span>
                 </label>
             </div>
 
             <div className="settings-section">
-                <h3>File Associations</h3>
-                <p>Configure which applications open specific file types.</p>
-                <Button variant="secondary">
-                    Manage File Associations
-                </Button>
+                <h3>Hash Algorithm</h3>
+                <div className="form-group">
+                    <label>Default hash algorithm:</label>
+                    <select
+                        value={settings.default_checksum_hash || 'SHA256'}
+                        onChange={(e) => updateSetting('default_checksum_hash', e.target.value)}
+                        className="settings-select"
+                    >
+                        {hashAlgorithms.map(algo => (
+                            <option key={algo.id} value={algo.id}>{algo.label}</option>
+                        ))}
+                    </select>
+                    <div className="input-hint">
+                        Used for generating file hashes and integrity checks.
+                    </div>
+                </div>
             </div>
 
             <div className="settings-section">
-                <h3>Data Sources</h3>
-                <p>Add additional locations to appear in the sidebar.</p>
-                <Button variant="secondary">
-                    Manage Data Sources
-                </Button>
+                <h3>Default Paths</h3>
+                <div className="form-group">
+                    <label>Default folder on opening:</label>
+                    <input
+                        type="text"
+                        value={settings.default_folder_path_on_opening || ''}
+                        onChange={(e) => updateSetting('default_folder_path_on_opening', e.target.value)}
+                        className="settings-input"
+                        placeholder="Leave empty to use system default"
+                    />
+                    <div className="input-hint">
+                        The folder to open when the application starts.
+                    </div>
+                </div>
             </div>
 
             <div className="settings-section danger-zone">
@@ -372,9 +442,22 @@ const SettingsPanel = ({ isOpen, onClose }) => {
             title="Settings"
             size="lg"
             footer={
-                <Button variant="primary" onClick={onClose}>
-                    Close
-                </Button>
+                <div className="settings-footer">
+                    {(error || localError) && (
+                        <div className="settings-error">
+                            <span className="icon-alert-triangle"></span>
+                            <span>{error || localError}</span>
+                        </div>
+                    )}
+                    <div className="settings-footer-buttons">
+                        <Button variant="primary" onClick={reloadSettings}>
+                            Save & Apply
+                        </Button>
+                        <Button variant="ghost" onClick={onClose}>
+                            Close
+                        </Button>
+                    </div>
+                </div>
             }
         >
             <div className="settings-panel">

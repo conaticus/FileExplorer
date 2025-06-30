@@ -13,6 +13,9 @@ NONE
 
 ## Returns
 - String - A JSON string representing the metadata. The structure is:
+
+Every Size is given in bytes so it is universal.
+
 ```json
 {
   "version": "test-version",

@@ -80,6 +80,8 @@ async fn main() {
 
     let app = state::setup_app_state(app);
 
+    log_info!("Starting Tauri application...");
+
     app.run(tauri::generate_context!()).expect({
         let error_msg = "error while running tauri application";
         log_critical!(error_msg);

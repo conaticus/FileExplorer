@@ -1,0 +1,8 @@
+[Desktop Entry]
+Categories=
+Comment=File Explorer
+Exec=src-tauri
+Icon=src-tauri
+Name=file-explorer
+Terminal=false
+Type=Application

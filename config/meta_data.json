@@ -10,20 +10,23 @@
       "mount_point": "/",
       "file_system": "apfs",
       "size": 494384795648,
-      "available_space": 46101285008,
+      "available_space": 27853673744,
       "is_removable": false,
-      "total_written_bytes": 444091572224,
-      "total_read_bytes": 1807292014592
+      "total_written_bytes": 1150990716928,
+      "total_read_bytes": 3043351838720
     },
     {
-      "volume_name": "Macintosh HD",
-      "mount_point": "/System/Volumes/Data",
+      "volume_name": "Minecraft",
+      "mount_point": "/Volumes/Minecraft",
       "file_system": "apfs",
-      "size": 494384795648,
-      "available_space": 46101285008,
-      "is_removable": false,
-      "total_written_bytes": 444091572224,
-      "total_read_bytes": 1807292149760
+      "size": 49242112,
+      "available_space": 39038976,
+      "is_removable": true,
+      "total_written_bytes": 0,
+      "total_read_bytes": 13757440
     }
-  ]
+  ],
+  "current_running_os": "macos",
+  "current_cpu_architecture": "aarch64",
+  "user_home_dir": "/Users/lauritzwiebusch"
 }

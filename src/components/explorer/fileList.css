@@ -4,20 +4,33 @@
     flex-direction: column;
     height: 100%;
     overflow: hidden;
+    min-height: 0; /* Wichtig für Flexbox scrolling */
 }
 
 .file-list-container {
     flex: 1;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
     position: relative;
     padding: var(--space-md);
+    padding-top: 0px;
     background-color: var(--background);
+    min-height: 0; /* Wichtig für Flexbox scrolling */
+    height: 100%;
 }
 
 .scrollable-content {
-    height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
+}
+
+/* Ensure proper scrolling for empty state */
+.empty-state-container {
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Loading state */
@@ -50,6 +63,7 @@
     flex-wrap: wrap;
     gap: var(--space-md);
     min-height: min-content;
+    padding-bottom: var(--space-lg); /* Extra space at bottom for better scrolling */
 }
 
 /* View modes */
@@ -82,6 +96,7 @@
     z-index: var(--z-index-sticky);
     font-weight: var(--font-weight-medium);
     color: var(--text-secondary);
+    margin: calc(-1 * var(--space-md)) calc(-1 * var(--space-md)) var(--space-md) calc(-1 * var(--space-md));
 }
 
 .file-list-column {
@@ -141,6 +156,26 @@
 .sort-desc::after {
     top: 40%;
     border-top: 6px solid var(--accent);
+}
+
+/* Improve scrollbar visibility */
+.file-list-container::-webkit-scrollbar {
+    width: 12px;
+}
+
+.file-list-container::-webkit-scrollbar-track {
+    background: var(--background-secondary);
+    border-radius: 6px;
+}
+
+.file-list-container::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 6px;
+    border: 2px solid var(--background-secondary);
+}
+
+.file-list-container::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
 }
 
 /* Responsive adjustments */

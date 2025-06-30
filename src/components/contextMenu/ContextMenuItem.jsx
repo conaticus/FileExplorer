@@ -39,16 +39,25 @@ const ContextMenuItem = ({
         }
     };
 
-    // Handle click
+    // Handle click - VERBESSERT MIT DEBUG
     const handleClick = (e) => {
         e.stopPropagation();
 
-        if (item.disabled) return;
+        console.log('🎯 ContextMenuItem clicked:', item.label);
+
+        if (item.disabled) {
+            console.log('❌ Item is disabled, ignoring click');
+            return;
+        }
 
         if (item.submenu) {
+            console.log('📂 Opening submenu for:', item.label);
             onSubmenuOpen();
         } else if (onAction) {
+            console.log('🚀 Executing action for:', item.label);
             onAction();
+        } else {
+            console.log('❌ No action defined for:', item.label);
         }
     };
 
@@ -96,12 +105,26 @@ const ContextMenuItem = ({
                                 return <li key={`sub-separator-${index}`} className="context-menu-separator"></li>;
                             }
 
-                            // Render submenu item
+                            // Render submenu item - VERBESSERT MIT DEBUG
                             return (
                                 <ContextMenuItem
                                     key={subItem.id || `sub-item-${index}`}
                                     item={subItem}
-                                    onAction={onAction}
+                                    onAction={() => {
+                                        console.log('🎯 Submenu item clicked:', subItem.label);
+                                        if (subItem.action) {
+                                            try {
+                                                subItem.action();
+                                                console.log('✅ Submenu action executed successfully');
+                                            } catch (error) {
+                                                console.error('💥 Submenu action failed:', error);
+                                            }
+                                        }
+                                        // Propagate onAction to close the main menu
+                                        if (onAction) {
+                                            setTimeout(() => onAction(), 10);
+                                        }
+                                    }}
                                 />
                             );
                         })}

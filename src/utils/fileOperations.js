@@ -10,6 +10,15 @@ export const openFile = async (filePath) => {
 };
 
 /**
+ * Open a file with the default application.
+ * @param {string} filePath - The path to the file to open.
+ * @returns {Promise<void>}
+ */
+export const openInDefaultApp = async (filePath) => {
+    return invoke('open_in_default_app', { path: filePath });
+};
+
+/**
  * Create a new file in the specified folder.
  * @param {string} folderPath - The absolute path to the folder where the file will be created.
  * @param {string} fileName - The name of the file to create.
@@ -32,6 +41,19 @@ export const createDirectory = async (folderPath, directoryName) => {
     return invoke('create_directory', {
         folder_path_abs: folderPath,
         directory_name: directoryName
+    });
+};
+
+/**
+ * Copy a file or directory.
+ * @param {string} sourcePath - The absolute path of the source file or directory.
+ * @param {string} destinationPath - The absolute path where to copy the file or directory.
+ * @returns {Promise<void>}
+ */
+export const copyItem = async (sourcePath, destinationPath) => {
+    return invoke('copy_file_or_dir', {
+        sourcePath: sourcePath,
+        destinationPath: destinationPath
     });
 };
 
@@ -146,6 +168,58 @@ export const removeTemplate = async (templatePath) => {
  */
 export const generateHash = async (path) => {
     return invoke('gen_hash_and_return_string', { path });
+};
+
+/**
+ * Copy multiple files/directories to clipboard.
+ * @param {Array<string>} sourcePaths - Array of paths to copy.
+ * @param {string} destinationPath - Destination directory path.
+ * @returns {Promise<void>}
+ */
+export const copyMultipleItems = async (sourcePaths, destinationPath) => {
+    const copyPromises = sourcePaths.map(sourcePath => {
+        const fileName = sourcePath.split('/').pop();
+        const destPath = `${destinationPath}/${fileName}`;
+        return copyItem(sourcePath, destPath);
+    });
+
+    return Promise.all(copyPromises);
+};
+
+/**
+ * Move multiple files/directories.
+ * @param {Array<string>} sourcePaths - Array of paths to move.
+ * @param {string} destinationPath - Destination directory path.
+ * @returns {Promise<void>}
+ */
+export const moveMultipleItems = async (sourcePaths, destinationPath) => {
+    const movePromises = sourcePaths.map(sourcePath => {
+        const fileName = sourcePath.split('/').pop();
+        const destPath = `${destinationPath}/${fileName}`;
+        return renameItem(sourcePath, destPath);
+    });
+
+    return Promise.all(movePromises);
+};
+
+/**
+ * Get file/directory information.
+ * @param {string} path - Path to the file or directory.
+ * @returns {Promise<Object>} - File/directory information.
+ */
+export const getItemInfo = async (path) => {
+    // This would need a specific endpoint in the backend
+    // For now, we can use the directory endpoint and find the item
+    const parentPath = path.substring(0, path.lastIndexOf('/'));
+    const itemName = path.substring(path.lastIndexOf('/') + 1);
+
+    const dirContent = await loadDirectory(parentPath);
+
+    // Look for the item in files and directories
+    const foundFile = dirContent.files?.find(file => file.name === itemName);
+    const foundDir = dirContent.directories?.find(dir => dir.name === itemName);
+
+    return foundFile || foundDir || null;
 };
 
 /**

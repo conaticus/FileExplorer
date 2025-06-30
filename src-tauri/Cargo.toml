@@ -2,17 +2,13 @@
 name = "src-tauri"
 version = "0.1.0"
 description = "File Explorer"
-authors = ["Conaticus", "ProtogenDelta", ]
+authors = ["Conaticus", "ProtogenDelta", "Marco Brandt", "Lauritz Wiebusch", "Daniel Schatz", "Sören Panten"]
 license = ""
 repository = ""
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-
 [dependencies]
-# Replace "0.1" with the correct version of the `explorer` crate
-tauri = { version = "2.4", features = ["unstable"] }  # Removed "log" feature
+tauri = { version = "2.4", features = ["unstable"] }
 serde = { version = "1", features = ["derive"] }
 sysinfo = "0.33.1"
 walkdir = "2.3.3"
@@ -36,8 +32,13 @@ smallvec = "1.15.0"
 open = "5.3.2"
 rustc-hash = "2.1.1"
 
+# macOS-spezifische Dependencies
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"
+cocoa = "0.25"
+
 [build-dependencies]
-tauri-build = { version = "2.1", features = [] }  # Removed "log" feature
+tauri-build = { version = "2.1", features = [] }
 
 [package.metadata.tauri]
 bundle.identifier = "com.software.fileexplorer"
@@ -46,11 +47,23 @@ bundle.identifier = "com.software.fileexplorer"
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
+
+# Benchmark fetures
+benchmarks = ["bench"]
+bench = []
+
+# Logging features
+log-all = ["search-error-logging", "index-error-logging", "search-progress-logging", "index-progress-logging"]
+log-search = ["search-progress-logging", "search-error-logging"]
+search-progress-logging = []
+search-error-logging = []
+log-index = ["index-progress-logging", "index-error-logging"]
+index-progress-logging = []
+index-error-logging = []
+
+# Testing features
+full = ["long-tests", "generate-test-data", "benchmarks", "open-file-in-app"]
+full-no-generate-test-data = ["long-tests", "benchmarks", "open-file-in-app"]
 open-file-in-app = []
 generate-test-data = []
 long-tests = []
-benchmarks = ["bench"]
-bench = []
-full = ["long-tests", "generate-test-data", "benchmarks", "open-file-in-app"]
-full-no-generate-test-data = ["long-tests", "benchmarks", "open-file-in-app"]
-

@@ -1,5 +1,4 @@
 use crate::models::search_engine_config::SearchEngineConfig;
-use crate::models::ranking_config::RankingConfig;
 use crate::models::logging_config::LoggingConfig;
 
 use serde::{Deserialize, Serialize};
@@ -9,8 +8,6 @@ use crate::commands::hash_commands::ChecksumMethod;
 pub struct BackendSettings {
     /// Configuration for the search engine, including result limits and indexing options
     pub search_engine_config: SearchEngineConfig,
-    /// Configuration for ranking weights used in search results
-    pub ranking_config: RankingConfig,
     /// Configuration for logging behavior
     pub logging_config: LoggingConfig,
     /// Default hash algorithm for file checksums
@@ -21,7 +18,6 @@ impl Default for BackendSettings {
     fn default() -> Self {
         Self {
             search_engine_config: SearchEngineConfig::default(),
-            ranking_config: RankingConfig::default(),
             logging_config: LoggingConfig::default(),
             default_checksum_hash: ChecksumMethod::SHA256,
         }

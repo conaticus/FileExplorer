@@ -38,6 +38,8 @@ pub struct RankingConfig {
     pub prefix_match_boost: f32,
     /// Boost for filename contains matches
     pub contains_match_boost: f32,
+    /// Boost for directory matches
+    pub directory_ranking_boost: f32,
 }
 
 impl Default for RankingConfig {
@@ -54,6 +56,7 @@ impl Default for RankingConfig {
             exact_match_boost: 1.0,
             prefix_match_boost: 0.3,
             contains_match_boost: 0.1,
+            directory_ranking_boost: 0.2,
         }
     }
 }

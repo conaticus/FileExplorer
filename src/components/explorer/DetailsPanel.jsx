@@ -93,7 +93,7 @@ const DetailsPanel = ({ item, isMultipleSelection = false }) => {
                         <span className="details-label">Size:</span>
                         <span className="details-value">
               {size}
-                            {!isDirectory && (
+                            {!isDirectory && item.size_in_bytes != null && (
                                 <span className="details-value-secondary"> ({item.size_in_bytes.toLocaleString()} bytes)</span>
                             )}
             </span>

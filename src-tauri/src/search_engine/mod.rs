@@ -1,8 +1,8 @@
-mod art_v4;
-pub mod autocomplete_engine;
+pub mod search_core;
 mod fast_fuzzy_v2;
 mod lru_cache_v2;
 mod path_cache_wrapper;
+mod art_v5;
 
 #[cfg(test)]
 pub mod test_generate_test_data {
