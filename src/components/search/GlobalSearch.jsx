@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useHistory } from '../../providers/HistoryProvider';
 import { useFileSystem } from '../../providers/FileSystemProvider';
@@ -15,6 +15,15 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     const [searchEngineInfo, setSearchEngineInfo] = useState(null);
     const [selectedExtensions, setSelectedExtensions] = useState([]);
     const [isIndexing, setIsIndexing] = useState(false);
+    const [indexingProgress, setIndexingProgress] = useState({
+        files_indexed: 0,
+        files_discovered: 0,
+        percentage_complete: 0.0,
+        current_path: null,
+        estimated_time_remaining: null,
+        start_time: null
+    });
+    const progressIntervalRef = useRef(null);
     const [filtersExpanded, setFiltersExpanded] = useState(false);
     const [statsExpanded, setStatsExpanded] = useState(false);
 
@@ -48,23 +57,106 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     useEffect(() => {
         const initializeSearchEngine = async () => {
             if (volumes.length > 0 && searchEngineInfo) {
+                console.log('Initializing search engine with volumes:', volumes);
+                console.log('Search engine info:', searchEngineInfo);
+
                 // Check if search engine has no indexed files
                 const hasNoIndexedFiles = !searchEngineInfo.stats?.trie_size || searchEngineInfo.stats.trie_size === 0;
+
+                console.log('Has no indexed files:', hasNoIndexedFiles, 'Is indexing:', isIndexing);
 
                 if (hasNoIndexedFiles && !isIndexing) {
                     console.log('Search engine is empty, starting auto-indexing...');
                     await startAutoIndexing();
+                } else {
+                    console.log('Skipping auto-indexing - either has files or already indexing');
                 }
+            } else {
+                console.log('Not initializing search engine - volumes:', volumes.length, 'searchEngineInfo:', !!searchEngineInfo);
             }
         };
 
         initializeSearchEngine();
     }, [volumes, searchEngineInfo, isIndexing]);
 
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            stopProgressPolling();
+        };
+    }, []);
+
+    // Start polling for progress when indexing begins
+    const startProgressPolling = () => {
+        if (progressIntervalRef.current) return; // Already polling
+
+        console.log('Starting progress polling...');
+
+        progressIntervalRef.current = setInterval(async () => {
+            try {
+                console.log('Polling for progress...');
+                const [status, progress] = await Promise.all([
+                    invoke('get_indexing_status'),
+                    invoke('get_indexing_progress')
+                ]);
+
+                console.log('Progress poll result:', {
+                    status,
+                    progress: {
+                        files_indexed: progress.files_indexed,
+                        files_discovered: progress.files_discovered,
+                        percentage: progress.percentage_complete,
+                        current_path: progress.current_path ? progress.current_path.split('/').pop() : null
+                    }
+                });
+
+                setIndexingProgress(progress);
+
+                // Check if indexing is complete
+                if (status !== 'Indexing') {
+                    console.log('Indexing completed, stopping polling. Final status:', status);
+                    setIsIndexing(false);
+                    stopProgressPolling();
+                    // Reload search engine info after indexing completes
+                    await loadSearchEngineInfo();
+                }
+            } catch (error) {
+                console.error('Error polling progress:', error);
+                // Don't stop polling on error, just log it
+            }
+        }, 200); // Reduced polling interval for more responsive updates
+    };
+
+    const stopProgressPolling = () => {
+        if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+        }
+    };
+
+    // Format time remaining
+    const formatTimeRemaining = (ms) => {
+        if (!ms) return 'Calculating...';
+
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+
+        if (hours > 0) {
+            return `${hours}h ${minutes % 60}m`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${seconds % 60}s`;
+        } else {
+            return `${seconds}s`;
+        }
+    };
+
     // Load search engine information
     const loadSearchEngineInfo = async () => {
         try {
+            console.log('Loading search engine info...');
             const info = await invoke('get_search_engine_info');
+            console.log('Search engine info loaded:', info);
             setSearchEngineInfo(info);
         } catch (error) {
             console.error('Failed to load search engine info:', error);
@@ -155,9 +247,25 @@ const GlobalSearch = ({ isOpen, onClose }) => {
 
     // Auto-start indexing for volumes
     const startAutoIndexing = async () => {
-        if (volumes.length === 0 || isIndexing) return;
+        if (volumes.length === 0 || isIndexing) {
+            console.log('Skipping auto-indexing - no volumes or already indexing');
+            return;
+        }
+
+        console.log('Starting auto-indexing for volumes:', volumes);
 
         setIsIndexing(true);
+        setIndexingProgress({
+            files_indexed: 0,
+            files_discovered: 0,
+            percentage_complete: 0.0,
+            current_path: null,
+            estimated_time_remaining: null,
+            start_time: Date.now()
+        });
+
+        // Start polling before starting indexing
+        startProgressPolling();
 
         try {
             console.log('Starting background indexing for volumes...');
@@ -165,42 +273,67 @@ const GlobalSearch = ({ isOpen, onClose }) => {
             // Index all volumes in background
             for (const volume of volumes) {
                 console.log(`Adding ${volume.mount_point} to search index...`);
-                await invoke('add_paths_recursive', {
+
+                const result = await invoke('add_paths_recursive_async', {
                     folder: volume.mount_point
                 });
+
+                console.log(`Indexing result for ${volume.mount_point}:`, result);
             }
 
-            // Reload search engine info after indexing
-            await loadSearchEngineInfo();
+            console.log('Auto-indexing initiated successfully');
 
         } catch (error) {
             console.error('Auto-indexing failed:', error);
-        } finally {
             setIsIndexing(false);
+            stopProgressPolling();
+
+            // Show error to user
+            alert(`Failed to start indexing: ${error.message || error}`);
         }
     };
 
     // Manual indexing trigger
     const startManualIndexing = async () => {
-        if (volumes.length === 0) return;
+        if (volumes.length === 0) {
+            alert('No volumes available for indexing');
+            return;
+        }
+
+        console.log('Starting manual indexing for volumes:', volumes);
 
         setIsIndexing(true);
+        setIndexingProgress({
+            files_indexed: 0,
+            files_discovered: 0,
+            percentage_complete: 0.0,
+            current_path: null,
+            estimated_time_remaining: null,
+            start_time: Date.now()
+        });
+
+        // Start polling before starting indexing
+        startProgressPolling();
 
         try {
             for (const volume of volumes) {
-                await invoke('add_paths_recursive', {
+                console.log(`Manually indexing ${volume.mount_point}...`);
+
+                const result = await invoke('add_paths_recursive_async', {
                     folder: volume.mount_point
                 });
+
+                console.log(`Manual indexing result for ${volume.mount_point}:`, result);
             }
 
-            await loadSearchEngineInfo();
+            console.log('Manual indexing initiated successfully');
             alert('Indexing started successfully. This may take some time to complete.');
 
         } catch (error) {
             console.error('Manual indexing failed:', error);
             alert(`Failed to start indexing: ${error.message || error}`);
-        } finally {
             setIsIndexing(false);
+            stopProgressPolling();
         }
     };
 
@@ -261,6 +394,63 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                     <span className="status-value indexing">In Progress...</span>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Indexing Progress UI */}
+                    {isIndexing && (
+                        <div className="indexing-progress">
+                            <div className="progress-header">
+                                <h3>Indexing Files...</h3>
+                                <span className="progress-percentage">
+                                    {indexingProgress.percentage_complete.toFixed(1)}%
+                                </span>
+                            </div>
+
+                            <div className="progress-bar">
+                                <div
+                                    className="progress-fill"
+                                    style={{ width: `${indexingProgress.percentage_complete}%` }}
+                                />
+                            </div>
+
+                            <div className="progress-details">
+                                <div className="progress-stats">
+                                    <span>
+                                        {indexingProgress.files_indexed} / {indexingProgress.files_discovered} files
+                                    </span>
+                                    {indexingProgress.estimated_time_remaining && (
+                                        <span>
+                                            {formatTimeRemaining(indexingProgress.estimated_time_remaining)} remaining
+                                        </span>
+                                    )}
+                                </div>
+
+                                {indexingProgress.current_path && (
+                                    <div className="current-file">
+                                        <span className="current-file-label">Processing:</span>
+                                        <span className="current-file-path" title={indexingProgress.current_path}>
+                                            {indexingProgress.current_path.split('/').pop() || indexingProgress.current_path}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await invoke('stop_indexing');
+                                        setIsIndexing(false);
+                                        stopProgressPolling();
+                                        loadSearchEngineInfo(); // Refresh info after stopping
+                                    } catch (error) {
+                                        console.error('Failed to stop indexing:', error);
+                                    }
+                                }}
+                                className="stop-indexing-btn"
+                            >
+                                Stop Indexing
+                            </button>
                         </div>
                     )}
 
