@@ -3,6 +3,15 @@ import { useHistory } from '../../providers/HistoryProvider';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import './pathBreadcrumb.css';
 
+/**
+ * PathBreadcrumb component - Displays the current file path as interactive breadcrumbs
+ * and provides path editing functionality
+ *
+ * @param {Object} props - Component props
+ * @param {Function} [props.onCopyPath] - Callback function to copy the current path
+ * @param {boolean} [props.isVisible=true] - Whether the breadcrumb is visible
+ * @returns {React.ReactElement} PathBreadcrumb component
+ */
 const PathBreadcrumb = ({ onCopyPath, isVisible = true }) => {
     const { currentPath, navigateTo } = useHistory();
     const { loadDirectory } = useFileSystem();
@@ -10,7 +19,12 @@ const PathBreadcrumb = ({ onCopyPath, isVisible = true }) => {
     const [editValue, setEditValue] = useState('');
     const inputRef = useRef(null);
 
-    // Parse path into segments for breadcrumb
+    /**
+     * Parses the current path into segments for breadcrumb navigation
+     * Handles both Windows and Unix-style paths
+     *
+     * @returns {Array<{name: string, path: string}>} Array of path segments with display name and full path
+     */
     const getPathSegments = () => {
         if (!currentPath) return [];
 
@@ -68,13 +82,21 @@ const PathBreadcrumb = ({ onCopyPath, isVisible = true }) => {
 
     const pathSegments = getPathSegments();
 
-    // Enable path editing mode
+    /**
+     * Enables path editing mode when clicking on the breadcrumb
+     */
     const handleClick = () => {
         setIsEditing(true);
         setEditValue(currentPath || '');
     };
 
-    // Navigate to path when Enter is pressed
+    /**
+     * Handles keyboard events in the path input
+     * - Enter: Navigate to the entered path
+     * - Escape: Cancel editing
+     *
+     * @param {React.KeyboardEvent} e - Keyboard event
+     */
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -90,7 +112,11 @@ const PathBreadcrumb = ({ onCopyPath, isVisible = true }) => {
         }
     };
 
-    // Navigate to segment
+    /**
+     * Navigates to the selected path segment
+     *
+     * @param {string} path - Path to navigate to
+     */
     const handleSegmentClick = (path) => {
         loadDirectory(path);
     };

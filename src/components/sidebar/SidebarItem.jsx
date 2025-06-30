@@ -1,6 +1,21 @@
 import React from 'react';
 import { useHistory } from '../../providers/HistoryProvider';
 
+/**
+ * SidebarItem component - Renders a single item in the sidebar
+ *
+ * @param {Object} props - Component props
+ * @param {string} props.icon - Icon name to display
+ * @param {string} props.name - Display name for the item
+ * @param {string} props.path - Path for navigation
+ * @param {string} [props.info] - Additional information text
+ * @param {boolean} [props.isCollapsed=false] - Whether the sidebar is collapsed
+ * @param {boolean} [props.isActive=false] - Whether this item is active
+ * @param {Function} props.onClick - Click handler for the item
+ * @param {Function} [props.onContextMenu] - Context menu handler
+ * @param {Array<{icon: string, tooltip: string, onClick: Function}>} [props.actions=[]] - Action buttons to display
+ * @returns {React.ReactElement} SidebarItem component
+ */
 const SidebarItem = ({
                          icon,
                          name,
@@ -12,7 +27,10 @@ const SidebarItem = ({
                          onContextMenu,
                          actions = []
                      }) => {
-    // Handle context menu
+    /**
+     * Handle context menu
+     * @param {React.MouseEvent} e - Context menu event
+     */
     const handleContextMenu = (e) => {
         e.preventDefault();
         if (onContextMenu) {

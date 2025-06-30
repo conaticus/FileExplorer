@@ -8,20 +8,35 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 import './search.css';
 
+/**
+ * GlobalSearch component - Provides system-wide file search capabilities
+ *
+ * @param {Object} props - Component props
+ * @param {boolean} props.isOpen - Whether the modal is open
+ * @param {Function} props.onClose - Callback function when modal is closed
+ * @returns {React.ReactElement} GlobalSearch modal component
+ */
 const GlobalSearch = ({ isOpen, onClose }) => {
+    // Search state
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [searchEngineInfo, setSearchEngineInfo] = useState(null);
     const [selectedExtensions, setSelectedExtensions] = useState([]);
     const [isIndexing, setIsIndexing] = useState(false);
+
+    // UI state
     const [filtersExpanded, setFiltersExpanded] = useState(false);
     const [statsExpanded, setStatsExpanded] = useState(false);
 
+    // Providers
     const { navigateTo } = useHistory();
     const { loadDirectory, volumes } = useFileSystem();
 
-    // Common file extensions for filtering
+    /**
+     * Common file extensions for filtering search results
+     * @type {Array<{value: string, label: string}>}
+     */
     const commonExtensions = [
         { value: 'txt', label: 'Text Files (.txt)' },
         { value: 'pdf', label: 'PDF Files (.pdf)' },
@@ -37,14 +52,18 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         { value: 'html', label: 'HTML Files (.html)' }
     ];
 
-    // Load search engine info when modal opens
+    /**
+     * Load search engine information when modal opens
+     */
     useEffect(() => {
         if (isOpen) {
             loadSearchEngineInfo();
         }
     }, [isOpen]);
 
-    // Auto-index on app start if search engine is empty
+    /**
+     * Auto-index on app start if search engine is empty
+     */
     useEffect(() => {
         const initializeSearchEngine = async () => {
             if (volumes.length > 0 && searchEngineInfo) {
@@ -61,7 +80,10 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         initializeSearchEngine();
     }, [volumes, searchEngineInfo, isIndexing]);
 
-    // Load search engine information
+    /**
+     * Load search engine information from the backend
+     * @async
+     */
     const loadSearchEngineInfo = async () => {
         try {
             const info = await invoke('get_search_engine_info');
@@ -72,7 +94,10 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         }
     };
 
-    // Perform search using the real API
+    /**
+     * Perform search using the backend API
+     * @async
+     */
     const performSearch = async () => {
         if (!query.trim()) return;
 
@@ -124,13 +149,18 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         }
     };
 
-    // Clear search
+    /**
+     * Clear search results and query
+     */
     const clearSearch = () => {
         setQuery('');
         setResults([]);
     };
 
-    // Handle extension selection
+    /**
+     * Handle file extension filter selection
+     * @param {string} extension - File extension to toggle
+     */
     const handleExtensionChange = (extension) => {
         setSelectedExtensions(prev => {
             if (prev.includes(extension)) {
@@ -141,7 +171,11 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         });
     };
 
-    // Open file/folder location
+    /**
+     * Navigate to the directory containing a search result
+     * @param {Object} result - Search result object
+     * @async
+     */
     const openItemLocation = async (result) => {
         try {
             await loadDirectory(result.directory);
@@ -153,7 +187,10 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         }
     };
 
-    // Auto-start indexing for volumes
+    /**
+     * Automatically start indexing for all volumes
+     * @async
+     */
     const startAutoIndexing = async () => {
         if (volumes.length === 0 || isIndexing) return;
 
@@ -180,7 +217,10 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         }
     };
 
-    // Manual indexing trigger
+    /**
+     * Manually trigger indexing for all volumes
+     * @async
+     */
     const startManualIndexing = async () => {
         if (volumes.length === 0) return;
 
@@ -204,6 +244,10 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         }
     };
 
+    /**
+     * Handle search form submission
+     * @param {React.FormEvent} e - Form submit event
+     */
     const handleSubmit = (e) => {
         e.preventDefault();
         performSearch();
@@ -468,3 +512,4 @@ const GlobalSearch = ({ isOpen, onClose }) => {
 };
 
 export default GlobalSearch;
+

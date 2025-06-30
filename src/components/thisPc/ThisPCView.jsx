@@ -6,6 +6,12 @@ import FileIcon from '../explorer/FileIcon';
 import { formatFileSize, formatDate } from '../../utils/formatters';
 import './thisPc.css';
 
+/**
+ * ThisPCView component - Displays system information, user folders, and storage drives
+ * Similar to "This PC" or "My Computer" in Windows Explorer
+ *
+ * @returns {React.ReactElement} ThisPCView component
+ */
 const ThisPCView = () => {
     const [systemInfo, setSystemInfo] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -15,17 +21,26 @@ const ThisPCView = () => {
     // Common folders for different operating systems
     const [userFolders, setUserFolders] = useState([]);
 
+    /**
+     * Load system information on component mount
+     */
     useEffect(() => {
         loadSystemInfo();
     }, []);
 
-    // Load user folders when systemInfo is available
+    /**
+     * Load user folders when systemInfo is available
+     */
     useEffect(() => {
         if (systemInfo) {
             loadUserFolders();
         }
     }, [systemInfo]);
 
+    /**
+     * Loads system information from the backend
+     * @async
+     */
     const loadSystemInfo = async () => {
         try {
             const metaDataJson = await invoke('get_meta_data_as_json');
@@ -38,6 +53,11 @@ const ThisPCView = () => {
         }
     };
 
+    /**
+     * Loads user folders based on the current operating system
+     * Checks which standard folders exist and adds them to the userFolders state
+     * @async
+     */
     const loadUserFolders = async () => {
         if (!systemInfo) return;
 
@@ -96,11 +116,11 @@ const ThisPCView = () => {
                     console.log(`Trying path: ${path}`);
                     try {
                         await invoke('open_directory', { path });
-                        console.log(`✓ Path exists and is accessible: ${path}`);
+                        console.log(`Path exists and is accessible: ${path}`);
                         foundPath = path;
                         break; // Use the first path that works
                     } catch (error) {
-                        console.log(`✗ Path failed: ${path}`, error.message || error);
+                        console.log(`Path failed: ${path}`, error.message || error);
                         // This path doesn't exist or isn't accessible, try the next one
                         continue;
                     }
@@ -126,6 +146,10 @@ const ThisPCView = () => {
         setUserFolders(folders);
     };
 
+    /**
+     * Gets the desktop folder path based on the current OS
+     * @returns {string} Desktop folder path
+     */
     const getDesktopPath = () => {
         if (systemInfo.current_running_os === 'windows') {
             return `${systemInfo.user_home_dir}\\Desktop`;
@@ -133,6 +157,10 @@ const ThisPCView = () => {
         return `${systemInfo.user_home_dir}/Desktop`;
     };
 
+    /**
+     * Gets the documents folder path based on the current OS
+     * @returns {string} Documents folder path
+     */
     const getDocumentsPath = () => {
         if (systemInfo.current_running_os === 'windows') {
             return `${systemInfo.user_home_dir}\\Documents`;
@@ -140,6 +168,10 @@ const ThisPCView = () => {
         return `${systemInfo.user_home_dir}/Documents`;
     };
 
+    /**
+     * Gets the downloads folder path based on the current OS
+     * @returns {string} Downloads folder path
+     */
     const getDownloadsPath = () => {
         if (systemInfo.current_running_os === 'windows') {
             return `${systemInfo.user_home_dir}\\Downloads`;
@@ -147,6 +179,10 @@ const ThisPCView = () => {
         return `${systemInfo.user_home_dir}/Downloads`;
     };
 
+    /**
+     * Gets the pictures folder path based on the current OS
+     * @returns {string} Pictures folder path
+     */
     const getPicturesPath = () => {
         if (systemInfo.current_running_os === 'windows') {
             return `${systemInfo.user_home_dir}\\Pictures`;
@@ -154,6 +190,10 @@ const ThisPCView = () => {
         return `${systemInfo.user_home_dir}/Pictures`;
     };
 
+    /**
+     * Gets the music folder path based on the current OS
+     * @returns {string} Music folder path
+     */
     const getMusicPath = () => {
         if (systemInfo.current_running_os === 'windows') {
             return `${systemInfo.user_home_dir}\\Music`;
@@ -161,6 +201,11 @@ const ThisPCView = () => {
         return `${systemInfo.user_home_dir}/Music`;
     };
 
+    /**
+     * Gets possible paths for videos folder based on the current OS
+     * Handles different naming conventions across operating systems
+     * @returns {Array<string>} Array of possible video folder paths
+     */
     const getVideosPaths = () => {
         if (!systemInfo) {
             console.warn('getVideosPaths called without systemInfo');
@@ -185,6 +230,12 @@ const ThisPCView = () => {
         return paths;
     };
 
+    /**
+     * Handles clicking on a folder item
+     * Navigates to the selected folder
+     * @param {string} path - The path to navigate to
+     * @async
+     */
     const handleFolderClick = async (path) => {
         console.log('Clicking folder with path:', path);
         try {
@@ -196,10 +247,19 @@ const ThisPCView = () => {
         }
     };
 
+    /**
+     * Handles clicking on a volume/drive item
+     * @param {Object} volume - The volume object to navigate to
+     */
     const handleVolumeClick = (volume) => {
         handleFolderClick(volume.mount_point);
     };
 
+    /**
+     * Safely ejects a removable volume
+     * @param {Object} volume - The volume to eject
+     * @async
+     */
     const ejectVolume = async (volume) => {
         if (!volume.is_removable) return;
 
@@ -361,3 +421,4 @@ const ThisPCView = () => {
 };
 
 export default ThisPCView;
+

@@ -1,6 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import SidebarItem from './SidebarItem';
 
+/**
+ * Favorites component - Displays and manages favorite locations
+ *
+ * @param {Object} props - Component props
+ * @param {boolean} [props.isCollapsed=false] - Whether the sidebar is collapsed
+ * @param {Function} props.onItemClick - Callback when an item is clicked
+ * @param {Function} props.onRemove - Callback to remove an item from favorites
+ * @param {Function} props.onAdd - Callback to add an item to favorites
+ * @returns {React.ReactElement} Favorites component
+ */
 const Favorites = ({
                        isCollapsed = false,
                        onItemClick,
@@ -9,7 +19,10 @@ const Favorites = ({
                    }) => {
     const [favorites, setFavorites] = useState([]);
 
-    // Load favorites from localStorage
+    /**
+     * Load favorites from localStorage
+     * @returns {void}
+     */
     const loadFavorites = useCallback(() => {
         try {
             const savedFavorites = JSON.parse(localStorage.getItem('fileExplorerFavorites') || '[]');
@@ -20,12 +33,16 @@ const Favorites = ({
         }
     }, []);
 
-    // Load favorites on mount
+    /**
+     * Load favorites on mount
+     */
     useEffect(() => {
         loadFavorites();
     }, [loadFavorites]);
 
-    // Listen for storage events (from other tabs) and custom events (from current tab)
+    /**
+     * Listen for storage events (from other tabs) and custom events (from current tab)
+     */
     useEffect(() => {
         const handleStorageChange = (e) => {
             if (e.key === 'fileExplorerFavorites') {
@@ -49,7 +66,11 @@ const Favorites = ({
         };
     }, [loadFavorites]);
 
-    // Handle context menu for favorites
+    /**
+     * Handle context menu for favorites
+     * @param {React.MouseEvent} e - Context menu event
+     * @param {Object} item - The favorite item
+     */
     const handleContextMenu = (e, item) => {
         e.preventDefault();
 

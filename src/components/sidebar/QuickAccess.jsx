@@ -1,10 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import SidebarItem from './SidebarItem';
 
+/**
+ * QuickAccess component - Displays recent locations for quick navigation
+ *
+ * @param {Object} props - Component props
+ * @param {boolean} [props.isCollapsed=false] - Whether the sidebar is collapsed
+ * @param {Function} props.onItemClick - Callback for item click
+ * @returns {React.ReactElement} QuickAccess component
+ */
 const QuickAccess = ({ isCollapsed = false, onItemClick }) => {
     const [recentItems, setRecentItems] = useState([]);
 
-    // Load recent locations from session storage
+    /**
+     * Load recent locations from session storage
+     * @returns {void}
+     */
     const loadRecentItems = useCallback(() => {
         try {
             const savedHistory = JSON.parse(sessionStorage.getItem('fileExplorerHistory') || '[]');
@@ -34,12 +45,16 @@ const QuickAccess = ({ isCollapsed = false, onItemClick }) => {
         }
     }, []);
 
-    // Load recent items on mount
+    /**
+     * Load recent items on mount
+     */
     useEffect(() => {
         loadRecentItems();
     }, [loadRecentItems]);
 
-    // Listen for navigation changes to update quick access
+    /**
+     * Listen for navigation changes to update quick access
+     */
     useEffect(() => {
         const handleNavigationChange = () => {
             loadRecentItems();

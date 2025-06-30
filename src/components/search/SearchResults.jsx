@@ -5,6 +5,15 @@ import useSearch from '../../hooks/useSearch';
 import { formatFileSize, formatDate } from '../../utils/formatters';
 import './searchResults.css';
 
+/**
+ * SearchResults component - Displays search results from the useSearch hook
+ *
+ * @param {Object} props - Component props
+ * @param {string} props.query - The search query string
+ * @param {string} props.viewMode - The current view mode (grid, list, details)
+ * @param {Function} props.onClearSearch - Callback function to clear the search
+ * @returns {React.ReactElement} SearchResults component
+ */
 const SearchResults = ({ query, viewMode, onClearSearch }) => {
     const {
         results,
@@ -15,7 +24,9 @@ const SearchResults = ({ query, viewMode, onClearSearch }) => {
         options
     } = useSearch();
 
-    // Perform search when query changes
+    /**
+     * Effect to perform search when query changes
+     */
     useEffect(() => {
         if (query) {
             updateQuery(query);
@@ -114,9 +125,9 @@ const SearchResults = ({ query, viewMode, onClearSearch }) => {
                     Search results for "{query}"
                 </h2>
                 <div className="search-controls">
-          <span className="search-count">
-            {totalResults} {totalResults === 1 ? 'result' : 'results'} found
-          </span>
+                  <span className="search-count">
+                    {totalResults} {totalResults === 1 ? 'result' : 'results'} found
+                  </span>
                     <button
                         className="btn btn-ghost btn-sm"
                         onClick={onClearSearch}
@@ -136,8 +147,8 @@ const SearchResults = ({ query, viewMode, onClearSearch }) => {
                 )}
                 {options.fileTypes.length > 0 && (
                     <span className="search-filter">
-            Type: {options.fileTypes.join(', ')}
-          </span>
+                      Type: {options.fileTypes.join(', ')}
+                    </span>
                 )}
             </div>
 

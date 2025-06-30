@@ -5,12 +5,23 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 import './settings.css';
 
+/**
+ * SettingsPanel component - Provides a comprehensive settings interface
+ * @param {Object} props - Component props
+ * @param {boolean} props.isOpen - Whether the settings panel is open
+ * @param {Function} props.onClose - Callback function when panel is closed
+ * @returns {React.ReactElement} Settings panel modal component
+ */
 const SettingsPanel = ({ isOpen, onClose }) => {
     const { settings, error, updateSetting, resetSettings, reloadSettings } = useSettings();
     const [isResetting, setIsResetting] = useState(false);
     const [activeTab, setActiveTab] = useState('appearance');
     const [localError, setLocalError] = useState(null);
 
+    /**
+     * Available tabs configuration
+     * @type {Array<{id: string, label: string, icon: string}>}
+     */
     const tabs = [
         { id: 'appearance', label: 'Appearance', icon: 'palette' },
         { id: 'behavior', label: 'Behavior', icon: 'settings' },
@@ -18,23 +29,39 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         { id: 'advanced', label: 'Advanced', icon: 'cog' }
     ];
 
+    /**
+     * Theme options configuration
+     * @type {Array<{id: boolean, label: string}>}
+     */
     const themes = [
         { id: false, label: 'Light' },
         { id: true, label: 'Dark' }
     ];
 
+    /**
+     * View mode options configuration
+     * @type {Array<{id: string, label: string}>}
+     */
     const viewModes = [
         { id: 'grid', label: 'Grid View' },
         { id: 'list', label: 'List View' },
         { id: 'details', label: 'Details View' }
     ];
 
+    /**
+     * Font size options configuration
+     * @type {Array<{id: string, label: string}>}
+     */
     const fontSizes = [
         { id: 'Small', label: 'Small' },
         { id: 'Medium', label: 'Medium' },
         { id: 'Large', label: 'Large' }
     ];
 
+    /**
+     * Sort options configuration
+     * @type {Array<{id: string, label: string}>}
+     */
     const sortOptions = [
         { id: 'Name', label: 'Name' },
         { id: 'Size', label: 'Size' },
@@ -42,16 +69,28 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         { id: 'Type', label: 'Type' }
     ];
 
+    /**
+     * Sort direction options configuration
+     * @type {Array<{id: string, label: string}>}
+     */
     const sortDirections = [
         { id: 'Ascending', label: 'Ascending' },
         { id: 'Descending', label: 'Descending' }
     ];
 
+    /**
+     * Double-click behavior options configuration
+     * @type {Array<{id: string, label: string}>}
+     */
     const doubleClickOptions = [
         { id: 'OpenFilesAndFolders', label: 'Open files and folders' },
         { id: 'SelectFilesAndFolders', label: 'Select files and folders' }
     ];
 
+    /**
+     * Hash algorithm options configuration
+     * @type {Array<{id: string, label: string}>}
+     */
     const hashAlgorithms = [
         { id: 'MD5', label: 'MD5' },
         { id: 'SHA256', label: 'SHA-256' },
@@ -60,7 +99,9 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         { id: 'CRC32', label: 'CRC32' }
     ];
 
-    // Clear local error after some time
+    /**
+     * Effect to clear local error after timeout
+     */
     useEffect(() => {
         if (localError) {
             const timer = setTimeout(() => setLocalError(null), 5000);
@@ -68,6 +109,11 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         }
     }, [localError]);
 
+    /**
+     * Handles resetting all settings to default values
+     * Confirms with user before proceeding
+     * @async
+     */
     const handleReset = async () => {
         if (!confirm('Are you sure you want to reset all settings to default? This cannot be undone.')) {
             return;
@@ -86,6 +132,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         }
     };
 
+    /**
+     * Handles clearing the search index
+     * @async
+     */
     const handleClearSearchIndex = async () => {
         try {
             await invoke('clear_search_engine');
@@ -96,6 +146,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         }
     };
 
+    /**
+     * Renders the appearance settings tab content
+     * @returns {React.ReactElement} Appearance tab content
+     */
     const renderAppearanceTab = () => (
         <div className="settings-tab-content">
             <div className="settings-section">
@@ -184,6 +238,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         </div>
     );
 
+    /**
+     * Renders the behavior settings tab content
+     * @returns {React.ReactElement} Behavior tab content
+     */
     const renderBehaviorTab = () => (
         <div className="settings-tab-content">
             <div className="settings-section">
@@ -267,6 +325,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         </div>
     );
 
+    /**
+     * Renders the search settings tab content
+     * @returns {React.ReactElement} Search tab content
+     */
     const renderSearchTab = () => (
         <div className="settings-tab-content">
             <div className="settings-section">
@@ -340,6 +402,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         </div>
     );
 
+    /**
+     * Renders the advanced settings tab content
+     * @returns {React.ReactElement} Advanced tab content
+     */
     const renderAdvancedTab = () => (
         <div className="settings-tab-content">
             <div className="settings-section">
@@ -425,6 +491,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         </div>
     );
 
+    /**
+     * Renders the appropriate tab content based on activeTab state
+     * @returns {React.ReactElement} The content for the active tab
+     */
     const renderTabContent = () => {
         switch (activeTab) {
             case 'appearance': return renderAppearanceTab();
@@ -483,3 +553,4 @@ const SettingsPanel = ({ isOpen, onClose }) => {
 };
 
 export default SettingsPanel;
+

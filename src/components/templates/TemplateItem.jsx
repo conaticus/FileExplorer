@@ -5,10 +5,27 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 import './templates.css';
 
+/**
+ * TemplateItem component - Displays a single template with actions
+ *
+ * @param {Object} props - Component props
+ * @param {Object} props.template - Template object to display
+ * @param {string} props.template.name - Template name
+ * @param {string} props.template.path - Template path
+ * @param {string} props.template.type - Template type (file or folder)
+ * @param {number} [props.template.size] - Template size in bytes
+ * @param {string} [props.template.createdAt] - Template creation date
+ * @param {Function} props.onUse - Callback when the template is used
+ * @param {Function} props.onRemove - Callback when the template is removed
+ * @returns {React.ReactElement} TemplateItem component
+ */
 const TemplateItem = ({ template, onUse, onRemove }) => {
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
 
-    // Determine icon based on template type
+    /**
+     * Determines the appropriate icon based on template type and file extension
+     * @returns {string} Icon name to use
+     */
     const getTemplateIcon = () => {
         if (template.type === 'folder') {
             return 'folder';
@@ -63,7 +80,11 @@ const TemplateItem = ({ template, onUse, onRemove }) => {
         }
     };
 
-    // Format file size
+    /**
+     * Formats file size into human-readable format
+     * @param {number} bytes - Size in bytes
+     * @returns {string} Formatted size string
+     */
     const formatSize = (bytes) => {
         if (!bytes && bytes !== 0) return 'Unknown size';
 
@@ -79,7 +100,11 @@ const TemplateItem = ({ template, onUse, onRemove }) => {
         return `${size.toFixed(1)} ${units[unitIndex]}`;
     };
 
-    // Get formatted date
+    /**
+     * Formats date into human-readable format
+     * @param {string} dateStr - Date string
+     * @returns {string} Formatted date string
+     */
     const formatDate = (dateStr) => {
         if (!dateStr) return 'Unknown date';
 
@@ -95,12 +120,18 @@ const TemplateItem = ({ template, onUse, onRemove }) => {
         }
     };
 
-    // Handle delete button click
+    /**
+     * Handles delete button click
+     * Opens confirmation modal
+     */
     const handleDeleteClick = () => {
         setIsConfirmDeleteOpen(true);
     };
 
-    // Confirm delete
+    /**
+     * Confirms template deletion
+     * Closes modal and calls onRemove callback
+     */
     const confirmDelete = () => {
         setIsConfirmDeleteOpen(false);
         onRemove();

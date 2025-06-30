@@ -1,15 +1,28 @@
 import React from 'react';
 import './viewModes.css';
 
+/**
+ * ViewModes component - Displays and handles switching between different file view modes
+ * @param {Object} props - Component props
+ * @param {string} [props.currentMode='grid'] - Currently active view mode
+ * @param {Function} [props.onChange] - Callback function when view mode changes
+ * @returns {React.ReactElement} ViewModes component
+ */
 const ViewModes = ({ currentMode = 'grid', onChange }) => {
-    // Available view modes
+    /**
+     * Available view modes configuration
+     * @type {Array<{id: string, label: string, icon: string}>}
+     */
     const viewModes = [
         { id: 'grid', label: 'Grid View', icon: 'grid' },
         { id: 'list', label: 'List View', icon: 'list' },
         { id: 'details', label: 'Details View', icon: 'details' },
     ];
 
-    // Handle view mode change
+    /**
+     * Handles view mode change and invokes the onChange callback
+     * @param {string} mode - The selected view mode ID
+     */
     const handleViewModeChange = (mode) => {
         if (onChange) {
             onChange(mode);

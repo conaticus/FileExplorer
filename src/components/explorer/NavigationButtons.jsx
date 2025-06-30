@@ -3,11 +3,19 @@ import { useHistory } from '../../providers/HistoryProvider';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import './navigationButtons.css';
 
+/**
+ * NavigationButtons component - Provides back, forward, and refresh navigation controls
+ * @returns {React.ReactElement} NavigationButtons component
+ */
 const NavigationButtons = () => {
     const { canGoBack, canGoForward, goBack, goForward, currentPath } = useHistory();
     const { loadDirectory } = useFileSystem();
 
-    // Handle refresh - only refresh the current directory, not the whole page
+    /**
+     * Handles directory refresh action
+     * Reloads the current directory and displays notification feedback
+     * @async
+     */
     const handleRefresh = async () => {
         if (currentPath) {
             try {

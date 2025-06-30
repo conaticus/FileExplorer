@@ -4,6 +4,15 @@ import { useHistory } from '../../providers/HistoryProvider';
 import { useSettings } from '../../providers/SettingsProvider';
 import './terminal.css';
 
+/**
+ * Terminal component - Provides a command-line interface within the application
+ * Supports built-in commands and passes through system commands
+ *
+ * @param {Object} props - Component props
+ * @param {boolean} props.isOpen - Whether the terminal is currently open
+ * @param {Function} props.onToggle - Callback function to toggle terminal visibility
+ * @returns {React.ReactElement} Terminal component
+ */
 const Terminal = ({ isOpen, onToggle }) => {
     const [commandHistory, setCommandHistory] = useState([]);
     const [currentCommand, setCurrentCommand] = useState('');
@@ -14,10 +23,15 @@ const Terminal = ({ isOpen, onToggle }) => {
     const { currentPath } = useHistory();
     const { settings } = useSettings();
 
-    // Get terminal height from settings
+    /**
+     * Get terminal height from settings with fallback to default value
+     * @type {number}
+     */
     const terminalHeight = settings.terminal_height || 240;
 
-    // Initialize with welcome message
+    /**
+     * Initialize terminal with welcome message on first render
+     */
     useEffect(() => {
         if (commandHistory.length === 0) {
             const welcomeMessage = {
@@ -31,7 +45,10 @@ Type 'help' to see available commands.`,
         }
     }, []);
 
-    // Update terminal when path changes
+    /**
+     * Update terminal output when current path changes
+     * Adds a notification in the terminal about the directory change
+     */
     useEffect(() => {
         if (currentPath) {
             const pathChangeMessage = {
@@ -43,14 +60,18 @@ Type 'help' to see available commands.`,
         }
     }, [currentPath]);
 
-    // Focus input when terminal opens
+    /**
+     * Focus input field when terminal opens
+     */
     useEffect(() => {
         if (isOpen && inputRef.current) {
             inputRef.current.focus();
         }
     }, [isOpen]);
 
-    // Scroll to bottom when command history changes
+    /**
+     * Automatically scroll to the bottom when command history updates
+     */
     useEffect(() => {
         if (terminalRef.current) {
             // Ensure proper scrolling without pushing content off screen
@@ -58,7 +79,10 @@ Type 'help' to see available commands.`,
         }
     }, [commandHistory]);
 
-    // Get terminal prompt
+    /**
+     * Generates the terminal prompt string with username, hostname and current path
+     * @returns {string} Formatted prompt string
+     */
     const getPrompt = () => {
         const username = 'user';
         const hostname = 'localhost';
@@ -66,7 +90,14 @@ Type 'help' to see available commands.`,
         return `${username}@${hostname}:${pathDisplay}$`;
     };
 
-    // Execute command - Format output properly
+    /**
+     * Executes a command using the Tauri backend
+     * Handles response parsing and error formatting
+     *
+     * @param {string} command - The command to execute
+     * @returns {Object} Result object with type and content
+     * @async
+     */
     const executeCommand = async (command) => {
         setIsExecuting(true);
 
@@ -181,7 +212,15 @@ Type 'help' to see available commands.`,
         }
     };
 
-    // Handle built-in commands
+    /**
+     * Handles built-in terminal commands
+     * Provides functionality for commands like help, clear, ls, etc.
+     *
+     * @param {string} command - The command to handle
+     * @param {Array<string>} args - Command arguments
+     * @returns {Object|null} Command result object or null if not a built-in command
+     * @async
+     */
     const handleBuiltinCommand = async (command, args) => {
         switch (command) {
             case 'help':
@@ -360,7 +399,13 @@ Type 'help' to see available commands.`,
         }
     };
 
-    // Handle command submission
+    /**
+     * Handles form submission for the terminal input
+     * Processes the command and displays the result
+     *
+     * @param {React.FormEvent} e - Form submit event
+     * @async
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -403,12 +448,20 @@ Type 'help' to see available commands.`,
         setHistoryIndex(-1);
     };
 
-    // Handle input changes
+    /**
+     * Handles input changes for the terminal command
+     * @param {React.ChangeEvent<HTMLInputElement>} e - Input change event
+     */
     const handleChange = (e) => {
         setCurrentCommand(e.target.value);
     };
 
-    // Handle keyboard navigation through command history
+    /**
+     * Handles keyboard navigation through command history and tab completion
+     * Supports arrow up/down for history navigation and tab for command completion
+     *
+     * @param {React.KeyboardEvent} e - Keyboard event
+     */
     const handleKeyDown = (e) => {
         if (isExecuting) return;
 
@@ -523,3 +576,4 @@ Type 'help' to see available commands.`,
 };
 
 export default Terminal;
+

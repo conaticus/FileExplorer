@@ -11,6 +11,14 @@ import { getTemplatePaths, useTemplate, removeTemplate, addTemplate } from '../.
 import { showError, showSuccess } from '../../utils/NotificationSystem';
 import './templates.css';
 
+/**
+ * TemplateList component - Displays and manages file and folder templates
+ * Allows users to save, apply, and remove templates for reuse
+ *
+ * @param {Object} props - Component props
+ * @param {Function} props.onClose - Callback function when the template list is closed
+ * @returns {React.ReactElement} TemplateList component
+ */
 const TemplateList = ({ onClose }) => {
     const [templates, setTemplates] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -24,7 +32,10 @@ const TemplateList = ({ onClose }) => {
     const { loadDirectory } = useFileSystem();
     const addTemplateInputRef = useRef(null);
 
-    // Load templates on mount
+    /**
+     * Load templates on component mount
+     * Also sets up event listener for template updates
+     */
     useEffect(() => {
         const loadTemplates = async () => {
             setIsLoading(true);
@@ -80,14 +91,20 @@ const TemplateList = ({ onClose }) => {
         };
     }, []);
 
-    // Open modal to use template
+    /**
+     * Opens the modal to use/apply a template
+     * @param {Object} template - The template to use
+     */
     const handleUseTemplate = (template) => {
         setSelectedTemplate(template);
         setDestinationPath(currentPath || '');
         setIsUseModalOpen(true);
     };
 
-    // Apply template
+    /**
+     * Applies the selected template to the specified destination path
+     * @async
+     */
     const applyTemplate = async () => {
         if (!selectedTemplate || !destinationPath) return;
 
@@ -108,7 +125,11 @@ const TemplateList = ({ onClose }) => {
         }
     };
 
-    // Remove template
+    /**
+     * Removes a template from the saved templates
+     * @param {Object} template - The template to remove
+     * @async
+     */
     const handleRemoveTemplate = async (template) => {
         try {
             await removeTemplate(template.path);
@@ -122,7 +143,9 @@ const TemplateList = ({ onClose }) => {
         }
     };
 
-    // Add new template - open modal
+    /**
+     * Opens the modal to add a new template
+     */
     const handleAddTemplate = () => {
         setNewTemplatePath('');
         setIsAddModalOpen(true);
@@ -135,7 +158,10 @@ const TemplateList = ({ onClose }) => {
         }, 100);
     };
 
-    // Save new template
+    /**
+     * Saves a new template from the specified path
+     * @async
+     */
     const saveNewTemplate = async () => {
         if (!newTemplatePath.trim()) return;
 
@@ -156,18 +182,27 @@ const TemplateList = ({ onClose }) => {
         }
     };
 
-    // Handle form submission for add template
+    /**
+     * Handles form submission for adding a template
+     * @param {React.FormEvent} e - Form submit event
+     */
     const handleAddTemplateSubmit = (e) => {
         e.preventDefault();
         saveNewTemplate();
     };
 
-    // Handle input change for add template
+    /**
+     * Handles input change for the template path
+     * @param {React.ChangeEvent<HTMLInputElement>} e - Input change event
+     */
     const handleAddTemplateInputChange = (e) => {
         setNewTemplatePath(e.target.value);
     };
 
-    // Handle key down for add template input
+    /**
+     * Handles key down events for the add template input
+     * @param {React.KeyboardEvent} e - Keyboard event
+     */
     const handleAddTemplateKeyDown = (e) => {
         if (e.key === 'Escape') {
             setIsAddModalOpen(false);
@@ -333,3 +368,4 @@ const TemplateList = ({ onClose }) => {
 };
 
 export default TemplateList;
+

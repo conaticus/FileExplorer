@@ -5,13 +5,22 @@ import Button from '../common/Button';
 import IconButton from '../common/IconButton';
 import './tabs.css';
 
+/**
+ * TabManager component - Manages multiple tabs for file explorer navigation
+ *
+ * @param {Object} props - Component props
+ * @param {React.ReactNode} props.children - Child components to render in the active tab
+ * @returns {React.ReactElement} TabManager component
+ */
 const TabManager = ({ children }) => {
     const [tabs, setTabs] = useState([]);
     const [activeTabId, setActiveTabId] = useState(null);
     const { currentPath } = useHistory();
     const { loadDirectory } = useFileSystem();
 
-    // Initialize with current path
+    /**
+     * Initialize with current path
+     */
     useEffect(() => {
         if (currentPath && tabs.length === 0) {
             const initialTab = {
@@ -25,7 +34,9 @@ const TabManager = ({ children }) => {
         }
     }, [currentPath, tabs.length]);
 
-    // Update active tab when path changes
+    /**
+     * Update active tab when path changes
+     */
     useEffect(() => {
         if (currentPath && activeTabId) {
             setTabs(prevTabs =>
@@ -38,16 +49,28 @@ const TabManager = ({ children }) => {
         }
     }, [currentPath, activeTabId]);
 
+    /**
+     * Generates a unique ID for a new tab
+     * @returns {string} Unique tab ID
+     */
     const generateTabId = () => {
         return 'tab_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     };
 
+    /**
+     * Extracts a display title from a file path
+     * @param {string} path - The file path
+     * @returns {string} The extracted tab title
+     */
     const getTabTitle = (path) => {
         if (!path) return 'Home';
         const segments = path.split(/[/\\]/).filter(Boolean);
         return segments.length > 0 ? segments[segments.length - 1] : 'Root';
     };
 
+    /**
+     * Creates a new tab with the current path
+     */
     const createNewTab = () => {
         const newTab = {
             id: generateTabId(),
@@ -60,6 +83,11 @@ const TabManager = ({ children }) => {
         switchToTab(newTab.id);
     };
 
+    /**
+     * Closes a tab and handles switching to another tab if needed
+     * @param {string} tabId - ID of the tab to close
+     * @param {React.MouseEvent} [event] - Optional click event
+     */
     const closeTab = (tabId, event) => {
         event?.stopPropagation();
 
@@ -82,6 +110,11 @@ const TabManager = ({ children }) => {
         }
     };
 
+    /**
+     * Switches to a different tab and loads its directory
+     * @param {string} tabId - ID of the tab to switch to
+     * @async
+     */
     const switchToTab = async (tabId) => {
         const tab = tabs.find(t => t.id === tabId);
         if (!tab) return;
@@ -99,6 +132,10 @@ const TabManager = ({ children }) => {
         }
     };
 
+    /**
+     * Creates a duplicate of an existing tab
+     * @param {string} tabId - ID of the tab to duplicate
+     */
     const duplicateTab = (tabId) => {
         const tab = tabs.find(t => t.id === tabId);
         if (!tab) return;
@@ -118,6 +155,11 @@ const TabManager = ({ children }) => {
         switchToTab(duplicatedTab.id);
     };
 
+    /**
+     * Reorders tabs after a drag and drop operation
+     * @param {number} dragIndex - Index of the tab being dragged
+     * @param {number} hoverIndex - Index where the tab should be inserted
+     */
     const reorderTabs = (dragIndex, hoverIndex) => {
         const newTabs = [...tabs];
         const draggedTab = newTabs[dragIndex];

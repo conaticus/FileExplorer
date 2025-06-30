@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './searchBar.css';
 
+/**
+ * SearchBar component - Provides a search input with expand/collapse functionality
+ *
+ * @param {Object} props - Component props
+ * @param {string} [props.value=''] - Initial value for the search input
+ * @param {Function} [props.onChange] - Callback function when input value changes
+ * @param {Function} [props.onSubmit] - Callback function when form is submitted
+ * @param {string} [props.placeholder='Search files and folders'] - Placeholder text for the input
+ * @returns {React.ReactElement} SearchBar component
+ */
 const SearchBar = ({ value = '', onChange, onSubmit, placeholder = 'Search files and folders' }) => {
     const [inputValue, setInputValue] = useState(value);
     const [isFocused, setIsFocused] = useState(false);
@@ -8,12 +18,17 @@ const SearchBar = ({ value = '', onChange, onSubmit, placeholder = 'Search files
     const inputRef = useRef(null);
     const searchBarRef = useRef(null);
 
-    // Update local state when props change
+    /**
+     * Update local state when props change
+     */
     useEffect(() => {
         setInputValue(value);
     }, [value]);
 
-    // Handle input change
+    /**
+     * Handle input change event
+     * @param {React.ChangeEvent<HTMLInputElement>} e - Input change event
+     */
     const handleChange = (e) => {
         const newValue = e.target.value;
         setInputValue(newValue);
@@ -23,7 +38,10 @@ const SearchBar = ({ value = '', onChange, onSubmit, placeholder = 'Search files
         }
     };
 
-    // Handle form submission
+    /**
+     * Handle form submission event
+     * @param {React.FormEvent} e - Form submit event
+     */
     const handleSubmit = (e) => {
         e.preventDefault();
 
@@ -32,13 +50,18 @@ const SearchBar = ({ value = '', onChange, onSubmit, placeholder = 'Search files
         }
     };
 
-    // Handle focus
+    /**
+     * Handle input focus event
+     */
     const handleFocus = () => {
         setIsFocused(true);
         setIsExpanded(true);
     };
 
-    // Handle blur
+    /**
+     * Handle input blur event
+     * Only collapses search bar if input is empty
+     */
     const handleBlur = () => {
         setIsFocused(false);
 
@@ -48,7 +71,10 @@ const SearchBar = ({ value = '', onChange, onSubmit, placeholder = 'Search files
         }
     };
 
-    // Handle clear button
+    /**
+     * Handle clear button click
+     * Clears input and focuses back on the search input
+     */
     const handleClear = () => {
         setInputValue('');
 
@@ -61,7 +87,10 @@ const SearchBar = ({ value = '', onChange, onSubmit, placeholder = 'Search files
         }
     };
 
-    // Handle click on search icon
+    /**
+     * Handle search icon click
+     * Expands the search bar and focuses on the input
+     */
     const handleSearchIconClick = () => {
         setIsExpanded(true);
 
@@ -70,7 +99,9 @@ const SearchBar = ({ value = '', onChange, onSubmit, placeholder = 'Search files
         }
     };
 
-    // Handle keyboard shortcut (Ctrl+F)
+    /**
+     * Setup keyboard shortcut (Ctrl+F) to focus on search
+     */
     useEffect(() => {
         const handleKeyDown = (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -90,7 +121,9 @@ const SearchBar = ({ value = '', onChange, onSubmit, placeholder = 'Search files
         };
     }, []);
 
-    // Handle click outside to collapse
+    /**
+     * Handle click outside to collapse search bar
+     */
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (searchBarRef.current && !searchBarRef.current.contains(e.target) && !inputValue) {

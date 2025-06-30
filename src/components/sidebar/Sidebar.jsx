@@ -9,6 +9,15 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 import './sidebar.css';
 
+/**
+ * Sidebar component - Provides navigation, favorites, and quick access
+ *
+ * @param {Object} props - Component props
+ * @param {Function} props.onTerminalToggle - Callback to toggle terminal visibility
+ * @param {boolean} props.isTerminalOpen - Whether the terminal is currently open
+ * @param {string} props.currentView - Current view being displayed (e.g., 'this-pc')
+ * @returns {React.ReactElement} Sidebar component
+ */
 const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
     const { volumes, loadDirectory } = useFileSystem();
     const { currentPath } = useHistory();
@@ -21,7 +30,9 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
     const [newSourcePath, setNewSourcePath] = useState('');
     const addSourceInputRef = useRef(null);
 
-    // Load system info to get proper user directories
+    /**
+     * Load system info to get proper user directories
+     */
     useEffect(() => {
         const loadSystemInfo = async () => {
             try {
@@ -42,14 +53,19 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
         loadSystemInfo();
     }, []);
 
-    // Toggle sidebar collapse
+    /**
+     * Toggles sidebar collapse state and saves preference
+     */
     const toggleCollapse = () => {
         const newCollapsed = !isCollapsed;
         setIsCollapsed(newCollapsed);
         localStorage.setItem('sidebarCollapsed', newCollapsed.toString());
     };
 
-    // Handle clicking on a sidebar item with navigation history update
+    /**
+     * Handles clicking on a sidebar item with navigation history update
+     * @param {string} path - Path to navigate to
+     */
     const handleItemClick = (path) => {
         // Update navigation history immediately
         try {
@@ -67,7 +83,13 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
         loadDirectory(path);
     };
 
-    // Add location to favorites
+    /**
+     * Adds a location to favorites
+     * @param {Object} location - Location object to add to favorites
+     * @param {string} location.path - Path to the location
+     * @param {string} location.name - Display name for the location
+     * @param {string} location.icon - Icon to use for the location
+     */
     const addToFavorites = (location) => {
         try {
             const existingFavorites = JSON.parse(localStorage.getItem('fileExplorerFavorites') || '[]');
@@ -85,12 +107,17 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
         }
     };
 
-    // Remove location from favorites (using the one from context menu provider)
+    /**
+     * Removes a location from favorites using the context menu provider
+     * @param {string} path - Path to remove from favorites
+     */
     const handleRemoveFromFavorites = (path) => {
         removeFromFavorites(path);
     };
 
-    // Handle add source modal
+    /**
+     * Opens the add source modal
+     */
     const handleAddSource = () => {
         setNewSourcePath('');
         setIsAddSourceModalOpen(true);
@@ -103,7 +130,9 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
         }, 100);
     };
 
-    // Save new source
+    /**
+     * Saves a new source to favorites
+     */
     const saveNewSource = () => {
         if (!newSourcePath.trim()) return;
 
@@ -118,25 +147,37 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
         setNewSourcePath('');
     };
 
-    // Handle form submission for add source
+    /**
+     * Handles form submission for add source
+     * @param {React.FormEvent} e - Form submit event
+     */
     const handleAddSourceSubmit = (e) => {
         e.preventDefault();
         saveNewSource();
     };
 
-    // Handle input change for add source
+    /**
+     * Handles input change for add source
+     * @param {React.ChangeEvent<HTMLInputElement>} e - Input change event
+     */
     const handleAddSourceInputChange = (e) => {
         setNewSourcePath(e.target.value);
     };
 
-    // Handle key down for add source input
+    /**
+     * Handles key down for add source input
+     * @param {React.KeyboardEvent} e - Keyboard event
+     */
     const handleAddSourceKeyDown = (e) => {
         if (e.key === 'Escape') {
             setIsAddSourceModalOpen(false);
         }
     };
 
-    // Get user directories based on OS
+    /**
+     * Gets user directories based on OS
+     * @returns {Array<{name: string, path: string, icon: string}>} Array of user directory objects
+     */
     const getUserDirectories = () => {
         if (!systemInfo) return [];
 
@@ -169,7 +210,10 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
 
     const userDirectories = getUserDirectories();
 
-    // Get user volume (for macOS dual mount handling)
+    /**
+     * Gets user volume (for macOS dual mount handling)
+     * @returns {Object|null} User volume object or null if not found
+     */
     const getUserVolume = () => {
         if (!systemInfo || !volumes.length) return null;
 
@@ -407,3 +451,4 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
 };
 
 export default Sidebar;
+
