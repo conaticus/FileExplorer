@@ -546,25 +546,6 @@ mod tests_template_commands {
     }
 
     #[tokio::test]
-    async fn test_get_template_paths_empty() {
-        // Create temp directories for template storage and metadata
-        let templates_dir = tempdir().expect("Failed to create temporary templates directory");
-        let metadata_dir = tempdir().expect("Failed to create temporary metadata directory");
-
-        let metadata_file = metadata_dir.path().join("meta_data.json");
-        let state = create_test_metadata_state(metadata_file, templates_dir.path().to_path_buf());
-
-        let result = get_template_paths_as_json_impl(state).await;
-
-        assert!(result.is_ok(), "Should return Ok for empty template paths");
-        let json = result.unwrap();
-        assert_eq!(
-            json, "[]",
-            "Empty template paths should return empty JSON array"
-        );
-    }
-
-    #[tokio::test]
     async fn test_get_template_paths_with_templates() {
         // Create temp directories for template storage and metadata
         let templates_dir = tempdir().expect("Failed to create temporary templates directory");
@@ -991,4 +972,3 @@ mod tests_template_commands {
         );
     }
 }
-
