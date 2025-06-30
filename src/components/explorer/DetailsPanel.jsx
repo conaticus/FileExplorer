@@ -3,6 +3,13 @@ import FileIcon from './FileIcon';
 import { formatFileSize, formatDate, getFileType } from '../../utils/formatters';
 import './detailsPanel.css';
 
+/**
+ * Component that displays detailed information about a selected item
+ * @param {Object} props - Component properties
+ * @param {Object} [props.item] - The selected item to display details for
+ * @param {boolean} [props.isMultipleSelection=false] - Whether multiple items are selected
+ * @returns {React.ReactElement} Details panel component
+ */
 const DetailsPanel = ({ item, isMultipleSelection = false }) => {
     // If no item selected or multiple items are selected
     if (!item || isMultipleSelection) {
@@ -85,18 +92,18 @@ const DetailsPanel = ({ item, isMultipleSelection = false }) => {
                     <div className="details-row">
                         <span className="details-label">Location:</span>
                         <span className="details-value truncate" title={item.path}>
-              {item.path.replace(`/${item.name}`, '')}
-            </span>
+                          {item.path.replace(`/${item.name}`, '')}
+                        </span>
                     </div>
 
                     <div className="details-row">
                         <span className="details-label">Size:</span>
                         <span className="details-value">
-              {size}
+                          {size}
                             {!isDirectory && item.size_in_bytes != null && (
                                 <span className="details-value-secondary"> ({item.size_in_bytes.toLocaleString()} bytes)</span>
                             )}
-            </span>
+                        </span>
                     </div>
 
                     {!isDirectory && (
@@ -150,3 +157,4 @@ const DetailsPanel = ({ item, isMultipleSelection = false }) => {
 };
 
 export default DetailsPanel;
+

@@ -1,5 +1,21 @@
 import React, { useRef, useState, useEffect } from 'react';
 
+/**
+ * Single context menu item that can render both main menu items and submenu items
+ * @param {Object} props - Component properties
+ * @param {Object} props.item - The menu item to render
+ * @param {string} props.item.label - Label of the menu item
+ * @param {string} [props.item.icon] - Icon name for the menu item
+ * @param {string} [props.item.shortcut] - Keyboard shortcut for the menu item
+ * @param {Array} [props.item.submenu] - Array of submenu items
+ * @param {Function} [props.item.action] - Action to execute on click
+ * @param {boolean} [props.item.disabled] - Whether the item is disabled
+ * @param {boolean} [props.isSubmenuOpen=false] - Whether the submenu is open
+ * @param {Function} props.onSubmenuOpen - Callback when submenu opens
+ * @param {Function} props.onSubmenuClose - Callback when submenu closes
+ * @param {Function} props.onAction - Action to execute on click
+ * @returns {React.ReactElement} Context menu item component
+ */
 const ContextMenuItem = ({
                              item,
                              isSubmenuOpen = false,
@@ -10,7 +26,9 @@ const ContextMenuItem = ({
     const [submenuPosition, setSubmenuPosition] = useState({ x: 0, y: 0 });
     const itemRef = useRef(null);
 
-    // Calculate submenu position
+    /**
+     * Calculates the submenu position based on the parent element position
+     */
     useEffect(() => {
         if (isSubmenuOpen && itemRef.current && item.submenu) {
             const itemRect = itemRef.current.getBoundingClientRect();
@@ -22,14 +40,18 @@ const ContextMenuItem = ({
         }
     }, [isSubmenuOpen, item.submenu]);
 
-    // Handle mouse enter - open submenu
+    /**
+     * Handles mouse enter - opens submenu
+     */
     const handleMouseEnter = () => {
         if (item.submenu) {
             onSubmenuOpen();
         }
     };
 
-    // Handle mouse leave - close submenu
+    /**
+     * Handles mouse leave - closes submenu with a short delay
+     */
     const handleMouseLeave = () => {
         if (item.submenu) {
             // Add delay to prevent submenu from closing immediately
@@ -39,25 +61,28 @@ const ContextMenuItem = ({
         }
     };
 
-    // Handle click - VERBESSERT MIT DEBUG
+    /**
+     * Handles click events on menu items
+     * @param {React.MouseEvent} e - The click event
+     */
     const handleClick = (e) => {
         e.stopPropagation();
 
-        console.log('🎯 ContextMenuItem clicked:', item.label);
+        console.log('ContextMenuItem clicked:', item.label);
 
         if (item.disabled) {
-            console.log('❌ Item is disabled, ignoring click');
+            console.log('Item is disabled, ignoring click');
             return;
         }
 
         if (item.submenu) {
-            console.log('📂 Opening submenu for:', item.label);
+            console.log('Opening submenu for:', item.label);
             onSubmenuOpen();
         } else if (onAction) {
-            console.log('🚀 Executing action for:', item.label);
+            console.log('Executing action for:', item.label);
             onAction();
         } else {
-            console.log('❌ No action defined for:', item.label);
+            console.log('No action defined for:', item.label);
         }
     };
 
@@ -105,19 +130,19 @@ const ContextMenuItem = ({
                                 return <li key={`sub-separator-${index}`} className="context-menu-separator"></li>;
                             }
 
-                            // Render submenu item - VERBESSERT MIT DEBUG
+                            // Render submenu item
                             return (
                                 <ContextMenuItem
                                     key={subItem.id || `sub-item-${index}`}
                                     item={subItem}
                                     onAction={() => {
-                                        console.log('🎯 Submenu item clicked:', subItem.label);
+                                        console.log('Submenu item clicked:', subItem.label);
                                         if (subItem.action) {
                                             try {
                                                 subItem.action();
-                                                console.log('✅ Submenu action executed successfully');
+                                                console.log('Submenu action executed successfully');
                                             } catch (error) {
-                                                console.error('💥 Submenu action failed:', error);
+                                                console.error('Submenu action failed:', error);
                                             }
                                         }
                                         // Propagate onAction to close the main menu
@@ -136,3 +161,4 @@ const ContextMenuItem = ({
 };
 
 export default ContextMenuItem;
+

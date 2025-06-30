@@ -9,6 +9,17 @@ import { useHistory } from '../../providers/HistoryProvider';
 import { showError, showConfirm } from '../../utils/NotificationSystem';
 import './fileItem.css';
 
+/**
+ * Component that displays a single file or directory item
+ * @param {Object} props - Component properties
+ * @param {Object} props.item - The file or directory object to display
+ * @param {string} [props.viewMode='grid'] - The view mode: 'grid', 'list', or 'details'
+ * @param {boolean} [props.isSelected=false] - Whether the item is currently selected
+ * @param {Function} props.onClick - Click handler function
+ * @param {Function} props.onDoubleClick - Double-click handler function
+ * @param {Function} props.onContextMenu - Context menu handler function
+ * @returns {React.ReactElement} File/directory item component
+ */
 const FileItem = ({
                       item,
                       viewMode = 'grid',
@@ -30,7 +41,9 @@ const FileItem = ({
     // Format modified date
     const modified = formatDate(item.last_modified);
 
-    // Listen for rename modal open events
+    /**
+     * Sets up event listener for rename modal events
+     */
     useEffect(() => {
         const handleOpenRenameModal = (e) => {
             if (e.detail && e.detail.item && e.detail.item.path === item.path) {
@@ -45,7 +58,11 @@ const FileItem = ({
         };
     }, [item.path]);
 
-    // Handle rename with robust path handling
+    /**
+     * Handles the rename operation with robust path handling
+     * @param {Object} item - The item to rename
+     * @param {string} newName - The new name for the item
+     */
     const handleRename = async (item, newName) => {
         if (!newName || newName === item.name) return;
 
@@ -82,17 +99,26 @@ const FileItem = ({
         }
     };
 
-    // Handle clicking the file item
+    /**
+     * Handles click events on the file item
+     * @param {React.MouseEvent} e - The click event
+     */
     const handleClick = (e) => {
         if (onClick) onClick(e);
     };
 
-    // Handle double clicking the file item
+    /**
+     * Handles double-click events on the file item
+     * @param {React.MouseEvent} e - The double-click event
+     */
     const handleDoubleClick = (e) => {
         if (onDoubleClick) onDoubleClick(e);
     };
 
-    // Handle right-clicking the file item
+    /**
+     * Handles right-click context menu events on the file item
+     * @param {React.MouseEvent} e - The context menu event
+     */
     const handleContextMenu = (e) => {
         if (onContextMenu) onContextMenu(e);
     };

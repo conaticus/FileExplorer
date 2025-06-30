@@ -1,6 +1,14 @@
 import React from 'react';
 import { getFileIconType } from '../../utils/icons';
 
+/**
+ * Component that displays an appropriate icon for a file or directory
+ * @param {Object} props - Component properties
+ * @param {string} props.filename - Name of the file or directory
+ * @param {boolean} props.isDirectory - Whether the item is a directory
+ * @param {string} [props.size='medium'] - Size of the icon: 'small', 'medium', or 'large'
+ * @returns {React.ReactElement} File icon component
+ */
 const FileIcon = ({ filename, isDirectory, size = 'medium' }) => {
     // Determine the appropriate icon
     const iconType = isDirectory ? 'folder' : getFileIconType(filename);
@@ -12,7 +20,11 @@ const FileIcon = ({ filename, isDirectory, size = 'medium' }) => {
         large: 'file-icon-large',
     };
 
-    // Get file extension for more specific icons
+    /**
+     * Gets file extension from filename
+     * @param {string} filename - Name of the file
+     * @returns {string} The file extension or empty string if none found
+     */
     const getFileExtension = (filename) => {
         if (!filename || !filename.includes('.')) return '';
         return filename.split('.').pop().toLowerCase();

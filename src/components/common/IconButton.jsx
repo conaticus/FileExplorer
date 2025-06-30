@@ -31,7 +31,7 @@ const IconButton = ({
                         ...rest
                     }) => {
     /**
-     * Erzeugt die CSS-Klassen für den Button basierend auf den Props
+     * Generates the CSS classes for the button
      * @type {string}
      */
     const buttonClasses = [
@@ -43,7 +43,7 @@ const IconButton = ({
     ].filter(Boolean).join(' ');
 
     /**
-     * Bestimmt die Icon-Größe basierend auf der Button-Größe
+     * Determines the icon size based on the button size
      * @type {string}
      */
     const iconSize = size === 'sm' ? 'small' : size === 'lg' ? 'large' : 'medium';

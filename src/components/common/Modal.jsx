@@ -73,8 +73,8 @@ const Modal = ({
     }, [isOpen]);
 
     /**
-     * Behandelt Klicks auf den Modal-Overlay
-     * @param {React.MouseEvent} event - Maus-Event
+     * Handle clicks on the modal overlay
+     * @param {React.MouseEvent} event - Mouse-Event
      */
     const handleOverlayClick = (event) => {
         if (

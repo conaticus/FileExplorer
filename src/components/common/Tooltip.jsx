@@ -23,7 +23,7 @@ const Tooltip = ({
     const [timeoutId, setTimeoutId] = useState(null);
 
     /**
-     * Zeigt Tooltip nach festgelegter Verzögerung an
+     * Shows tooltip after a delay
      * @function
      */
     const handleMouseEnter = () => {
@@ -34,7 +34,7 @@ const Tooltip = ({
     };
 
     /**
-     * Versteckt Tooltip und löscht den Timeout
+     * Hides tooltip and resets timeout
      * @function
      */
     const handleMouseLeave = () => {

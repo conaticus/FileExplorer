@@ -14,6 +14,9 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     const [isSearching, setIsSearching] = useState(false);
     const [searchEngineInfo, setSearchEngineInfo] = useState(null);
     const [selectedExtensions, setSelectedExtensions] = useState([]);
+    const [isIndexing, setIsIndexing] = useState(false);
+    const [filtersExpanded, setFiltersExpanded] = useState(false);
+    const [statsExpanded, setStatsExpanded] = useState(false);
 
     const { navigateTo } = useHistory();
     const { loadDirectory, volumes } = useFileSystem();
@@ -40,6 +43,23 @@ const GlobalSearch = ({ isOpen, onClose }) => {
             loadSearchEngineInfo();
         }
     }, [isOpen]);
+
+    // Auto-index on app start if search engine is empty
+    useEffect(() => {
+        const initializeSearchEngine = async () => {
+            if (volumes.length > 0 && searchEngineInfo) {
+                // Check if search engine has no indexed files
+                const hasNoIndexedFiles = !searchEngineInfo.stats?.trie_size || searchEngineInfo.stats.trie_size === 0;
+
+                if (hasNoIndexedFiles && !isIndexing) {
+                    console.log('Search engine is empty, starting auto-indexing...');
+                    await startAutoIndexing();
+                }
+            }
+        };
+
+        initializeSearchEngine();
+    }, [volumes, searchEngineInfo, isIndexing]);
 
     // Load search engine information
     const loadSearchEngineInfo = async () => {
@@ -95,7 +115,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
             // Show user-friendly error message
             const errorMessage = error.message || error;
             if (errorMessage.includes('No search engine available')) {
-                alert('Search engine is not ready. Please ensure directories have been indexed.');
+                alert('Search engine is not ready. Please ensure the backend has indexed your files.');
             } else {
                 alert(`Search failed: ${errorMessage}`);
             }
@@ -133,8 +153,56 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         }
     };
 
-    // Note: Index management should be handled by the backend separately
-    // The frontend only uses the search endpoints
+    // Auto-start indexing for volumes
+    const startAutoIndexing = async () => {
+        if (volumes.length === 0 || isIndexing) return;
+
+        setIsIndexing(true);
+
+        try {
+            console.log('Starting background indexing for volumes...');
+
+            // Index all volumes in background
+            for (const volume of volumes) {
+                console.log(`Adding ${volume.mount_point} to search index...`);
+                await invoke('add_paths_recursive', {
+                    folder: volume.mount_point
+                });
+            }
+
+            // Reload search engine info after indexing
+            await loadSearchEngineInfo();
+
+        } catch (error) {
+            console.error('Auto-indexing failed:', error);
+        } finally {
+            setIsIndexing(false);
+        }
+    };
+
+    // Manual indexing trigger
+    const startManualIndexing = async () => {
+        if (volumes.length === 0) return;
+
+        setIsIndexing(true);
+
+        try {
+            for (const volume of volumes) {
+                await invoke('add_paths_recursive', {
+                    folder: volume.mount_point
+                });
+            }
+
+            await loadSearchEngineInfo();
+            alert('Indexing started successfully. This may take some time to complete.');
+
+        } catch (error) {
+            console.error('Manual indexing failed:', error);
+            alert(`Failed to start indexing: ${error.message || error}`);
+        } finally {
+            setIsIndexing(false);
+        }
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -187,40 +255,128 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                     </span>
                                 </div>
                             )}
-                        </div>
-                    )}
-
-                    {/* Extension Filters */}
-                    <div className="search-options-container">
-                        <div className="extension-filters">
-                            <label className="filter-label">File types:</label>
-                            <div className="extension-checkboxes">
-                                {commonExtensions.map(ext => (
-                                    <label key={ext.value} className="checkbox-option">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedExtensions.includes(ext.value)}
-                                            onChange={() => handleExtensionChange(ext.value)}
-                                            disabled={isSearching}
-                                        />
-                                        <span>{ext.label}</span>
-                                    </label>
-                                ))}
-                            </div>
-                            {selectedExtensions.length > 0 && (
-                                <div className="selected-extensions">
-                                    Selected: {selectedExtensions.join(', ')}
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedExtensions([])}
-                                        className="clear-extensions"
-                                        disabled={isSearching}
-                                    >
-                                        Clear
-                                    </button>
+                            {isIndexing && (
+                                <div className="status-info">
+                                    <span className="status-label">Indexing:</span>
+                                    <span className="status-value indexing">In Progress...</span>
                                 </div>
                             )}
                         </div>
+                    )}
+
+                    {/* Accordions Container */}
+                    <div className="accordions-container">
+                        {/* Extension Filters Accordion */}
+                        <div className="accordion">
+                            <button
+                                className="accordion-header"
+                                onClick={() => setFiltersExpanded(!filtersExpanded)}
+                                type="button"
+                            >
+                                <span>File Type Filters</span>
+                                <span className={`accordion-chevron ${filtersExpanded ? 'expanded' : ''}`}>▼</span>
+                            </button>
+
+                            {filtersExpanded && (
+                                <div className="accordion-content">
+                                    <div className="extension-filters">
+                                        <div className="extension-checkboxes">
+                                            {commonExtensions.map(ext => (
+                                                <label key={ext.value} className="checkbox-option">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedExtensions.includes(ext.value)}
+                                                        onChange={() => handleExtensionChange(ext.value)}
+                                                        disabled={isSearching}
+                                                    />
+                                                    <span>{ext.label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        {selectedExtensions.length > 0 && (
+                                            <div className="selected-extensions">
+                                                Selected: {selectedExtensions.join(', ')}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedExtensions([])}
+                                                    className="clear-extensions"
+                                                    disabled={isSearching}
+                                                >
+                                                    Clear
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Search Engine Statistics Accordion */}
+                        {searchEngineInfo && (
+                            <div className="accordion">
+                                <button
+                                    className="accordion-header"
+                                    onClick={() => setStatsExpanded(!statsExpanded)}
+                                    type="button"
+                                >
+                                    <span>Search Engine Statistics</span>
+                                    <span className={`accordion-chevron ${statsExpanded ? 'expanded' : ''}`}>▼</span>
+                                </button>
+
+                                {statsExpanded && (
+                                    <div className="accordion-content">
+                                        <div className="search-engine-info-compact">
+                                            <div className="info-grid">
+                                                <div className="info-item">
+                                                    <span className="info-label">Status:</span>
+                                                    <span className="info-value">{searchEngineInfo.status || 'Unknown'}</span>
+                                                </div>
+                                                {searchEngineInfo.progress && (
+                                                    <>
+                                                        <div className="info-item">
+                                                            <span className="info-label">Progress:</span>
+                                                            <span className="info-value">
+                                                                {searchEngineInfo.progress.percentage_complete || 0}%
+                                                            </span>
+                                                        </div>
+                                                        <div className="info-item">
+                                                            <span className="info-label">Files indexed:</span>
+                                                            <span className="info-value">
+                                                                {searchEngineInfo.progress.files_indexed || 0} / {searchEngineInfo.progress.files_discovered || 0}
+                                                            </span>
+                                                        </div>
+                                                    </>
+                                                )}
+                                                {searchEngineInfo.metrics && (
+                                                    <>
+                                                        <div className="info-item">
+                                                            <span className="info-label">Total searches:</span>
+                                                            <span className="info-value">{searchEngineInfo.metrics.total_searches || 0}</span>
+                                                        </div>
+                                                        <div className="info-item">
+                                                            <span className="info-label">Avg search time:</span>
+                                                            <span className="info-value">{searchEngineInfo.metrics.average_search_time_ms || 0}ms</span>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Manual Indexing Control */}
+                                            <div className="index-management">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={startManualIndexing}
+                                                    disabled={isSearching || isIndexing}
+                                                >
+                                                    {isIndexing ? 'Indexing...' : 'Re-index All Directories'}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </form>
 
@@ -302,47 +458,6 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                         </div>
                                     </div>
                                 ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Search Engine Info when no query */}
-                    {!query && !isSearching && searchEngineInfo && (
-                        <div className="search-engine-info">
-                            <h4>Search Engine Information</h4>
-                            <div className="info-grid">
-                                <div className="info-item">
-                                    <span className="info-label">Status:</span>
-                                    <span className="info-value">{searchEngineInfo.status || 'Unknown'}</span>
-                                </div>
-                                {searchEngineInfo.progress && (
-                                    <>
-                                        <div className="info-item">
-                                            <span className="info-label">Progress:</span>
-                                            <span className="info-value">
-                                                {searchEngineInfo.progress.percentage_complete || 0}%
-                                            </span>
-                                        </div>
-                                        <div className="info-item">
-                                            <span className="info-label">Files indexed:</span>
-                                            <span className="info-value">
-                                                {searchEngineInfo.progress.files_indexed || 0} / {searchEngineInfo.progress.files_discovered || 0}
-                                            </span>
-                                        </div>
-                                    </>
-                                )}
-                                {searchEngineInfo.metrics && (
-                                    <>
-                                        <div className="info-item">
-                                            <span className="info-label">Total searches:</span>
-                                            <span className="info-value">{searchEngineInfo.metrics.total_searches || 0}</span>
-                                        </div>
-                                        <div className="info-item">
-                                            <span className="info-label">Avg search time:</span>
-                                            <span className="info-value">{searchEngineInfo.metrics.average_search_time_ms || 0}ms</span>
-                                        </div>
-                                    </>
-                                )}
                             </div>
                         </div>
                     )}

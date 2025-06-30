@@ -2,12 +2,24 @@ import React, { useEffect, useRef, useState } from 'react';
 import ContextMenuItem from './ContextMenuItem';
 import './contextMenu.css';
 
+/**
+ * Context menu component that opens at a specified position
+ * @param {Object} props - Component properties
+ * @param {Object} props.position - The position where the menu should open
+ * @param {number} props.position.x - X coordinate
+ * @param {number} props.position.y - Y coordinate
+ * @param {Array} [props.items=[]] - Array of menu items
+ * @param {Function} props.onClose - Callback when menu closes
+ * @returns {React.ReactElement} Context menu component
+ */
 const ContextMenu = ({ position, items = [], onClose }) => {
     const menuRef = useRef(null);
     const [adjustedPosition, setAdjustedPosition] = useState(position);
     const [openSubmenu, setOpenSubmenu] = useState(null);
 
-    // Calculate menu position to ensure it stays within viewport
+    /**
+     * Calculates menu position to ensure it stays within viewport
+     */
     useEffect(() => {
         if (!menuRef.current) return;
 
@@ -31,7 +43,9 @@ const ContextMenu = ({ position, items = [], onClose }) => {
         setAdjustedPosition({ x: adjustedX, y: adjustedY });
     }, [position, items]);
 
-    // Close menu when clicking outside
+    /**
+     * Closes menu when clicked outside
+     */
     useEffect(() => {
         const handleOutsideClick = (e) => {
             if (menuRef.current && !menuRef.current.contains(e.target)) {
@@ -48,7 +62,9 @@ const ContextMenu = ({ position, items = [], onClose }) => {
         };
     }, [onClose]);
 
-    // Close menu on Escape key
+    /**
+     * Closes menu when Escape key is pressed
+     */
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
@@ -63,12 +79,17 @@ const ContextMenu = ({ position, items = [], onClose }) => {
         };
     }, [onClose]);
 
-    // Handle submenu opening
+    /**
+     * Handles opening a submenu
+     * @param {string} id - ID of the submenu to open
+     */
     const handleSubmenuOpen = (id) => {
         setOpenSubmenu(id);
     };
 
-    // Handle submenu closing
+    /**
+     * Handles closing a submenu
+     */
     const handleSubmenuClose = () => {
         setOpenSubmenu(null);
     };

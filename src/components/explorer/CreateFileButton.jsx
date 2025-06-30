@@ -5,6 +5,10 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 import './createFileButton.css';
 
+/**
+ * Component for creating new files and folders
+ * @returns {React.ReactElement} Create file button component with dropdown
+ */
 const CreateFileButton = () => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -16,7 +20,9 @@ const CreateFileButton = () => {
     const { createFile, createDirectory } = useFileSystem();
     const { currentPath } = useHistory();
 
-    // Listen for custom events
+    /**
+     * Sets up event listeners for custom create events
+     */
     useEffect(() => {
         const handleCreateFile = () => {
             handleOptionClick('file');
@@ -35,17 +41,24 @@ const CreateFileButton = () => {
         };
     }, []);
 
-    // Toggle dropdown
+    /**
+     * Toggles the dropdown menu
+     */
     const toggleDropdown = () => {
         setIsDropdownOpen(prev => !prev);
     };
 
-    // Close dropdown
+    /**
+     * Closes the dropdown menu
+     */
     const closeDropdown = () => {
         setIsDropdownOpen(false);
     };
 
-    // Handle option click
+    /**
+     * Handles clicking an option in the dropdown
+     * @param {string} type - The type of item to create ('file' or 'folder')
+     */
     const handleOptionClick = (type) => {
         setCreationType(type);
         setItemName(getDefaultName(type));
@@ -61,17 +74,26 @@ const CreateFileButton = () => {
         }, 0);
     };
 
-    // Get default name for new items
+    /**
+     * Gets default name for new items
+     * @param {string} type - The type of item ('file' or 'folder')
+     * @returns {string} Default name for the item
+     */
     const getDefaultName = (type) => {
         return type === 'file' ? 'New File.txt' : 'New Folder';
     };
 
-    // Handle input change
+    /**
+     * Handles input field changes
+     * @param {React.ChangeEvent<HTMLInputElement>} e - The change event
+     */
     const handleNameChange = (e) => {
         setItemName(e.target.value);
     };
 
-    // Handle create
+    /**
+     * Handles creating the file or folder
+     */
     const handleCreate = async () => {
         if (!itemName.trim()) return;
 
@@ -106,13 +128,18 @@ const CreateFileButton = () => {
         }
     };
 
-    // Handle form submission
+    /**
+     * Handles form submission
+     * @param {React.FormEvent} e - The form event
+     */
     const handleSubmit = (e) => {
         e.preventDefault();
         handleCreate();
     };
 
-    // Close dropdown when clicking outside
+    /**
+     * Sets up click outside detection to close dropdown
+     */
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (

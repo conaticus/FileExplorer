@@ -7,6 +7,15 @@ import FileItem from './FileItem';
 import EmptyState from './EmptyState';
 import './fileList.css';
 
+/**
+ * Component to display a list of files and directories
+ * @param {Object} props - Component properties
+ * @param {Object} props.data - The file/directory data to display
+ * @param {boolean} props.isLoading - Whether the file list is currently loading
+ * @param {string} [props.viewMode='grid'] - Display mode: 'grid', 'list', or 'details'
+ * @param {boolean} [props.isSearching=false] - Whether the list is showing search results
+ * @returns {React.ReactElement} File list component
+ */
 const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) => {
     const { selectedItems, selectItem, loadDirectory, clearSelection } = useFileSystem();
     const { openContextMenu } = useContextMenu();
@@ -15,7 +24,10 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
     const [isCtrlKeyPressed, setIsCtrlKeyPressed] = useState(false);
     const [lastSelectedIndex, setLastSelectedIndex] = useState(-1);
 
-    // Handle container click (click on empty space)
+    /**
+     * Handles click on the container (empty space)
+     * @param {React.MouseEvent} e - The click event
+     */
     const handleContainerClick = (e) => {
         // Only clear if clicking directly on the container, not on items
         // Also check that it's not a scroll-related interaction
@@ -25,7 +37,10 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
         }
     };
 
-    // Handle context menu
+    /**
+     * Handles right-click context menu
+     * @param {React.MouseEvent} e - The context menu event
+     */
     const handleContextMenu = (e) => {
         // Always prevent default browser context menu in our container
         e.preventDefault();
@@ -38,7 +53,9 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
         openContextMenu(e, item);
     };
 
-    // Handle keyboard events for multi-selection
+    /**
+     * Sets up keyboard event listeners for multi-selection
+     */
     useEffect(() => {
         const handleKeyDown = (e) => {
             setIsShiftKeyPressed(e.shiftKey);
@@ -50,7 +67,10 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
             setIsCtrlKeyPressed(e.ctrlKey || e.metaKey);
         };
 
-        // Prevent default browser context menu - but allow scrolling
+        /**
+         * Prevents default browser context menu while allowing scrolling
+         * @param {MouseEvent} e - The mouse event
+         */
         const preventDefaultContextMenu = (e) => {
             // Only prevent if the target is within our file list AND it's actually a right-click
             if (e.button === 2 && (e.target.closest('.file-list-container') || e.target.closest('.empty-state-container'))) {
@@ -58,14 +78,19 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
             }
         };
 
-        // Listen for select-item events from context menu
+        /**
+         * Handles select-item events from context menu
+         * @param {CustomEvent} e - The custom event
+         */
         const handleSelectItem = (e) => {
             if (e.detail && e.detail.item) {
                 selectItem(e.detail.item, false);
             }
         };
 
-        // Listen for clear selection events
+        /**
+         * Handles clear selection events
+         */
         const handleClearSelection = () => {
             clearSelection();
             setLastSelectedIndex(-1);
@@ -87,7 +112,9 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
         };
     }, [selectItem, clearSelection]);
 
-    // Clear selection when data changes
+    /**
+     * Clears selection when displayed data changes
+     */
     useEffect(() => {
         clearSelection();
         setLastSelectedIndex(-1);
@@ -124,7 +151,10 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
         );
     }
 
-    // Sort data
+    /**
+     * Returns sorted data based on current sort configuration
+     * @returns {Array} Sorted array of files and directories
+     */
     const getSortedData = () => {
         const { key, direction } = sortConfig;
 
@@ -166,7 +196,10 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
 
     const sortedItems = getSortedData();
 
-    // Handle sort change
+    /**
+     * Handles changing the sort column/direction
+     * @param {string} key - The column key to sort by
+     */
     const handleSort = (key) => {
         setSortConfig(prevConfig => {
             // If clicking the same column, toggle direction
@@ -182,7 +215,12 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
         });
     };
 
-    // Handle item click
+    /**
+     * Handles item click (selection and opening)
+     * @param {Object} item - The clicked item
+     * @param {number} index - Index of the clicked item
+     * @param {boolean} [isDoubleClick=false] - Whether this is a double-click
+     */
     const handleItemClick = (item, index, isDoubleClick = false) => {
         // For double-click, open the item
         if (isDoubleClick) {
@@ -251,6 +289,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
                 onClick={handleContainerClick}
                 onContextMenu={handleContextMenu}
             >
+                {/* Details view header with sortable columns */}
                 {viewMode === 'details' && (
                     <div className="file-list-header">
                         <div
@@ -292,6 +331,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
                     </div>
                 )}
 
+                {/* File list content */}
                 <div className={`file-list view-mode-${viewMode.toLowerCase()} scrollable-content`}>
                     {sortedItems.map((item, index) => (
                         <FileItem
@@ -311,3 +351,4 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
 };
 
 export default FileList;
+

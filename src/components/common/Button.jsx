@@ -25,7 +25,7 @@ const Button = ({
                     ...rest
                 }) => {
     /**
-     * Erzeugt die CSS-Klassen für den Button basierend auf den Props
+     * Generates the CSS class names for the button
      * @type {string}
      */
     const buttonClasses = [

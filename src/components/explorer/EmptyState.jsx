@@ -1,6 +1,15 @@
 import React from 'react';
 import './emptyState.css';
 
+/**
+ * Component for displaying various empty state messages
+ * @param {Object} props - Component properties
+ * @param {string} [props.type='empty-folder'] - Type of empty state to display
+ * @param {string} [props.searchTerm=null] - Search term to display in 'no-results' state
+ * @param {string} [props.title=null] - Custom title to override default
+ * @param {string} [props.message=null] - Custom message to override default
+ * @returns {React.ReactElement} Empty state component
+ */
 const EmptyState = ({ type = 'empty-folder', searchTerm = null, title = null, message = null }) => {
     // Different empty states
     const emptyStates = {
