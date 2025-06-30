@@ -29,7 +29,10 @@ const Dropdown = ({
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
-    // Toggle dropdown open/closed
+    /**
+     * Wechselt den Dropdown-Zustand zwischen geöffnet und geschlossen
+     * @function
+     */
     const toggleDropdown = () => {
         if (!isOpen && onOpen) onOpen();
         if (isOpen && onClose) onClose();
@@ -68,7 +71,11 @@ const Dropdown = ({
         };
     }, [isOpen, onClose]);
 
-    // Handle item click
+    /**
+     * Behandelt Klicks auf Dropdown-Elemente
+     * @param {Object} item - Das angeklickte Dropdown-Element
+     * @param {Function} [item.onClick] - Optionale Callback-Funktion des Elements
+     */
     const handleItemClick = (item) => {
         if (item.onClick) {
             item.onClick();

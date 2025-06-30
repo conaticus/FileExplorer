@@ -1,7 +1,7 @@
 import React from 'react';
 import './emptyState.css';
 
-const EmptyState = ({ type = 'empty-folder', searchTerm = null }) => {
+const EmptyState = ({ type = 'empty-folder', searchTerm = null, title = null, message = null }) => {
     // Different empty states
     const emptyStates = {
         'empty-folder': {
@@ -19,6 +19,11 @@ const EmptyState = ({ type = 'empty-folder', searchTerm = null }) => {
             title: 'No favorites yet',
             message: 'Right-click on folders and files to add them to favorites',
         },
+        'no-templates': {
+            icon: 'template-empty',
+            title: 'No templates',
+            message: 'You haven\'t saved any templates yet. Templates help you create files and folders with predefined structures.',
+        },
         'error': {
             icon: 'error',
             title: 'Something went wrong',
@@ -26,13 +31,17 @@ const EmptyState = ({ type = 'empty-folder', searchTerm = null }) => {
         },
     };
 
-    const { icon, title, message } = emptyStates[type] || emptyStates['empty-folder'];
+    const emptyState = emptyStates[type] || emptyStates['empty-folder'];
+
+    // Allow overriding title and message via props
+    const finalTitle = title || emptyState.title;
+    const finalMessage = message || emptyState.message;
 
     return (
         <div className="empty-state">
-            <div className={`empty-state-icon icon-${icon}`}></div>
-            <h3 className="empty-state-title">{title}</h3>
-            <p className="empty-state-message">{message}</p>
+            <div className={`empty-state-icon icon-${emptyState.icon}`}></div>
+            <h3 className="empty-state-title">{finalTitle}</h3>
+            <p className="empty-state-message">{finalMessage}</p>
         </div>
     );
 };

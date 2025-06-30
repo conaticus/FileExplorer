@@ -5,8 +5,8 @@
     border-radius: var(--radius-md);
     background-color: var(--background-tertiary);
     overflow: hidden;
-    transition: width var(--transition-normal), background-color var(--transition-fast);
-    width: 36px; /* Collapsed width */
+    transition: background-color var(--transition-fast);
+    width: 240px; /* Always expanded width */
 }
 
 .search-bar.expanded {
@@ -35,7 +35,7 @@
     flex-grow: 1;
     height: 100%;
     overflow: hidden;
-    opacity: 0;
+    opacity: 1;
     transition: opacity var(--transition-normal);
 }
 

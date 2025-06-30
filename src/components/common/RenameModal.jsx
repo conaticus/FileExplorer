@@ -2,11 +2,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 
+/**
+ * Modal component for renaming files and folders
+ * @param {Object} props - Component props
+ * @param {boolean} props.isOpen - Controls whether the modal is visible
+ * @param {Function} props.onClose - Handler called when the modal is closed
+ * @param {Object} props.item - File or folder item to rename
+ * @param {string} props.item.name - Current name of the file or folder
+ * @param {boolean} [props.item.isDirectory] - Whether the item is a directory
+ * @param {Function} props.onRename - Handler called with (item, newName) when rename is confirmed
+ * @returns {React.ReactElement|null} Rename modal or null if no item provided
+ */
 const RenameModal = ({ isOpen, onClose, item, onRename }) => {
     const [newName, setNewName] = useState('');
     const inputRef = useRef(null);
 
-    // Initialize name when modal opens
+    /**
+     * Initialize name when modal opens and select appropriate portion of text
+     */
     useEffect(() => {
         if (isOpen && item) {
             setNewName(item.name);
@@ -26,7 +39,10 @@ const RenameModal = ({ isOpen, onClose, item, onRename }) => {
         }
     }, [isOpen, item]);
 
-    // Handle form submission
+    /**
+     * Handle form submission to rename the item
+     * @param {React.FormEvent} e - Form event
+     */
     const handleSubmit = (e) => {
         e.preventDefault();
         if (newName.trim() && newName !== item.name) {
@@ -35,12 +51,18 @@ const RenameModal = ({ isOpen, onClose, item, onRename }) => {
         onClose();
     };
 
-    // Handle input change
+    /**
+     * Handle changes to the name input field
+     * @param {React.ChangeEvent<HTMLInputElement>} e - Input change event
+     */
     const handleChange = (e) => {
         setNewName(e.target.value);
     };
 
-    // Handle key down events
+    /**
+     * Handle keyboard events, specifically for modal escape
+     * @param {React.KeyboardEvent} e - Keyboard event
+     */
     const handleKeyDown = (e) => {
         if (e.key === 'Escape') {
             onClose();

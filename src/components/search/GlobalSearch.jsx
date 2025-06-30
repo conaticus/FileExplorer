@@ -12,56 +12,93 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [searchPath, setSearchPath] = useState('');
-    const [searchOptions, setSearchOptions] = useState({
-        caseSensitive: false,
-        wholeWords: false,
-        includeHidden: false,
-        fileTypes: []
-    });
+    const [searchEngineInfo, setSearchEngineInfo] = useState(null);
+    const [selectedExtensions, setSelectedExtensions] = useState([]);
 
     const { navigateTo } = useHistory();
     const { loadDirectory, volumes } = useFileSystem();
 
-    // Initialize search path with first volume
-    useEffect(() => {
-        if (volumes.length > 0 && !searchPath) {
-            setSearchPath(volumes[0].mount_point);
-        }
-    }, [volumes, searchPath]);
+    // Common file extensions for filtering
+    const commonExtensions = [
+        { value: 'txt', label: 'Text Files (.txt)' },
+        { value: 'pdf', label: 'PDF Files (.pdf)' },
+        { value: 'doc', label: 'Word Documents (.doc)' },
+        { value: 'docx', label: 'Word Documents (.docx)' },
+        { value: 'jpg', label: 'JPEG Images (.jpg)' },
+        { value: 'png', label: 'PNG Images (.png)' },
+        { value: 'mp3', label: 'MP3 Audio (.mp3)' },
+        { value: 'mp4', label: 'MP4 Video (.mp4)' },
+        { value: 'zip', label: 'ZIP Archives (.zip)' },
+        { value: 'js', label: 'JavaScript (.js)' },
+        { value: 'css', label: 'CSS Files (.css)' },
+        { value: 'html', label: 'HTML Files (.html)' }
+    ];
 
-    // Perform search
+    // Load search engine info when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            loadSearchEngineInfo();
+        }
+    }, [isOpen]);
+
+    // Load search engine information
+    const loadSearchEngineInfo = async () => {
+        try {
+            const info = await invoke('get_search_engine_info');
+            setSearchEngineInfo(info);
+        } catch (error) {
+            console.error('Failed to load search engine info:', error);
+            setSearchEngineInfo(null);
+        }
+    };
+
+    // Perform search using the real API
     const performSearch = async () => {
-        if (!query.trim() || !searchPath) return;
+        if (!query.trim()) return;
 
         setIsSearching(true);
         setResults([]);
 
         try {
-            // Mock search results for demonstration
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            let searchResults;
 
-            const mockResults = [
-                {
-                    path: `${searchPath}/Documents/file1.txt`,
-                    name: 'file1.txt',
-                    directory: `${searchPath}/Documents`,
-                    score: 0.95
-                },
-                {
-                    path: `${searchPath}/Pictures/image.jpg`,
-                    name: 'image.jpg',
-                    directory: `${searchPath}/Pictures`,
-                    score: 0.85
-                }
-            ].filter(item =>
-                item.name.toLowerCase().includes(query.toLowerCase())
-            );
+            // Use extension filtering if extensions are selected
+            if (selectedExtensions.length > 0) {
+                searchResults = await invoke('search_with_extension', {
+                    query: query.trim(),
+                    extensions: selectedExtensions
+                });
+            } else {
+                // Use basic search
+                searchResults = await invoke('search', {
+                    query: query.trim()
+                });
+            }
 
-            setResults(mockResults);
+            // Convert API results to our format
+            // API returns [[path, score], [path, score], ...]
+            const formattedResults = searchResults.map(([path, score]) => {
+                const fileName = path.split(/[/\\]/).pop() || path;
+                const directory = path.substring(0, path.lastIndexOf(fileName) - 1) || '/';
+
+                return {
+                    path,
+                    name: fileName,
+                    directory,
+                    score
+                };
+            });
+
+            setResults(formattedResults);
         } catch (error) {
             console.error('Search failed:', error);
-            alert(`Search failed: ${error.message || error}`);
+            // Show user-friendly error message
+            const errorMessage = error.message || error;
+            if (errorMessage.includes('No search engine available')) {
+                alert('Search engine is not ready. Please ensure directories have been indexed.');
+            } else {
+                alert(`Search failed: ${errorMessage}`);
+            }
         } finally {
             setIsSearching(false);
         }
@@ -73,29 +110,31 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         setResults([]);
     };
 
-    // Open file/folder
-    const openItem = async (result) => {
+    // Handle extension selection
+    const handleExtensionChange = (extension) => {
+        setSelectedExtensions(prev => {
+            if (prev.includes(extension)) {
+                return prev.filter(ext => ext !== extension);
+            } else {
+                return [...prev, extension];
+            }
+        });
+    };
+
+    // Open file/folder location
+    const openItemLocation = async (result) => {
         try {
             await loadDirectory(result.directory);
             navigateTo(result.directory);
             onClose();
         } catch (error) {
-            console.error('Failed to open item:', error);
-            alert(`Failed to open: ${error.message || error}`);
+            console.error('Failed to open item location:', error);
+            alert(`Failed to open location: ${error.message || error}`);
         }
     };
 
-    // Open containing folder
-    const openContainingFolder = async (result) => {
-        try {
-            await loadDirectory(result.directory);
-            navigateTo(result.directory);
-            onClose();
-        } catch (error) {
-            console.error('Failed to open folder:', error);
-            alert(`Failed to open folder: ${error.message || error}`);
-        }
-    };
+    // Note: Index management should be handled by the backend separately
+    // The frontend only uses the search endpoints
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -131,59 +170,56 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                         </Button>
                     </div>
 
-                    <div className="search-options-container">
-                        <div className="search-path-container">
-                            <label htmlFor="search-path">Search in:</label>
-                            <select
-                                id="search-path"
-                                value={searchPath}
-                                onChange={(e) => setSearchPath(e.target.value)}
-                                className="path-select-field"
-                            >
-                                {volumes.map(volume => (
-                                    <option key={volume.mount_point} value={volume.mount_point}>
-                                        {volume.volume_name || volume.mount_point} ({volume.mount_point})
-                                    </option>
-                                ))}
-                            </select>
+                    {/* Search Engine Status */}
+                    {searchEngineInfo && (
+                        <div className="search-engine-status">
+                            <div className="status-info">
+                                <span className="status-label">Status:</span>
+                                <span className={`status-value ${searchEngineInfo.status?.toLowerCase()}`}>
+                                    {searchEngineInfo.status || 'Unknown'}
+                                </span>
+                            </div>
+                            {searchEngineInfo.stats && (
+                                <div className="status-info">
+                                    <span className="status-label">Indexed files:</span>
+                                    <span className="status-value">
+                                        {searchEngineInfo.stats.trie_size || 0} entries
+                                    </span>
+                                </div>
+                            )}
                         </div>
+                    )}
 
-                        <div className="search-filters-container">
-                            <label className="checkbox-option">
-                                <input
-                                    type="checkbox"
-                                    checked={searchOptions.caseSensitive}
-                                    onChange={(e) => setSearchOptions(prev => ({
-                                        ...prev,
-                                        caseSensitive: e.target.checked
-                                    }))}
-                                />
-                                <span>Case sensitive</span>
-                            </label>
-
-                            <label className="checkbox-option">
-                                <input
-                                    type="checkbox"
-                                    checked={searchOptions.wholeWords}
-                                    onChange={(e) => setSearchOptions(prev => ({
-                                        ...prev,
-                                        wholeWords: e.target.checked
-                                    }))}
-                                />
-                                <span>Whole words</span>
-                            </label>
-
-                            <label className="checkbox-option">
-                                <input
-                                    type="checkbox"
-                                    checked={searchOptions.includeHidden}
-                                    onChange={(e) => setSearchOptions(prev => ({
-                                        ...prev,
-                                        includeHidden: e.target.checked
-                                    }))}
-                                />
-                                <span>Include hidden</span>
-                            </label>
+                    {/* Extension Filters */}
+                    <div className="search-options-container">
+                        <div className="extension-filters">
+                            <label className="filter-label">File types:</label>
+                            <div className="extension-checkboxes">
+                                {commonExtensions.map(ext => (
+                                    <label key={ext.value} className="checkbox-option">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedExtensions.includes(ext.value)}
+                                            onChange={() => handleExtensionChange(ext.value)}
+                                            disabled={isSearching}
+                                        />
+                                        <span>{ext.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                            {selectedExtensions.length > 0 && (
+                                <div className="selected-extensions">
+                                    Selected: {selectedExtensions.join(', ')}
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedExtensions([])}
+                                        className="clear-extensions"
+                                        disabled={isSearching}
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </form>
@@ -192,7 +228,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                     {isSearching && (
                         <div className="search-progress-container">
                             <div className="progress-spinner"></div>
-                            <span>Searching...</span>
+                            <span>Searching indexed files...</span>
                         </div>
                     )}
 
@@ -202,6 +238,15 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                 type="no-results"
                                 searchTerm={query}
                             />
+                            <div className="no-results-help">
+                                <p>Tips:</p>
+                                <ul>
+                                    <li>Make sure the backend has indexed your files</li>
+                                    <li>Try different keywords</li>
+                                    <li>Check spelling</li>
+                                    <li>Try using fewer or more specific terms</li>
+                                </ul>
+                            </div>
                         </div>
                     )}
 
@@ -228,26 +273,28 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                         <div className="result-details-container">
                                             <div
                                                 className="result-name-container"
-                                                onClick={() => openItem(result)}
+                                                onClick={() => openItemLocation(result)}
+                                                title={`Open location: ${result.directory}`}
                                             >
                                                 {result.name}
                                             </div>
                                             <div
                                                 className="result-path-container"
-                                                onClick={() => openContainingFolder(result)}
+                                                onClick={() => openItemLocation(result)}
+                                                title={result.path}
                                             >
-                                                {result.directory}
+                                                {result.path}
                                             </div>
                                         </div>
 
-                                        <div className="result-score-container">
+                                        <div className="result-score-container" title="Relevance score">
                                             {Math.round(result.score * 100)}%
                                         </div>
 
                                         <div className="result-actions-container">
                                             <button
                                                 className="action-button-container"
-                                                onClick={() => openContainingFolder(result)}
+                                                onClick={() => openItemLocation(result)}
                                                 title="Open containing folder"
                                             >
                                                 <span className="icon icon-folder"></span>
@@ -255,6 +302,47 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Search Engine Info when no query */}
+                    {!query && !isSearching && searchEngineInfo && (
+                        <div className="search-engine-info">
+                            <h4>Search Engine Information</h4>
+                            <div className="info-grid">
+                                <div className="info-item">
+                                    <span className="info-label">Status:</span>
+                                    <span className="info-value">{searchEngineInfo.status || 'Unknown'}</span>
+                                </div>
+                                {searchEngineInfo.progress && (
+                                    <>
+                                        <div className="info-item">
+                                            <span className="info-label">Progress:</span>
+                                            <span className="info-value">
+                                                {searchEngineInfo.progress.percentage_complete || 0}%
+                                            </span>
+                                        </div>
+                                        <div className="info-item">
+                                            <span className="info-label">Files indexed:</span>
+                                            <span className="info-value">
+                                                {searchEngineInfo.progress.files_indexed || 0} / {searchEngineInfo.progress.files_discovered || 0}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+                                {searchEngineInfo.metrics && (
+                                    <>
+                                        <div className="info-item">
+                                            <span className="info-label">Total searches:</span>
+                                            <span className="info-value">{searchEngineInfo.metrics.total_searches || 0}</span>
+                                        </div>
+                                        <div className="info-item">
+                                            <span className="info-label">Avg search time:</span>
+                                            <span className="info-value">{searchEngineInfo.metrics.average_search_time_ms || 0}ms</span>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
