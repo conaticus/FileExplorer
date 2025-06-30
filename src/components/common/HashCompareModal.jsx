@@ -4,12 +4,24 @@ import { showError, showSuccess } from '../../utils/NotificationSystem';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 
+/**
+ * Modal component for comparing file or directory hash with a provided hash value
+ * @param {Object} props - Component props
+ * @param {boolean} props.isOpen - Controls whether the modal is visible
+ * @param {Function} props.onClose - Handler called when the modal is closed
+ * @param {Object} props.item - File or directory item to compare hash for
+ * @param {string} props.item.path - Path to the file or directory
+ * @param {string} props.item.name - Name of the file or directory
+ * @returns {React.ReactElement|null} Hash comparison modal or null if no item provided
+ */
 const HashCompareModal = ({ isOpen, onClose, item }) => {
     const [hashValue, setHashValue] = useState('');
     const [isComparing, setIsComparing] = useState(false);
     const inputRef = useRef(null);
 
-    // Initialize when modal opens
+    /**
+     * Initialize state when modal opens and focus the input field
+     */
     useEffect(() => {
         if (isOpen) {
             setHashValue('');
@@ -22,7 +34,10 @@ const HashCompareModal = ({ isOpen, onClose, item }) => {
         }
     }, [isOpen]);
 
-    // Handle form submission
+    /**
+     * Handle form submission to compare hash values
+     * @param {React.FormEvent} e - Form event
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!hashValue.trim() || !item) return;
@@ -48,19 +63,28 @@ const HashCompareModal = ({ isOpen, onClose, item }) => {
         }
     };
 
-    // Handle input change
+    /**
+     * Handle changes to the hash input field
+     * @param {React.ChangeEvent<HTMLTextAreaElement>} e - Input change event
+     */
     const handleChange = (e) => {
         setHashValue(e.target.value);
     };
 
-    // Handle key down events
+    /**
+     * Handle keyboard events, specifically for modal escape
+     * @param {React.KeyboardEvent} e - Keyboard event
+     */
     const handleKeyDown = (e) => {
         if (e.key === 'Escape') {
             onClose();
         }
     };
 
-    // Handle paste event to clean up hash value
+    /**
+     * Clean up pasted hash values by removing whitespace and common prefixes
+     * @param {React.ClipboardEvent<HTMLTextAreaElement>} e - Paste event
+     */
     const handlePaste = (e) => {
         // Allow the paste to happen, then clean it up
         setTimeout(() => {

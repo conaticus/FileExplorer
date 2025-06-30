@@ -136,7 +136,7 @@ export const getTemplatePaths = async () => {
  * @returns {Promise<string>} - Success message.
  */
 export const addTemplate = async (templatePath) => {
-    return invoke('add_template', { template_path: templatePath });
+    return invoke('add_template', { templatePath: templatePath });
 };
 
 /**
@@ -147,7 +147,7 @@ export const addTemplate = async (templatePath) => {
  */
 export const useTemplate = async (templatePath, destPath) => {
     return invoke('use_template', {
-        template_path: templatePath,
+        templatePath: templatePath,
         dest_path: destPath
     });
 };
@@ -158,7 +158,7 @@ export const useTemplate = async (templatePath, destPath) => {
  * @returns {Promise<string>} - Success message.
  */
 export const removeTemplate = async (templatePath) => {
-    return invoke('remove_template', { template_path: templatePath });
+    return invoke('remove_template', { templatePath: templatePath });
 };
 
 /**

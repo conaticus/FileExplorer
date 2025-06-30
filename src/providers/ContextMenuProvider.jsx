@@ -104,6 +104,40 @@ export default function ContextMenuProvider({ children }) {
         }
     }, []);
 
+    // Copy path to clipboard
+    const copyPath = useCallback(async (item) => {
+        try {
+            await navigator.clipboard.writeText(item.path);
+            showSuccess(`Path copied to clipboard: ${item.path}`);
+        } catch (error) {
+            console.error('Failed to copy path:', error);
+            showError('Failed to copy path to clipboard.');
+        }
+    }, []);
+
+    // Add as template
+    const addAsTemplate = useCallback(async (item) => {
+        if (!item || item.isDirectory || 'sub_file_count' in item) {
+            showError('Only files can be added as templates.');
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const result = await invoke('add_template', {
+                templatePath: item.path
+            });
+            showSuccess(`Template added successfully: ${result}`);
+
+            window.dispatchEvent(new CustomEvent('templates-updated'));
+        } catch (error) {
+            console.error('Failed to add template:', error);
+            showError(`Failed to add template: ${error.message || error}`);
+        } finally {
+            setIsProcessing(false);
+        }
+    }, []);
+
     // Copy items to clipboard
     const copyToClipboard = useCallback(async (items) => {
         setClipboard({ items, operation: 'copy' });
@@ -527,6 +561,14 @@ export default function ContextMenuProvider({ children }) {
             },
             { type: 'separator' },
             {
+                id: 'copy-path',
+                label: 'Copy Path',
+                icon: 'copy',
+                disabled: selectedItems.length > 1 || isProcessing,
+                action: () => copyPath(contextTarget)
+            },
+            { type: 'separator' },
+            {
                 id: 'rename',
                 label: 'Rename',
                 icon: 'rename',
@@ -541,6 +583,20 @@ export default function ContextMenuProvider({ children }) {
                 action: () => deleteItems(targetItems)
             }
         ];
+
+        // Add "Add as Template" for files only
+        if (isFile && selectedItems.length === 1) {
+            menuItems.push(
+                { type: 'separator' },
+                {
+                    id: 'add-as-template',
+                    label: 'Add as Template',
+                    icon: 'template',
+                    disabled: isProcessing,
+                    action: () => addAsTemplate(contextTarget)
+                }
+            );
+        }
 
         // Add zip/unzip options
         if (isZipFile && selectedItems.length === 1) {
@@ -645,7 +701,7 @@ export default function ContextMenuProvider({ children }) {
         );
 
         return menuItems;
-    }, [selectedItems, clipboard, isProcessing, currentPath, copyToClipboard, cutToClipboard, pasteFromClipboard, deleteItems, renameItem, loadDirectory, showProperties, addToFavorites, removeFromFavorites, updateNavigationHistory, zipItems, unzipItem, isInFavorites, getCurrentFolderMetadata, generateHash, generateHashToFile, compareHash]);
+    }, [selectedItems, clipboard, isProcessing, currentPath, copyToClipboard, cutToClipboard, pasteFromClipboard, deleteItems, renameItem, loadDirectory, showProperties, addToFavorites, removeFromFavorites, updateNavigationHistory, zipItems, unzipItem, isInFavorites, getCurrentFolderMetadata, generateHash, generateHashToFile, compareHash, copyPath, addAsTemplate]);
 
     // Open context menu
     const openContextMenu = useCallback((e, contextTarget = null) => {

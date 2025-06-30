@@ -2,9 +2,11 @@ import React from 'react';
 import './common.css';
 
 /**
- * Icon mapping to SVG paths or class names
- * This is a simplified version - in a real implementation,
- * this would either use an icon library or have SVG definitions for all icons
+ * Mapping von Icon-Namen zu CSS-Klassen
+ * @type {Object.<string, string>}
+ * @description Definiert alle verfügbaren Icons in der Anwendung.
+ * In einer vollständigen Implementierung würde dies entweder eine Icon-Bibliothek
+ * verwenden oder SVG-Definitionen für alle Icons enthalten.
  */
 const ICON_MAP = {
     // Navigation

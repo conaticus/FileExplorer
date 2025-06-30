@@ -4,7 +4,7 @@ import './searchBar.css';
 const SearchBar = ({ value = '', onChange, onSubmit, placeholder = 'Search files and folders' }) => {
     const [inputValue, setInputValue] = useState(value);
     const [isFocused, setIsFocused] = useState(false);
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(true); // Always expanded
     const inputRef = useRef(null);
     const searchBarRef = useRef(null);
 

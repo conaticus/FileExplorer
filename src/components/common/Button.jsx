@@ -24,7 +24,10 @@ const Button = ({
                     className = '',
                     ...rest
                 }) => {
-    // Build class name based on props
+    /**
+     * Erzeugt die CSS-Klassen für den Button basierend auf den Props
+     * @type {string}
+     */
     const buttonClasses = [
         'btn',
         `btn-${variant}`,

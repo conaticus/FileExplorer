@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import Button from '../common/Button';
 import IconButton from '../common/IconButton';
@@ -8,6 +8,7 @@ import EmptyState from '../explorer/EmptyState';
 import { useHistory } from '../../providers/HistoryProvider';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { getTemplatePaths, useTemplate, removeTemplate, addTemplate } from '../../utils/fileOperations';
+import { showError, showSuccess } from '../../utils/NotificationSystem';
 import './templates.css';
 
 const TemplateList = ({ onClose }) => {
@@ -21,6 +22,7 @@ const TemplateList = ({ onClose }) => {
     const [newTemplatePath, setNewTemplatePath] = useState('');
     const { currentPath } = useHistory();
     const { loadDirectory } = useFileSystem();
+    const addTemplateInputRef = useRef(null);
 
     // Load templates on mount
     useEffect(() => {
@@ -65,6 +67,17 @@ const TemplateList = ({ onClose }) => {
         };
 
         loadTemplates();
+
+        // Listen for template updates from context menu
+        const handleTemplatesUpdated = () => {
+            loadTemplates();
+        };
+
+        window.addEventListener('templates-updated', handleTemplatesUpdated);
+
+        return () => {
+            window.removeEventListener('templates-updated', handleTemplatesUpdated);
+        };
     }, []);
 
     // Open modal to use template
@@ -88,7 +101,7 @@ const TemplateList = ({ onClose }) => {
             setIsUseModalOpen(false);
 
             // Show success message
-            alert(`Template "${selectedTemplate.name}" applied successfully!`);
+            showSuccess(`Template "${selectedTemplate.name}" applied successfully!`);
         } catch (err) {
             console.error('Failed to apply template:', err);
             setError('Failed to apply template. Please try again.');
@@ -102,16 +115,24 @@ const TemplateList = ({ onClose }) => {
 
             // Update the template list
             setTemplates(prev => prev.filter(t => t.path !== template.path));
+            showSuccess(`Template "${template.name}" removed successfully.`);
         } catch (err) {
             console.error('Failed to remove template:', err);
-            setError('Failed to remove template. Please try again.');
+            showError('Failed to remove template. Please try again.');
         }
     };
 
-    // Add new template
+    // Add new template - open modal
     const handleAddTemplate = () => {
         setNewTemplatePath('');
         setIsAddModalOpen(true);
+
+        // Focus input after modal opens
+        setTimeout(() => {
+            if (addTemplateInputRef.current) {
+                addTemplateInputRef.current.focus();
+            }
+        }, 100);
     };
 
     // Save new template
@@ -119,7 +140,7 @@ const TemplateList = ({ onClose }) => {
         if (!newTemplatePath.trim()) return;
 
         try {
-            await addTemplate(newTemplatePath);
+            await addTemplate(newTemplatePath.trim());
 
             // Reload templates
             const templatePaths = await getTemplatePaths();
@@ -128,10 +149,28 @@ const TemplateList = ({ onClose }) => {
             setIsAddModalOpen(false);
             setNewTemplatePath('');
 
-            alert('Template added successfully!');
+            showSuccess('Template added successfully!');
         } catch (err) {
             console.error('Failed to add template:', err);
-            alert(`Failed to add template: ${err.message || err}`);
+            showError(`Failed to add template: ${err.message || err}`);
+        }
+    };
+
+    // Handle form submission for add template
+    const handleAddTemplateSubmit = (e) => {
+        e.preventDefault();
+        saveNewTemplate();
+    };
+
+    // Handle input change for add template
+    const handleAddTemplateInputChange = (e) => {
+        setNewTemplatePath(e.target.value);
+    };
+
+    // Handle key down for add template input
+    const handleAddTemplateKeyDown = (e) => {
+        if (e.key === 'Escape') {
+            setIsAddModalOpen(false);
         }
     };
 
@@ -268,22 +307,26 @@ const TemplateList = ({ onClose }) => {
                     </>
                 }
             >
-                <div className="template-add-form">
-                    <div className="form-group">
-                        <label htmlFor="template-path">Template Path</label>
-                        <input
-                            type="text"
-                            id="template-path"
-                            className="input"
-                            value={newTemplatePath}
-                            onChange={(e) => setNewTemplatePath(e.target.value)}
-                            placeholder="Enter path to file or folder to save as template"
-                        />
-                        <div className="input-hint">
-                            Enter the full path to a file or folder that you want to save as a template.
+                <form onSubmit={handleAddTemplateSubmit}>
+                    <div className="template-add-form">
+                        <div className="form-group">
+                            <label htmlFor="template-path">Template Path</label>
+                            <input
+                                ref={addTemplateInputRef}
+                                type="text"
+                                id="template-path"
+                                className="input"
+                                value={newTemplatePath}
+                                onChange={handleAddTemplateInputChange}
+                                onKeyDown={handleAddTemplateKeyDown}
+                                placeholder="Enter path to file or folder to save as template"
+                            />
+                            <div className="input-hint">
+                                Enter the full path to a file or folder that you want to save as a template.
+                            </div>
                         </div>
                     </div>
-                </div>
+                </form>
             </Modal>
         </div>
     );

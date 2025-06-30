@@ -30,7 +30,10 @@ const IconButton = ({
                         label,
                         ...rest
                     }) => {
-    // Build class name based on props
+    /**
+     * Erzeugt die CSS-Klassen für den Button basierend auf den Props
+     * @type {string}
+     */
     const buttonClasses = [
         'btn',
         'btn-icon',
@@ -39,6 +42,10 @@ const IconButton = ({
         className
     ].filter(Boolean).join(' ');
 
+    /**
+     * Bestimmt die Icon-Größe basierend auf der Button-Größe
+     * @type {string}
+     */
     const iconSize = size === 'sm' ? 'small' : size === 'lg' ? 'large' : 'medium';
 
     const button = (

@@ -6,6 +6,16 @@ import { showError, showSuccess } from '../../utils/NotificationSystem';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 
+/**
+ * Modal component for generating a hash file for a selected file or directory
+ * @param {Object} props - Component props
+ * @param {boolean} props.isOpen - Controls whether the modal is visible
+ * @param {Function} props.onClose - Handler called when the modal is closed
+ * @param {Object} props.item - File or directory item to generate hash for
+ * @param {string} props.item.path - Path to the file or directory
+ * @param {string} props.item.name - Name of the file or directory
+ * @returns {React.ReactElement|null} Hash file generation modal or null if no item provided
+ */
 const HashFileModal = ({ isOpen, onClose, item }) => {
     const [fileName, setFileName] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -13,7 +23,9 @@ const HashFileModal = ({ isOpen, onClose, item }) => {
     const { currentPath } = useHistory();
     const { loadDirectory } = useFileSystem();
 
-    // Initialize filename when modal opens
+    /**
+     * Initialize filename when modal opens and focus the input field
+     */
     useEffect(() => {
         if (isOpen && item) {
             setFileName(`${item.name}.hash`);
@@ -32,7 +44,10 @@ const HashFileModal = ({ isOpen, onClose, item }) => {
         }
     }, [isOpen, item, fileName]);
 
-    // Handle form submission
+    /**
+     * Handle form submission to generate hash file
+     * @param {React.FormEvent} e - Form event
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!fileName.trim() || !item) return;
@@ -58,12 +73,18 @@ const HashFileModal = ({ isOpen, onClose, item }) => {
         }
     };
 
-    // Handle input change
+    /**
+     * Handle changes to the filename input field
+     * @param {React.ChangeEvent<HTMLInputElement>} e - Input change event
+     */
     const handleChange = (e) => {
         setFileName(e.target.value);
     };
 
-    // Handle key down events
+    /**
+     * Handle keyboard events, specifically for modal escape
+     * @param {React.KeyboardEvent} e - Keyboard event
+     */
     const handleKeyDown = (e) => {
         if (e.key === 'Escape') {
             onClose();
