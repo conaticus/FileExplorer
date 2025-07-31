@@ -72,6 +72,11 @@ app.log
 # Ignore test data
 /src-tauri/test-data*/
 
+# Ingnore meta_data and settings
+
+
+# Ignore logs
+/logs/*
 
 # for the latex stuff
 /FileExplorerAusarbeitung/*.acn
