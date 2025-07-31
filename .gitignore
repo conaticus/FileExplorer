@@ -73,7 +73,8 @@ app.log
 /src-tauri/test-data*/
 
 # Ingnore meta_data and settings
-
+/config/meta_data.json
+/config/settings.json
 
 # Ignore logs
 /logs/*
