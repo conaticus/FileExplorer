@@ -1,6 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 use std::sync::LazyLock;
+use chrono::Local;
 
 pub static VERSION: &str = "0.2.3";
 
@@ -34,7 +35,7 @@ pub static ERROR_LOG_FILE_ABS_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
     LOG_PATH.join(ERROR_LOG_FILE_NAME)
 });
 
-pub const MAX_FILE_SIZE: u64 = 250 * 1024 * 1024; // 250 MB
+pub const MAX_NUMBER_OF_LOG_FILES: usize = 3;
 
 pub static SETTINGS_CONFIG_ABS_PATH: LazyLock<PathBuf> =
     LazyLock::new(|| CONFIG_PATH.join(SETTINGS_CONFIG_FILE_NAME));
