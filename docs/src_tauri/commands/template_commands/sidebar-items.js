@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_template","add_template_impl","copy_to_dest_path","get_template_paths_as_json","get_template_paths_as_json_impl","get_template_paths_from_state","remove_template","remove_template_impl","use_template","use_template_impl"]};

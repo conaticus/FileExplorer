@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SearchEngineStatus"],"struct":["EngineStatsSerializable","IndexingProgress","RecentActivity","SearchEngine","SearchEngineInfo","SearchEngineMetrics","SearchEngineState"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["get_meta_data_as_json","update_meta_data"]};

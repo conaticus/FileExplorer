@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["copy_file_or_dir","create_directory","create_file","move_to_trash","open_directory","open_file","open_in_default_app","rename","unzip","zip"]};
