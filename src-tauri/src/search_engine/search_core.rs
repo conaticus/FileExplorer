@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 #[cfg(any(feature = "search-progress-logging", feature = "index-progress-logging"))]
 use crate::log_info;
 #[cfg(any(feature = "search-error-logging", feature = "index-error-logging"))]
-use crate::log_error ;
+use crate::log_error;
 use crate::search_engine::art_v5::ART;
 use crate::search_engine::fast_fuzzy_v2::PathMatcher;
 use crate::search_engine::path_cache_wrapper::PathCache;
@@ -1120,8 +1120,11 @@ pub struct EngineStats {
 mod tests_search_core {
     use super::*;
     use std::fs;
+    use std::path::PathBuf;
     use std::thread::sleep;
-    use crate::{log_info, log_warn};
+    use crate::{log_info, log_warn, log_error};
+    use crate::constants::TEST_DATA_PATH;
+    use crate::search_engine::test_generate_test_data::generate_test_data_if_not_exists;
 
     #[test]
     fn test_basic_search() {
@@ -1582,18 +1585,12 @@ mod tests_search_core {
     }
 
     // Helper function to get test data directory
-    fn get_test_data_path() -> std::path::PathBuf {
-        let path = std::path::PathBuf::from("./test-data-for-fuzzy-search");
-        if !path.exists() {
-            log_warn!(
-                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
-                path
-            );
-            panic!(
-                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
-                path
-            );
-        }
+    fn get_test_data_path() -> PathBuf {
+        let path = PathBuf::from(TEST_DATA_PATH);
+        generate_test_data_if_not_exists(PathBuf::from(TEST_DATA_PATH)).unwrap_or_else(|err| {
+            log_error!("Error during test data generation or path lookup: {}", err);
+            panic!("Test data generation failed");
+        });
         path
     }
 

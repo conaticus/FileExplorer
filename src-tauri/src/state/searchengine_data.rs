@@ -1,14 +1,15 @@
+use crate::models::search_engine_config::SearchEngineConfig;
+use crate::search_engine::search_core::{EngineStats, SearchCore};
+use crate::state::SettingsState;
+#[allow(unused_imports)]
+use crate::{log_error, log_info, log_warn};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::{fs, thread};
 use std::time::{Duration, Instant};
-use crate::{log_error, log_warn};
-#[cfg(test)]
-use crate::log_info;
-use crate::search_engine::search_core::{SearchCore, EngineStats};
-use crate::models::search_engine_config::SearchEngineConfig;
-use crate::state::SettingsState;
+use std::{fs, thread};
+
+
 
 /// Current operational status of the search engine.
 ///
@@ -197,24 +198,26 @@ impl SearchEngineState {
             let inner_settings = settings.0.lock().unwrap();
             inner_settings.backend_settings.search_engine_config.clone()
         };
-        
+
         // Create a new RankingConfig with the directory boost enabled/disabled
         // based on the prefer_directories setting
         let mut ranking_config = config.ranking_config.clone();
         if !config.prefer_directories {
             ranking_config.directory_ranking_boost = 0.0; // Disable directory boost if not preferred
         }
-        
+
         // Pass the ranking_config from settings to the autocomplete engine
         let engine = SearchCore::new(
-            config.cache_size, 
+            config.cache_size,
             config.max_results,
             config.cache_ttl.unwrap(),
             ranking_config,
         );
 
         Self {
-            data: Arc::new(Mutex::new(Self::save_default_search_engine_in_state(config))),
+            data: Arc::new(Mutex::new(Self::save_default_search_engine_in_state(
+                config,
+            ))),
             engine: Arc::new(Mutex::new(engine)),
             settings_state,
         }
@@ -422,11 +425,16 @@ impl SearchEngineState {
             drop(engine);
 
             // First collect all paths that need to be indexed
-            let paths = self.collect_paths_recursive(&folder, &excluded_patterns.unwrap_or_default());
+            let paths =
+                self.collect_paths_recursive(&folder, &excluded_patterns.unwrap_or_default());
             let total_paths = paths.len();
 
             #[cfg(test)]
-            log_info!("Collected {} paths to index in chunks of {}", total_paths, chunk_size);
+            log_info!(
+                "Collected {} paths to index in chunks of {}",
+                total_paths,
+                chunk_size
+            );
 
             // Update initial progress
             {
@@ -481,11 +489,15 @@ impl SearchEngineState {
 
                             // Calculate estimated time remaining
                             if let Some(start_time_ms) = data.progress.start_time {
-                                let elapsed_ms = chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
+                                let elapsed_ms =
+                                    chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
                                 if files_indexed + i + 1 > 0 {
-                                    let avg_time_per_file = elapsed_ms as f32 / (files_indexed + i + 1) as f32;
-                                    let remaining_files = total_paths.saturating_sub(files_indexed + i + 1);
-                                    let estimated_ms = (avg_time_per_file * remaining_files as f32) as u64;
+                                    let avg_time_per_file =
+                                        elapsed_ms as f32 / (files_indexed + i + 1) as f32;
+                                    let remaining_files =
+                                        total_paths.saturating_sub(files_indexed + i + 1);
+                                    let estimated_ms =
+                                        (avg_time_per_file * remaining_files as f32) as u64;
                                     data.progress.estimated_time_remaining = Some(estimated_ms);
                                 }
                             }
@@ -529,7 +541,8 @@ impl SearchEngineState {
 
                     // Calculate estimated time remaining
                     if let Some(start_time_ms) = data.progress.start_time {
-                        let elapsed_ms = chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
+                        let elapsed_ms =
+                            chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
                         if files_indexed > 0 {
                             let avg_time_per_file = elapsed_ms as f32 / files_indexed as f32;
                             let remaining_files = total_paths.saturating_sub(files_indexed);
@@ -612,16 +625,16 @@ impl SearchEngineState {
                 // Convert path to string
                 if let Some(path_str) = path.to_str() {
                     // Check if path should be excluded using the same logic as the original indexing
-                    let should_exclude = excluded_patterns.iter()
-                        .any(|pattern| {
-                            // Support both exact matches and pattern matching
-                            path_str.contains(pattern) ||
-                            path_str.ends_with(pattern) ||
-                            path.file_name()
+                    let should_exclude = excluded_patterns.iter().any(|pattern| {
+                        // Support both exact matches and pattern matching
+                        path_str.contains(pattern)
+                            || path_str.ends_with(pattern)
+                            || path
+                                .file_name()
                                 .and_then(|name| name.to_str())
                                 .map(|name| name.contains(pattern))
                                 .unwrap_or(false)
-                        });
+                    });
 
                     if !should_exclude {
                         // Add this path (both files and directories are indexed)
@@ -745,7 +758,7 @@ impl SearchEngineState {
     /// Performs a search with custom file extension preferences.
     ///
     /// Similar to `search`, but allows overriding the default extension preferences
-    /// specifically for this search operation. Files with the specified extensions 
+    /// specifically for this search operation. Files with the specified extensions
     /// will receive higher ranking in results, with priority determined by order.
     ///
     /// # Arguments
@@ -768,7 +781,7 @@ impl SearchEngineState {
     ///
     /// # Performance
     ///
-    /// Similar to `search`, but with additional overhead of temporarily modifying 
+    /// Similar to `search`, but with additional overhead of temporarily modifying
     /// and restoring extension preferences.
     pub fn search_by_extension(
         &self,
@@ -805,10 +818,7 @@ impl SearchEngineState {
         let original_extensions = engine.get_preferred_extensions().clone();
         engine.set_preferred_extensions(extensions.clone());
         #[cfg(test)]
-        log_info!(
-            "Searching with preferred extensions: {:?}",
-            extensions
-        );
+        log_info!("Searching with preferred extensions: {:?}", extensions);
 
         // Perform search
         let start_time = Instant::now();
@@ -827,10 +837,7 @@ impl SearchEngineState {
                     .and_then(|e| e.to_str())
                 {
                     let ext = extension.to_lowercase();
-                    log_info!(
-                        "Top result extension: {}, preferred: {:?}",
-                        ext, extensions
-                    );
+                    log_info!("Top result extension: {}, preferred: {:?}", ext, extensions);
                 }
             }
         }
@@ -967,7 +974,7 @@ impl SearchEngineState {
 
     /// Updates the search engine configuration from settings state.
     ///
-    /// This method retrieves the latest configuration from the settings state 
+    /// This method retrieves the latest configuration from the settings state
     /// and applies it to the search engine.
     ///
     /// # Arguments
@@ -986,14 +993,14 @@ impl SearchEngineState {
     pub fn update_config(&self, path: Option<String>) -> Result<(), String> {
         let mut data = self.data.lock().unwrap();
         let mut engine = self.engine.lock().unwrap();
-        
+
         // Get fresh config from settings state
         let config = {
             let settings = self.settings_state.lock().unwrap();
             let inner_settings = settings.0.lock().unwrap();
             inner_settings.backend_settings.search_engine_config.clone()
         };
-        
+
         data.config = config.clone();
         data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
 
@@ -1020,17 +1027,17 @@ impl SearchEngineState {
     /// * `Err(String)` - An error occurred while adding the path
     pub fn add_path(&self, path: &str) -> Result<(), String> {
         let data = self.data.lock().unwrap();
-        
+
         // Check if search engine is enabled
         if !data.config.search_engine_enabled {
             log_error!("Search engine is disabled in configuration.");
             return Err("Search engine is disabled in configuration".to_string());
         }
-        
+
         // Get the excluded patterns to pass to the engine
         let excluded_patterns = data.config.excluded_patterns.clone();
         drop(data);
-        
+
         let mut engine = self.engine.lock().unwrap();
         // Use the new method to check exclusions before adding
         engine.add_path_with_exclusion_check(path, Some(&excluded_patterns.unwrap()));
@@ -1052,15 +1059,15 @@ impl SearchEngineState {
     /// * `Err(String)` - An error occurred while removing the path
     pub fn remove_path(&self, path: &str) -> Result<(), String> {
         let data = self.data.lock().unwrap();
-        
+
         // Check if search engine is enabled
         if !data.config.search_engine_enabled {
             log_error!("Search engine is disabled in configuration.");
             return Err("Search engine is disabled in configuration".to_string());
         }
-        
+
         drop(data);
-        
+
         let mut engine = self.engine.lock().unwrap();
         engine.remove_path(path);
         Ok(())
@@ -1081,15 +1088,15 @@ impl SearchEngineState {
     /// * `Err(String)` - An error occurred during removal
     pub fn remove_paths_recursive(&self, path: &str) -> Result<(), String> {
         let data = self.data.lock().unwrap();
-        
+
         // Check if search engine is enabled
         if !data.config.search_engine_enabled {
             log_error!("Search engine is disabled in configuration.");
             return Err("Search engine is disabled in configuration".to_string());
         }
-        
+
         drop(data);
-        
+
         let mut engine = self.engine.lock().unwrap();
         engine.remove_paths_recursive(path);
         Ok(())
@@ -1177,17 +1184,14 @@ impl Clone for SearchEngineState {
 #[cfg(test)]
 // Helper function to get test data directory
 fn get_test_data_path() -> PathBuf {
-    let path = PathBuf::from("./test-data-for-fuzzy-search");
-    if !path.exists() {
-        log_warn!(
-                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
-                path
-            );
-        panic!(
-            "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
-            path
-        );
-    }
+    use crate::search_engine::test_generate_test_data::generate_test_data_if_not_exists;
+    use crate::constants::TEST_DATA_PATH;
+
+    let path = PathBuf::from(TEST_DATA_PATH);
+    generate_test_data_if_not_exists(PathBuf::from(TEST_DATA_PATH)).unwrap_or_else(|err| {
+        log_error!("Error during test data generation or path lookup: {}", err);
+        panic!("Test data generation failed");
+    });
     path
 }
 
@@ -1197,11 +1201,7 @@ fn collect_test_paths(limit: Option<usize>) -> Vec<String> {
     let test_path = get_test_data_path();
     let mut paths = Vec::new();
 
-    fn add_paths_recursively(
-        dir: &std::path::Path,
-        paths: &mut Vec<String>,
-        limit: Option<usize>,
-    ) {
+    fn add_paths_recursively(dir: &std::path::Path, paths: &mut Vec<String>, limit: Option<usize>) {
         if let Some(max) = limit {
             if paths.len() >= max {
                 return;
@@ -1246,7 +1246,6 @@ fn collect_test_paths(limit: Option<usize>) -> Vec<String> {
 mod tests_searchengine_state {
     use super::*;
     use crate::log_info;
-    use crate::log_warn;
     use std::fs;
     use std::thread;
     use std::time::Duration;
@@ -1746,7 +1745,7 @@ mod tests_searchengine_state {
         } else {
             get_test_data_path().to_string_lossy().to_string()
         };
-        
+
         // Update configuration with directory context
         let _ = state.update_config(Some(dir_context.clone()));
 
@@ -1761,7 +1760,8 @@ mod tests_searchengine_state {
             let top_result = &results[0].0;
             log_info!(
                 "Top result: {} for context dir: {}",
-                top_result, dir_context
+                top_result,
+                dir_context
             );
 
             // Count results from context directory
@@ -1935,10 +1935,7 @@ mod tests_searchengine_state {
 
         // Check that configuration was updated
         let data = state.data.lock().unwrap();
-        assert_eq!(
-            data.current_directory,
-            Some("/home/user".to_string())
-        );
+        assert_eq!(data.current_directory, Some("/home/user".to_string()));
     }
 
     #[test]
@@ -2135,12 +2132,7 @@ mod tests_searchengine_state {
         );
 
         for (i, (path, score)) in initial_search.iter().take(5).enumerate() {
-            log_info!(
-                "  Initial result #{}: {} (score: {})",
-                i + 1,
-                path,
-                score
-            );
+            log_info!("  Initial result #{}: {} (score: {})", i + 1, path, score);
         }
 
         let refined_search = state
@@ -2153,12 +2145,7 @@ mod tests_searchengine_state {
         );
 
         for (i, (path, score)) in refined_search.iter().take(5).enumerate() {
-            log_info!(
-                "  Refined result #{}: {} (score: {})",
-                i + 1,
-                path,
-                score
-            );
+            log_info!("  Refined result #{}: {} (score: {})", i + 1, path, score);
         }
 
         // Count paths that match each search term
@@ -2167,7 +2154,8 @@ mod tests_searchengine_state {
 
         log_info!(
             "Paths containing 'do': {}, paths containing 'doc': {}",
-            do_matches, doc_matches
+            do_matches,
+            doc_matches
         );
 
         // Only assert if the dataset should logically support our assumption
@@ -2216,7 +2204,8 @@ mod tests_searchengine_state {
         let stats = state.get_stats();
         log_info!(
             "Engine stats after adding paths - Cache size: {}, Trie size: {}",
-            stats.cache_size, stats.trie_size
+            stats.cache_size,
+            stats.trie_size
         );
 
         // Use multiple search queries to increase chances of finding matches
@@ -2241,12 +2230,7 @@ mod tests_searchengine_state {
 
                 // Log top results
                 for (i, (path, score)) in results.iter().take(3).enumerate() {
-                    log_info!(
-                        "  Result #{}: {} (score: {:.4})",
-                        i + 1,
-                        path,
-                        score
-                    );
+                    log_info!("  Result #{}: {} (score: {:.4})", i + 1, path, score);
                 }
 
                 break;
@@ -2389,8 +2373,15 @@ mod tests_searchengine_state {
 
         // After indexing completes, verify the status is Idle
         let data = state.data.lock().unwrap();
-        assert_eq!(data.status, SearchEngineStatus::Idle, "Status should be Idle after completion");
-        assert_eq!(data.progress.percentage_complete, 100.0, "Progress should be 100%");
+        assert_eq!(
+            data.status,
+            SearchEngineStatus::Idle,
+            "Status should be Idle after completion"
+        );
+        assert_eq!(
+            data.progress.percentage_complete, 100.0,
+            "Progress should be 100%"
+        );
 
         // Check that we can search for the indexed files
         drop(data);
@@ -2401,8 +2392,13 @@ mod tests_searchengine_state {
         assert!(!results.is_empty(), "Should find indexed files");
 
         // Verify that at least one chunked test file is found
-        let found_chunked_test = results.iter().any(|(path, _)| path.contains("chunked_test"));
-        assert!(found_chunked_test, "Should find at least one chunked test file");
+        let found_chunked_test = results
+            .iter()
+            .any(|(path, _)| path.contains("chunked_test"));
+        assert!(
+            found_chunked_test,
+            "Should find at least one chunked test file"
+        );
 
         // Clean up test files
         for file in test_files {
@@ -2525,7 +2521,9 @@ mod tests_searchengine_state {
             }
 
             // Start chunked indexing
-            state_clone.start_chunked_indexing(test_dir_clone, 10).unwrap();
+            state_clone
+                .start_chunked_indexing(test_dir_clone, 10)
+                .unwrap();
         });
 
         // Wait for indexing to start
@@ -2539,7 +2537,10 @@ mod tests_searchengine_state {
 
         // Stop indexing
         let stop_result = state.stop_indexing();
-        assert!(stop_result.is_ok(), "Should successfully stop chunked indexing");
+        assert!(
+            stop_result.is_ok(),
+            "Should successfully stop chunked indexing"
+        );
 
         // Verify that stopping worked
         {
@@ -2580,7 +2581,9 @@ mod tests_searchengine_state {
                 status_tx.send(()).unwrap();
             }
 
-            state_clone.start_chunked_indexing(test_dir_clone, 5).unwrap();
+            state_clone
+                .start_chunked_indexing(test_dir_clone, 5)
+                .unwrap();
         });
 
         status_rx.recv().unwrap();
@@ -2592,7 +2595,10 @@ mod tests_searchengine_state {
 
         // Cancel indexing
         let cancel_result = state.cancel_indexing();
-        assert!(cancel_result.is_ok(), "Should successfully cancel chunked indexing");
+        assert!(
+            cancel_result.is_ok(),
+            "Should successfully cancel chunked indexing"
+        );
 
         {
             let data = state.data.lock().unwrap();
@@ -2685,14 +2691,23 @@ mod tests_searchengine_state {
 
         if !results.is_empty() {
             let top_result = &results[0].0;
-            log_info!("Chunked indexing top result: {} for context dir: {}", top_result, dir_context);
+            log_info!(
+                "Chunked indexing top result: {} for context dir: {}",
+                top_result,
+                dir_context
+            );
 
             // Count results from context directory
-            let context_matches = results.iter()
+            let context_matches = results
+                .iter()
                 .filter(|(path, _)| path.starts_with(&dir_context))
                 .count();
 
-            log_info!("Chunked: {} of {} results are from context directory", context_matches, results.len());
+            log_info!(
+                "Chunked: {} of {} results are from context directory",
+                context_matches,
+                results.len()
+            );
         }
     }
 
@@ -2718,8 +2733,13 @@ mod tests_searchengine_state {
         let search1 = state.search("chunked_testfile1");
         assert!(search1.is_ok());
         let results1 = search1.unwrap();
-        let has_file1 = results1.iter().any(|(path, _)| path.contains("chunked_testfile1"));
-        assert!(has_file1, "Should find chunked_testfile1 after chunked indexing first directory");
+        let has_file1 = results1
+            .iter()
+            .any(|(path, _)| path.contains("chunked_testfile1"));
+        assert!(
+            has_file1,
+            "Should find chunked_testfile1 after chunked indexing first directory"
+        );
 
         // Index second directory with chunked indexing
         let _ = state.start_chunked_indexing(subdir2.clone(), 25);
@@ -2729,15 +2749,25 @@ mod tests_searchengine_state {
         let search2 = state.search("chunked_testfile2");
         assert!(search2.is_ok());
         let results2 = search2.unwrap();
-        let has_file2 = results2.iter().any(|(path, _)| path.contains("chunked_testfile2"));
-        assert!(has_file2, "Should find chunked_testfile2 after chunked indexing second directory");
+        let has_file2 = results2
+            .iter()
+            .any(|(path, _)| path.contains("chunked_testfile2"));
+        assert!(
+            has_file2,
+            "Should find chunked_testfile2 after chunked indexing second directory"
+        );
 
         // First file should no longer be found
         let search1_again = state.search("chunked_testfile1");
         assert!(search1_again.is_ok());
         let results1_again = search1_again.unwrap();
-        let still_has_file1 = results1_again.iter().any(|(path, _)| path.contains("chunked_testfile1"));
-        assert!(!still_has_file1, "Should not find chunked_testfile1 after switching indexes");
+        let still_has_file1 = results1_again
+            .iter()
+            .any(|(path, _)| path.contains("chunked_testfile1"));
+        assert!(
+            !still_has_file1,
+            "Should not find chunked_testfile1 after switching indexes"
+        );
 
         // Clean up test files
         let _ = fs::remove_file(file1);
@@ -2777,14 +2807,21 @@ mod tests_searchengine_state {
         }
 
         // Update progress manually (simulating chunked indexing progress)
-        state.update_indexing_progress(25, 100, Some("/chunked/path/to/current/file.txt".to_string()));
+        state.update_indexing_progress(
+            25,
+            100,
+            Some("/chunked/path/to/current/file.txt".to_string()),
+        );
 
         // Check progress data
         let data = state.data.lock().unwrap();
         assert_eq!(data.progress.files_indexed, 25);
         assert_eq!(data.progress.files_discovered, 100);
         assert_eq!(data.progress.percentage_complete, 25.0);
-        assert_eq!(data.progress.current_path, Some("/chunked/path/to/current/file.txt".to_string()));
+        assert_eq!(
+            data.progress.current_path,
+            Some("/chunked/path/to/current/file.txt".to_string())
+        );
         assert!(data.progress.estimated_time_remaining.is_some());
     }
 
@@ -2804,7 +2841,10 @@ mod tests_searchengine_state {
 
         // Get stats after chunked indexing
         let after_stats = state.get_stats();
-        assert!(after_stats.trie_size >= 0, "Trie should contain indexed paths after chunked indexing");
+        assert!(
+            after_stats.trie_size >= 0,
+            "Trie should contain indexed paths after chunked indexing"
+        );
     }
 
     #[test]
@@ -2837,7 +2877,10 @@ mod tests_searchengine_state {
         let mut test_files = Vec::new();
         for i in 0..1000 {
             let file_path = test_dir.join(format!("chunked_thread_safety_test_{}.txt", i));
-            let _ = fs::write(&file_path, format!("Chunked thread safety test content {}", i));
+            let _ = fs::write(
+                &file_path,
+                format!("Chunked thread safety test content {}", i),
+            );
             test_files.push(file_path);
         }
 
@@ -2851,7 +2894,9 @@ mod tests_searchengine_state {
                 status_tx.send(()).unwrap();
             }
 
-            state_clone.start_chunked_indexing(test_dir_clone, 30).unwrap();
+            state_clone
+                .start_chunked_indexing(test_dir_clone, 30)
+                .unwrap();
         });
 
         status_rx.recv().unwrap();
@@ -2908,11 +2953,23 @@ mod tests_searchengine_state {
         let initial_search_term = "doc";
         let refined_search_term = "docu";
 
-        let initial_search = state.search(initial_search_term).expect("Initial chunked search failed");
-        log_info!("Chunked initial search for '{}' found {} results", initial_search_term, initial_search.len());
+        let initial_search = state
+            .search(initial_search_term)
+            .expect("Initial chunked search failed");
+        log_info!(
+            "Chunked initial search for '{}' found {} results",
+            initial_search_term,
+            initial_search.len()
+        );
 
-        let refined_search = state.search(refined_search_term).expect("Refined chunked search failed");
-        log_info!("Chunked refined search for '{}' found {} results", refined_search_term, refined_search.len());
+        let refined_search = state
+            .search(refined_search_term)
+            .expect("Refined chunked search failed");
+        log_info!(
+            "Chunked refined search for '{}' found {} results",
+            refined_search_term,
+            refined_search.len()
+        );
 
         // Basic assertion - refined search should be meaningful
         assert!(refined_search.len() <= initial_search.len() + 5); // Allow some tolerance for ranking differences
@@ -2931,7 +2988,10 @@ mod tests_searchengine_state {
         let result = state.start_chunked_indexing(test_dir.clone(), 80);
         let elapsed = start.elapsed();
 
-        assert!(result.is_ok(), "Chunked indexing should succeed with real data");
+        assert!(
+            result.is_ok(),
+            "Chunked indexing should succeed with real data"
+        );
         log_info!("Chunked indexing completed in {:?}", elapsed);
 
         // Wait for completion
@@ -2939,7 +2999,11 @@ mod tests_searchengine_state {
 
         // Get stats after chunked indexing
         let stats = state.get_stats();
-        log_info!("Chunked indexing stats - Cache size: {}, Trie size: {}", stats.cache_size, stats.trie_size);
+        log_info!(
+            "Chunked indexing stats - Cache size: {}, Trie size: {}",
+            stats.cache_size,
+            stats.trie_size
+        );
 
         // Test multiple search queries
         let test_queries = ["fi", "test", "file", "txt", "md"];
@@ -2950,18 +3014,31 @@ mod tests_searchengine_state {
             let results = state.search(query).expect("Chunked search failed");
             let search_elapsed = search_start.elapsed();
 
-            log_info!("Chunked search for '{}' found {} results in {:?}", query, results.len(), search_elapsed);
+            log_info!(
+                "Chunked search for '{}' found {} results in {:?}",
+                query,
+                results.len(),
+                search_elapsed
+            );
 
             if !results.is_empty() {
                 found_results = true;
                 for (i, (path, score)) in results.iter().take(3).enumerate() {
-                    log_info!("  Chunked result #{}: {} (score: {:.4})", i + 1, path, score);
+                    log_info!(
+                        "  Chunked result #{}: {} (score: {:.4})",
+                        i + 1,
+                        path,
+                        score
+                    );
                 }
                 break;
             }
         }
 
-        assert!(found_results, "Should find results with chunked indexing using real-world data");
+        assert!(
+            found_results,
+            "Should find results with chunked indexing using real-world data"
+        );
     }
 
     #[test]
@@ -2985,23 +3062,43 @@ mod tests_searchengine_state {
         let regular_results = state.search("document").unwrap();
 
         // Search with preference for txt extension
-        let txt_results = state.search_by_extension("document", vec!["txt".to_string()]).unwrap();
+        let txt_results = state
+            .search_by_extension("document", vec!["txt".to_string()])
+            .unwrap();
 
         // Search with preference for pdf extension
-        let pdf_results = state.search_by_extension("document", vec!["pdf".to_string()]).unwrap();
+        let pdf_results = state
+            .search_by_extension("document", vec!["pdf".to_string()])
+            .unwrap();
 
         // Search with multiple extension preferences
-        let _txt_pdf_results = state.search_by_extension("document", vec!["txt".to_string(), "pdf".to_string()]).unwrap();
+        let _txt_pdf_results = state
+            .search_by_extension("document", vec!["txt".to_string(), "pdf".to_string()])
+            .unwrap();
 
         // Verify extension preferences affect ranking
         if !txt_results.is_empty() && !pdf_results.is_empty() {
-            assert_eq!(txt_results[0].0, "/chunked/test/document.txt", "TXT document should be first with txt preference after chunked indexing");
-            assert_eq!(pdf_results[0].0, "/chunked/test/document.pdf", "PDF document should be first with pdf preference after chunked indexing");
+            assert_eq!(
+                txt_results[0].0, "/chunked/test/document.txt",
+                "TXT document should be first with txt preference after chunked indexing"
+            );
+            assert_eq!(
+                pdf_results[0].0, "/chunked/test/document.pdf",
+                "PDF document should be first with pdf preference after chunked indexing"
+            );
         }
 
         // Verify all documents are still found
-        assert_eq!(regular_results.len(), txt_results.len(), "Same number of results with extension preferences after chunked indexing");
-        assert_eq!(regular_results.len(), pdf_results.len(), "Same number of results with different extension preferences after chunked indexing");
+        assert_eq!(
+            regular_results.len(),
+            txt_results.len(),
+            "Same number of results with extension preferences after chunked indexing"
+        );
+        assert_eq!(
+            regular_results.len(),
+            pdf_results.len(),
+            "Same number of results with different extension preferences after chunked indexing"
+        );
     }
 
     #[test]
@@ -3020,7 +3117,7 @@ mod tests_searchengine_state {
             "document2.pdf",
             "readme.md",
             "script.js",
-            "style.css"
+            "style.css",
         ];
 
         for file_name in &test_files {
@@ -3043,12 +3140,20 @@ mod tests_searchengine_state {
             let traditional_results = state1.search(term).unwrap();
             let chunked_results = state2.search(term).unwrap();
 
-            log_info!("Comparing results for '{}': traditional={}, chunked={}",
-                     term, traditional_results.len(), chunked_results.len());
+            log_info!(
+                "Comparing results for '{}': traditional={}, chunked={}",
+                term,
+                traditional_results.len(),
+                chunked_results.len()
+            );
 
             // Results should be similar (allowing for minor differences in ranking)
-            assert_eq!(traditional_results.len(), chunked_results.len(),
-                      "Traditional and chunked indexing should find same number of results for '{}'", term);
+            assert_eq!(
+                traditional_results.len(),
+                chunked_results.len(),
+                "Traditional and chunked indexing should find same number of results for '{}'",
+                term
+            );
 
             // Top results should be the same files (though scores might differ slightly)
             if !traditional_results.is_empty() && !chunked_results.is_empty() {
@@ -3056,11 +3161,21 @@ mod tests_searchengine_state {
                 let chunked_top = &chunked_results[0].0;
 
                 // Extract just the filename for comparison
-                let traditional_filename = std::path::Path::new(traditional_top).file_name().unwrap().to_str().unwrap();
-                let chunked_filename = std::path::Path::new(chunked_top).file_name().unwrap().to_str().unwrap();
+                let traditional_filename = std::path::Path::new(traditional_top)
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap();
+                let chunked_filename = std::path::Path::new(chunked_top)
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap();
 
-                assert_eq!(traditional_filename, chunked_filename,
-                          "Top result filename should be the same for traditional and chunked indexing");
+                assert_eq!(
+                    traditional_filename, chunked_filename,
+                    "Top result filename should be the same for traditional and chunked indexing"
+                );
             }
         }
 
@@ -3072,8 +3187,8 @@ mod tests_searchengine_state {
 #[cfg(test)]
 mod bench_indexing_methods {
     use super::*;
-    use std::time::Instant;
     use std::collections::HashMap;
+    use std::time::Instant;
 
     // Helper function to create a larger test dataset for benchmarking using real test data
     fn create_benchmark_test_files(base_dir: &PathBuf, file_count: usize) -> Vec<PathBuf> {
@@ -3082,7 +3197,10 @@ mod bench_indexing_methods {
         // First try to use existing test data
         let test_data_path = get_test_data_path();
         if test_data_path.exists() {
-            log_info!("Using existing test data from: {}", test_data_path.display());
+            log_info!(
+                "Using existing test data from: {}",
+                test_data_path.display()
+            );
 
             // Collect existing files from test data
             fn collect_existing_files(dir: &PathBuf, files: &mut Vec<PathBuf>, limit: usize) {
@@ -3110,7 +3228,10 @@ mod bench_indexing_methods {
 
             // If we have enough files from test data, use them
             if created_files.len() >= file_count / 2 {
-                log_info!("Using {} existing test files from test data", created_files.len());
+                log_info!(
+                    "Using {} existing test files from test data",
+                    created_files.len()
+                );
                 return created_files;
             }
         }
@@ -3126,15 +3247,20 @@ mod bench_indexing_methods {
 
         for depth in 0..depth_levels {
             for dir_num in 0..dirs_per_level {
-                let dir_path = base_dir.join(format!("benchmark_depth_{}", depth))
-                                      .join(format!("dir_{}", dir_num));
+                let dir_path = base_dir
+                    .join(format!("benchmark_depth_{}", depth))
+                    .join(format!("dir_{}", dir_num));
 
                 let _ = fs::create_dir_all(&dir_path);
 
                 // Create files in this directory
                 for file_num in 0..files_per_dir {
-                    let file_path = dir_path.join(format!("benchmark_file_{}_{}.txt", depth, file_num));
-                    let content = format!("Benchmark test content for depth {} file {}", depth, file_num);
+                    let file_path =
+                        dir_path.join(format!("benchmark_file_{}_{}.txt", depth, file_num));
+                    let content = format!(
+                        "Benchmark test content for depth {} file {}",
+                        depth, file_num
+                    );
 
                     if fs::write(&file_path, content).is_ok() {
                         created_files.push(file_path);
@@ -3143,7 +3269,10 @@ mod bench_indexing_methods {
             }
         }
 
-        log_info!("Created {} synthetic benchmark test files", created_files.len());
+        log_info!(
+            "Created {} synthetic benchmark test files",
+            created_files.len()
+        );
         created_files
     }
 
@@ -3152,14 +3281,19 @@ mod bench_indexing_methods {
         // First try to use the real test data directory
         let test_data_path = get_test_data_path();
         if test_data_path.exists() {
-            log_info!("Using real test data directory for benchmarking: {}", test_data_path.display());
+            log_info!(
+                "Using real test data directory for benchmarking: {}",
+                test_data_path.display()
+            );
             return test_data_path;
         }
 
         // Fall back to creating a temporary directory
         log_warn!("Real test data not available, using temporary directory for benchmarking");
         tempfile::tempdir()
-            .expect("Failed to create temp directory").path().to_path_buf()
+            .expect("Failed to create temp directory")
+            .path()
+            .to_path_buf()
     }
 
     // Helper function to clean up test files (only synthetic ones)
@@ -3180,7 +3314,7 @@ mod bench_indexing_methods {
         state: &SearchEngineState,
         test_dir: &PathBuf,
         method_name: &str,
-        chunk_size: Option<usize>
+        chunk_size: Option<usize>,
     ) -> (Duration, bool) {
         // Clear any existing index
         {
@@ -3206,7 +3340,9 @@ mod bench_indexing_methods {
 
         log_info!(
             "{} indexing took {:?} (success: {})",
-            method_name, duration, success
+            method_name,
+            duration,
+            success
         );
 
         (duration, success)
@@ -3264,7 +3400,10 @@ mod bench_indexing_methods {
         let target_file_count = 1000;
         let synthetic_files = if existing_file_count < target_file_count {
             let needed = target_file_count - existing_file_count;
-            log_info!("Creating {} additional synthetic files for benchmarking", needed);
+            log_info!(
+                "Creating {} additional synthetic files for benchmarking",
+                needed
+            );
             create_benchmark_test_files(&test_dir, needed)
         } else {
             log_info!("Using existing test data files for benchmarking");
@@ -3284,22 +3423,43 @@ mod bench_indexing_methods {
             measure_indexing_performance(&state, &test_dir, "Traditional", None);
 
         let traditional_verified = verify_indexing_results(&state, total_files);
-        results.insert("Traditional".to_string(), (traditional_duration, traditional_success && traditional_verified));
+        results.insert(
+            "Traditional".to_string(),
+            (
+                traditional_duration,
+                traditional_success && traditional_verified,
+            ),
+        );
 
         // Benchmark chunked indexing with different chunk sizes
         for &chunk_size in &chunk_sizes {
-            log_info!("\n--- Benchmarking Chunked Indexing (chunk size: {}) ---", chunk_size);
+            log_info!(
+                "\n--- Benchmarking Chunked Indexing (chunk size: {}) ---",
+                chunk_size
+            );
 
-            let (chunked_duration, chunked_success) =
-                measure_indexing_performance(&state, &test_dir, &format!("Chunked-{}", chunk_size), Some(chunk_size));
+            let (chunked_duration, chunked_success) = measure_indexing_performance(
+                &state,
+                &test_dir,
+                &format!("Chunked-{}", chunk_size),
+                Some(chunk_size),
+            );
 
             let chunked_verified = verify_indexing_results(&state, total_files);
-            results.insert(format!("Chunked-{}", chunk_size), (chunked_duration, chunked_success && chunked_verified));
+            results.insert(
+                format!("Chunked-{}", chunk_size),
+                (chunked_duration, chunked_success && chunked_verified),
+            );
         }
 
         // Print comprehensive benchmark results
         log_info!("\n=== BENCHMARK RESULTS SUMMARY ===");
-        log_info!("Test files: {} (existing: {}, synthetic: {})", total_files, existing_file_count, synthetic_files.len());
+        log_info!(
+            "Test files: {} (existing: {}, synthetic: {})",
+            total_files,
+            existing_file_count,
+            synthetic_files.len()
+        );
         log_info!("Test directory: {}", test_dir.display());
 
         let mut sorted_results: Vec<_> = results.iter().collect();
@@ -3334,18 +3494,21 @@ mod bench_indexing_methods {
                     let key = format!("Chunked-{}", chunk_size);
                     if let Some((chunked_duration, chunked_success)) = results.get(&key) {
                         if *chunked_success {
-                            let ratio = chunked_duration.as_millis() as f64 / traditional_duration.as_millis() as f64;
+                            let ratio = chunked_duration.as_millis() as f64
+                                / traditional_duration.as_millis() as f64;
                             let percentage = (ratio - 1.0) * 100.0;
 
                             if ratio < 1.0 {
                                 log_info!(
                                     "  Chunked-{}: {:.1}% FASTER than traditional",
-                                    chunk_size, percentage.abs()
+                                    chunk_size,
+                                    percentage.abs()
                                 );
                             } else {
                                 log_info!(
                                     "  Chunked-{}: {:.1}% slower than traditional",
-                                    chunk_size, percentage
+                                    chunk_size,
+                                    percentage
                                 );
                             }
                         }
@@ -3355,17 +3518,26 @@ mod bench_indexing_methods {
         }
 
         // Find the best chunk size
-        let best_chunked = chunk_sizes.iter()
+        let best_chunked = chunk_sizes
+            .iter()
             .filter_map(|&size| {
                 let key = format!("Chunked-{}", size);
                 results.get(&key).and_then(|(duration, success)| {
-                    if *success { Some((size, duration)) } else { None }
+                    if *success {
+                        Some((size, duration))
+                    } else {
+                        None
+                    }
                 })
             })
             .min_by_key(|(_, duration)| *duration);
 
         if let Some((best_size, best_duration)) = best_chunked {
-            log_info!("\nBest chunked indexing: Chunk size {} in {:?}", best_size, best_duration);
+            log_info!(
+                "\nBest chunked indexing: Chunk size {} in {:?}",
+                best_size,
+                best_duration
+            );
         }
 
         // Verify all methods succeeded
@@ -3373,8 +3545,13 @@ mod bench_indexing_methods {
         assert!(all_succeeded, "All indexing methods should succeed");
 
         // Verify that we have meaningful performance data
-        let has_performance_data = results.values().any(|(duration, _)| duration.as_millis() > 0);
-        assert!(has_performance_data, "Should have measurable performance data");
+        let has_performance_data = results
+            .values()
+            .any(|(duration, _)| duration.as_millis() > 0);
+        assert!(
+            has_performance_data,
+            "Should have measurable performance data"
+        );
 
         // Cleanup only synthetic files
         cleanup_benchmark_files(synthetic_files);
@@ -3427,17 +3604,18 @@ mod bench_indexing_methods {
                 0.0
             };
 
-            log_info!(
-                "Scalability results for {} files:",
-                created_files.len()
-            );
+            log_info!("Scalability results for {} files:", created_files.len());
             log_info!(
                 "  Traditional: {:?} ({:.1} files/sec) - Success: {}",
-                traditional_duration, traditional_rate, traditional_success
+                traditional_duration,
+                traditional_rate,
+                traditional_success
             );
             log_info!(
                 "  Chunked: {:?} ({:.1} files/sec) - Success: {}",
-                chunked_duration, chunked_rate, chunked_success
+                chunked_duration,
+                chunked_rate,
+                chunked_success
             );
 
             // Cleanup
@@ -3457,11 +3635,17 @@ mod bench_indexing_methods {
 
         // Use real test data directory
         let test_dir = get_benchmark_test_dir();
-        log_info!("Using test directory for memory benchmark: {}", test_dir.display());
+        log_info!(
+            "Using test directory for memory benchmark: {}",
+            test_dir.display()
+        );
 
         // Count actual files available
         let available_paths = collect_test_paths(Some(800));
-        log_info!("Using {} files for memory usage benchmark", available_paths.len());
+        log_info!(
+            "Using {} files for memory usage benchmark",
+            available_paths.len()
+        );
 
         // Measure memory usage for traditional indexing
         {
@@ -3475,8 +3659,10 @@ mod bench_indexing_methods {
 
         log_info!(
             "Traditional indexing memory usage - Trie: {} -> {}, Cache: {} -> {}",
-            initial_stats.trie_size, traditional_stats.trie_size,
-            initial_stats.cache_size, traditional_stats.cache_size
+            initial_stats.trie_size,
+            traditional_stats.trie_size,
+            initial_stats.cache_size,
+            traditional_stats.cache_size
         );
 
         // Measure memory usage for chunked indexing
@@ -3490,11 +3676,13 @@ mod bench_indexing_methods {
 
         log_info!(
             "Chunked indexing memory usage - Trie: {}, Cache: {}",
-            chunked_stats.trie_size, chunked_stats.cache_size
+            chunked_stats.trie_size,
+            chunked_stats.cache_size
         );
 
         // Memory usage should be similar for both methods
-        let trie_difference = (traditional_stats.trie_size as i64 - chunked_stats.trie_size as i64).abs();
+        let trie_difference =
+            (traditional_stats.trie_size as i64 - chunked_stats.trie_size as i64).abs();
         let trie_difference_percent = if traditional_stats.trie_size > 0 {
             trie_difference as f64 / traditional_stats.trie_size as f64 * 100.0
         } else {
@@ -3503,7 +3691,8 @@ mod bench_indexing_methods {
 
         log_info!(
             "Memory usage difference - Trie size: {} ({:.1}%)",
-            trie_difference, trie_difference_percent
+            trie_difference,
+            trie_difference_percent
         );
 
         // Calculate memory efficiency (files per trie node)

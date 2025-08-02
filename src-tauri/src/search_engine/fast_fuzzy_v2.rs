@@ -690,7 +690,9 @@ impl PathMatcher {
 #[cfg(test)]
 mod tests_fast_fuzzy_v2 {
     use super::*;
-    use crate::{log_info, log_warn};
+    use crate::constants::TEST_DATA_PATH;
+    use crate::search_engine::test_generate_test_data::generate_test_data_if_not_exists;
+    use crate::{log_error, log_info, log_warn};
     use std::path::PathBuf;
     use std::time::Duration;
     use std::time::Instant;
@@ -713,26 +715,17 @@ mod tests_fast_fuzzy_v2 {
         }
 
         let duration = start.elapsed() / iterations as u32;
-        log_info!(
-            "Benchmark '{}': {:?} per iteration",
-            name, duration
-        );
+        log_info!("Benchmark '{}': {:?} per iteration", name, duration);
 
         (result.unwrap(), duration)
     }
 
     fn get_test_data_path() -> PathBuf {
-        let path = PathBuf::from("./test-data-for-fuzzy-search");
-        if !path.exists() {
-            log_warn!(
-                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
-                path
-            );
-            panic!(
-                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
-                path
-            );
-        }
+        let path = PathBuf::from(TEST_DATA_PATH);
+        generate_test_data_if_not_exists(PathBuf::from(TEST_DATA_PATH)).unwrap_or_else(|err| {
+            log_error!("Error during test data generation or path lookup: {}", err);
+            panic!("Test data generation failed");
+        });
         path
     }
 
@@ -1035,10 +1028,7 @@ mod tests_fast_fuzzy_v2 {
             run_benchmark("small dataset search", 10, || matcher.search("file", 10));
 
         assert!(!results.is_empty());
-        log_info!(
-            "Small dataset (100 items) search took: {:.2?}",
-            elapsed
-        );
+        log_info!("Small dataset (100 items) search took: {:.2?}", elapsed);
     }
 
     #[test]
@@ -1054,10 +1044,7 @@ mod tests_fast_fuzzy_v2 {
             run_benchmark("medium dataset search", 10, || matcher.search("file", 10));
 
         assert!(!results.is_empty());
-        log_info!(
-            "Medium dataset (1,000 items) search took: {:.2?}",
-            elapsed
-        );
+        log_info!("Medium dataset (1,000 items) search took: {:.2?}", elapsed);
     }
 
     #[test]
@@ -1073,10 +1060,7 @@ mod tests_fast_fuzzy_v2 {
             run_benchmark("large dataset search", 5, || matcher.search("file", 10));
 
         assert!(!results.is_empty());
-        log_info!(
-            "Large dataset (10,000 items) search took: {:.2?}",
-            elapsed
-        );
+        log_info!("Large dataset (10,000 items) search took: {:.2?}", elapsed);
     }
 
     #[test]
@@ -1224,10 +1208,7 @@ mod tests_fast_fuzzy_v2 {
             "file"
         };
 
-        log_info!(
-            "Using search term '{}' derived from real data",
-            search_term
-        );
+        log_info!("Using search term '{}' derived from real data", search_term);
 
         // Benchmark our implementation
         let (our_results, our_duration) =
@@ -1304,10 +1285,7 @@ mod tests_fast_fuzzy_v2 {
         let test_paths = collect_test_paths(Some(1000));
         let mut matcher = PathMatcher::new();
 
-        log_info!(
-            "Testing query lengths with {} real paths",
-            test_paths.len()
-        );
+        log_info!("Testing query lengths with {} real paths", test_paths.len());
 
         for path in &test_paths {
             matcher.add_path(path);
@@ -1537,12 +1515,7 @@ mod tests_fast_fuzzy_v2 {
 
             // Print top 3 results (if any)
             for (i, (path, score)) in results.iter().take(3).enumerate() {
-                log_info!(
-                    "  Result #{}: {} (score: {:.4})",
-                    i + 1,
-                    path,
-                    score
-                );
+                log_info!("  Result #{}: {} (score: {:.4})", i + 1, path, score);
             }
         }
 
@@ -1563,12 +1536,7 @@ mod tests_fast_fuzzy_v2 {
 
             // Print top 3 results (if any)
             for (i, (path, score)) in results.iter().take(3).enumerate() {
-                log_info!(
-                    "  Result #{}: {} (score: {:.4})",
-                    i + 1,
-                    path,
-                    score
-                );
+                log_info!("  Result #{}: {} (score: {:.4})", i + 1, path, score);
             }
         }
     }
@@ -1653,10 +1621,7 @@ mod tests_fast_fuzzy_v2 {
         add_paths_from_dir(&test_path, &mut matcher, &mut path_count);
         let indexing_time = start_time.elapsed();
 
-        log_info!(
-            "Indexed {} paths in {:.2?}",
-            path_count, indexing_time
-        );
+        log_info!("Indexed {} paths in {:.2?}", path_count, indexing_time);
 
         // Test search performance with a variety of terms
         let query_terms = ["file", "banana", "txt", "mp3", "orange", "apple", "e"];
@@ -1850,10 +1815,7 @@ mod tests_fast_fuzzy_v2 {
                 .collect::<Vec<_>>();
             let subset_queries = extract_guaranteed_queries(&subset_paths, 15);
 
-            log_info!(
-                "Generated {} subset-specific queries",
-                subset_queries.len()
-            );
+            log_info!("Generated {} subset-specific queries", subset_queries.len());
 
             // Run a single warmup search to prime any caches
             subset_matcher.search("file", 10);
@@ -1913,10 +1875,7 @@ mod tests_fast_fuzzy_v2 {
             log_info!("Ran {} searches", subset_queries.len());
             log_info!("Average search time: {:?}", avg_time);
             log_info!("Average results per search: {}", avg_results);
-            log_info!(
-                "Average fuzzy matches per search: {:.1}",
-                avg_fuzzy
-            );
+            log_info!("Average fuzzy matches per search: {:.1}", avg_fuzzy);
 
             // Sort searches by time and log
             times.sort_by(|a, b| b.1.cmp(&a.1)); // Sort by time, slowest first
@@ -1964,7 +1923,9 @@ mod tests_fast_fuzzy_v2 {
             for (count, avg_time, num_searches) in by_result_count {
                 log_info!(
                     "  ≥ {:3} results: {:?} (from {} searches)",
-                    count, avg_time, num_searches
+                    count,
+                    avg_time,
+                    num_searches
                 );
             }
 
@@ -1998,10 +1959,7 @@ mod tests_fast_fuzzy_v2 {
                     }
                 }
 
-                log_info!(
-                    "Testing {} misspelled variations",
-                    misspelled_queries.len()
-                );
+                log_info!("Testing {} misspelled variations", misspelled_queries.len());
 
                 for misspelled in &misspelled_queries {
                     let start = Instant::now();
@@ -2018,7 +1976,8 @@ mod tests_fast_fuzzy_v2 {
                     if !results.is_empty() {
                         log_info!(
                             "  Top result: {} (score: {:.3})",
-                            results[0].0, results[0].1
+                            results[0].0,
+                            results[0].1
                         );
                     }
                 }

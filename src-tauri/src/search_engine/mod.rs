@@ -1,14 +1,14 @@
-pub mod search_core;
+mod art_v5;
 mod fast_fuzzy_v2;
 mod lru_cache_v2;
 mod path_cache_wrapper;
-mod art_v5;
+pub mod search_core;
 
 #[cfg(test)]
 pub mod test_generate_test_data {
+    use crate::log_info;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
-    use crate::log_info;
 
     /// Generates a test data directory structure with random folder and file names.
     /// This function creates a hierarchical directory structure with random file and folder names
@@ -165,5 +165,16 @@ pub mod test_generate_test_data {
         log_info!("Path: {:?}", base_path);
 
         Ok(base_path)
+    }
+
+    #[cfg(test)]
+    pub fn generate_test_data_if_not_exists(base_path: PathBuf) -> Result<(), std::io::Error> {
+        if !base_path.exists() {
+            log_info!("Test data not found, generating...");
+            generate_test_data(base_path)?;
+        } else {
+            log_info!("Test data already exists at: {:?}", base_path);
+        }
+        Ok(())
     }
 }

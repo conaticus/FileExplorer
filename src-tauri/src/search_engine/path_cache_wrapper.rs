@@ -618,10 +618,7 @@ mod tests_path_cache {
         }
         let elapsed = start.elapsed();
 
-        log_info!(
-            "Time to insert 20 items with eviction: {:?}",
-            elapsed
-        );
+        log_info!("Time to insert 20 items with eviction: {:?}", elapsed);
 
         // Verify the first 20 items are still there (recently used)
         for i in 0..20 {
@@ -636,9 +633,6 @@ mod tests_path_cache {
             }
         }
 
-        log_info!(
-            "Evicted {} items from the middle range",
-            evicted_count
-        );
+        log_info!("Evicted {} items from the middle range", evicted_count);
     }
 }

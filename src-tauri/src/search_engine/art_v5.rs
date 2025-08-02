@@ -1,6 +1,6 @@
-use crate::{log_error, log_warn};
 #[cfg(test)]
 use crate::log_info;
+use crate::{log_error, log_warn};
 use smallvec::SmallVec;
 use std::cmp;
 use std::mem;
@@ -834,9 +834,9 @@ impl ART {
         let pad = "  ".repeat(indent);
         // Node type, prefix, terminal flag & score
         let (node_type, prefix, is_term, score) = match node {
-            ARTNode::Node4(n)   => ("Node4", &n.prefix[..],   n.is_terminal, n.score),
-            ARTNode::Node16(n)  => ("Node16", &n.prefix[..],  n.is_terminal, n.score),
-            ARTNode::Node48(n)  => ("Node48", &n.prefix[..],  n.is_terminal, n.score),
+            ARTNode::Node4(n) => ("Node4", &n.prefix[..], n.is_terminal, n.score),
+            ARTNode::Node16(n) => ("Node16", &n.prefix[..], n.is_terminal, n.score),
+            ARTNode::Node48(n) => ("Node48", &n.prefix[..], n.is_terminal, n.score),
             ARTNode::Node256(n) => ("Node256", &n.prefix[..], n.is_terminal, n.score),
         };
         let prefix_str = String::from_utf8_lossy(prefix);
@@ -898,7 +898,6 @@ impl ART {
 
         changed
     }
-
 
     /// Recursively inserts a path into the trie, navigating and modifying nodes as needed.
     /// This internal helper method is used by the public insert method.
@@ -1201,9 +1200,9 @@ impl ART {
             // Subcase A.2: full divergence at split < existing.len() and split < remaining.len()
             let old_edge = existing[split];
             let old_suffix = existing[split + 1..].to_vec();
-            
+
             let child_count = node_ref.num_children();
-            
+
             // Build existing_child carrying over terminal, score, children
             let existing_child = match node_ref.as_mut() {
                 ARTNode::Node4(n) => {
@@ -1480,7 +1479,7 @@ impl ART {
         let mut stack = Vec::new();
         stack.push(StackItem {
             node,
-            path: String::new()
+            path: String::new(),
         });
 
         while let Some(StackItem { node, path }) = stack.pop() {
@@ -1490,7 +1489,7 @@ impl ART {
             if !node.get_prefix().is_empty() {
                 full_path.push_str(&String::from_utf8_lossy(node.get_prefix()));
             }
-            
+
             if node.is_terminal() {
                 if let Some(score) = node.get_score() {
                     results.push((full_path.clone(), score));
@@ -1503,7 +1502,7 @@ impl ART {
                 child_path.push(key as char);
                 stack.push(StackItem {
                     node: child,
-                    path: child_path
+                    path: child_path,
                 });
             }
         }
@@ -1615,11 +1614,8 @@ impl ART {
         let path_bytes = normalized.as_bytes();
 
         // Track if we removed the path
-        let (removed, should_remove_root, new_root) = Self::remove_recursive(
-            self.root.take(),
-            path_bytes,
-            0,
-        );
+        let (removed, should_remove_root, new_root) =
+            Self::remove_recursive(self.root.take(), path_bytes, 0);
 
         // Update the root based on the removal result
         if should_remove_root {
@@ -1678,7 +1674,11 @@ impl ART {
 
             let should_remove = node_box.num_children() == 0;
 
-            return (true, should_remove, if should_remove { None } else { Some(node_box) });
+            return (
+                true,
+                should_remove,
+                if should_remove { None } else { Some(node_box) },
+            );
         }
 
         let c = path[next_depth];
@@ -1769,11 +1769,19 @@ impl ART {
             }
 
             let should_remove = !node_box.is_terminal() && node_box.num_children() == 0;
-            (child_removed, should_remove, if should_remove { None } else { Some(node_box) })
+            (
+                child_removed,
+                should_remove,
+                if should_remove { None } else { Some(node_box) },
+            )
         } else {
             // If no child was removed, don't shrink or merge, just compute should_remove
             let should_remove = !node_box.is_terminal() && node_box.num_children() == 0;
-            (child_removed, should_remove, if should_remove { None } else { Some(node_box) })
+            (
+                child_removed,
+                should_remove,
+                if should_remove { None } else { Some(node_box) },
+            )
         }
     }
 
@@ -1806,7 +1814,8 @@ impl ART {
         // Sort by score in descending order (highest scores first)
         results.sort_by(|a, b| {
             // Use partial_cmp with a fallback to ensure stable sorting
-            b.1.partial_cmp(&a.1).unwrap_or_else(|| cmp::Ordering::Equal)
+            b.1.partial_cmp(&a.1)
+                .unwrap_or_else(|| cmp::Ordering::Equal)
         });
 
         // Deduplicate results if needed
@@ -1883,7 +1892,9 @@ impl ART {
                     self.collect_all_paths(root.as_ref(), &mut all_paths);
                     for (path, score) in all_paths {
                         // Skip unless under the normalized directory
-                        if path.starts_with(&norm_dir) || path.starts_with(&(norm_dir.clone() + "/")) {
+                        if path.starts_with(&norm_dir)
+                            || path.starts_with(&(norm_dir.clone() + "/"))
+                        {
                             let comps: Vec<&str> = path.split('/').collect();
                             let mut found = false;
                             for comp in comps.iter().filter(|c| !c.is_empty()) {
@@ -1946,6 +1957,8 @@ impl ART {
 #[cfg(test)]
 mod tests_art_v5 {
     use super::*;
+    use crate::constants::TEST_DATA_PATH;
+    use crate::search_engine::test_generate_test_data::generate_test_data_if_not_exists;
     use crate::{log_info, log_warn};
     use std::path::{Path, PathBuf, MAIN_SEPARATOR};
     #[cfg(feature = "long-tests")]
@@ -1954,17 +1967,11 @@ mod tests_art_v5 {
 
     // Helper function to get test data directory
     fn get_test_data_path() -> PathBuf {
-        let path = PathBuf::from("./test-data-for-fuzzy-search");
-        if !path.exists() {
-            log_warn!(
-                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
-                path
-            );
-            panic!(
-                "Test data directory does not exist: {:?}. Run the 'create_test_data' test first.",
-                path
-            );
-        }
+        let path = PathBuf::from(TEST_DATA_PATH);
+        generate_test_data_if_not_exists(PathBuf::from(TEST_DATA_PATH)).unwrap_or_else(|err| {
+            log_error!("Error during test data generation or path lookup: {}", err);
+            panic!("Test data generation failed");
+        });
         path
     }
 
@@ -2116,11 +2123,7 @@ mod tests_art_v5 {
         let prefix = Path::new("C:").join("Users").to_string_lossy().to_string();
         let completions = trie.find_completions(&prefix);
         assert_eq!(completions.len(), 3);
-        log_info!(
-            "Found {} completions for '{}'",
-            completions.len(),
-            prefix
-        );
+        log_info!("Found {} completions for '{}'", completions.len(), prefix);
 
         // Check specific completion
         let docs = completions.iter().find(|(path, _)| path == &docs_path);
@@ -2203,14 +2206,8 @@ mod tests_art_v5 {
 
         // 4. Directly examine normalized versions
         let normalized_for_insert = trie.normalize_path(test_path);
-        log_info!(
-            "Normalized for insert: '{}'",
-            normalized_for_insert
-        );
-        log_info!(
-            "Normalized bytes: {:?}",
-            normalized_for_insert.as_bytes()
-        );
+        log_info!("Normalized for insert: '{}'", normalized_for_insert);
+        log_info!("Normalized bytes: {:?}", normalized_for_insert.as_bytes());
 
         // 5. Add debug to your normalize_path method
         // Add this temporarily to your normalize_path method:
@@ -2223,17 +2220,11 @@ mod tests_art_v5 {
         // 6. Test with a path containing backslashes
         let backslash_path = r"dir1\file2.txt";
         log_info!("Backslash path: '{}'", backslash_path);
-        log_info!(
-            "Backslash path bytes: {:?}",
-            backslash_path.as_bytes()
-        );
+        log_info!("Backslash path bytes: {:?}", backslash_path.as_bytes());
 
         let normalized_bs = trie.normalize_path(backslash_path);
         log_info!("Normalized backslash path: '{}'", normalized_bs);
-        log_info!(
-            "Normalized backslash bytes: {:?}",
-            normalized_bs.as_bytes()
-        );
+        log_info!("Normalized backslash bytes: {:?}", normalized_bs.as_bytes());
     }
 
     #[test]
@@ -2312,11 +2303,7 @@ mod tests_art_v5 {
 
         // Verify first path is still findable
         let still_find1 = trie.find_completions(path1);
-        assert_eq!(
-            still_find1.len(),
-            1,
-            "Should still find first path"
-        );
+        assert_eq!(still_find1.len(), 1, "Should still find first path");
         assert_eq!(
             still_find1[0].0, path1,
             "First path should still match exactly"
@@ -2406,10 +2393,7 @@ mod tests_art_v5 {
             before_completions.len(),
             path1
         );
-        log_info!(
-            "is_in_trie: {}",
-            trie.find_completions(path1).len() > 0
-        );
+        log_info!("is_in_trie: {}", trie.find_completions(path1).len() > 0);
         assert_eq!(
             before_completions.len(),
             1,
@@ -2419,10 +2403,7 @@ mod tests_art_v5 {
         // If needed, verify the exact string (for debugging)
         if !before_completions.is_empty() {
             let found_path = &before_completions[0].0;
-            log_info!(
-                "Found path: '{}', Expected: '{}'",
-                found_path, path1
-            );
+            log_info!("Found path: '{}', Expected: '{}'", found_path, path1);
             log_info!("Path bytes: {:?}", found_path.as_bytes());
             log_info!("Expected bytes: {:?}", path1.as_bytes());
         }
@@ -2566,7 +2547,9 @@ mod tests_art_v5 {
 
         log_info!(
             "Completions correctly sorted by score: {:.1} > {:.1} > {:.1}",
-            completions[0].1, completions[1].1, completions[2].1
+            completions[0].1,
+            completions[1].1,
+            completions[2].1
         );
     }
 
@@ -2667,7 +2650,8 @@ mod tests_art_v5 {
             if completions.len() > 0 {
                 log_info!(
                     "First completion: {} (score: {:.1})",
-                    completions[0].0, completions[0].1
+                    completions[0].0,
+                    completions[0].1
                 );
             }
         }
@@ -2749,7 +2733,7 @@ mod tests_art_v5 {
             // to force node growth at the same level
             let path = format!("{}{:03}", prefix, i);
             trie.insert(&path, 1.0);
-            if i==3 || i==4 || i==5 || i==6 || i==7 || i==8 || i==9 || i==10 {
+            if i == 3 || i == 4 || i == 5 || i == 6 || i == 7 || i == 8 || i == 9 || i == 10 {
                 trie.debug_print();
             }
             assert!(trie.find_completions(&path).len() > 0);
@@ -2778,10 +2762,7 @@ mod tests_art_v5 {
             assert!(trie.remove(&path));
         }
 
-        log_info!(
-            "Removed 90 paths, trie now contains {} paths",
-            trie.len()
-        );
+        log_info!("Removed 90 paths, trie now contains {} paths", trie.len());
 
         // Check we can still find the remaining paths
         let completions = trie.find_completions(&prefix);
@@ -2824,9 +2805,12 @@ mod tests_art_v5 {
         // Remove a path and check it's gone
         trie.remove(path);
         trie.debug_print();
-        trie.find_completions(path).iter().enumerate().for_each(|(i, (p, _))| {
-            log_info!("Found path {}: {}", i, p);
-        });
+        trie.find_completions(path)
+            .iter()
+            .enumerate()
+            .for_each(|(i, (p, _))| {
+                log_info!("Found path {}: {}", i, p);
+            });
         assert_eq!(
             trie.find_completions(path).len(),
             0,
@@ -3015,7 +2999,8 @@ mod tests_art_v5 {
             if !completions.is_empty() {
                 log_info!(
                     "First result: {} (score: {:.2})",
-                    completions[0].0, completions[0].1
+                    completions[0].0,
+                    completions[0].1
                 );
 
                 // Verify that results actually match the normalized prefix
@@ -3291,10 +3276,7 @@ mod tests_art_v5 {
         for query in &test_queries {
             let results = trie.search(query, None, false);
             if results.is_empty() {
-                log_info!(
-                    "Warning: Query '{}' didn't match any paths",
-                    query
-                );
+                log_info!("Warning: Query '{}' didn't match any paths", query);
             }
         }
 
@@ -3330,10 +3312,7 @@ mod tests_art_v5 {
                 .collect::<Vec<_>>();
             let subset_queries = extract_guaranteed_queries(&subset_paths, 15);
 
-            log_info!(
-                "Generated {} subset-specific queries",
-                subset_queries.len()
-            );
+            log_info!("Generated {} subset-specific queries", subset_queries.len());
 
             // Run a single warmup search to prime any caches
             subset_trie.search("./", None, false);
@@ -3425,7 +3404,9 @@ mod tests_art_v5 {
             for (count, avg_time, num_searches) in by_result_count {
                 log_info!(
                     "  ≥ {:3} results: {:?} (from {} searches)",
-                    count, avg_time, num_searches
+                    count,
+                    avg_time,
+                    num_searches
                 );
             }
         }
