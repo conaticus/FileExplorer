@@ -1,0 +1,10 @@
+services:
+  # emberstack/sftp with custom configuration
+  sftp:
+    image: emberstack/sftp
+    container_name: test-sftp-explorer
+    ports:
+      - "2222:22"
+    volumes:
+      - ./sftp.json:/app/config/sftp.json:ro
+      - ./test-data-for-fuzzy-search:/home/explorer/data

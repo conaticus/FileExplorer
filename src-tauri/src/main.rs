@@ -10,7 +10,7 @@ mod state;
 
 use crate::commands::{
     command_exec_commands, file_system_operation_commands, hash_commands, meta_data_commands,
-    search_engine_commands, settings_commands, template_commands, volume_operations_commands,
+    search_engine_commands, settings_commands, template_commands, volume_operations_commands, sftp_file_system_operation_commands
 };
 use tauri::ipc::Invoke;
 use tauri::Manager;
@@ -64,6 +64,20 @@ fn all_commands() -> fn(Invoke) -> bool {
         search_engine_commands::get_indexing_progress,
         search_engine_commands::get_indexing_status,
         search_engine_commands::stop_indexing,
+
+        //sftp commands
+        sftp_file_system_operation_commands::load_dir,
+        sftp_file_system_operation_commands::open_file_sftp,
+        sftp_file_system_operation_commands::create_file_sftp,
+        sftp_file_system_operation_commands::delete_file_sftp,
+        sftp_file_system_operation_commands::rename_file_sftp,
+        sftp_file_system_operation_commands::copy_file_sftp,
+        sftp_file_system_operation_commands::move_file_sftp,
+        sftp_file_system_operation_commands::create_directory_sftp,
+        sftp_file_system_operation_commands::delete_directory_sftp,
+        sftp_file_system_operation_commands::rename_directory_sftp,
+        sftp_file_system_operation_commands::copy_directory_sftp,
+        sftp_file_system_operation_commands::move_directory_sftp,
     ]
 }
 
