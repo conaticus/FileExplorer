@@ -19,5 +19,7 @@ pub mod ranking_config;
 pub mod backend_settings;
 pub mod search_engine_config;
 mod logging_config;
+mod sftp_directory;
+pub use sftp_directory::SFTPDirectory;
 
 pub use logging_level::LoggingLevel;
