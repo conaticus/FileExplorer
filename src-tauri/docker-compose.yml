@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  sftp:
+    image: atmoz/sftp
+    container_name: test-sftp
+    ports:
+      - "2222:22"
+    volumes:
+      - ./test-data-for-fuzzy-search:/home/explorer/upload
+    command: explorer:explorer:::upload
