@@ -305,7 +305,7 @@ pub fn clear_search_engine_impl(state: Arc<Mutex<SearchEngineState>>) -> Result<
     log_info!("Clear search engine called");
 
     let state = state.lock().unwrap();
-    let mut engine = state.engine.lock().unwrap();
+    let mut engine = state.engine.write().unwrap();
     engine.clear();
 
     // Update state
@@ -416,15 +416,16 @@ pub async fn stop_indexing(
     // Lock the state data to update status
     let mut data = state.data.lock().map_err(|e| e.to_string())?;
 
+    // Update status first
+    data.status = SearchEngineStatus::Cancelled;
+    data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
+    drop(data);
+
     // Lock the engine to call stop_indexing
-    let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
+    let mut engine = state.engine.write().map_err(|e| e.to_string())?;
 
     // Call stop_indexing on the engine
     engine.stop_indexing();
-
-    // Update status
-    data.status = SearchEngineStatus::Cancelled;
-    data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
 
     Ok(())
 }

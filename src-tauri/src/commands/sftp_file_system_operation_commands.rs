@@ -297,7 +297,6 @@ pub fn move_directory_sftp(
 #[cfg(test)]
 mod sftp_file_system_operation_commands_tests {
     use super::*;
-    use std::path::Path;
 
     // Test data
     const TEST_HOST: &str = "localhost";
@@ -308,6 +307,7 @@ mod sftp_file_system_operation_commands_tests {
     const TEST_WRONG_HOST: &str = "nonexistent.host";
 
     // Helper function to create test file content
+    #[allow(dead_code)]
     fn get_test_file_content() -> &'static str {
         "This is a test file content for SFTP operations."
     }
