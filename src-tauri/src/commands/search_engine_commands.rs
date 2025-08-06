@@ -379,13 +379,15 @@ pub async fn get_indexing_progress(
     let data = state.data.lock().map_err(|e| e.to_string())?;
     let progress = data.progress.clone();
 
-    // Add debug logging
+    // Add debug logging for every progress request
+    #[cfg(feature = "index-progress-logging")]
     log_info!(
-        "Progress request: files_indexed={}, files_discovered={}, percentage={:.1}%, current_path={:?}",
+        "Progress API: discovered={}, indexed={}, percentage={:.1}%, current_path={:?}, status={:?}",
         progress.files_indexed,
         progress.files_discovered,
         progress.percentage_complete,
-        progress.current_path
+        progress.current_path.as_ref().map(|p| p.split('/').last().unwrap_or(p)),
+        data.status
     );
 
     Ok(progress)

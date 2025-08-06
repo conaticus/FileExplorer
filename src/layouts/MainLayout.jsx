@@ -102,6 +102,59 @@ const MainLayout = () => {
     }, [volumes, currentDirData, currentPath]);
 
     /**
+     * Effect to auto-start indexing when app loads
+     */
+    useEffect(() => {
+        const initializeSearchEngine = async () => {
+            if (volumes.length > 0) {
+                try {
+                    console.log('MainLayout: Checking search engine status for auto-indexing...');
+                    
+                    // Check if search engine has indexed files
+                    const searchEngineInfo = await invoke('get_search_engine_info');
+                    const hasNoIndexedFiles = !searchEngineInfo.stats?.trie_size || searchEngineInfo.stats.trie_size === 0;
+                    
+                    console.log('MainLayout: Search engine info:', searchEngineInfo);
+                    console.log('MainLayout: Has no indexed files:', hasNoIndexedFiles);
+
+                    if (hasNoIndexedFiles) {
+                        console.log('MainLayout: Starting auto-indexing of home directory...');
+                        
+                        // Get system info to get the proper home directory
+                        const metaDataJson = await invoke('get_meta_data_as_json');
+                        const metaData = JSON.parse(metaDataJson);
+                        
+                        if (!metaData.user_home_dir) {
+                            console.error('MainLayout: User home directory not available');
+                            return;
+                        }
+
+                        console.log('MainLayout: Using home directory:', metaData.user_home_dir);
+                        
+                        // Auto-index home directory on app startup
+                        const result = await invoke('add_paths_recursive_async', {
+                            folder: metaData.user_home_dir
+                        });
+                        
+                        console.log('MainLayout: Auto-indexing initiated:', result);
+                        showSuccess('Background indexing started for your home directory');
+                    } else {
+                        console.log('MainLayout: Search engine already has indexed files, skipping auto-indexing');
+                    }
+                } catch (error) {
+                    console.error('MainLayout: Auto-indexing failed:', error);
+                    // Don't show error to user as this is background operation
+                }
+            }
+        };
+
+        // Only run once when volumes are first loaded
+        if (volumes.length > 0) {
+            initializeSearchEngine();
+        }
+    }, [volumes.length]); // Only depend on volumes.length to avoid re-running
+
+    /**
      * Effect to listen for custom events
      * Improved with debug information
      */

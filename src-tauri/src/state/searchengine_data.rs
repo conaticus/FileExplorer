@@ -413,7 +413,7 @@ impl SearchEngineState {
         engine.reset_stop_flag();
 
         // Start indexing in the engine
-        let start_time = Instant::now();
+        let _start_time = Instant::now();
 
         // Clear previous index if switching folders
         engine.clear();
@@ -427,177 +427,21 @@ impl SearchEngineState {
             drop(data);
             drop(engine);
 
-            // First collect all paths that need to be indexed
-            let paths =
-                self.collect_paths_recursive(&folder, &excluded_patterns.unwrap_or_default());
-            let total_paths = paths.len();
-
-            #[cfg(test)]
-            log_info!(
-                "Collected {} paths to index in chunks of {}",
-                total_paths,
-                chunk_size
-            );
-
-            // Update initial progress
+            // Initialize progress tracking with immediate update
             {
                 let mut data = self.data.lock().unwrap();
-                data.progress.files_discovered = total_paths;
+                data.progress.files_discovered = 0;
                 data.progress.files_indexed = 0;
                 data.progress.percentage_complete = 0.0;
+                data.progress.current_path = Some(folder.to_string_lossy().to_string());
                 data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
+                
+                #[cfg(feature = "index-progress-logging")]
+                log_info!("Starting streaming indexing for: {}", folder.display());
             }
 
-            // Process paths in chunks
-            let mut files_indexed = 0;
-            let mut _chunk_number = 0;
-
-            for chunk in paths.chunks(chunk_size) {
-                _chunk_number += 1;
-
-                // Check if indexing should stop before processing chunk
-                {
-                    let engine = self.engine.read().unwrap();
-                    if engine.should_stop_indexing() {
-                        drop(engine);
-                        let mut data = self.data.lock().unwrap();
-                        data.status = SearchEngineStatus::Cancelled;
-                        data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
-
-                        #[cfg(test)]
-                        log_info!(
-                            "Chunked indexing of '{}' was cancelled after processing {} files",
-                            folder.display(),
-                            files_indexed
-                        );
-
-                        return Ok(());
-                    }
-                }
-
-                // Process this chunk - acquire write lock for the entire chunk
-                {
-                    let mut engine = self.engine.write().unwrap();
-                    
-                    // Convert chunk to Vec<&str> for batch processing
-                    let chunk_refs: Vec<&str> = chunk.iter().map(|s| s.as_str()).collect();
-                    
-                    // Update progress for the start of this chunk
-                    {
-                        let mut data = self.data.lock().unwrap();
-                        data.progress.current_path = chunk.first().cloned();
-                        data.progress.files_indexed = files_indexed;
-                        data.progress.percentage_complete = if total_paths > 0 {
-                            (files_indexed as f32 / total_paths as f32) * 100.0
-                        } else {
-                            100.0
-                        };
-
-                        // Calculate estimated time remaining
-                        if let Some(start_time_ms) = data.progress.start_time {
-                            let elapsed_ms =
-                                chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
-                            if files_indexed > 0 {
-                                let avg_time_per_file = elapsed_ms as f32 / files_indexed as f32;
-                                let remaining_files = total_paths.saturating_sub(files_indexed);
-                                let estimated_ms = (avg_time_per_file * remaining_files as f32) as u64;
-                                data.progress.estimated_time_remaining = Some(estimated_ms);
-                            }
-                        }
-
-                        data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
-                    }
-
-                    // Use batch processing for better performance
-                    engine.add_paths_batch(chunk_refs, None);
-
-                    // Check for stop signal after processing chunk
-                    if engine.should_stop_indexing() {
-                        drop(engine);
-                        let mut data = self.data.lock().unwrap();
-                        data.status = SearchEngineStatus::Cancelled;
-                        data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
-
-                        #[cfg(test)]
-                        log_info!(
-                            "Chunked indexing was cancelled after chunk processing, {} files indexed",
-                            files_indexed
-                        );
-
-                        return Ok(());
-                    }
-                }
-
-                // Update indexed count after processing chunk
-                files_indexed += chunk.len();
-
-                // Update progress after each chunk
-                {
-                    let mut data = self.data.lock().unwrap();
-                    data.progress.files_indexed = files_indexed;
-                    data.progress.percentage_complete = if total_paths > 0 {
-                        (files_indexed as f32 / total_paths as f32) * 100.0
-                    } else {
-                        100.0
-                    };
-
-                    // Calculate estimated time remaining
-                    if let Some(start_time_ms) = data.progress.start_time {
-                        let elapsed_ms =
-                            chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
-                        if files_indexed > 0 {
-                            let avg_time_per_file = elapsed_ms as f32 / files_indexed as f32;
-                            let remaining_files = total_paths.saturating_sub(files_indexed);
-                            let estimated_ms = (avg_time_per_file * remaining_files as f32) as u64;
-                            data.progress.estimated_time_remaining = Some(estimated_ms);
-                        }
-                    }
-
-                    data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
-
-                    #[cfg(test)]
-                    log_info!(
-                        "Processing chunk {} ({} files): {:.1}% complete",
-                        _chunk_number,
-                        chunk.len(),
-                        data.progress.percentage_complete
-                    );
-                }
-
-                // Small delay between chunks to allow UI updates and other operations
-                thread::sleep(Duration::from_millis(5));
-            }
-
-            // Update status and metrics after indexing completes
-            let mut data = self.data.lock().unwrap();
-            let elapsed = start_time.elapsed();
-            data.metrics.last_indexing_duration_ms = Some(elapsed.as_millis() as u64);
-
-            // Check if it was cancelled (double-check)
-            let engine = self.engine.read().unwrap();
-            if engine.should_stop_indexing() {
-                data.status = SearchEngineStatus::Cancelled;
-                #[cfg(test)]
-                log_info!(
-                    "Chunked indexing of '{}' was cancelled after {:?}",
-                    folder.display(),
-                    elapsed
-                );
-            } else {
-                data.status = SearchEngineStatus::Idle;
-                data.progress.files_indexed = total_paths;
-                data.progress.percentage_complete = 100.0;
-                data.progress.current_path = None;
-                data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
-
-                #[cfg(test)]
-                log_info!(
-                    "Chunked indexing of '{}' completed in {:?} ({} files processed)",
-                    folder.display(),
-                    elapsed,
-                    total_paths
-                );
-            }
+            // Use streaming indexing instead of collecting all paths first
+            self.index_directory_streaming(&folder, &excluded_patterns.unwrap_or_default(), chunk_size)?;
         } else {
             data.status = SearchEngineStatus::Failed;
             return Err("Invalid folder path".to_string());
@@ -669,6 +513,254 @@ impl SearchEngineState {
         paths
     }
 
+    /// Index a directory using streaming approach - discover and index files as we go
+    fn index_directory_streaming(
+        &self,
+        dir: &PathBuf,
+        excluded_patterns: &[String],
+        chunk_size: usize,
+    ) -> Result<(), String> {
+        let mut discovered_files = 0;
+        let mut indexed_files = 0;
+        let mut current_batch = Vec::new();
+        let start_time = Instant::now();
+
+        // Recursively process directory with immediate indexing
+        self.process_directory_streaming(
+            dir,
+            excluded_patterns,
+            &mut discovered_files,
+            &mut indexed_files,
+            &mut current_batch,
+            chunk_size,
+        )?;
+
+        // Process any remaining files in the batch
+        if !current_batch.is_empty() {
+            self.process_batch(&current_batch, &mut indexed_files, discovered_files)?;
+        }
+
+        // Update final status
+        let mut data = self.data.lock().unwrap();
+        let elapsed = start_time.elapsed();
+        data.metrics.last_indexing_duration_ms = Some(elapsed.as_millis() as u64);
+
+        // Check if it was cancelled
+        let engine = self.engine.read().unwrap();
+        if engine.should_stop_indexing() {
+            data.status = SearchEngineStatus::Cancelled;
+            log_info!("Streaming indexing was cancelled");
+        } else {
+            data.status = SearchEngineStatus::Idle;
+            data.progress.files_indexed = indexed_files;
+            data.progress.files_discovered = discovered_files;
+            data.progress.percentage_complete = 100.0;
+            data.progress.current_path = None;
+            data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
+
+            log_info!(
+                "Streaming indexing completed: {} files indexed in {:?}",
+                indexed_files,
+                elapsed
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Recursively process directory with streaming indexing
+    fn process_directory_streaming(
+        &self,
+        dir: &PathBuf,
+        excluded_patterns: &[String],
+        discovered_files: &mut usize,
+        indexed_files: &mut usize,
+        current_batch: &mut Vec<String>,
+        chunk_size: usize,
+    ) -> Result<(), String> {
+        self.process_directory_streaming_with_depth(
+            dir, 
+            excluded_patterns, 
+            discovered_files, 
+            indexed_files, 
+            current_batch, 
+            chunk_size, 
+            0, // Initial depth
+            20 // Max depth to prevent stack overflow
+        )
+    }
+
+    /// Recursively process directory with streaming indexing and depth limit
+    fn process_directory_streaming_with_depth(
+        &self,
+        dir: &PathBuf,
+        excluded_patterns: &[String],
+        discovered_files: &mut usize,
+        indexed_files: &mut usize,
+        current_batch: &mut Vec<String>,
+        chunk_size: usize,
+        current_depth: usize,
+        max_depth: usize,
+    ) -> Result<(), String> {
+        // Prevent stack overflow by limiting recursion depth
+        if current_depth >= max_depth {
+            #[cfg(feature = "index-progress-logging")]
+            log_info!("Skipping directory due to depth limit: {} (depth: {})", dir.display(), current_depth);
+            return Ok(());
+        }
+
+        // Prevent runaway indexing by limiting total files - increased for testing
+        if *discovered_files > 500000 {
+            #[cfg(feature = "index-progress-logging")]
+            log_info!("Stopping indexing due to file count limit: {}", *discovered_files);
+            return Ok(());
+        }
+
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.filter_map(Result::ok) {
+                // Check for cancellation more frequently
+                {
+                    let engine = self.engine.read().unwrap();
+                    if engine.should_stop_indexing() {
+                        return Ok(());
+                    }
+                }
+
+                let path = entry.path();
+
+                if let Some(path_str) = path.to_str() {
+                    // Check if path should be excluded
+                    let should_exclude = excluded_patterns.iter().any(|pattern| {
+                        path_str.contains(pattern)
+                            || path_str.ends_with(pattern)
+                            || path
+                                .file_name()
+                                .and_then(|name| name.to_str())
+                                .map(|name| name.contains(pattern))
+                                .unwrap_or(false)
+                    });
+
+                    if !should_exclude {
+                        // Add to current batch
+                        current_batch.push(path_str.to_string());
+                        *discovered_files += 1;
+
+                        // Update progress more frequently - every 5 files instead of 10
+                        if *discovered_files % 5 == 0 || *discovered_files == 1 {
+                            let mut data = self.data.lock().unwrap();
+                            data.progress.files_discovered = *discovered_files;
+                            data.progress.current_path = Some(path_str.to_string());
+                            
+                            // Update percentage based on discovery phase if we haven't started indexing much yet
+                            if *indexed_files == 0 && *discovered_files > 0 {
+                                // During pure discovery phase, show progress as discovery percentage
+                                data.progress.percentage_complete = (*discovered_files as f32 / (*discovered_files as f32 + 50.0)) * 15.0; // Cap at ~15% during discovery
+                            } else if *discovered_files > 0 {
+                                // During mixed discovery+indexing, use normal calculation
+                                data.progress.percentage_complete = (*indexed_files as f32 / *discovered_files as f32) * 100.0;
+                            }
+                            
+                            data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
+                            
+                            // Log progress for debugging
+                            #[cfg(feature = "index-progress-logging")]
+                            log_info!("Progress update: discovered={}, indexed={}, percentage={:.1}%", 
+                                     *discovered_files, *indexed_files, data.progress.percentage_complete);
+                        }
+
+                        // Process batch when it reaches chunk_size
+                        if current_batch.len() >= chunk_size {
+                            self.process_batch(current_batch, indexed_files, *discovered_files)?;
+                            current_batch.clear();
+                        }
+
+                        // Recursively process subdirectories with depth limit
+                        if path.is_dir() {
+                            self.process_directory_streaming_with_depth(
+                                &path,
+                                excluded_patterns,
+                                discovered_files,
+                                indexed_files,
+                                current_batch,
+                                chunk_size,
+                                current_depth + 1, // Increment depth
+                                max_depth,
+                            )?;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Process a batch of files for indexing
+    fn process_batch(
+        &self,
+        batch: &[String],
+        indexed_files: &mut usize,
+        total_discovered: usize,
+    ) -> Result<(), String> {
+        if batch.is_empty() {
+            return Ok(());
+        }
+
+        // Check for cancellation before processing
+        {
+            let engine = self.engine.read().unwrap();
+            if engine.should_stop_indexing() {
+                return Ok(());
+            }
+        }
+
+        // Process the batch
+        {
+            let mut engine = self.engine.write().unwrap();
+            let batch_refs: Vec<&str> = batch.iter().map(|s| s.as_str()).collect();
+            engine.add_paths_batch(batch_refs, None);
+        }
+
+        *indexed_files += batch.len();
+
+        // Update progress
+        {
+            let mut data = self.data.lock().unwrap();
+            data.progress.files_indexed = *indexed_files;
+            data.progress.files_discovered = total_discovered;
+            
+            // Better percentage calculation
+            data.progress.percentage_complete = if total_discovered > 0 {
+                (*indexed_files as f32 / total_discovered as f32) * 100.0
+            } else {
+                0.0
+            };
+
+            // Calculate estimated time remaining
+            if let Some(start_time_ms) = data.progress.start_time {
+                let elapsed_ms = chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
+                if *indexed_files > 0 {
+                    let avg_time_per_file = elapsed_ms as f32 / *indexed_files as f32;
+                    let remaining_files = total_discovered.saturating_sub(*indexed_files);
+                    let estimated_ms = (avg_time_per_file * remaining_files as f32) as u64;
+                    data.progress.estimated_time_remaining = Some(estimated_ms);
+                }
+            }
+
+            data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
+            
+            // Log batch progress for debugging
+            #[cfg(feature = "index-progress-logging")]
+            log_info!("Batch processed: indexed={}/{} discovered ({:.1}%)", 
+                     *indexed_files, total_discovered, data.progress.percentage_complete);
+        }
+
+        // Small delay to allow UI updates
+        thread::sleep(Duration::from_millis(5));
+
+        Ok(())
+    }
+
     /// Performs a search using the indexed files.
     ///
     /// Searches through the indexed files for matches to the given query string.
@@ -711,59 +803,63 @@ impl SearchEngineState {
         // Get current directory context
         let current_dir = data.current_directory.clone();
         
-        // Pre-check if we need directory updates to determine search strategy
-        let needs_directory_update = {
-            let engine = self.engine.read().unwrap();
-            match (&current_dir, &engine.get_current_directory()) {
-                (Some(new_dir), Some(current_dir)) => new_dir != current_dir,
-                (Some(_), None) => true,
-                (None, Some(_)) => true,
-                (None, None) => false,
-            }
-        };
-
-        // Only set Searching status if we need write locks
-        if needs_directory_update {
-            // Check if engine is already in a write-lock search operation
-            if matches!(data.status, SearchEngineStatus::Searching) {
-                return Err("Engine is currently searching".to_string());
-            }
-            
-            // Update state for write-lock operation
-            data.status = SearchEngineStatus::Searching;
-            data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
+        // Check if engine is already in a search operation
+        if matches!(data.status, SearchEngineStatus::Searching) {
+            return Err("Engine is currently searching".to_string());
         }
+        
+        // Update state for search operation
+        data.status = SearchEngineStatus::Searching;
+        data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
         
         // Release data lock before acquiring engine lock
         drop(data);
 
-        let results = if needs_directory_update {
-            // Need write lock to update directory context
+        // Always use write lock to ensure caching works properly
+        // Update directory context if needed, then perform cached search
+        let results = {
             let mut engine = self.engine.write().unwrap();
+            
+            // Update directory context if needed
             if let Some(current_dir) = &current_dir {
                 engine.set_current_directory(Some(current_dir.clone()));
             } else {
                 engine.set_current_directory(None);
             }
             
-            // Perform search with updated context
+            // Perform search with caching enabled
             let start_time = Instant::now();
             let results = engine.search(query);
             let search_time = start_time.elapsed();
-            (results, search_time)
-        } else {
-            let engine = self.engine.read().unwrap();
-            let start_time = Instant::now();
-            let results = engine.search_concurrent(query, current_dir.as_deref());
-            let search_time = start_time.elapsed();
-            (results, search_time)
+            let was_cache_hit = engine.was_last_search_cache_hit();
+            (results, search_time, was_cache_hit)
         };
 
-        let (search_results, search_time) = results;
+        let (search_results, search_time, was_cache_hit) = results;
 
         // Update metrics
         let mut data = self.data.lock().unwrap();
         data.metrics.total_searches += 1;
+
+        // Track cache hits
+        if was_cache_hit {
+            data.metrics.cache_hits += 1;
+        }
+
+        // Calculate cache hit rate
+        if data.metrics.total_searches > 0 {
+            let hit_rate = (data.metrics.cache_hits as f32 / data.metrics.total_searches as f32) * 100.0;
+            // Ensure cache hit rate is reasonable (between 0% and 100%)
+            let clamped_hit_rate = hit_rate.min(100.0).max(0.0);
+            
+            #[cfg(debug_assertions)]
+            if hit_rate > 100.0 {
+                log_warn!("Invalid cache hit rate calculated: {:.2}% (cache_hits: {}, total_searches: {})", 
+                         hit_rate, data.metrics.cache_hits, data.metrics.total_searches);
+            }
+            
+            data.metrics.cache_hit_rate = Some(clamped_hit_rate);
+        }
 
         // Calculate average search time
         if let Some(avg_time) = data.metrics.average_search_time_ms {
@@ -786,10 +882,8 @@ impl SearchEngineState {
             }
         }
 
-        // Update state - only reset to Idle if we set it to Searching (for write operations)
-        if needs_directory_update {
-            data.status = SearchEngineStatus::Idle;
-        }
+        // Reset status back to Idle
+        data.status = SearchEngineStatus::Idle;
 
         Ok(search_results)
     }
@@ -872,6 +966,7 @@ impl SearchEngineState {
         let start_time = Instant::now();
         let results = engine.search(query);
         let search_time = start_time.elapsed();
+        let was_cache_hit = engine.was_last_search_cache_hit();
 
         #[cfg(test)]
         {
@@ -899,6 +994,26 @@ impl SearchEngineState {
         // Update metrics
         let mut data = self.data.lock().unwrap();
         data.metrics.total_searches += 1;
+
+        // Track cache hits
+        if was_cache_hit {
+            data.metrics.cache_hits += 1;
+        }
+
+        // Calculate cache hit rate
+        if data.metrics.total_searches > 0 {
+            let hit_rate = (data.metrics.cache_hits as f32 / data.metrics.total_searches as f32) * 100.0;
+            // Ensure cache hit rate is reasonable (between 0% and 100%)
+            let clamped_hit_rate = hit_rate.min(100.0).max(0.0);
+            
+            #[cfg(debug_assertions)]
+            if hit_rate > 100.0 {
+                log_warn!("Invalid cache hit rate calculated: {:.2}% (cache_hits: {}, total_searches: {})", 
+                         hit_rate, data.metrics.cache_hits, data.metrics.total_searches);
+            }
+            
+            data.metrics.cache_hit_rate = Some(clamped_hit_rate);
+        }
 
         // Calculate average search time
         if let Some(avg_time) = data.metrics.average_search_time_ms {

@@ -61,6 +61,9 @@ pub struct SearchCore {
 
     /// Fixed capacity for the buffer: ~max_results * 2
     results_capacity: usize,
+
+    /// Track if the last search was a cache hit
+    last_search_was_cache_hit: bool,
 }
 
 impl SearchCore {
@@ -106,6 +109,7 @@ impl SearchCore {
             ranking_config, // Use the provided ranking_config instead of default
             results_buffer: Vec::with_capacity(cap),
             results_capacity: cap,
+            last_search_was_cache_hit: false,
         }
     }
 
@@ -198,6 +202,17 @@ impl SearchCore {
     /// O(1) - Simple field access
     pub fn get_current_directory(&self) -> &Option<String> {
         &self.current_directory
+    }
+
+    /// Returns whether the last search operation was a cache hit.
+    ///
+    /// # Returns
+    /// `true` if the last search was served from cache, `false` if it required a full search
+    ///
+    /// # Performance
+    /// O(1) - Simple field access
+    pub fn was_last_search_cache_hit(&self) -> bool {
+        self.last_search_was_cache_hit
     }
 
     /// Adds multiple paths in a batch operation for improved performance.
@@ -426,11 +441,21 @@ impl SearchCore {
         let collected_paths_clone = Arc::clone(&collected_paths);
 
         let result = task::spawn_blocking(move || {
+            let mut file_count = 0;
             for entry in WalkDir::new(&root_path)
                 .follow_links(false)
+                .max_depth(15) // Limit depth to prevent stack overflow
                 .into_iter()
                 .filter_map(Result::ok)
             {
+                // Limit total files to prevent memory issues - increased for testing
+                file_count += 1;
+                if file_count > 350000 {
+                    #[cfg(feature = "index-progress-logging")]
+                    log_info!("Stopping walkdir due to file count limit: {}", file_count);
+                    break;
+                }
+
                 let path = entry.path();
 
                 // Explicitly skip symlinks and unreadable entries
@@ -762,16 +787,22 @@ impl SearchCore {
         log_info!("Normalized query: '{}'", normalized_query);
 
         // 1. Check cache first
-        if let Some(path_data) = self.cache.get(&normalized_query) {
+        if let Some(cached_data) = self.cache.get(&normalized_query) {
             #[cfg(feature = "search-progress-logging")]
-            log_info!("Cache hit for query: '{}', returning {} cached results", 
-                     normalized_query, path_data.results.len());
+            log_info!("Cache hit for query: '{}', found {} cached results", 
+                     normalized_query, cached_data.results.len());
             
+            // If we have cached results, return them (they represent the complete search result for this query)
+            // We cached up to max_results, so if we find cached data, it's the complete result
             #[cfg(feature = "search-progress-logging")]
-            log_info!("Search completed in {:?}", search_start.elapsed());
+            log_info!("Returning {} cached results", cached_data.results.len());
             
-            return path_data.results;
+            self.last_search_was_cache_hit = true;
+            return cached_data.results;
         }
+        
+        // This will be a cache miss - either no cache entry or insufficient cached results
+        self.last_search_was_cache_hit = false;
         #[cfg(feature = "search-progress-logging")]
         log_info!("Cache miss for query: '{}', performing full search", normalized_query);
 
@@ -879,16 +910,17 @@ impl SearchCore {
             log_info!("Truncated {} results to max_results: {}", _original_len, self.max_results);
         }
 
-        // Reserve capacity for cache top N
-        let mut top_n = Vec::with_capacity(results.len().min(5));
-        for (p, s) in results.iter().take(5) {
-            top_n.push((p.clone(), *s));
+        // Reserve capacity for cache - store up to max_results for better cache hits
+        let cache_size = results.len().min(self.max_results);
+        let mut cached_results = Vec::with_capacity(cache_size);
+        for (p, s) in results.iter().take(cache_size) {
+            cached_results.push((p.clone(), *s));
         }
         
         #[cfg(feature = "search-progress-logging")]
-        log_info!("Caching top {} results for query: '{}'", top_n.len(), normalized_query);
+        log_info!("Caching {} results for query: '{}'", cached_results.len(), normalized_query);
         
-        self.cache.insert(normalized_query.to_string().clone(), top_n);
+        self.cache.insert(normalized_query.to_string().clone(), cached_results);
         
         if !results.is_empty() {
             #[cfg(feature = "search-progress-logging")]
