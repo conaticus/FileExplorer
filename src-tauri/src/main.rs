@@ -64,6 +64,7 @@ fn all_commands() -> fn(Invoke) -> bool {
         search_engine_commands::get_indexing_progress,
         search_engine_commands::get_indexing_status,
         search_engine_commands::stop_indexing,
+        search_engine_commands::get_suggestions,
 
         //sftp commands
         sftp_file_system_operation_commands::load_dir,

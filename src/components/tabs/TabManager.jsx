@@ -220,15 +220,15 @@ const TabManager = ({ children }) => {
                             </div>
                         </div>
                     ))}
-                </div>
-
-                <div className="tab-actions">
-                    <IconButton
-                        icon="plus"
-                        size="sm"
-                        tooltip="New tab"
-                        onClick={createNewTab}
-                    />
+                    
+                    <div className="new-tab-button">
+                        <IconButton
+                            icon="plus"
+                            size="sm"
+                            tooltip="New tab"
+                            onClick={createNewTab}
+                        />
+                    </div>
                 </div>
             </div>
 

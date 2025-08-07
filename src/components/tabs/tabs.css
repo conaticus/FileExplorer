@@ -129,6 +129,28 @@
     border-left: 1px solid var(--border);
 }
 
+.new-tab-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 40px;
+    padding: 0 var(--space-xs);
+    margin-left: var(--space-xs);
+    flex-shrink: 0;
+}
+
+.new-tab-button button {
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    transition: background-color var(--transition-fast);
+}
+
+.new-tab-button button:hover {
+    background-color: var(--surface-hover);
+}
+
 .tab-content-area {
     flex: 1;
     overflow: hidden;
@@ -151,11 +173,6 @@
 
 .tab.drag-over {
     border-left: 3px solid var(--accent);
-}
-
-/* New tab button hover effect */
-.tab-actions button:hover {
-    background-color: var(--surface-hover);
 }
 
 /* Scrolling indicators for many tabs */

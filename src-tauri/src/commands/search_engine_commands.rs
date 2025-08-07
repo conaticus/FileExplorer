@@ -703,3 +703,135 @@ mod tests_autocomplete_commands {
         assert!(search_result_after.is_ok());
     }
 }
+
+/// Get autocompletion suggestions for a given prefix
+///
+/// # Arguments
+/// * `prefix` - The text prefix to find completions for
+/// * `limit` - Maximum number of suggestions to return (default: 10)
+/// * `search_engine_state` - The state containing the search engine
+///
+/// # Returns
+/// * `Ok(Vec<String>)` - A vector of suggested completions
+/// * `Err(String)` - If there was an error during the operation
+///
+/// # Example
+/// ```rust
+/// let suggestions = get_suggestions("doc".to_string(), Some(5), search_engine_state).await;
+/// match suggestions {
+///     Ok(completions) => {
+///         for suggestion in completions {
+///             println!("Suggestion: {}", suggestion);
+///         }
+///     },
+///     Err(err) => println!("Suggestion error: {}", err),
+/// }
+/// ```
+#[tauri::command]
+pub fn get_suggestions(
+    prefix: String,
+    limit: Option<usize>,
+    search_engine_state: State<Arc<Mutex<SearchEngineState>>>,
+) -> Result<Vec<String>, String> {
+    get_suggestions_impl(prefix, limit.unwrap_or(10), search_engine_state.inner().clone())
+}
+
+pub fn get_suggestions_impl(
+    prefix: String,
+    limit: usize,
+    state: Arc<Mutex<SearchEngineState>>,
+) -> Result<Vec<String>, String> {
+    log_info!("Getting suggestions for prefix: {} (limit: {})", prefix, limit);
+    
+    if prefix.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut search_engine_state = state.lock().unwrap();
+    
+    // Check if search engine is enabled
+    {
+        let data = search_engine_state.data.lock().unwrap();
+        if !data.config.search_engine_enabled {
+            log_error!("Search engine is disabled in configuration.");
+            return Err("Search engine is disabled in configuration".to_string());
+        }
+        
+        // Check if engine is busy indexing
+        if matches!(data.status, SearchEngineStatus::Indexing) {
+            return Err("Engine is currently indexing".to_string());
+        }
+    }
+    
+    // Use the existing search functionality but limit results for suggestions
+    match search_engine_state.search(&prefix) {
+        Ok(search_results) => {
+            let mut suggestions = Vec::new();
+            let mut seen_suggestions = std::collections::HashSet::new();
+            
+            // Process search results to extract meaningful suggestions
+            for (path, _score) in search_results.into_iter().take(limit * 3) { // Get more results to filter from
+                
+                // Extract filename suggestions
+                if let Some(filename) = path.split('/').last() {
+                    // Only suggest if filename starts with prefix (case-insensitive)
+                    if filename.to_lowercase().starts_with(&prefix.to_lowercase()) && 
+                       !seen_suggestions.contains(filename) &&
+                       filename.len() > prefix.len() { // Only suggest if it adds something
+                        suggestions.push(filename.to_string());
+                        seen_suggestions.insert(filename.to_string());
+                    }
+                }
+                
+                // Extract directory name suggestions from path components
+                let path_components: Vec<&str> = path.split('/').collect();
+                for component in path_components {
+                    if component.to_lowercase().starts_with(&prefix.to_lowercase()) && 
+                       !seen_suggestions.contains(component) &&
+                       !component.is_empty() &&
+                       component.len() > prefix.len() { // Only suggest if it adds something
+                        suggestions.push(component.to_string());
+                        seen_suggestions.insert(component.to_string());
+                    }
+                }
+                
+                // Stop if we have enough suggestions
+                if suggestions.len() >= limit {
+                    break;
+                }
+            }
+            
+            // Sort suggestions by relevance (exact prefix match first, then alphabetical)
+            suggestions.sort_by(|a, b| {
+                let a_lower = a.to_lowercase();
+                let b_lower = b.to_lowercase();
+                let prefix_lower = prefix.to_lowercase();
+                
+                let a_starts = a_lower.starts_with(&prefix_lower);
+                let b_starts = b_lower.starts_with(&prefix_lower);
+                
+                match (a_starts, b_starts) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => {
+                        // Both start with prefix or neither does, sort by length then alphabetically
+                        match a.len().cmp(&b.len()) {
+                            std::cmp::Ordering::Equal => a.cmp(b),
+                            other => other
+                        }
+                    }
+                }
+            });
+            
+            // Limit final results
+            suggestions.truncate(limit);
+            
+            log_info!("Found {} suggestions for prefix '{}'", suggestions.len(), prefix);
+            Ok(suggestions)
+        },
+        Err(e) => {
+            log_error!("Search failed for suggestions: {}", e);
+            Err(format!("Search failed: {}", e))
+        }
+    }
+}

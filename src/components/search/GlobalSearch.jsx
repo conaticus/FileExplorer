@@ -42,6 +42,16 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     const [showHiddenFiles, setShowHiddenFiles] = useState(false);
     const [systemInfo, setSystemInfo] = useState(null);
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+    
+    // Autocompletion states
+    const [suggestions, setSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(true); // Initially true to show suggestions when ready
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+    const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+    const [suppressSuggestions, setSuppressSuggestions] = useState(false);
+    const [isInputFocused, setIsInputFocused] = useState(false); // Start as false, will be set to true when input is actually focused
+    const [hasSearched, setHasSearched] = useState(false); // Track if a search has been performed
+    const suggestionsRef = useRef(null);
 
     const { navigateTo, currentPath } = useHistory();
     const { loadDirectory, volumes } = useFileSystem();
@@ -72,10 +82,19 @@ const GlobalSearch = ({ isOpen, onClose }) => {
             if (currentPath) {
                 setCurrentDirectory(currentPath);
             }
-            // Focus the search input when modal opens
+            setIsInputFocused(true);
+            setShowSuggestions(true);
+            setSuggestions([]);
+            setSelectedSuggestionIndex(-1);
+            setSuppressSuggestions(false);
+            setHasSearched(false); // Reset search state when modal opens
+            // Focus the search input when modal opens (with blur/focus workaround) Bugfix lol
             setTimeout(() => {
                 if (searchInputRef.current) {
-                    searchInputRef.current.focus();
+                    searchInputRef.current.blur();
+                    setTimeout(() => {
+                        searchInputRef.current.focus();
+                    }, 50);
                 }
             }, 100);
         }
@@ -95,18 +114,39 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         }
     }, [sortBy, showDirectoriesOnly, showHiddenFiles]);
 
-    // Debounced search - search as you type with delay
+    // Clear results when query is empty (don't auto-search on typing)
     useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            if (query.trim() && query.length >= 3) {
-                performSearch(true); // true indicates this is an automatic search
-            } else if (!query.trim()) {
-                setResults([]);
+        if (!query.trim()) {
+            setResults([]);
+            setHasSearched(false);
+        }
+    }, [query]);
+
+    // Debounced autocompletion - load suggestions as user types
+    useEffect(() => {
+        const timeoutId = setTimeout(async () => {
+            console.log('Autocompletion trigger:', {
+                query: query.trim(),
+                queryLength: query.trim().length,
+                searchEngineInfo: !!searchEngineInfo,
+                searchEngineStatus: searchEngineInfo?.status,
+                trieSize: searchEngineInfo?.stats?.trie_size,
+                suppressSuggestions,
+                isInputFocused
+            });
+
+            if (query.trim().length >= 2 && !suppressSuggestions && !isSearching && isInputFocused && searchEngineInfo) {
+                console.log('Loading suggestions for:', query.trim());
+                await loadSuggestions(query.trim());
+            } else {
+                console.log('Not loading suggestions - conditions not met');
+                setSuggestions([]);
+                setSelectedSuggestionIndex(-1);
             }
-        }, 300); // 300ms delay after user stops typing
+        }, 150);
 
         return () => clearTimeout(timeoutId);
-    }, [query, selectedExtensions, showDirectoriesOnly, showHiddenFiles]);
+    }, [query, searchEngineInfo, suppressSuggestions, isSearching, isInputFocused]); // Added isInputFocused dependency
 
     // Auto-index on app start if search engine is empty
     useEffect(() => {
@@ -120,7 +160,6 @@ const GlobalSearch = ({ isOpen, onClose }) => {
 
                 console.log('Has no indexed files:', hasNoIndexedFiles, 'Is indexing:', isIndexing);
 
-                // Auto-indexing moved to MainLayout for app startup
                 const AUTO_INDEX_ENABLED = false;
 
                 if (hasNoIndexedFiles && !isIndexing && AUTO_INDEX_ENABLED) {
@@ -183,6 +222,42 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                     searchInputRef.current.focus();
                 }
             }
+            // Handle suggestion navigation
+            if (showSuggestions && suggestions.length > 0) {
+                switch (event.key) {
+                    case 'ArrowDown':
+                        event.preventDefault();
+                        setSelectedSuggestionIndex(prev => 
+                            prev < suggestions.length - 1 ? prev + 1 : prev
+                        );
+                        break;
+                    case 'ArrowUp':
+                        event.preventDefault();
+                        setSelectedSuggestionIndex(prev => prev > -1 ? prev - 1 : -1);
+                        break;
+                    case 'Enter':
+                        if (selectedSuggestionIndex >= 0) {
+                            event.preventDefault();
+                            selectSuggestion(suggestions[selectedSuggestionIndex]);
+                        }
+                        break;
+                    case 'Tab':
+                        if (selectedSuggestionIndex >= 0) {
+                            event.preventDefault();
+                            selectSuggestion(suggestions[selectedSuggestionIndex]);
+                        } else if (suggestions.length > 0) {
+                            event.preventDefault();
+                            selectSuggestion(suggestions[0]); // Select first suggestion on Tab
+                        }
+                        break;
+                    case 'Escape':
+                        setSelectedSuggestionIndex(-1);
+                        if (searchInputRef.current) {
+                            searchInputRef.current.blur();
+                        }
+                        break;
+                }
+            }
         };
 
         document.addEventListener('mousedown', handleClickOutside);
@@ -191,7 +266,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [filtersExpanded]);
+    }, [filtersExpanded, showSuggestions, suggestions, selectedSuggestionIndex]);
 
     // Start polling for progress when indexing begins
     const startProgressPolling = () => {
@@ -462,6 +537,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
 
         setIsSearching(true);
         setResults([]);
+        setHasSearched(true);
 
         try {
             const searchStartTime = performance.now();
@@ -555,6 +631,80 @@ const GlobalSearch = ({ isOpen, onClose }) => {
     const clearSearch = () => {
         setQuery('');
         setResults([]);
+        setHasSearched(false);
+        setSuggestions([]);
+        setSelectedSuggestionIndex(-1);
+    };
+
+    const loadSuggestions = async (prefix) => {
+        console.log('loadSuggestions called with prefix:', prefix);
+
+        if (!searchEngineInfo || searchEngineInfo.status === 'Indexing' || searchEngineInfo.status === '"Indexing"') {
+            console.log('Search engine not ready for suggestions:', { 
+                hasInfo: !!searchEngineInfo, 
+                status: searchEngineInfo?.status 
+            });
+            return;
+        }
+
+        if (!searchEngineInfo.stats?.trie_size || searchEngineInfo.stats.trie_size === 0) {
+            console.log('No indexed files for suggestions:', { 
+                trieSize: searchEngineInfo.stats?.trie_size 
+            });
+
+            setShowSuggestions(false);
+            setSuggestions([]);
+            return;
+        }
+
+        console.log('Calling get_suggestions API...');
+        setIsLoadingSuggestions(true);
+        try {
+            const suggestionResults = await invoke('get_suggestions', {
+                prefix: prefix,
+                limit: 8
+            });
+
+            console.log('Raw suggestion results:', suggestionResults);
+
+            const uniqueSuggestions = [...new Set(suggestionResults)]
+                .filter(suggestion => suggestion.toLowerCase() !== prefix.toLowerCase())
+                .slice(0, 8);
+
+            console.log('Processed suggestions:', uniqueSuggestions);
+
+            setSuggestions(uniqueSuggestions);
+            setSelectedSuggestionIndex(-1);
+            setShowSuggestions(uniqueSuggestions.length > 0);
+            
+            console.log('Suggestions state updated:', {
+                suggestions: uniqueSuggestions,
+                showSuggestions: uniqueSuggestions.length > 0
+            });
+        } catch (error) {
+            console.error('Failed to load suggestions:', error);
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            });
+
+            setShowSuggestions(false);
+            setSuggestions([]);
+        } finally {
+            setIsLoadingSuggestions(false);
+        }
+    };
+
+    const selectSuggestion = (suggestion) => {
+        setQuery(suggestion);
+        setShowSuggestions(false);
+        setSuggestions([]);
+        setSelectedSuggestionIndex(-1);
+
+        setTimeout(() => {
+            performSearch(false);
+        }, 100);
     };
 
     // Sort results based on selected criteria
@@ -774,7 +924,18 @@ const GlobalSearch = ({ isOpen, onClose }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        performSearch(false); // false indicates this is a manual search
+        if (query.trim()) {
+            performSearch(false);
+            setShowSuggestions(false);
+            setSuggestions([]);
+            setSelectedSuggestionIndex(-1);
+            // Suppress suggestions for a short period to prevent them from reappearing
+            setSuppressSuggestions(true);
+            setTimeout(() => setSuppressSuggestions(false), 1000); // Allow suggestions again after 1 second
+            if (searchInputRef.current) {
+                searchInputRef.current.blur();
+            }
+        }
     };
 
     return (
@@ -799,16 +960,35 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                 className="search-input-field"
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
+                                onFocus={() => {
+                                    console.log('Input focus event triggered', {
+                                        query: query.trim(),
+                                        queryLength: query.trim().length,
+                                        searchEngineInfo: !!searchEngineInfo,
+                                        suppressSuggestions,
+                                        isSearching
+                                    });
+                                    setIsInputFocused(true);
+                                    // Trigger suggestions if there's existing text when input is focused
+                                    if (query.trim().length >= 2 && searchEngineInfo && !suppressSuggestions && !isSearching) {
+                                        console.log('Input focused with existing query, loading suggestions:', query.trim());
+                                        setTimeout(() => loadSuggestions(query.trim()), 50);
+                                    }
+                                }}
+                                onBlur={() => {
+                                    // Delay hiding suggestions to allow clicking on them
+                                    setTimeout(() => setIsInputFocused(false), 150);
+                                }}
                                 placeholder="Search files and folders....."
                                 autoFocus
                                 style={{
-                                    paddingRight: query.trim() ? '70px' : '40px' // Extra space for clear button when there's text
+                                    paddingRight: query.trim() ? '110px' : '75px' // Extra space for both search and filter buttons
                                 }}
                             />
                             {isSearching && (
                                 <div className="search-loading-indicator" style={{ 
                                     position: 'absolute', 
-                                    right: query.trim() ? '70px' : '40px', 
+                                    right: query.trim() ? '110px' : '75px', 
                                     top: '50%', 
                                     transform: 'translateY(-50%)',
                                     fontSize: '12px',
@@ -827,7 +1007,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                     title="Clear search"
                                     style={{
                                         position: 'absolute',
-                                        right: '38px',
+                                        right: '75px',
                                         top: '50%',
                                         transform: 'translateY(-50%)',
                                         background: 'transparent',
@@ -865,6 +1045,54 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                     }}></span>
                                 </button>
                             )}
+                            <button
+                                type="submit"
+                                className="search-btn"
+                                title="Search (Enter)"
+                                onClick={() => {
+                                    // Hide suggestions immediately when search button is clicked
+                                    setShowSuggestions(false);
+                                    setSuggestions([]);
+                                    setSelectedSuggestionIndex(-1);
+                                    // Suppress suggestions for a short period
+                                    setSuppressSuggestions(true);
+                                    setTimeout(() => setSuppressSuggestions(false), 1000);
+                                }}
+                                style={{
+                                    position: 'absolute',
+                                    right: '43px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                    padding: '0',
+                                    margin: '0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    zIndex: 2,
+                                    borderRadius: '4px',
+                                    transition: 'background-color var(--transition-fast)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.target.style.backgroundColor = 'var(--surface-hover)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.target.style.backgroundColor = 'transparent';
+                                }}
+                            >
+                                <span style={{
+                                    width: '16px',
+                                    height: '16px',
+                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cpath d='m21 21-4.35-4.35'%3E%3C/path%3E%3C/svg%3E")`,
+                                    backgroundPosition: 'center',
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundSize: 'contain',
+                                    display: 'block'
+                                }}></span>
+                            </button>
                             <button
                                 type="button"
                                 className="filter-toggle-btn"
@@ -924,15 +1152,68 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                 )}
                             </button>
                         </div>
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            disabled={isSearching || !query.trim()}
-                            style={{ opacity: query.trim().length >= 3 ? 1 : 0.5 }}
-                        >
-                            {isSearching ? 'Searching...' : 'Search'}
-                        </Button>
                     </div>
+
+                    {/* Autocompletion Suggestions Dropdown */}
+                    {showSuggestions && suggestions.length > 0 && !isSearching && isInputFocused && (
+                        <div 
+                            ref={suggestionsRef}
+                            className="suggestions-dropdown" 
+                            style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: '0',
+                                right: '0',
+                                backgroundColor: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius-md)',
+                                boxShadow: 'var(--shadow-lg)',
+                                zIndex: 999, // Below filters dropdown
+                                marginTop: '2px',
+                                maxHeight: '200px',
+                                overflowY: 'auto'
+                            }}
+                        >
+                            <div style={{ 
+                                padding: '8px 12px', 
+                                fontSize: '11px', 
+                                color: 'var(--text-secondary)',
+                                borderBottom: '1px solid var(--border)',
+                                fontWeight: '500'
+                            }}>
+                                Suggestions
+                                {isLoadingSuggestions && (
+                                    <span style={{ marginLeft: '8px', fontStyle: 'italic' }}>Loading...</span>
+                                )}
+                            </div>
+                            {suggestions.map((suggestion, index) => (
+                                <div
+                                    key={index}
+                                    className="suggestion-item"
+                                    style={{
+                                        padding: '8px 12px',
+                                        cursor: 'pointer',
+                                        backgroundColor: selectedSuggestionIndex === index ? 'var(--surface-hover)' : 'transparent',
+                                        borderLeft: selectedSuggestionIndex === index ? '3px solid var(--accent)' : '3px solid transparent',
+                                        fontSize: '14px',
+                                        transition: 'background-color var(--transition-fast)'
+                                    }}
+                                    onClick={() => selectSuggestion(suggestion)}
+                                    onMouseEnter={() => setSelectedSuggestionIndex(index)}
+                                    onMouseLeave={() => setSelectedSuggestionIndex(-1)}
+                                >
+                                    <span style={{ fontWeight: '500' }}>{suggestion}</span>
+                                    <span style={{ 
+                                        fontSize: '11px', 
+                                        color: 'var(--text-secondary)', 
+                                        marginLeft: '8px' 
+                                    }}>
+                                        Press Tab or click to use
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Search Controls Dropdown */}
                     {filtersExpanded && (
@@ -1228,7 +1509,6 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                         </div>
                     )}
 
-
                     {/* Indexing Progress UI */}
                     {(isIndexing || isLoadingStatus) && (
                         <div className="indexing-progress">
@@ -1345,7 +1625,7 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                         </div>
                     )}
 
-                    {!isSearching && results.length === 0 && query && (
+                    {!isSearching && results.length === 0 && query && hasSearched && (
                         <div className="no-results-container">
                             <EmptyState
                                 type="no-results"
@@ -1400,9 +1680,6 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                                 title={`Open location: ${result.directory}`}
                                             >
                                                 <span className="result-name">{result.name}</span>
-                                                {result.extension && (
-                                                    <span className="result-extension">.{result.extension}</span>
-                                                )}
                                                 {result.isDirectory && (
                                                     <span className="result-type-indicator">(Directory)</span>
                                                 )}
