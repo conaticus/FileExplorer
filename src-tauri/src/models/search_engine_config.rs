@@ -44,7 +44,7 @@ impl Default for SearchEngineConfig {
     fn default() -> Self {
         Self {
             search_engine_enabled: true,
-            max_results: 20,
+            max_results: 100,
             ranking_config: RankingConfig::default(),
             preferred_extensions: vec![
                 "txt".to_string(),

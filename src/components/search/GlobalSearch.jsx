@@ -167,6 +167,32 @@ const GlobalSearch = ({ isOpen, onClose }) => {
         };
     }, []);
 
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (filtersExpanded && !event.target.closest('.search-input-wrapper') && !event.target.closest('.search-controls-dropdown')) {
+                setFiltersExpanded(false);
+            }
+        };
+
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape' && filtersExpanded) {
+                setFiltersExpanded(false);
+                // Refocus the search input after closing dropdown
+                if (searchInputRef.current) {
+                    searchInputRef.current.focus();
+                }
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [filtersExpanded]);
+
     // Start polling for progress when indexing begins
     const startProgressPolling = () => {
         if (progressIntervalRef.current) return; // Already polling
@@ -759,9 +785,14 @@ const GlobalSearch = ({ isOpen, onClose }) => {
             size="lg"
         >
             <div className="global-search-content">
-                <form onSubmit={handleSubmit} className="search-form-container">
-                    <div className="search-input-row">
-                        <div className="search-input-wrapper">
+                <form onSubmit={handleSubmit} className="search-form-container" style={{
+                    padding: '8px',
+                    margin: '0',
+                    backgroundColor: 'var(--surface)',
+                    marginBottom: '16px'
+                }}>
+                    <div className="search-input-row" style={{ position: 'relative' }}>
+                        <div className="search-input-wrapper" style={{ position: 'relative' }}>
                             <input
                                 ref={searchInputRef}
                                 type="text"
@@ -770,11 +801,14 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                 onChange={(e) => setQuery(e.target.value)}
                                 placeholder="Search files and folders....."
                                 autoFocus
+                                style={{
+                                    paddingRight: query.trim() ? '70px' : '40px' // Extra space for clear button when there's text
+                                }}
                             />
                             {isSearching && (
                                 <div className="search-loading-indicator" style={{ 
                                     position: 'absolute', 
-                                    right: '8px', 
+                                    right: query.trim() ? '70px' : '40px', 
                                     top: '50%', 
                                     transform: 'translateY(-50%)',
                                     fontSize: '12px',
@@ -785,6 +819,110 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                     Searching...
                                 </div>
                             )}
+                            {query.trim() && (
+                                <button
+                                    type="button"
+                                    className="clear-search-btn"
+                                    onClick={clearSearch}
+                                    title="Clear search"
+                                    style={{
+                                        position: 'absolute',
+                                        right: '38px',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        outline: 'none',
+                                        cursor: 'pointer',
+                                        padding: '0',
+                                        margin: '0',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        zIndex: 2
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        const span = e.target.querySelector('span');
+                                        if (span) {
+                                            span.style.backgroundImage = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E")`;
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        const span = e.target.querySelector('span');
+                                        if (span) {
+                                            span.style.backgroundImage = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E")`;
+                                        }
+                                    }}
+                                >
+                                    <span style={{
+                                        width: '14px',
+                                        height: '14px',
+                                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E")`,
+                                        backgroundPosition: 'center',
+                                        backgroundRepeat: 'no-repeat',
+                                        backgroundSize: 'contain',
+                                        display: 'block'
+                                    }}></span>
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                className="filter-toggle-btn"
+                                onClick={() => {
+                                    console.log('Filter button clicked, current state:', filtersExpanded);
+                                    setFiltersExpanded(!filtersExpanded);
+                                }}
+                                title="Search filters and options"
+                                style={{
+                                    position: 'absolute',
+                                    right: '8px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    borderRadius: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: filtersExpanded ? 'var(--accent)' : 'var(--text-secondary)',
+                                    transition: 'color var(--transition-fast), background-color var(--transition-fast)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!filtersExpanded) {
+                                        e.target.style.backgroundColor = 'var(--surface-hover)';
+                                        e.target.style.color = 'var(--text-primary)';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!filtersExpanded) {
+                                        e.target.style.backgroundColor = 'transparent';
+                                        e.target.style.color = 'var(--text-secondary)';
+                                    }
+                                }}
+                            >
+                                <span className="icon icon-filter" style={{
+                                    width: '16px',
+                                    height: '16px',
+                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolygon points='22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3'%3E%3C/polygon%3E%3C/svg%3E")`,
+                                    backgroundPosition: 'center',
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundSize: 'contain'
+                                }}></span>
+                                {(selectedExtensions.length > 0 || showDirectoriesOnly || showHiddenFiles || sortBy !== 'relevance') && (
+                                    <span style={{
+                                        position: 'absolute',
+                                        top: '-2px',
+                                        right: '-2px',
+                                        width: '8px',
+                                        height: '8px',
+                                        backgroundColor: 'var(--accent)',
+                                        borderRadius: '50%',
+                                        border: '1px solid var(--background)'
+                                    }}></span>
+                                )}
+                            </button>
                         </div>
                         <Button
                             type="submit"
@@ -795,6 +933,286 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                             {isSearching ? 'Searching...' : 'Search'}
                         </Button>
                     </div>
+
+                    {/* Search Controls Dropdown */}
+                    {filtersExpanded && (
+                        <div className="search-controls-dropdown" style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: '0',
+                            right: '0',
+                            backgroundColor: 'var(--surface)',
+                            border: '1px solid var(--accent)', // Thicker border for debugging
+                            borderRadius: 'var(--radius-md)',
+                            boxShadow: 'var(--shadow-lg)',
+                            zIndex: 1000,
+                            marginTop: '4px',
+                            maxHeight: '400px',
+                            overflowY: 'auto',
+                            padding: 'var(--space-md)',
+                            minHeight: '200px' // Ensure minimum height for debugging
+                        }}>
+                            {/* Current Directory Context */}
+                            {currentDirectory && (
+                                <div className="search-control-section">
+                                    <h4 style={{ margin: '0 0 var(--space-sm) 0', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)' }}>Current Context</h4>
+                                    <div className="current-directory-info">
+                                        <span className="directory-label">Current Directory:</span>
+                                        <span className="directory-path" title={currentDirectory}>
+                                            {currentDirectory}
+                                        </span>
+                                        <small>(Files in this directory will be ranked higher)</small>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Sort Controls */}
+                            <div className="search-control-section">
+                                <h4 style={{ margin: 'var(--space-md) 0 var(--space-sm) 0', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)' }}>Sort Results By</h4>
+                                <div className="sort-controls">
+                                    {[
+                                        { value: 'relevance', label: 'Relevance (Score)' },
+                                        { value: 'name', label: 'Name' },
+                                        { value: 'path', label: 'Path' },
+                                        { value: 'extension', label: 'File Type' }
+                                    ].map(option => (
+                                        <label key={option.value} className="radio-option">
+                                            <input
+                                                type="radio"
+                                                name="sortBy"
+                                                value={option.value}
+                                                checked={sortBy === option.value}
+                                                onChange={(e) => setSortBy(e.target.value)}
+                                                disabled={isSearching}
+                                            />
+                                            <span>{option.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Filter Controls */}
+                            <div className="search-control-section">
+                                <h4 style={{ margin: 'var(--space-md) 0 var(--space-sm) 0', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)' }}>Filter Options</h4>
+                                <div className="filter-controls">
+                                    <label className="checkbox-option">
+                                        <input
+                                            type="checkbox"
+                                            checked={showDirectoriesOnly}
+                                            onChange={(e) => setShowDirectoriesOnly(e.target.checked)}
+                                            disabled={isSearching}
+                                        />
+                                        <span>Show directories only</span>
+                                    </label>
+                                    <label className="checkbox-option">
+                                        <input
+                                            type="checkbox"
+                                            checked={showHiddenFiles}
+                                            onChange={(e) => setShowHiddenFiles(e.target.checked)}
+                                            disabled={isSearching}
+                                        />
+                                        <span>Show hidden files</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Extension Filters */}
+                            <div className="search-control-section">
+                                <h4 style={{ margin: 'var(--space-md) 0 var(--space-sm) 0', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)' }}>File Type Filters</h4>
+                                <div className="extension-filters">
+                                    <div className="extension-checkboxes">
+                                        {commonExtensions.map(ext => (
+                                            <label key={ext.value} className="checkbox-option">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedExtensions.includes(ext.value)}
+                                                    onChange={() => handleExtensionChange(ext.value)}
+                                                    disabled={isSearching}
+                                                />
+                                                <span>{ext.label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    {selectedExtensions.length > 0 && (
+                                        <div className="selected-extensions">
+                                            Selected: {selectedExtensions.join(', ')}
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedExtensions([])}
+                                                className="clear-extensions"
+                                                disabled={isSearching}
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Recent Searches */}
+                            {recentSearches.length > 0 && (
+                                <div className="search-control-section">
+                                    <h4 style={{ margin: 'var(--space-md) 0 var(--space-sm) 0', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)' }}>Recent Searches</h4>
+                                    <div className="recent-searches">
+                                        {recentSearches.slice(0, 5).map((recentQuery, index) => (
+                                            <button
+                                                key={index}
+                                                className="recent-search-item"
+                                                onClick={() => {
+                                                    searchFromRecent(recentQuery);
+                                                    setFiltersExpanded(false);
+                                                }}
+                                                disabled={isSearching}
+                                                title={`Search for: ${recentQuery}`}
+                                            >
+                                                "{recentQuery}"
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Most Accessed Paths */}
+                            {mostAccessedPaths.length > 0 && (
+                                <div className="search-control-section">
+                                    <h4 style={{ margin: 'var(--space-md) 0 var(--space-sm) 0', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)' }}>Most Accessed Paths</h4>
+                                    <div className="most-accessed-paths">
+                                        {mostAccessedPaths.slice(0, 5).map((path, index) => (
+                                            <button
+                                                key={index}
+                                                className="accessed-path-item"
+                                                onClick={() => {
+                                                    navigateToAccessedPath(path);
+                                                    setFiltersExpanded(false);
+                                                }}
+                                                title={`Navigate to: ${path}`}
+                                            >
+                                                <span className="path-name">
+                                                    {path.split('/').pop() || path}
+                                                </span>
+                                                <span className="path-location">
+                                                    {path}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Engine Statistics & Performance */}
+                            {searchEngineInfo && (
+                                <div className="search-control-section">
+                                    <h4 style={{ margin: 'var(--space-md) 0 var(--space-sm) 0', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)' }}>Engine Statistics & Performance</h4>
+                                    <div className="search-engine-info-compact">
+                                        <div className="info-grid">
+                                            <div className="info-item">
+                                                <span className="info-label">Engine Status:</span>
+                                                <span className="info-value">{searchEngineInfo.status || 'Unknown'}</span>
+                                            </div>
+                                            <div className="info-item">
+                                                <span className="info-label">Indexed Files:</span>
+                                                <span className="info-value">{searchEngineInfo.stats?.trie_size || 0}</span>
+                                            </div>
+                                            <div className="info-item">
+                                                <span className="info-label">Cache Size:</span>
+                                                <span className="info-value">{searchEngineInfo.stats?.cache_size || 0}</span>
+                                            </div>
+                                            <div className="info-item">
+                                                <span className="info-label">Total Searches:</span>
+                                                <span className="info-value">{searchMetrics.total_searches || 0}</span>
+                                            </div>
+                                            <div className="info-item">
+                                                <span className="info-label">Avg Search Time:</span>
+                                                <span className="info-value">{searchMetrics.average_search_time_ms || 0}ms</span>
+                                            </div>
+                                            <div className="info-item">
+                                                <span className="info-label">Cache Hit Rate:</span>
+                                                <span className="info-value">
+                                                    {searchMetrics.cache_hit_rate ? 
+                                                        `${(searchMetrics.cache_hit_rate * 100).toFixed(1)}%` : 
+                                                        'N/A'
+                                                    }
+                                                </span>
+                                            </div>
+                                            {searchEngineInfo.last_updated && (
+                                                <div className="info-item">
+                                                    <span className="info-label">Last Updated:</span>
+                                                    <span className="info-value">
+                                                        {new Date(searchEngineInfo.last_updated).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Manual Indexing Control */}
+                                        <div className="index-management" style={{ marginTop: 'var(--space-md)' }}>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => {
+                                                    startManualIndexing();
+                                                    setFiltersExpanded(false);
+                                                }}
+                                                disabled={isSearching || isIndexing || !systemInfo?.user_home_dir}
+                                            >
+                                                {isIndexing ? 'Indexing...' : 'Re-index Home Directory'}
+                                            </Button>
+                                            
+                                            {/* Test indexing with a smaller directory */}
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={async () => {
+                                                    if (!systemInfo?.user_home_dir) {
+                                                        alert('System info not available');
+                                                        return;
+                                                    }
+
+                                                    console.log('Starting test indexing...');
+                                                    setIsIndexing(true);
+                                                    setIndexingProgress({
+                                                        files_indexed: 0,
+                                                        files_discovered: 0,
+                                                        percentage_complete: 0.0,
+                                                        current_path: null,
+                                                        estimated_time_remaining: null,
+                                                        start_time: Date.now()
+                                                    });
+                                                    startProgressPolling();
+                                                    
+                                                    try {
+                                                        // Test with user's Documents directory
+                                                        const documentsPath = systemInfo.current_running_os === 'windows' 
+                                                            ? `${systemInfo.user_home_dir}\\Documents`
+                                                            : `${systemInfo.user_home_dir}/Documents`;
+                                                        
+                                                        console.log(`Testing indexing with: ${documentsPath}`);
+                                                        
+                                                        const result = await invoke('add_paths_recursive_async', {
+                                                            folder: documentsPath
+                                                        });
+                                                        
+                                                        console.log('Test indexing result:', result);
+                                                    } catch (error) {
+                                                        console.error('Test indexing failed:', error);
+                                                        alert(`Test indexing failed: ${error.message || error}`);
+                                                        setIsIndexing(false);
+                                                        stopProgressPolling();
+                                                    }
+                                                    
+                                                    setFiltersExpanded(false);
+                                                }}
+                                                disabled={isSearching || isIndexing || !systemInfo?.user_home_dir}
+                                                style={{ marginLeft: '8px' }}
+                                            >
+                                                Test Index (Documents)
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Search hint for instant search */}
                     {query.length > 0 && query.length < 3 && (
@@ -810,45 +1228,6 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                         </div>
                     )}
 
-                    {/* Search Engine Status */}
-                    {(searchEngineInfo || isLoadingStatus) && (
-                        <div className="search-engine-status">
-                            {isLoadingStatus && (
-                                <div className="status-info">
-                                    <span className="status-label">Status:</span>
-                                    <span className="status-value loading">
-                                        Checking indexing status...
-                                    </span>
-                                </div>
-                            )}
-                            {searchEngineInfo && !isLoadingStatus && (
-                                <>
-                                    <div className="status-info">
-                                        <span className="status-label">Status:</span>
-                                        <span className={`status-value ${searchEngineInfo.status?.toLowerCase()}`}>
-                                            {searchEngineInfo.status || 'Unknown'}
-                                        </span>
-                                    </div>
-                                    {searchEngineInfo.stats && (
-                                        <div className="status-info">
-                                            <span className="status-label">Indexed files:</span>
-                                            <span className="status-value">
-                                                {searchEngineInfo.stats.trie_size || 0} entries
-                                            </span>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                            {(isIndexing || isLoadingStatus) && (
-                                <div className="status-info">
-                                    <span className="status-label">Indexing:</span>
-                                    <span className="status-value indexing">
-                                        {isLoadingStatus ? 'Checking...' : 'In Progress...'}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    )}
 
                     {/* Indexing Progress UI */}
                     {(isIndexing || isLoadingStatus) && (
@@ -956,286 +1335,6 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                             )}
                         </div>
                     )}
-
-                    {/* Accordions Container */}
-                    <div className="accordions-container">
-                        {/* Search Controls Accordion */}
-                        <div className="accordion">
-                            <button
-                                className="accordion-header"
-                                onClick={() => setFiltersExpanded(!filtersExpanded)}
-                                type="button"
-                            >
-                                <span>Search Controls & Filters</span>
-                                <span className={`accordion-chevron ${filtersExpanded ? 'expanded' : ''}`}>▼</span>
-                            </button>
-
-                            {filtersExpanded && (
-                                <div className="accordion-content">
-                                    {/* Current Directory Context */}
-                                    {currentDirectory && (
-                                        <div className="search-control-section">
-                                            <h4>Current Context</h4>
-                                            <div className="current-directory-info">
-                                                <span className="directory-label">Current Directory:</span>
-                                                <span className="directory-path" title={currentDirectory}>
-                                                    {currentDirectory}
-                                                </span>
-                                                <small>(Files in this directory will be ranked higher)</small>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Sort Controls */}
-                                    <div className="search-control-section">
-                                        <h4>Sort Results By</h4>
-                                        <div className="sort-controls">
-                                            {[
-                                                { value: 'relevance', label: 'Relevance (Score)' },
-                                                { value: 'name', label: 'Name' },
-                                                { value: 'path', label: 'Path' },
-                                                { value: 'extension', label: 'File Type' }
-                                            ].map(option => (
-                                                <label key={option.value} className="radio-option">
-                                                    <input
-                                                        type="radio"
-                                                        name="sortBy"
-                                                        value={option.value}
-                                                        checked={sortBy === option.value}
-                                                        onChange={(e) => setSortBy(e.target.value)}
-                                                        disabled={isSearching}
-                                                    />
-                                                    <span>{option.label}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Filter Controls */}
-                                    <div className="search-control-section">
-                                        <h4>Filter Options</h4>
-                                        <div className="filter-controls">
-                                            <label className="checkbox-option">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={showDirectoriesOnly}
-                                                    onChange={(e) => setShowDirectoriesOnly(e.target.checked)}
-                                                    disabled={isSearching}
-                                                />
-                                                <span>Show directories only</span>
-                                            </label>
-                                            <label className="checkbox-option">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={showHiddenFiles}
-                                                    onChange={(e) => setShowHiddenFiles(e.target.checked)}
-                                                    disabled={isSearching}
-                                                />
-                                                <span>Show hidden files</span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    {/* Extension Filters */}
-                                    <div className="search-control-section">
-                                        <h4>File Type Filters</h4>
-                                        <div className="extension-filters">
-                                            <div className="extension-checkboxes">
-                                                {commonExtensions.map(ext => (
-                                                    <label key={ext.value} className="checkbox-option">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedExtensions.includes(ext.value)}
-                                                            onChange={() => handleExtensionChange(ext.value)}
-                                                            disabled={isSearching}
-                                                        />
-                                                        <span>{ext.label}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                            {selectedExtensions.length > 0 && (
-                                                <div className="selected-extensions">
-                                                    Selected: {selectedExtensions.join(', ')}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setSelectedExtensions([])}
-                                                        className="clear-extensions"
-                                                        disabled={isSearching}
-                                                    >
-                                                        Clear
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Recent Searches */}
-                                    {recentSearches.length > 0 && (
-                                        <div className="search-control-section">
-                                            <h4>Recent Searches</h4>
-                                            <div className="recent-searches">
-                                                {recentSearches.slice(0, 5).map((recentQuery, index) => (
-                                                    <button
-                                                        key={index}
-                                                        className="recent-search-item"
-                                                        onClick={() => searchFromRecent(recentQuery)}
-                                                        disabled={isSearching}
-                                                        title={`Search for: ${recentQuery}`}
-                                                    >
-                                                        "{recentQuery}"
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Most Accessed Paths */}
-                                    {mostAccessedPaths.length > 0 && (
-                                        <div className="search-control-section">
-                                            <h4>Most Accessed Paths</h4>
-                                            <div className="most-accessed-paths">
-                                                {mostAccessedPaths.slice(0, 5).map((path, index) => (
-                                                    <button
-                                                        key={index}
-                                                        className="accessed-path-item"
-                                                        onClick={() => navigateToAccessedPath(path)}
-                                                        title={`Navigate to: ${path}`}
-                                                    >
-                                                        <span className="path-name">
-                                                            {path.split('/').pop() || path}
-                                                        </span>
-                                                        <span className="path-location">
-                                                            {path}
-                                                        </span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Performance & Statistics Accordion */}
-                        {searchEngineInfo && (
-                            <div className="accordion">
-                                <button
-                                    className="accordion-header"
-                                    onClick={() => setStatsExpanded(!statsExpanded)}
-                                    type="button"
-                                >
-                                    <span>Engine Statistics & Performance</span>
-                                    <span className={`accordion-chevron ${statsExpanded ? 'expanded' : ''}`}>▼</span>
-                                </button>
-
-                                {statsExpanded && (
-                                    <div className="accordion-content">
-                                        <div className="search-engine-info-compact">
-                                            <div className="info-grid">
-                                                <div className="info-item">
-                                                    <span className="info-label">Engine Status:</span>
-                                                    <span className="info-value">{searchEngineInfo.status || 'Unknown'}</span>
-                                                </div>
-                                                <div className="info-item">
-                                                    <span className="info-label">Indexed Files:</span>
-                                                    <span className="info-value">{searchEngineInfo.stats?.trie_size || 0}</span>
-                                                </div>
-                                                <div className="info-item">
-                                                    <span className="info-label">Cache Size:</span>
-                                                    <span className="info-value">{searchEngineInfo.stats?.cache_size || 0}</span>
-                                                </div>
-                                                <div className="info-item">
-                                                    <span className="info-label">Total Searches:</span>
-                                                    <span className="info-value">{searchMetrics.total_searches || 0}</span>
-                                                </div>
-                                                <div className="info-item">
-                                                    <span className="info-label">Avg Search Time:</span>
-                                                    <span className="info-value">{searchMetrics.average_search_time_ms || 0}ms</span>
-                                                </div>
-                                                <div className="info-item">
-                                                    <span className="info-label">Cache Hit Rate:</span>
-                                                    <span className="info-value">
-                                                        {searchMetrics.cache_hit_rate ? 
-                                                            `${(searchMetrics.cache_hit_rate * 100).toFixed(1)}%` : 
-                                                            'N/A'
-                                                        }
-                                                    </span>
-                                                </div>
-                                                {searchEngineInfo.last_updated && (
-                                                    <div className="info-item">
-                                                        <span className="info-label">Last Updated:</span>
-                                                        <span className="info-value">
-                                                            {new Date(searchEngineInfo.last_updated).toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Manual Indexing Control */}
-                                            <div className="index-management">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={startManualIndexing}
-                                                    disabled={isSearching || isIndexing || !systemInfo?.user_home_dir}
-                                                >
-                                                    {isIndexing ? 'Indexing...' : 'Re-index Home Directory'}
-                                                </Button>
-                                                
-                                                {/* Test indexing with a smaller directory */}
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={async () => {
-                                                        if (!systemInfo?.user_home_dir) {
-                                                            alert('System info not available');
-                                                            return;
-                                                        }
-
-                                                        console.log('Starting test indexing...');
-                                                        setIsIndexing(true);
-                                                        setIndexingProgress({
-                                                            files_indexed: 0,
-                                                            files_discovered: 0,
-                                                            percentage_complete: 0.0,
-                                                            current_path: null,
-                                                            estimated_time_remaining: null,
-                                                            start_time: Date.now()
-                                                        });
-                                                        startProgressPolling();
-                                                        
-                                                        try {
-                                                            // Test with user's Documents directory
-                                                            const documentsPath = systemInfo.current_running_os === 'windows' 
-                                                                ? `${systemInfo.user_home_dir}\\Documents`
-                                                                : `${systemInfo.user_home_dir}/Documents`;
-                                                            
-                                                            console.log(`Testing indexing with: ${documentsPath}`);
-                                                            
-                                                            const result = await invoke('add_paths_recursive_async', {
-                                                                folder: documentsPath
-                                                            });
-                                                            
-                                                            console.log('Test indexing result:', result);
-                                                        } catch (error) {
-                                                            console.error('Test indexing failed:', error);
-                                                            alert(`Test indexing failed: ${error.message || error}`);
-                                                            setIsIndexing(false);
-                                                            stopProgressPolling();
-                                                        }
-                                                    }}
-                                                    disabled={isSearching || isIndexing || !systemInfo?.user_home_dir}
-                                                    style={{ marginLeft: '8px' }}
-                                                >
-                                                    Test Index (Documents)
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
                 </form>
 
                 <div className="search-results-container">
@@ -1266,29 +1365,24 @@ const GlobalSearch = ({ isOpen, onClose }) => {
 
                     {!isSearching && results.length > 0 && (
                         <div className="results-list-container">
-                            <div className="results-header-container">
-                                <div className="results-info">
-                                    <span className="results-count">
-                                        {results.length} results found for "{query}"
-                                    </span>
-                                    <span className="sort-info">
-                                        Sorted by: {sortBy === 'relevance' ? 'Relevance (Score)' : 
-                                                   sortBy === 'name' ? 'Name' : 
-                                                   sortBy === 'path' ? 'Path' : 'File Type'}
-                                    </span>
-                                </div>
-                                <div className="results-actions">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={clearSearch}
-                                    >
-                                        Clear
-                                    </Button>
-                                </div>
-                            </div>
-
                             <div className="results-items-container">
+                                {/* Results count - inside scrollable area */}
+                                <div style={{ 
+                                    fontSize: '12px', 
+                                    color: '#999', 
+                                    marginTop: '0px',
+                                    marginBottom: '12px',
+                                    paddingLeft: '15px',
+                                    paddingRight: '12px'
+                                }}>
+                                    {results.length} results • ranked by {
+                                        sortBy === 'relevance' ? 'relevance' :
+                                        sortBy === 'name' ? 'name' :
+                                        sortBy === 'path' ? 'path' :
+                                        sortBy === 'extension' ? 'file type' :
+                                        'relevance'
+                                    }
+                                </div>
                                 {results.map((result, index) => (
                                     <div key={index} className="result-item-container">
                                         <div className="result-icon-container">
@@ -1323,17 +1417,6 @@ const GlobalSearch = ({ isOpen, onClose }) => {
                                             {currentDirectory && result.path.startsWith(currentDirectory) && (
                                                 <div className="result-context-indicator">
                                                     <span className="context-dot">•</span> In current directory
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="result-meta-container">
-                                            <div className="result-score-container" title="Relevance score">
-                                                {Math.round(result.score * 100)}%
-                                            </div>
-                                            {sortBy === 'relevance' && (
-                                                <div className="result-rank" title="Search result rank">
-                                                    #{index + 1}
                                                 </div>
                                             )}
                                         </div>
