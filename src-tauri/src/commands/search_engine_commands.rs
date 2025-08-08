@@ -135,11 +135,20 @@ pub async fn add_paths_recursive_async(
     search_engine_state: State<'_, Arc<Mutex<SearchEngineState>>>,
 ) -> Result<(), String> {
     let state = search_engine_state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        add_paths_recursive_impl(folder, state)
-    })
-        .await
-        .map_err(|e| format!("Indexing thread error: {:?}", e))?
+    
+    // Use a more conservative approach for async operations
+    // Spawn on a separate thread with explicit stack size to prevent overflow
+    let handle = std::thread::Builder::new()
+        .name("indexing-thread".to_string())
+        .stack_size(8 * 1024 * 1024) // 8MB stack size (generous but safe)
+        .spawn(move || {
+            add_paths_recursive_impl(folder, state)
+        })
+        .map_err(|e| format!("Failed to spawn indexing thread: {:?}", e))?;
+    
+    // Wait for completion
+    handle.join()
+        .map_err(|e| format!("Indexing thread panicked: {:?}", e))?
 }
 
 pub fn add_paths_recursive_impl(
@@ -147,12 +156,12 @@ pub fn add_paths_recursive_impl(
     state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<(), String> {
     log_info!(
-        "Add paths recursive called with folder: {} (using chunked indexing)",
+        "Add paths recursive called with folder: {} (using optimized chunked indexing)",
         folder
     );
     
-    // Use chunked indexing with smaller chunk size for more frequent progress updates
-    let default_chunk_size = 350; // Smaller chunk size for more frequent progress updates
+    // Use smaller chunk size to reduce memory pressure and prevent stack overflow
+    let default_chunk_size = 150; // Reduced from 350 to prevent memory issues
     let path = PathBuf::from(&folder);
 
     // Verify the path exists before starting
@@ -162,14 +171,14 @@ pub fn add_paths_recursive_impl(
         return Err(error_msg);
     }
 
-    log_info!("Starting chunked indexing for path: {} with chunk size: {}", folder, default_chunk_size);
+    log_info!("Starting optimized chunked indexing for path: {} with chunk size: {}", folder, default_chunk_size);
 
     let engine_state = state.lock().unwrap();
     let result = engine_state.start_chunked_indexing(path, default_chunk_size);
 
     match &result {
-        Ok(_) => log_info!("Chunked indexing started successfully for: {}", folder),
-        Err(e) => log_error!("Chunked indexing failed for {}: {}", folder, e),
+        Ok(_) => log_info!("Optimized chunked indexing started successfully for: {}", folder),
+        Err(e) => log_error!("Optimized chunked indexing failed for {}: {}", folder, e),
     }
 
     result
@@ -747,7 +756,7 @@ pub fn get_suggestions_impl(
         return Ok(Vec::new());
     }
 
-    let mut search_engine_state = state.lock().unwrap();
+    let search_engine_state = state.lock().unwrap();
     
     // Check if search engine is enabled
     {

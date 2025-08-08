@@ -232,23 +232,41 @@ impl SearchCore {
         let start_time = Instant::now();
         
         #[cfg(feature = "index-progress-logging")]
-        log_info!("Adding batch of {} paths", paths.len());
+        log_info!("Adding batch of {} paths with memory optimization", paths.len());
         
-        for path in paths {
+        // Process in smaller chunks to prevent memory pressure
+        const CHUNK_SIZE: usize = 250;
+        
+        for chunk in paths.chunks(CHUNK_SIZE) {
+            // Check for cancellation before each chunk
             if self.should_stop_indexing() {
                 #[cfg(feature = "index-progress-logging")]
                 log_info!("Batch indexing stopped due to cancellation signal");
                 break;
             }
             
-            self.add_path_with_exclusion_check(path, excluded_patterns);
+            // Process each path in the chunk
+            for path in chunk {
+                if self.should_stop_indexing() {
+                    break;
+                }
+                self.add_path_with_exclusion_check(path, excluded_patterns);
+            }
+            
+            // Purge cache periodically to prevent memory buildup
+            if chunk.len() == CHUNK_SIZE {
+                self.cache.purge_expired();
+            }
+            
+            // Yield control briefly to prevent blocking
+            std::thread::yield_now();
         }
         
-        // Clean cache once at the end rather than for each path
+        // Final cache cleanup
         self.cache.purge_expired();
         
         #[cfg(feature = "index-progress-logging")]
-        log_info!("Batch add completed in {:?}", start_time.elapsed());
+        log_info!("Optimized batch add completed in {:?}", start_time.elapsed());
     }
 
     /// Adds or updates a path in the search engines.
@@ -409,10 +427,9 @@ impl SearchCore {
     }
 
     /// Recursively adds a path and all its subdirectories and files to the index.
-    ///
-    /// This method walks the directory tree starting at the given path,
-    /// adding each file and directory encountered. The operation can be
-    /// interrupted by calling `stop_indexing()`.
+    /// 
+    /// Optimized version to prevent stack overflow and memory issues on large directories.
+    /// Uses iterative processing and conservative memory limits.
     ///
     /// # Arguments
     /// * `root_path` - The root path to start indexing from
@@ -420,7 +437,7 @@ impl SearchCore {
     ///
     /// # Performance
     /// - O(n) where n is the number of files and directories under the path
-    /// - Parallelized for improved performance on large directories
+    /// - Optimized with memory-safe patterns for large directories
     pub async fn add_paths_recursive(&mut self, root_path: &str, excluded_patterns: Option<&Vec<String>>) {
         use std::sync::{Arc, Mutex};
         use tokio::task;
@@ -430,7 +447,7 @@ impl SearchCore {
         let index_start = Instant::now();
 
         #[cfg(feature = "index-progress-logging")]
-        log_info!("Starting async walkdir-based indexing: '{}'", root_path);
+        log_info!("Starting optimized async walkdir-based indexing: '{}'", root_path);
 
         self.reset_stop_flag();
 
@@ -444,13 +461,13 @@ impl SearchCore {
             let mut file_count = 0;
             for entry in WalkDir::new(&root_path)
                 .follow_links(false)
-                .max_depth(15) // Limit depth to prevent stack overflow
+                .max_depth(20) // Reasonable depth limit
                 .into_iter()
                 .filter_map(Result::ok)
             {
-                // Limit total files to prevent memory issues - increased for testing
+                // More conservative file limit to prevent memory issues
                 file_count += 1;
-                if file_count > 350000 {
+                if file_count > 200000 { // Reduced from 350000
                     #[cfg(feature = "index-progress-logging")]
                     log_info!("Stopping walkdir due to file count limit: {}", file_count);
                     break;
@@ -500,15 +517,26 @@ impl SearchCore {
         if collected.is_empty() {
             #[cfg(feature = "index-error-logging")]
             log_error!("No paths were indexed from the root path");
+            return;
         }
 
-        let processed: Vec<_> = collected
-            .par_iter()
-            .map(|s| s.to_string())
-            .collect();
+        // Process in smaller batches to prevent memory pressure
+        const BATCH_SIZE: usize = 100;
+        
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Processing {} collected paths in batches of {}", collected.len(), BATCH_SIZE);
 
-        for path in processed {
-            self.add_path(&path);
+        for chunk in collected.chunks(BATCH_SIZE) {
+            if self.should_stop_indexing() {
+                break;
+            }
+            
+            // Process batch
+            let batch_refs: Vec<&str> = chunk.iter().map(|s| s.as_str()).collect();
+            self.add_paths_batch(batch_refs, None);
+            
+            // Yield control between batches
+            tokio::task::yield_now().await;
         }
 
         #[cfg(feature = "index-progress-logging")]
@@ -520,7 +548,7 @@ impl SearchCore {
                 collected.len() as f64
             };
             log_info!(
-                "Completed walkdir indexing: {} paths in {:?} ({:.2} paths/ms)",
+                "Completed optimized walkdir indexing: {} paths in {:?} ({:.2} paths/ms)",
                 collected.len(),
                 elapsed,
                 speed

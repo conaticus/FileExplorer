@@ -451,7 +451,7 @@ impl SearchEngineState {
     }
 
     /// Collects all paths recursively from a directory without indexing them.
-    /// Now includes proper exclusion pattern matching and error handling.
+    /// Optimized to prevent stack overflow using iterative traversal.
     ///
     /// # Arguments
     ///
@@ -462,58 +462,89 @@ impl SearchEngineState {
     ///
     /// A vector of all file paths found that don't match the excluded patterns
     fn collect_paths_recursive(&self, dir: &PathBuf, excluded_patterns: &[String]) -> Vec<String> {
+        use std::collections::VecDeque;
+        
         let mut paths = Vec::new();
+        let mut dir_queue = VecDeque::new();
+        dir_queue.push_back((dir.clone(), 0)); // (directory, depth)
+        
+        const MAX_DEPTH: usize = 25;
+        const MAX_PATHS: usize = 250000; // Limit to prevent memory issues
+        
+        while let Some((current_dir, depth)) = dir_queue.pop_front() {
+            // Depth limiting
+            if depth >= MAX_DEPTH {
+                #[cfg(feature = "index-progress-logging")]
+                log_info!("Skipping directory due to depth limit: {} (depth: {})", current_dir.display(), depth);
+                continue;
+            }
 
-        if let Ok(entries) = fs::read_dir(dir) {
-            for entry in entries.filter_map(Result::ok) {
-                let path = entry.path();
+            // Path count limiting
+            if paths.len() > MAX_PATHS {
+                #[cfg(feature = "index-progress-logging")]
+                log_info!("Stopping path collection due to count limit: {}", paths.len());
+                break;
+            }
 
-                // Convert path to string
-                if let Some(path_str) = path.to_str() {
-                    // Check if path should be excluded using the same logic as the original indexing
-                    let should_exclude = excluded_patterns.iter().any(|pattern| {
-                        // Support both exact matches and pattern matching
-                        path_str.contains(pattern)
-                            || path_str.ends_with(pattern)
-                            || path
-                                .file_name()
-                                .and_then(|name| name.to_str())
-                                .map(|name| name.contains(pattern))
-                                .unwrap_or(false)
-                    });
-
-                    if !should_exclude {
-                        // Add this path (both files and directories are indexed)
-                        paths.push(path_str.to_string());
-
-                        // Recursively add subdirectory contents
-                        if path.is_dir() {
-                            // Check for stop signal during path collection
-                            {
-                                let engine = self.engine.read().unwrap();
-                                if engine.should_stop_indexing() {
-                                    #[cfg(test)]
-                                    log_info!("Path collection stopped due to cancellation signal");
-                                    break;
-                                }
-                            }
-
-                            paths.extend(self.collect_paths_recursive(&path, excluded_patterns));
+            if let Ok(entries) = fs::read_dir(&current_dir) {
+                for entry in entries.filter_map(Result::ok) {
+                    // Check for stop signal during path collection
+                    {
+                        let engine = self.engine.read().unwrap();
+                        if engine.should_stop_indexing() {
+                            #[cfg(test)]
+                            log_info!("Path collection stopped due to cancellation signal");
+                            return paths;
                         }
-                    } else {
-                        #[cfg(test)]
-                        log_info!("Excluding path: {} (matched pattern)", path_str);
+                    }
+
+                    let path = entry.path();
+
+                    // Convert path to string
+                    if let Some(path_str) = path.to_str() {
+                        // Check if path should be excluded using the same logic as the original indexing
+                        let should_exclude = excluded_patterns.iter().any(|pattern| {
+                            // Support both exact matches and pattern matching
+                            path_str.contains(pattern)
+                                || path_str.ends_with(pattern)
+                                || path
+                                    .file_name()
+                                    .and_then(|name| name.to_str())
+                                    .map(|name| name.contains(pattern))
+                                    .unwrap_or(false)
+                        });
+
+                        if !should_exclude {
+                            // Add this path (both files and directories are indexed)
+                            paths.push(path_str.to_string());
+
+                            // Add subdirectories to queue for later processing
+                            if path.is_dir() {
+                                dir_queue.push_back((path, depth + 1));
+                            }
+                        } else {
+                            #[cfg(test)]
+                            log_info!("Excluding path: {} (matched pattern)", path_str);
+                        }
                     }
                 }
+            } else {
+                log_warn!("Failed to read directory: {}", current_dir.display());
             }
-        } else {
-            log_warn!("Failed to read directory: {}", dir.display());
+
+            // Yield control periodically
+            if depth % 5 == 0 {
+                std::thread::yield_now();
+            }
         }
 
+        // Reserve capacity to reduce reallocations
+        paths.shrink_to_fit();
         paths
     }
 
     /// Index a directory using streaming approach - discover and index files as we go
+    /// Optimized to prevent stack overflow using iterative traversal
     fn index_directory_streaming(
         &self,
         dir: &PathBuf,
@@ -522,11 +553,14 @@ impl SearchEngineState {
     ) -> Result<(), String> {
         let mut discovered_files = 0;
         let mut indexed_files = 0;
-        let mut current_batch = Vec::new();
+        let mut current_batch = Vec::with_capacity(chunk_size);
         let start_time = Instant::now();
 
-        // Recursively process directory with immediate indexing
-        self.process_directory_streaming(
+        #[cfg(feature = "index-progress-logging")]
+        log_info!("Starting optimized streaming indexing for: {}", dir.display());
+
+        // Use iterative directory processing to prevent stack overflow
+        self.process_directory_iterative(
             dir,
             excluded_patterns,
             &mut discovered_files,
@@ -549,7 +583,7 @@ impl SearchEngineState {
         let engine = self.engine.read().unwrap();
         if engine.should_stop_indexing() {
             data.status = SearchEngineStatus::Cancelled;
-            log_info!("Streaming indexing was cancelled");
+            log_info!("Optimized streaming indexing was cancelled");
         } else {
             data.status = SearchEngineStatus::Idle;
             data.progress.files_indexed = indexed_files;
@@ -559,13 +593,139 @@ impl SearchEngineState {
             data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
 
             log_info!(
-                "Streaming indexing completed: {} files indexed in {:?}",
+                "Optimized streaming indexing completed: {} files indexed in {:?}",
                 indexed_files,
                 elapsed
             );
         }
 
         Ok(())
+    }
+
+    /// Iteratively process directory to prevent stack overflow on deep directory structures
+    /// Uses a queue-based approach instead of recursion for memory safety
+    fn process_directory_iterative(
+        &self,
+        root_dir: &PathBuf,
+        excluded_patterns: &[String],
+        discovered_files: &mut usize,
+        indexed_files: &mut usize,
+        current_batch: &mut Vec<String>,
+        chunk_size: usize,
+    ) -> Result<(), String> {
+        use std::collections::VecDeque;
+        
+        // Use a queue for iterative traversal instead of recursion
+        let mut dir_queue = VecDeque::new();
+        dir_queue.push_back((root_dir.clone(), 0));
+        
+        const MAX_DEPTH: usize = 25;
+        const MAX_FILES: usize = 500000;
+        
+        while let Some((current_dir, depth)) = dir_queue.pop_front() {
+            // Depth limiting to prevent infinite loops and excessive memory usage
+            if depth >= MAX_DEPTH {
+                #[cfg(feature = "index-progress-logging")]
+                log_info!("Skipping directory due to depth limit: {} (depth: {})", current_dir.display(), depth);
+                continue;
+            }
+
+            // File count limiting to prevent memory exhaustion
+            if *discovered_files > MAX_FILES {
+                #[cfg(feature = "index-progress-logging")]
+                log_info!("Stopping indexing due to file count limit: {}", *discovered_files);
+                break;
+            }
+
+            // Check for cancellation more frequently
+            {
+                let engine = self.engine.read().unwrap();
+                if engine.should_stop_indexing() {
+                    return Ok(());
+                }
+            }
+
+            // Process current directory
+            if let Ok(entries) = fs::read_dir(&current_dir) {
+                for entry in entries.filter_map(Result::ok) {
+                    // Check for cancellation on each entry to be more responsive
+                    {
+                        let engine = self.engine.read().unwrap();
+                        if engine.should_stop_indexing() {
+                            return Ok(());
+                        }
+                    }
+
+                    let path = entry.path();
+
+                    if let Some(path_str) = path.to_str() {
+                        // Check if path should be excluded
+                        let should_exclude = excluded_patterns.iter().any(|pattern| {
+                            path_str.contains(pattern)
+                                || path_str.ends_with(pattern)
+                                || path
+                                    .file_name()
+                                    .and_then(|name| name.to_str())
+                                    .map(|name| name.contains(pattern))
+                                    .unwrap_or(false)
+                        });
+
+                        if !should_exclude {
+                            // Add to current batch
+                            current_batch.push(path_str.to_string());
+                            *discovered_files += 1;
+
+                            // Update progress more frequently for better UX
+                            if *discovered_files % 10 == 0 || *discovered_files == 1 {
+                                self.update_progress_safely(*discovered_files, *indexed_files, Some(path_str.to_string()));
+                            }
+
+                            // Process batch when it reaches chunk_size to prevent memory buildup
+                            if current_batch.len() >= chunk_size {
+                                self.process_batch(current_batch, indexed_files, *discovered_files)?;
+                                current_batch.clear();
+                                current_batch.reserve(chunk_size); // Pre-allocate for next batch
+                            }
+
+                            // Add subdirectories to queue for later processing (breadth-first)
+                            if path.is_dir() {
+                                dir_queue.push_back((path, depth + 1));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Yield control periodically to prevent blocking
+            if depth % 10 == 0 {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Safely update progress without holding locks too long
+    fn update_progress_safely(&self, discovered: usize, indexed: usize, current_path: Option<String>) {
+        if let Ok(mut data) = self.data.try_lock() {
+            data.progress.files_discovered = discovered;
+            data.progress.files_indexed = indexed;
+            data.progress.current_path = current_path;
+            
+            // Calculate percentage with better accuracy
+            if discovered > 0 {
+                let base_percentage = (indexed as f32 / discovered as f32) * 85.0; // Cap indexing at 85%
+                let discovery_percentage = (discovered as f32 / (discovered as f32 + 50.0)) * 15.0; // Discovery gets 15%
+                data.progress.percentage_complete = base_percentage + discovery_percentage;
+            }
+            
+            data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
+            
+            #[cfg(feature = "index-progress-logging")]
+            log_info!("Progress update: discovered={}, indexed={}, percentage={:.1}%", 
+                     discovered, indexed, data.progress.percentage_complete);
+        }
+        // If lock fails, just continue - progress updates aren't critical
     }
 
     /// Recursively process directory with streaming indexing
@@ -610,7 +770,7 @@ impl SearchEngineState {
         }
 
         // Prevent runaway indexing by limiting total files - increased for testing
-        if *discovered_files > 500000 {
+        if *discovered_files > 350000 {
             #[cfg(feature = "index-progress-logging")]
             log_info!("Stopping indexing due to file count limit: {}", *discovered_files);
             return Ok(());
@@ -695,7 +855,7 @@ impl SearchEngineState {
         Ok(())
     }
 
-    /// Process a batch of files for indexing
+    /// Process a batch of files for indexing with optimized memory management
     fn process_batch(
         &self,
         batch: &[String],
@@ -714,49 +874,61 @@ impl SearchEngineState {
             }
         }
 
-        // Process the batch
-        {
-            let mut engine = self.engine.write().unwrap();
-            let batch_refs: Vec<&str> = batch.iter().map(|s| s.as_str()).collect();
-            engine.add_paths_batch(batch_refs, None);
-        }
-
-        *indexed_files += batch.len();
-
-        // Update progress
-        {
-            let mut data = self.data.lock().unwrap();
-            data.progress.files_indexed = *indexed_files;
-            data.progress.files_discovered = total_discovered;
-            
-            // Better percentage calculation
-            data.progress.percentage_complete = if total_discovered > 0 {
-                (*indexed_files as f32 / total_discovered as f32) * 100.0
-            } else {
-                0.0
-            };
-
-            // Calculate estimated time remaining
-            if let Some(start_time_ms) = data.progress.start_time {
-                let elapsed_ms = chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
-                if *indexed_files > 0 {
-                    let avg_time_per_file = elapsed_ms as f32 / *indexed_files as f32;
-                    let remaining_files = total_discovered.saturating_sub(*indexed_files);
-                    let estimated_ms = (avg_time_per_file * remaining_files as f32) as u64;
-                    data.progress.estimated_time_remaining = Some(estimated_ms);
+        // Process smaller sub-batches to reduce memory pressure
+        const SUB_BATCH_SIZE: usize = 25; // Process in smaller chunks
+        
+        for chunk in batch.chunks(SUB_BATCH_SIZE) {
+            // Check for cancellation before each sub-batch
+            {
+                let engine = self.engine.read().unwrap();
+                if engine.should_stop_indexing() {
+                    return Ok(());
                 }
             }
 
-            data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
-            
-            // Log batch progress for debugging
-            #[cfg(feature = "index-progress-logging")]
-            log_info!("Batch processed: indexed={}/{} discovered ({:.1}%)", 
-                     *indexed_files, total_discovered, data.progress.percentage_complete);
-        }
+            // Process the sub-batch
+            {
+                let mut engine = self.engine.write().unwrap();
+                let batch_refs: Vec<&str> = chunk.iter().map(|s| s.as_str()).collect();
+                engine.add_paths_batch(batch_refs, None);
+            } // Release write lock immediately
 
-        // Small delay to allow UI updates
-        thread::sleep(Duration::from_millis(5));
+            *indexed_files += chunk.len();
+
+            // Update progress after each sub-batch to keep UI responsive
+            if let Ok(mut data) = self.data.try_lock() {
+                data.progress.files_indexed = *indexed_files;
+                data.progress.files_discovered = total_discovered;
+                
+                // Better percentage calculation
+                data.progress.percentage_complete = if total_discovered > 0 {
+                    (*indexed_files as f32 / total_discovered as f32) * 100.0
+                } else {
+                    0.0
+                };
+
+                // Calculate estimated time remaining
+                if let Some(start_time_ms) = data.progress.start_time {
+                    let elapsed_ms = chrono::Utc::now().timestamp_millis() as u64 - start_time_ms;
+                    if *indexed_files > 0 {
+                        let avg_time_per_file = elapsed_ms as f32 / *indexed_files as f32;
+                        let remaining_files = total_discovered.saturating_sub(*indexed_files);
+                        let estimated_ms = (avg_time_per_file * remaining_files as f32) as u64;
+                        data.progress.estimated_time_remaining = Some(estimated_ms);
+                    }
+                }
+
+                data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
+                
+                // Log batch progress for debugging
+                #[cfg(feature = "index-progress-logging")]
+                log_info!("Sub-batch processed: indexed={}/{} discovered ({:.1}%)", 
+                         *indexed_files, total_discovered, data.progress.percentage_complete);
+            }
+
+            // Small delay between sub-batches to yield control and prevent blocking
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
 
         Ok(())
     }
