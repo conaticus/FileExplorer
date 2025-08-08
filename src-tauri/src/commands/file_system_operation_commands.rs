@@ -465,9 +465,53 @@ pub async fn move_to_trash(path: &str) -> Result<(), String> {
     }
 }
 
+/// Generates a unique destination path by appending a number if the path already exists.
+/// For example: "file.txt" -> "file (1).txt" -> "file (2).txt"
+/// For directories: "folder" -> "folder (1)" -> "folder (2)"
+fn generate_unique_path(original_path: &str) -> String {
+    let path = Path::new(original_path);
+    
+    if !path.exists() {
+        return original_path.to_string();
+    }
+    
+    let parent = path.parent().unwrap_or(Path::new(""));
+    let file_name = path.file_name().unwrap().to_string_lossy();
+    
+    // Check if it's a file with extension or a directory
+    if let Some(extension) = path.extension() {
+        // It's a file with extension
+        let stem = path.file_stem().unwrap().to_string_lossy();
+        let ext = extension.to_string_lossy();
+        
+        for i in 1..=9999 {
+            let new_name = format!("{} ({}).{}", stem, i, ext);
+            let new_path = parent.join(&new_name);
+            
+            if !new_path.exists() {
+                return new_path.to_string_lossy().to_string();
+            }
+        }
+    } else {
+        // It's a directory or file without extension
+        for i in 1..=9999 {
+            let new_name = format!("{} ({})", file_name, i);
+            let new_path = parent.join(&new_name);
+            
+            if !new_path.exists() {
+                return new_path.to_string_lossy().to_string();
+            }
+        }
+    }
+    
+    // Fallback - this should rarely happen
+    original_path.to_string()
+}
+
 /// Copies a file or directory from the source path to the destination path.
 /// This function does not create any parent directories.
-/// It will overwrite the destination if it already exists.
+/// If the destination already exists, it will generate a unique name by appending a number.
+/// If the source is a directory, it will recursively copy all files and subdirectories.
 /// If the source is a directory, it will recursively copy all files and subdirectories.
 ///
 /// # Arguments
@@ -498,22 +542,15 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
         .to_json());
     }
 
-    // Check if the destination path is valid
-    if Path::new(destination_path).exists() {
-        log_error!("Destination path already exists: {}", destination_path);
-        return Err(Error::new(
-            ErrorCode::ResourceAlreadyExists,
-            format!("Destination path already exists: {}", destination_path),
-        )
-        .to_json());
-    }
+    // Generate a unique destination path if the original already exists
+    let final_destination_path = generate_unique_path(destination_path);
 
     if Path::new(source_path).is_dir() {
         // If the source is a directory, recursively copy it
         let mut total_size = 0;
 
         // Create the destination directory
-        fs::create_dir_all(destination_path).map_err(|err| {
+        fs::create_dir_all(&final_destination_path).map_err(|err| {
             log_error!("Failed to create destination directory: {}", err);
             Error::new(
                 ErrorCode::InternalError,
@@ -542,7 +579,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
 
             let entry_path = entry.path();
             let file_name = entry.file_name();
-            let dest_path = Path::new(destination_path).join(file_name);
+            let dest_path = Path::new(&final_destination_path).join(file_name);
 
             if entry_path.is_file() {
                 // Copy file
@@ -569,7 +606,7 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
         Ok(total_size)
     } else {
         // Copy a single file
-        let size = fs::copy(source_path, destination_path).map_err(|err| {
+        let size = fs::copy(source_path, &final_destination_path).map_err(|err| {
             log_error!("Failed to copy file: {}", err);
             Error::new(
                 ErrorCode::InternalError,
@@ -851,19 +888,7 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
             }
         };
 
-        let extract_path = dest_path.join(zip_name);
-
-        // Create extraction directory
-        if let Err(e) = fs::create_dir_all(&extract_path) {
-            log_error!("Failed to create extraction directory: {}", e);
-            return Err(Error::new(
-                ErrorCode::InternalError,
-                format!("Failed to create extraction directory: {}", e),
-            )
-            .to_json());
-        }
-
-        // Open and extract zip file
+        // Open and read zip file first to analyze contents
         let file = fs::File::open(zip_path).map_err(|e| {
             log_error!("Failed to open zip file: {}", e);
             Error::new(
@@ -882,6 +907,44 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
             .to_json()
         })?;
 
+        // Check if zip contains only a single file (not directory)
+        let file_entries: Vec<_> = (0..archive.len())
+            .filter_map(|i| {
+                archive.by_index(i).ok().and_then(|file| {
+                    if !file.name().ends_with('/') {
+                        Some(file.name().to_string())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        let is_single_file = file_entries.len() == 1 && archive.len() == 1;
+
+        // Determine extraction path based on content
+        let extract_path = if is_single_file {
+            // For single file, extract directly to destination directory
+            dest_path.to_path_buf()
+        } else {
+            // For multiple files or directories, create subdirectory
+            let extract_path_initial = dest_path.join(zip_name);
+            let unique_extract_path_string = generate_unique_path(&extract_path_initial.to_string_lossy());
+            Path::new(&unique_extract_path_string).to_path_buf()
+        };
+
+        // Create extraction directory only if needed (not for single file to current dir)
+        if !is_single_file {
+            if let Err(e) = fs::create_dir_all(&extract_path) {
+                log_error!("Failed to create extraction directory: {}", e);
+                return Err(Error::new(
+                    ErrorCode::InternalError,
+                    format!("Failed to create extraction directory: {}", e),
+                )
+                .to_json());
+            }
+        }
+
         for i in 0..archive.len() {
             let mut file = archive.by_index(i).map_err(|e| {
                 log_error!("Failed to read zip entry: {}", e);
@@ -891,9 +954,10 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                 )
                 .to_json()
             })?;
-            let outpath = extract_path.join(file.mangled_name());
 
             if file.name().ends_with('/') {
+                // For directories, create them if they don't exist
+                let outpath = extract_path.join(file.mangled_name());
                 fs::create_dir_all(&outpath).map_err(|e| {
                     log_error!("Failed to create directory: {}", e);
                     Error::new(
@@ -903,7 +967,22 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                     .to_json()
                 })?;
             } else {
-                if let Some(parent) = outpath.parent() {
+                // For files, determine the output path based on extraction type
+                let outpath = if is_single_file {
+                    // For single file, extract directly to destination with original filename
+                    let original_filename = Path::new(file.name()).file_name()
+                        .unwrap_or_else(|| std::ffi::OsStr::new("extracted_file"));
+                    extract_path.join(original_filename)
+                } else {
+                    // For multiple files, use the full path structure
+                    extract_path.join(file.mangled_name())
+                };
+
+                // Generate a unique path if the file already exists
+                let unique_outpath_string = generate_unique_path(&outpath.to_string_lossy());
+                let unique_outpath = Path::new(&unique_outpath_string);
+                
+                if let Some(parent) = unique_outpath.parent() {
                     if !parent.exists() {
                         fs::create_dir_all(parent).map_err(|e| {
                             log_error!("Failed to create parent directory: {}", e);
@@ -919,11 +998,11 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                         })?;
                     }
                 }
-                let mut outfile = fs::File::create(&outpath).map_err(|e| {
+                let mut outfile = fs::File::create(&unique_outpath).map_err(|e| {
                     log_error!("Failed to create file: {}", e);
                     Error::new(
                         ErrorCode::InternalError,
-                        format!("Failed to create file {}': {}", outpath.display(), e),
+                        format!("Failed to create file {}': {}", unique_outpath.display(), e),
                     )
                     .to_json()
                 })?;
@@ -931,11 +1010,18 @@ pub async fn unzip(zip_paths: Vec<String>, destination_path: Option<String>) -> 
                     log_error!("Failed to write file: {}", e);
                     Error::new(
                         ErrorCode::InternalError,
-                        format!("Failed to write file '{}': {}", outpath.display(), e),
+                        format!("Failed to write file '{}': {}", unique_outpath.display(), e),
                     )
                     .to_json()
                 })?;
             }
+        }
+
+        // Remove the zip file after successful extraction
+        if let Err(e) = fs::remove_file(zip_path) {
+            log_error!("Failed to remove zip file after extraction: {}", e);
+            // Note: We don't return an error here since extraction was successful
+            // The user can manually delete the zip file if needed
         }
     }
 
@@ -1837,56 +1923,6 @@ mod tests_file_system_operation_commands {
 
         assert!(
             result.unwrap_err().contains("InvalidInput"),
-            "Error message does not match expected value"
-        );
-    }
-    #[tokio::test]
-    async fn failed_to_copy_file_or_dir_because_destination_path_already_exists_test() {
-        use tempfile::tempdir;
-
-        // Create a temporary directory (automatically deleted when out of scope)
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-        // Create a test file in the temporary directory
-        let mut test_path = temp_dir.path().to_path_buf();
-        test_path.push("copy_file_test.txt");
-
-        // Create the test file
-        fs::File::create(&test_path).unwrap();
-
-        // Ensure the file exists
-        assert!(test_path.exists(), "Test file should exist before copying");
-
-        // Copy the file to an existing path
-        let new_name = "copy_file_test.txt";
-        let new_path = temp_dir.path().join(new_name);
-        fs::File::create(&new_path).unwrap(); // Create the new path to simulate conflict
-
-        let result =
-            copy_file_or_dir(test_path.to_str().unwrap(), new_path.to_str().unwrap()).await;
-
-        // Verify that the operation was successful
-        assert!(
-            result.is_err(),
-            "Failed test (should throw an error): {:?}",
-            result
-        );
-
-        assert!(
-            result
-                .clone()
-                .unwrap_err()
-                .contains("Destination path already exists"),
-            "Error message does not match expected value"
-        );
-
-        assert!(
-            result.clone().unwrap_err().contains("409"),
-            "Error message does not match expected value"
-        );
-
-        assert!(
-            result.unwrap_err().contains("ResourceAlreadyExists"),
             "Error message does not match expected value"
         );
     }

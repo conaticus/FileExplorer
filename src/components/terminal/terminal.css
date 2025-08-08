@@ -9,7 +9,7 @@
     border-radius: 8px 8px 0 0;
     box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.3);
     width: 100%;
-    z-index: 100;
+    z-index: 10;
     position: absolute;
     bottom: 0;
     left: 0;
@@ -145,6 +145,13 @@
     margin-left: 8px;
     display: flex;
     align-items: center;
+    gap: 8px;
+}
+
+.terminal-interrupt-hint {
+    font-size: 0.8em;
+    color: #888;
+    font-style: italic;
 }
 
 .spinner-small {

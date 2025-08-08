@@ -30,6 +30,7 @@ import TemplateList from '../components/templates/TemplateList';
 // Hash Modals
 import HashFileModal from '../components/common/HashFileModal.jsx';
 import HashCompareModal from '../components/common/HashCompareModal.jsx';
+import HashDisplayModal from '../components/common/HashDisplayModal.jsx';
 
 // Settings Applier
 import SettingsApplier from '../utils/SettingsApplier.js';
@@ -68,7 +69,9 @@ const MainLayout = () => {
     // Hash Modal states
     const [isHashFileModalOpen, setIsHashFileModalOpen] = useState(false);
     const [isHashCompareModalOpen, setIsHashCompareModalOpen] = useState(false);
+    const [isHashDisplayModalOpen, setIsHashDisplayModalOpen] = useState(false);
     const [hashModalItem, setHashModalItem] = useState(null);
+    const [hashDisplayData, setHashDisplayData] = useState({ hash: '', fileName: '' });
 
     // Get terminal height for padding calculations
     const terminalHeight = settings.terminal_height || 240;
@@ -237,6 +240,17 @@ const MainLayout = () => {
             }
         };
 
+        // Hash Display Modal Handler
+        const handleOpenHashDisplayModal = (e) => {
+            console.log('Opening Hash Display Modal:', e.detail);
+            if (e.detail?.hash && e.detail?.fileName) {
+                setHashDisplayData({ hash: e.detail.hash, fileName: e.detail.fileName });
+                setIsHashDisplayModalOpen(true);
+            } else {
+                console.log('Invalid hash display event detail:', e.detail);
+            }
+        };
+
         // Register event listeners
         document.addEventListener('open-templates', handleOpenTemplates);
         document.addEventListener('show-properties', handleShowProperties);
@@ -246,6 +260,7 @@ const MainLayout = () => {
         document.addEventListener('open-rename-modal', handleOpenRenameModal);
         document.addEventListener('open-hash-file-modal', handleOpenHashFileModal);
         document.addEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
+        document.addEventListener('open-hash-display-modal', handleOpenHashDisplayModal);
 
         console.log('MainLayout: All event listeners registered');
 
@@ -258,6 +273,7 @@ const MainLayout = () => {
             document.removeEventListener('open-rename-modal', handleOpenRenameModal);
             document.removeEventListener('open-hash-file-modal', handleOpenHashFileModal);
             document.removeEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
+            document.removeEventListener('open-hash-display-modal', handleOpenHashDisplayModal);
             console.log('MainLayout: All event listeners removed');
         };
     }, []);
@@ -597,7 +613,17 @@ const MainLayout = () => {
                     </div>
 
                     {/* Terminal positioned absolutely at the bottom */}
-                    <div className="terminal-wrapper">
+                    <div 
+                        className="terminal-wrapper"
+                        style={{
+                            position: isTerminalOpen ? 'absolute' : 'static',
+                            bottom: isTerminalOpen ? 0 : 'auto',
+                            left: isTerminalOpen ? 0 : 'auto',
+                            right: isTerminalOpen ? 0 : 'auto',
+                            height: isTerminalOpen ? `${terminalHeight}px` : 0,
+                            overflow: isTerminalOpen ? 'visible' : 'hidden'
+                        }}
+                    >
                         {isTerminalOpen && (
                             <Terminal
                                 isOpen={isTerminalOpen}
@@ -654,6 +680,17 @@ const MainLayout = () => {
                     setHashModalItem(null);
                 }}
                 item={hashModalItem}
+            />
+
+            <HashDisplayModal
+                isOpen={isHashDisplayModalOpen}
+                onClose={() => {
+                    console.log('Closing Hash Display Modal');
+                    setIsHashDisplayModalOpen(false);
+                    setHashDisplayData({ hash: '', fileName: '' });
+                }}
+                hash={hashDisplayData.hash}
+                fileName={hashDisplayData.fileName}
             />
         </div>
     );

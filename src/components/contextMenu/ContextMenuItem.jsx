@@ -23,19 +23,40 @@ const ContextMenuItem = ({
                              onSubmenuClose,
                              onAction,
                          }) => {
-    const [submenuPosition, setSubmenuPosition] = useState({ x: 0, y: 0 });
+    const [submenuPosition, setSubmenuPosition] = useState({ x: 0, y: 0, alignLeft: false });
     const itemRef = useRef(null);
 
     /**
-     * Calculates the submenu position based on the parent element position
+     * Calculates the submenu position based on the parent element position and available space
      */
     useEffect(() => {
         if (isSubmenuOpen && itemRef.current && item.submenu) {
             const itemRect = itemRef.current.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const submenuWidth = 180; // min-width from CSS
+            const padding = 8; // safety padding
+
+            let x = itemRect.right; // default to right side
+            let alignLeft = false;
+
+            // Check if submenu would overflow the right edge of the viewport
+            if (itemRect.right + submenuWidth + padding > viewportWidth) {
+                // Not enough space on the right, try left side
+                if (itemRect.left - submenuWidth - padding >= 0) {
+                    // Enough space on the left, position on left
+                    x = itemRect.left - submenuWidth;
+                    alignLeft = true;
+                } else {
+                    // Not enough space on either side, keep on right but adjust to fit
+                    x = viewportWidth - submenuWidth - padding;
+                    alignLeft = false;
+                }
+            }
 
             setSubmenuPosition({
-                x: itemRect.right,
+                x: x,
                 y: itemRect.top,
+                alignLeft: alignLeft
             });
         }
     }, [isSubmenuOpen, item.submenu]);
@@ -110,7 +131,7 @@ const ContextMenuItem = ({
             {/* Submenu indicator */}
             {item.submenu && (
                 <span className="context-menu-submenu-indicator">
-          <span className="icon icon-chevron-right"></span>
+          <span className={`icon ${submenuPosition.alignLeft ? 'icon-chevron-left' : 'icon-chevron-right'}`}></span>
         </span>
             )}
 

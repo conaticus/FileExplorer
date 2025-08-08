@@ -193,17 +193,6 @@ impl SearchCore {
         self.current_directory = directory;
     }
 
-    /// Gets the current directory context.
-    ///
-    /// # Returns
-    /// The current directory path, if set
-    ///
-    /// # Performance
-    /// O(1) - Simple field access
-    pub fn get_current_directory(&self) -> &Option<String> {
-        &self.current_directory
-    }
-
     /// Returns whether the last search operation was a cache hit.
     ///
     /// # Returns
@@ -442,7 +431,6 @@ impl SearchCore {
         use std::sync::{Arc, Mutex};
         use tokio::task;
         use walkdir::WalkDir;
-        use rayon::prelude::*;
         #[cfg(feature = "index-progress-logging")]
         let index_start = Instant::now();
 
@@ -975,74 +963,6 @@ impl SearchCore {
         results
     }
 
-    /// Concurrent read-only search that doesn't modify cache or internal state.
-    ///
-    /// This method provides the same search functionality as `search()` but can be
-    /// called concurrently by multiple threads since it doesn't modify the engine.
-    /// Perfect for use with RwLock read locks.
-    ///
-    /// # Arguments
-    /// * `query` - The search string to find completions for
-    /// * `current_directory` - Optional current directory context for ranking
-    ///
-    /// # Returns
-    /// A vector of (path, score) pairs sorted by relevance score
-    ///
-    /// # Performance
-    /// - O(m + log n) where m is query length and n is index size
-    /// - No cache writes, only reads for performance
-    /// - Thread-safe for concurrent access
-    pub fn search_concurrent(&self, query: &str, current_directory: Option<&str>) -> Vec<(String, f32)> {
-        #[cfg(feature = "search-progress-logging")]
-        let search_start = Instant::now();
-        
-        #[cfg(feature = "search-progress-logging")]
-        log_info!("Concurrent search started for query: '{}'", query);
-        
-        if query.is_empty() {
-            return Vec::new();
-        }
-
-        let normalized_query = query.trim().to_string();
-
-        // 1. Skip cache access in concurrent method to maintain read-only access
-        // The regular search() method will handle caching via write locks
-        #[cfg(feature = "search-progress-logging")]
-        log_info!("Concurrent search - skipping cache for read-only access: '{}'", normalized_query);
-
-        // 2. Initialize results buffer
-        let mut results = Vec::with_capacity(self.max_results * 2);
-
-        // 3. ART prefix search
-        let prefix_results = self.trie.search(&normalized_query, None, false);
-        results.extend(prefix_results);
-
-        // 4. Fuzzy search fallback if needed
-        if results.len() < self.max_results.min(10) {
-            let fuzzy_results = self.fuzzy_matcher.search(&normalized_query, self.max_results - results.len());
-            results.extend(fuzzy_results);
-        }
-
-        if results.is_empty() {
-            return Vec::new();
-        }
-
-        // 5. Rank results with provided current directory context
-        let ranked_results = self.rank_results_with_context(&results, &normalized_query, current_directory);
-
-        // 6. Limit to max results
-        let final_results = if ranked_results.len() > self.max_results {
-            ranked_results.into_iter().take(self.max_results).collect()
-        } else {
-            ranked_results
-        };
-
-        #[cfg(feature = "search-progress-logging")]
-        log_info!("Concurrent search completed in {:?} with {} results", search_start.elapsed(), final_results.len());
-
-        final_results
-    }
-
     /// Ranks search results based on various relevance factors.
     ///
     /// Scoring factors include:
@@ -1269,6 +1189,7 @@ impl SearchCore {
     ///
     /// # Performance
     /// O(k log k) where k is the number of results to rank
+    #[allow(dead_code)]
     fn rank_results_with_context(&self, results: &[(String, f32)], query: &str, current_directory: Option<&str>) -> Vec<(String, f32)> {
         // Precompute lowercase query once
         let q_lc = query.to_lowercase();

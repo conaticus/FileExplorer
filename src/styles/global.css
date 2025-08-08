@@ -185,15 +185,6 @@ img, svg {
     position: relative;
 }
 
-.terminal-container {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    margin-left: 240px;
-    z-index: 100;
-}
-
 .main-layout.with-terminal .content-section {
     overflow-y: auto;
 }
@@ -225,10 +216,12 @@ img, svg {
 
 .main-layout.with-terminal .main-content {
     overflow-y: auto;
+}
+
+.main-layout .main-content {
     transition: padding-bottom 0.2s ease;
 }
 
 .terminal-wrapper {
-    position: relative;
     z-index: 10;
 }

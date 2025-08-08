@@ -173,16 +173,29 @@ export default function ContextMenuProvider({ children }) {
                 const destPath = `${currentPath}/${fileName}`;
 
                 if (clipboard.operation === 'cut') {
+                    // Check if we're trying to paste in the same directory
+                    const sourceDir = sourcePath.substring(0, sourcePath.lastIndexOf('/')) || '/';
+                    const destDir = currentPath;
+                    
+                    if (sourceDir === destDir) {
+                        continue;
+                    }
+                    
                     // Move operation
                     await invoke('rename', {
                         oldPath: sourcePath,
                         newPath: destPath
                     });
                 } else {
-                    // Copy operation - for now we'll skip the complex copy logic
-                    // In a real implementation, you'd use a proper file copy API
-                    console.warn('Copy operation not fully implemented');
-                    throw new Error('Copy operation not available - use cut/move instead');
+                    // Copy operation - use the copy_file_or_dir command
+                    console.log('DEBUG: About to invoke copy_file_or_dir with params:', {
+                        sourcePath: sourcePath,
+                        destinationPath: destPath
+                    });
+                    await invoke('copy_file_or_dir', {
+                        sourcePath: sourcePath,
+                        destinationPath: destPath
+                    });
                 }
             }
 
@@ -314,9 +327,19 @@ export default function ContextMenuProvider({ children }) {
 
             console.log('✅ Hash generated:', hash.substring(0, 20) + '...');
 
-            // Copy hash to clipboard
-            await navigator.clipboard.writeText(hash);
-            showSuccess(`Hash generated and copied to clipboard: ${hash.substring(0, 16)}...`);
+            // Try to copy hash to clipboard, with fallback if it fails
+            try {
+                await navigator.clipboard.writeText(hash);
+                showSuccess(`Hash generated and copied to clipboard: ${hash.substring(0, 16)}...`);
+            } catch (clipboardError) {
+                console.warn('📋 Clipboard access failed, showing hash display modal instead:', clipboardError);
+                
+                // Show the hash in a modal for manual copying
+                const event = new CustomEvent('open-hash-display-modal', {
+                    detail: { hash: hash, fileName: item.name }
+                });
+                document.dispatchEvent(event);
+            }
         } catch (error) {
             console.error('💥 Hash generation failed:', error);
             showError(`Failed to generate hash: ${error.message || error}`);

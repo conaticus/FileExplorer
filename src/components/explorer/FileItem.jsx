@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import FileIcon from './FileIcon';
 import RenameModal from '../common/RenameModal';
 import { formatFileSize, formatDate, getFileType } from '../../utils/formatters';
@@ -6,6 +6,7 @@ import { replaceFileName } from '../../utils/pathUtils.js';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useHistory } from '../../providers/HistoryProvider';
+import { useContextMenu } from '../../providers/ContextMenuProvider';
 import { showError, showConfirm } from '../../utils/NotificationSystem';
 import './fileItem.css';
 
@@ -31,12 +32,17 @@ const FileItem = ({
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const { loadDirectory } = useFileSystem();
     const { currentPath } = useHistory();
+    const { clipboard } = useContextMenu();
 
     const isDirectory = item.isDirectory || 'sub_file_count' in item;
     const fileType = isDirectory ? 'Folder' : getFileType(item.name);
     const size = isDirectory
         ? `${item.sub_file_count || 0} items`
         : formatFileSize(item.size_in_bytes);
+
+    // Check if this item is cut (in clipboard with cut operation)
+    const isCut = clipboard.operation === 'cut' && 
+                  clipboard.items.some(clipItem => clipItem.path === item.path);
 
     // Format modified date
     const modified = formatDate(item.last_modified);
@@ -126,7 +132,7 @@ const FileItem = ({
     return (
         <>
             <div
-                className={`file-item view-mode-${viewMode.toLowerCase()} ${isSelected ? 'selected' : ''} ${isDirectory ? 'directory' : 'file'}`}
+                className={`file-item view-mode-${viewMode.toLowerCase()} ${isSelected ? 'selected' : ''} ${isDirectory ? 'directory' : 'file'} ${isCut ? 'cut' : ''}`}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
                 onContextMenu={handleContextMenu}

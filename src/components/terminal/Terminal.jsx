@@ -18,6 +18,7 @@ const Terminal = ({ isOpen, onToggle }) => {
     const [currentCommand, setCurrentCommand] = useState('');
     const [historyIndex, setHistoryIndex] = useState(-1);
     const [isExecuting, setIsExecuting] = useState(false);
+    const [abortController, setAbortController] = useState(null);
     const inputRef = useRef(null);
     const terminalRef = useRef(null);
     const { currentPath } = useHistory();
@@ -80,6 +81,17 @@ Type 'help' to see available commands.`,
     }, [commandHistory]);
 
     /**
+     * Cleanup running commands when component unmounts
+     */
+    useEffect(() => {
+        return () => {
+            if (abortController) {
+                abortController.abort();
+            }
+        };
+    }, [abortController]);
+
+    /**
      * Generates the terminal prompt string with username, hostname and current path
      * @returns {string} Formatted prompt string
      */
@@ -93,16 +105,27 @@ Type 'help' to see available commands.`,
     /**
      * Executes a command using the Tauri backend
      * Handles response parsing and error formatting
+     * Supports command cancellation via AbortController
      *
      * @param {string} command - The command to execute
      * @returns {Object} Result object with type and content
      * @async
      */
     const executeCommand = async (command) => {
+        const controller = new AbortController();
+        setAbortController(controller);
         setIsExecuting(true);
 
         try {
-            const output = await invoke('execute_command', { command });
+            // Create a race between the command execution and cancellation
+            const commandPromise = invoke('execute_command', { command });
+            const cancelPromise = new Promise((_, reject) => {
+                controller.signal.addEventListener('abort', () => {
+                    reject(new Error('Command cancelled'));
+                });
+            });
+
+            const output = await Promise.race([commandPromise, cancelPromise]);
 
             // Format the response properly
             if (typeof output === 'string') {
@@ -176,6 +199,14 @@ Type 'help' to see available commands.`,
                 content: output || '',
             };
         } catch (error) {
+            // Handle command cancellation
+            if (error.message === 'Command cancelled') {
+                return {
+                    type: 'system',
+                    content: 'Command cancelled by user',
+                };
+            }
+
             // Format error messages properly
             let errorMessage = '';
 
@@ -209,6 +240,7 @@ Type 'help' to see available commands.`,
             };
         } finally {
             setIsExecuting(false);
+            setAbortController(null);
         }
     };
 
@@ -240,6 +272,11 @@ Type 'help' to see available commands.`,
   whoami                  - Show current user
   date                    - Show current date and time
   exit                    - Close the terminal
+  
+  Keyboard shortcuts:
+  Ctrl+C                  - Interrupt running command or clear input
+  ↑/↓                     - Navigate command history
+  Tab                     - Auto-complete commands
   
   You can also run system commands directly.`,
                 };
@@ -459,10 +496,41 @@ Type 'help' to see available commands.`,
     /**
      * Handles keyboard navigation through command history and tab completion
      * Supports arrow up/down for history navigation and tab for command completion
+     * Also handles Ctrl+C for command interruption
      *
      * @param {React.KeyboardEvent} e - Keyboard event
      */
     const handleKeyDown = (e) => {
+        // Handle Ctrl+C to interrupt command execution or clear current input
+        if (e.ctrlKey && e.key === 'c') {
+            e.preventDefault();
+            
+            if (isExecuting && abortController) {
+                // Interrupt running command
+                abortController.abort();
+                setIsExecuting(false);
+                setAbortController(null);
+                setCommandHistory(prev => [...prev, {
+                    type: 'system',
+                    content: '^C - Command interrupted',
+                    timestamp: new Date().toLocaleTimeString(),
+                }]);
+                return;
+            } else if (currentCommand.trim()) {
+                // Clear current input and show ^C
+                const commandEntry = {
+                    type: 'command',
+                    prompt: getPrompt(),
+                    content: currentCommand + '^C',
+                    timestamp: new Date().toLocaleTimeString(),
+                };
+                setCommandHistory(prev => [...prev, commandEntry]);
+                setCurrentCommand('');
+                setHistoryIndex(-1);
+                return;
+            }
+        }
+
         if (isExecuting) return;
 
         if (e.key === 'ArrowUp') {
@@ -567,6 +635,7 @@ Type 'help' to see available commands.`,
                     {isExecuting && (
                         <span className="terminal-executing">
                             <span className="spinner-small"></span>
+                            <span className="terminal-interrupt-hint">Press Ctrl+C to interrupt</span>
                         </span>
                     )}
                 </form>

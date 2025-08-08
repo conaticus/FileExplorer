@@ -58,8 +58,8 @@ const HashFileModal = ({ isOpen, onClose, item }) => {
             const outputPath = `${currentPath}${separator}${fileName.trim()}`;
 
             const hash = await invoke('gen_hash_and_save_to_file', {
-                source_path: item.path,
-                output_path: outputPath
+                sourcePath: item.path,
+                outputPath: outputPath
             });
 
             await loadDirectory(currentPath);

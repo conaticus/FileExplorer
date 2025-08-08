@@ -53,8 +53,42 @@
     padding: var(--space-md) 0;
 }
 
+/* Thinner scrollbar for sidebar */
+.sidebar-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.sidebar-content::-webkit-scrollbar-track {
+    background: var(--background-secondary);
+    border-radius: 6px;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 6px;
+    border: 2px solid var(--background-secondary);
+}
+
+.sidebar-content::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
+}
+
 .sidebar-section {
     margin-bottom: var(--space-lg);
+    padding-top: var(--space-md);
+}
+
+.sidebar-section:first-child {
+    padding-top: 0;
+}
+
+.sidebar-section:not(:first-child) {
+    border-top: 1px solid var(--light-border);
+}
+
+.sidebar-collapsed .sidebar-section:not(:first-child) {
+    margin-left: 0;
+    margin-right: 0;
 }
 
 .sidebar-section-title {
@@ -64,6 +98,11 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     padding: 0 var(--space-md) var(--space-xs);
+    margin: 0;
+}
+
+.sidebar-section .sidebar-list {
+    padding: 0;
     margin: 0;
 }
 
@@ -82,6 +121,7 @@
     cursor: pointer;
     position: relative;
     transition: background-color var(--transition-fast);
+    margin: 0;
 }
 
 .sidebar-item:hover {
@@ -211,14 +251,19 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
-    padding: var(--space-md);
+    padding: var(--space-md) 0;
     border-top: 1px solid var(--border);
+}
+
+.sidebar-collapsed .sidebar-footer {
+    padding: var(--space-xs);
+    align-items: center;
 }
 
 .sidebar-action-button {
     display: flex;
     align-items: center;
-    padding: var(--space-xs) var(--space-sm);
+    padding: var(--space-xs) var(--space-md);
     border-radius: var(--radius-md);
     color: var(--text-secondary);
     background-color: transparent;
@@ -241,6 +286,14 @@
     margin-right: var(--space-sm);
     width: 18px;
     height: 18px;
+}
+
+.sidebar-collapsed .sidebar-action-button {
+    justify-content: center;
+    min-width: 32px;
+    width: 32px;
+    height: 32px;
+    padding: var(--space-xs);
 }
 
 .sidebar-collapsed .sidebar-action-button .icon {

@@ -6,8 +6,8 @@ use crate::{log_error, log_info, log_warn};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::{Duration, Instant};
-use std::{fs, thread};
+use std::time::{Instant};
+use std::{fs};
 use tokio;
 
 
@@ -450,99 +450,6 @@ impl SearchEngineState {
         Ok(())
     }
 
-    /// Collects all paths recursively from a directory without indexing them.
-    /// Optimized to prevent stack overflow using iterative traversal.
-    ///
-    /// # Arguments
-    ///
-    /// * `dir` - The directory to scan
-    /// * `excluded_patterns` - Patterns to exclude from collection
-    ///
-    /// # Returns
-    ///
-    /// A vector of all file paths found that don't match the excluded patterns
-    fn collect_paths_recursive(&self, dir: &PathBuf, excluded_patterns: &[String]) -> Vec<String> {
-        use std::collections::VecDeque;
-        
-        let mut paths = Vec::new();
-        let mut dir_queue = VecDeque::new();
-        dir_queue.push_back((dir.clone(), 0)); // (directory, depth)
-        
-        const MAX_DEPTH: usize = 25;
-        const MAX_PATHS: usize = 250000; // Limit to prevent memory issues
-        
-        while let Some((current_dir, depth)) = dir_queue.pop_front() {
-            // Depth limiting
-            if depth >= MAX_DEPTH {
-                #[cfg(feature = "index-progress-logging")]
-                log_info!("Skipping directory due to depth limit: {} (depth: {})", current_dir.display(), depth);
-                continue;
-            }
-
-            // Path count limiting
-            if paths.len() > MAX_PATHS {
-                #[cfg(feature = "index-progress-logging")]
-                log_info!("Stopping path collection due to count limit: {}", paths.len());
-                break;
-            }
-
-            if let Ok(entries) = fs::read_dir(&current_dir) {
-                for entry in entries.filter_map(Result::ok) {
-                    // Check for stop signal during path collection
-                    {
-                        let engine = self.engine.read().unwrap();
-                        if engine.should_stop_indexing() {
-                            #[cfg(test)]
-                            log_info!("Path collection stopped due to cancellation signal");
-                            return paths;
-                        }
-                    }
-
-                    let path = entry.path();
-
-                    // Convert path to string
-                    if let Some(path_str) = path.to_str() {
-                        // Check if path should be excluded using the same logic as the original indexing
-                        let should_exclude = excluded_patterns.iter().any(|pattern| {
-                            // Support both exact matches and pattern matching
-                            path_str.contains(pattern)
-                                || path_str.ends_with(pattern)
-                                || path
-                                    .file_name()
-                                    .and_then(|name| name.to_str())
-                                    .map(|name| name.contains(pattern))
-                                    .unwrap_or(false)
-                        });
-
-                        if !should_exclude {
-                            // Add this path (both files and directories are indexed)
-                            paths.push(path_str.to_string());
-
-                            // Add subdirectories to queue for later processing
-                            if path.is_dir() {
-                                dir_queue.push_back((path, depth + 1));
-                            }
-                        } else {
-                            #[cfg(test)]
-                            log_info!("Excluding path: {} (matched pattern)", path_str);
-                        }
-                    }
-                }
-            } else {
-                log_warn!("Failed to read directory: {}", current_dir.display());
-            }
-
-            // Yield control periodically
-            if depth % 5 == 0 {
-                std::thread::yield_now();
-            }
-        }
-
-        // Reserve capacity to reduce reallocations
-        paths.shrink_to_fit();
-        paths
-    }
-
     /// Index a directory using streaming approach - discover and index files as we go
     /// Optimized to prevent stack overflow using iterative traversal
     fn index_directory_streaming(
@@ -726,133 +633,6 @@ impl SearchEngineState {
                      discovered, indexed, data.progress.percentage_complete);
         }
         // If lock fails, just continue - progress updates aren't critical
-    }
-
-    /// Recursively process directory with streaming indexing
-    fn process_directory_streaming(
-        &self,
-        dir: &PathBuf,
-        excluded_patterns: &[String],
-        discovered_files: &mut usize,
-        indexed_files: &mut usize,
-        current_batch: &mut Vec<String>,
-        chunk_size: usize,
-    ) -> Result<(), String> {
-        self.process_directory_streaming_with_depth(
-            dir, 
-            excluded_patterns, 
-            discovered_files, 
-            indexed_files, 
-            current_batch, 
-            chunk_size, 
-            0, // Initial depth
-            20 // Max depth to prevent stack overflow
-        )
-    }
-
-    /// Recursively process directory with streaming indexing and depth limit
-    fn process_directory_streaming_with_depth(
-        &self,
-        dir: &PathBuf,
-        excluded_patterns: &[String],
-        discovered_files: &mut usize,
-        indexed_files: &mut usize,
-        current_batch: &mut Vec<String>,
-        chunk_size: usize,
-        current_depth: usize,
-        max_depth: usize,
-    ) -> Result<(), String> {
-        // Prevent stack overflow by limiting recursion depth
-        if current_depth >= max_depth {
-            #[cfg(feature = "index-progress-logging")]
-            log_info!("Skipping directory due to depth limit: {} (depth: {})", dir.display(), current_depth);
-            return Ok(());
-        }
-
-        // Prevent runaway indexing by limiting total files - increased for testing
-        if *discovered_files > 350000 {
-            #[cfg(feature = "index-progress-logging")]
-            log_info!("Stopping indexing due to file count limit: {}", *discovered_files);
-            return Ok(());
-        }
-
-        if let Ok(entries) = fs::read_dir(dir) {
-            for entry in entries.filter_map(Result::ok) {
-                // Check for cancellation more frequently
-                {
-                    let engine = self.engine.read().unwrap();
-                    if engine.should_stop_indexing() {
-                        return Ok(());
-                    }
-                }
-
-                let path = entry.path();
-
-                if let Some(path_str) = path.to_str() {
-                    // Check if path should be excluded
-                    let should_exclude = excluded_patterns.iter().any(|pattern| {
-                        path_str.contains(pattern)
-                            || path_str.ends_with(pattern)
-                            || path
-                                .file_name()
-                                .and_then(|name| name.to_str())
-                                .map(|name| name.contains(pattern))
-                                .unwrap_or(false)
-                    });
-
-                    if !should_exclude {
-                        // Add to current batch
-                        current_batch.push(path_str.to_string());
-                        *discovered_files += 1;
-
-                        // Update progress more frequently - every 5 files instead of 10
-                        if *discovered_files % 5 == 0 || *discovered_files == 1 {
-                            let mut data = self.data.lock().unwrap();
-                            data.progress.files_discovered = *discovered_files;
-                            data.progress.current_path = Some(path_str.to_string());
-                            
-                            // Update percentage based on discovery phase if we haven't started indexing much yet
-                            if *indexed_files == 0 && *discovered_files > 0 {
-                                // During pure discovery phase, show progress as discovery percentage
-                                data.progress.percentage_complete = (*discovered_files as f32 / (*discovered_files as f32 + 50.0)) * 15.0; // Cap at ~15% during discovery
-                            } else if *discovered_files > 0 {
-                                // During mixed discovery+indexing, use normal calculation
-                                data.progress.percentage_complete = (*indexed_files as f32 / *discovered_files as f32) * 100.0;
-                            }
-                            
-                            data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
-                            
-                            // Log progress for debugging
-                            #[cfg(feature = "index-progress-logging")]
-                            log_info!("Progress update: discovered={}, indexed={}, percentage={:.1}%", 
-                                     *discovered_files, *indexed_files, data.progress.percentage_complete);
-                        }
-
-                        // Process batch when it reaches chunk_size
-                        if current_batch.len() >= chunk_size {
-                            self.process_batch(current_batch, indexed_files, *discovered_files)?;
-                            current_batch.clear();
-                        }
-
-                        // Recursively process subdirectories with depth limit
-                        if path.is_dir() {
-                            self.process_directory_streaming_with_depth(
-                                &path,
-                                excluded_patterns,
-                                discovered_files,
-                                indexed_files,
-                                current_batch,
-                                chunk_size,
-                                current_depth + 1, // Increment depth
-                                max_depth,
-                            )?;
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
     }
 
     /// Process a batch of files for indexing with optimized memory management
@@ -3194,7 +2974,7 @@ mod tests_searchengine_state {
         // Get stats after chunked indexing
         let after_stats = state.get_stats();
         assert!(
-            after_stats.trie_size >= 0,
+            !(after_stats.trie_size == 0),
             "Trie should contain indexed paths after chunked indexing"
         );
     }
@@ -3541,6 +3321,8 @@ mod bench_indexing_methods {
     use super::*;
     use std::collections::HashMap;
     use std::time::Instant;
+    use std::thread;
+    use std::time::Duration;
 
     // Helper function to create a larger test dataset for benchmarking using real test data
     fn create_benchmark_test_files(base_dir: &PathBuf, file_count: usize) -> Vec<PathBuf> {
@@ -4135,89 +3917,5 @@ mod bench_indexing_methods {
             }
             assert!(result.is_ok(), "Concurrent search {} should succeed, got error: {:?}", i, result.err());
         }
-    }
-
-    #[test]
-    fn test_search_concurrent_method_directly() {
-        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
-        let state = SearchEngineState::new(settings_state);
-
-        // Add test data
-        let paths = collect_test_paths(Some(30));
-        for path in &paths {
-            let _ = state.add_path(path);
-        }
-
-        // Test search_concurrent method directly through the engine
-        let engine = state.engine.read().unwrap();
-        
-        // Test with no directory context
-        let results1 = engine.search_concurrent("test", None);
-        assert!(!results1.is_empty() || paths.is_empty(), "Should return results or be empty if no test data");
-
-        // Test with directory context
-        let results2 = engine.search_concurrent("test", Some("/some/path"));
-        assert!(results2.len() >= 0, "Should handle directory context");
-
-        // Test empty query
-        let results3 = engine.search_concurrent("", None);
-        assert!(results3.is_empty(), "Empty query should return empty results");
-    }
-
-    #[test]
-    fn test_directory_update_detection_logic() {
-        let settings_state = Arc::new(Mutex::new(SettingsState::new()));
-        let state = SearchEngineState::new(settings_state);
-
-        // Test the logic that determines when to use write vs read locks
-        {
-            let mut data = state.data.lock().unwrap();
-            data.current_directory = None;
-        }
-
-        // Case 1: No current directory in state, no current directory in engine -> should use read lock
-        let engine_current = {
-            let engine = state.engine.read().unwrap();
-            engine.get_current_directory().clone()
-        };
-        
-        let state_current = {
-            let data = state.data.lock().unwrap();
-            data.current_directory.clone()
-        };
-        
-        let needs_update = match (&state_current, &engine_current) {
-            (Some(new_dir), Some(current_dir)) => new_dir != current_dir,
-            (Some(_), None) => true,
-            (None, Some(_)) => true,
-            (None, None) => false,
-        };
-        
-        assert!(!needs_update, "No directories should not need update");
-
-        // Case 2: Set directory in state -> should need update
-        {
-            let mut data = state.data.lock().unwrap();
-            data.current_directory = Some("/test/path".to_string());
-        }
-        
-        let engine_current = {
-            let engine = state.engine.read().unwrap();
-            engine.get_current_directory().clone()
-        };
-        
-        let state_current = {
-            let data = state.data.lock().unwrap();
-            data.current_directory.clone()
-        };
-        
-        let needs_update = match (&state_current, &engine_current) {
-            (Some(new_dir), Some(current_dir)) => new_dir != current_dir,
-            (Some(_), None) => true,
-            (None, Some(_)) => true,
-            (None, None) => false,
-        };
-        
-        assert!(needs_update, "New directory should trigger update");
     }
 }

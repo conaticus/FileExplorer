@@ -46,14 +46,15 @@ export const createDirectory = async (folderPath, directoryName) => {
 
 /**
  * Copy a file or directory.
+ * If the destination already exists, a unique name will be generated (e.g., "file (1).txt").
  * @param {string} sourcePath - The absolute path of the source file or directory.
  * @param {string} destinationPath - The absolute path where to copy the file or directory.
  * @returns {Promise<void>}
  */
 export const copyItem = async (sourcePath, destinationPath) => {
     return invoke('copy_file_or_dir', {
-        sourcePath: sourcePath,
-        destinationPath: destinationPath
+        source_path: sourcePath,
+        destination_path: destinationPath
     });
 };
 
@@ -148,7 +149,7 @@ export const addTemplate = async (templatePath) => {
 export const useTemplate = async (templatePath, destPath) => {
     return invoke('use_template', {
         templatePath: templatePath,
-        dest_path: destPath
+        destPath: destPath
     });
 };
 
