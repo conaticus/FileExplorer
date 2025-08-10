@@ -528,18 +528,20 @@ const MainLayout = () => {
             {/* Settings Applier - applies settings to DOM */}
             <SettingsApplier />
 
-            {/* Sidebar */}
-            <Sidebar
-                onTerminalToggle={() => setIsTerminalOpen(!isTerminalOpen)}
-                isTerminalOpen={isTerminalOpen}
-                currentView={currentView}
-            />
+            {/* Full-width tabs at the top */}
+            <TabManager>
+                <div className="layout-content">
+                    {/* Sidebar */}
+                    <Sidebar
+                        onTerminalToggle={() => setIsTerminalOpen(!isTerminalOpen)}
+                        isTerminalOpen={isTerminalOpen}
+                        currentView={currentView}
+                    />
 
-            {/* Main content area with tabs */}
-            <div className="content-area">
-                <TabManager>
-                    {/* Toolbar with navigation and actions */}
-                    <div className="toolbar">
+                    {/* Main content area */}
+                    <div className="content-area">
+                        {/* Toolbar with navigation and actions */}
+                        <div className="toolbar">
                         <div className="toolbar-left">
                             <NavigationButtons />
                             <PathBreadcrumb
@@ -631,8 +633,9 @@ const MainLayout = () => {
                             />
                         )}
                     </div>
-                </TabManager>
-            </div>
+                    </div>
+                </div>
+            </TabManager>
 
             {/* Context menu */}
             {isContextMenuOpen && (

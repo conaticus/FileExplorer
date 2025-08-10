@@ -13,6 +13,7 @@
     padding: 0;
     min-height: 40px;
     flex-shrink: 0;
+    width: 100%;
 }
 
 .tab-list {
@@ -30,8 +31,8 @@
 .tab {
     display: flex;
     align-items: center;
-    min-width: 120px;
-    max-width: 240px;
+    min-width: 240px;
+    max-width: 480px;
     height: 40px;
     background-color: var(--surface);
     border-right: 1px solid var(--border);
@@ -155,6 +156,8 @@
     flex: 1;
     overflow: hidden;
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .tab-manager-loading {

@@ -13,40 +13,6 @@
     width: 48px;
 }
 
-.sidebar-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: var(--toolbar-height);
-    padding: 0 var(--space-md);
-    border-bottom: 1px solid var(--border);
-}
-
-.sidebar-header h2 {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-medium);
-    color: var(--text-primary);
-    margin: 0;
-}
-
-.collapse-button {
-    width: 24px;
-    height: 24px;
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    background-color: transparent;
-    border: none;
-    cursor: pointer;
-    transition: background-color var(--transition-fast);
-}
-
-.collapse-button:hover {
-    background-color: var(--surface-hover);
-}
-
 .sidebar-content {
     flex-grow: 1;
     overflow-y: auto;
@@ -80,10 +46,6 @@
 
 .sidebar-section:first-child {
     padding-top: 0;
-}
-
-.sidebar-section:not(:first-child) {
-    border-top: 1px solid var(--light-border);
 }
 
 .sidebar-collapsed .sidebar-section:not(:first-child) {
@@ -320,6 +282,12 @@
     margin: 0;
 }
 
+.sidebar-section-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
 .section-add-button {
     display: flex;
     align-items: center;
@@ -340,6 +308,30 @@
 }
 
 .section-add-button .icon {
+    width: 12px;
+    height: 12px;
+}
+
+.section-collapse-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-tertiary);
+    border: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.section-collapse-button:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.section-collapse-button .icon {
     width: 12px;
     height: 12px;
 }
@@ -376,6 +368,22 @@
 
 .icon-eject {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12V7a5 5 0 0 1 10 0v5'/%3E%3Cpath d='M4 15h16l-2 6H6l-2-6Z'/%3E%3C/svg%3E");
+}
+
+.icon-chevron-down {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+.icon-chevron-right {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+.icon-chevron-left {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='15 18 9 12 15 6'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+.icon-chevron-up {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='18 15 12 9 6 15'%3E%3C/polyline%3E%3C/svg%3E");
 }
 
 /* Responsive adjustments */

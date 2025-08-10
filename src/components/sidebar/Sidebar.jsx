@@ -22,13 +22,22 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
     const { volumes, loadDirectory } = useFileSystem();
     const { currentPath } = useHistory();
     const { removeFromFavorites } = useContextMenu();
-    const [isCollapsed, setIsCollapsed] = useState(() => {
-        return localStorage.getItem('sidebarCollapsed') === 'true';
-    });
+
     const [systemInfo, setSystemInfo] = useState(null);
     const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false);
     const [newSourcePath, setNewSourcePath] = useState('');
     const addSourceInputRef = useRef(null);
+
+    // State for collapsible sections
+    const [sectionCollapsed, setSectionCollapsed] = useState(() => {
+        const saved = localStorage.getItem('sidebarSectionsCollapsed');
+        return saved ? JSON.parse(saved) : {
+            quickAccess: false,
+            thisPC: false,
+            favorites: false,
+            drives: false
+        };
+    });
 
     /**
      * Load system info to get proper user directories
@@ -53,13 +62,19 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
         loadSystemInfo();
     }, []);
 
+
+
     /**
-     * Toggles sidebar collapse state and saves preference
+     * Toggles a specific section's collapse state
+     * @param {string} section - Section name to toggle
      */
-    const toggleCollapse = () => {
-        const newCollapsed = !isCollapsed;
-        setIsCollapsed(newCollapsed);
-        localStorage.setItem('sidebarCollapsed', newCollapsed.toString());
+    const toggleSectionCollapse = (section) => {
+        const newSectionCollapsed = {
+            ...sectionCollapsed,
+            [section]: !sectionCollapsed[section]
+        };
+        setSectionCollapsed(newSectionCollapsed);
+        localStorage.setItem('sidebarSectionsCollapsed', JSON.stringify(newSectionCollapsed));
     };
 
     /**
@@ -231,74 +246,80 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
 
     return (
         <>
-            <aside className={`sidebar ${isCollapsed ? 'sidebar-collapsed' : ''}`}>
-                <div className="sidebar-header">
-                    <h2 className={isCollapsed ? 'visually-hidden' : ''}>File Explorer</h2>
-                    <button
-                        className="collapse-button"
-                        onClick={toggleCollapse}
-                        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                    >
-                        <span className={`icon icon-${isCollapsed ? 'chevron-right' : 'chevron-left'}`}></span>
-                    </button>
-                </div>
-
-                <div className="sidebar-content">
-                    {/* Quick Access section */}
+            <aside className="sidebar">
+                <div className="sidebar-content">{/* Quick Access section */}
                     <section className="sidebar-section">
-                        {!isCollapsed && <h3 className="sidebar-section-title">Quick Access</h3>}
-                        <QuickAccess
-                            isCollapsed={isCollapsed}
-                            onItemClick={handleItemClick}
-                        />
+                        <div className="sidebar-section-header">
+                            <h3 className="sidebar-section-title">Quick Access</h3>
+                            <button
+                                className="section-collapse-button"
+                                onClick={() => toggleSectionCollapse('quickAccess')}
+                                aria-label={sectionCollapsed.quickAccess ? 'Expand Quick Access' : 'Collapse Quick Access'}
+                            >
+                                <span className={`icon icon-chevron-${sectionCollapsed.quickAccess ? 'up' : 'down'}`}></span>
+                            </button>
+                        </div>
+                        {!sectionCollapsed.quickAccess && (
+                            <QuickAccess
+                                onItemClick={handleItemClick}
+                            />
+                        )}
                     </section>
 
                     {/* This PC section */}
                     <section className="sidebar-section">
-                        {!isCollapsed && <h3 className="sidebar-section-title">This PC</h3>}
-                        <ul className="sidebar-list">
-                            <SidebarItem
-                                icon="computer"
-                                name="This PC"
-                                path="this-pc"
-                                isCollapsed={isCollapsed}
-                                isActive={currentView === 'this-pc'}
-                                onClick={() => document.dispatchEvent(new CustomEvent('open-this-pc'))}
-                            />
-
-                            {/* User volume (for macOS/Windows user directory) */}
-                            {userVolume && (
+                        <div className="sidebar-section-header">
+                            <h3 className="sidebar-section-title">This PC</h3>
+                            <button
+                                className="section-collapse-button"
+                                onClick={() => toggleSectionCollapse('thisPC')}
+                                aria-label={sectionCollapsed.thisPC ? 'Expand This PC' : 'Collapse This PC'}
+                            >
+                                <span className={`icon icon-chevron-${sectionCollapsed.thisPC ? 'up' : 'down'}`}></span>
+                            </button>
+                        </div>
+                        {!sectionCollapsed.thisPC && (
+                            <ul className="sidebar-list">
                                 <SidebarItem
-                                    icon="user"
-                                    name={`User (${userVolume.volume_name || 'User Disk'})`}
-                                    path={userVolume.mount_point}
-                                    isCollapsed={isCollapsed}
-                                    isActive={currentPath === userVolume.mount_point}
-                                    onClick={() => handleItemClick(userVolume.mount_point)}
-                                    info={`${(userVolume.available_space / 1024 / 1024 / 1024).toFixed(1)}GB free`}
+                                    icon="computer"
+                                    name="This PC"
+                                    path="this-pc"
+                                    isActive={currentView === 'this-pc'}
+                                    onClick={() => document.dispatchEvent(new CustomEvent('open-this-pc'))}
                                 />
-                            )}
 
-                            {/* User directories */}
-                            {userDirectories.map((dir) => (
-                                <SidebarItem
-                                    key={dir.path}
-                                    icon={dir.icon}
-                                    name={dir.name}
-                                    path={dir.path}
-                                    isCollapsed={isCollapsed}
-                                    isActive={currentPath === dir.path}
-                                    onClick={() => handleItemClick(dir.path)}
-                                />
-                            ))}
-                        </ul>
+                                {/* User volume (for macOS/Windows user directory) */}
+                                {userVolume && (
+                                    <SidebarItem
+                                        icon="user"
+                                        name={`User (${userVolume.volume_name || 'User Disk'})`}
+                                        path={userVolume.mount_point}
+                                        isActive={currentPath === userVolume.mount_point}
+                                        onClick={() => handleItemClick(userVolume.mount_point)}
+                                        info={`${(userVolume.available_space / 1024 / 1024 / 1024).toFixed(1)}GB free`}
+                                    />
+                                )}
+
+                                {/* User directories */}
+                                {userDirectories.map((dir) => (
+                                    <SidebarItem
+                                        key={dir.path}
+                                        icon={dir.icon}
+                                        name={dir.name}
+                                        path={dir.path}
+                                        isActive={currentPath === dir.path}
+                                        onClick={() => handleItemClick(dir.path)}
+                                    />
+                                ))}
+                            </ul>
+                        )}
                     </section>
 
                     {/* Favorites section */}
                     <section className="sidebar-section">
-                        {!isCollapsed && (
-                            <div className="sidebar-section-header">
-                                <h3 className="sidebar-section-title">Favorites</h3>
+                        <div className="sidebar-section-header">
+                            <h3 className="sidebar-section-title">Favorites</h3>
+                            <div className="sidebar-section-actions">
                                 <button
                                     className="section-add-button"
                                     onClick={handleAddSource}
@@ -306,56 +327,74 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                 >
                                     <span className="icon icon-plus-small"></span>
                                 </button>
+                                <button
+                                    className="section-collapse-button"
+                                    onClick={() => toggleSectionCollapse('favorites')}
+                                    aria-label={sectionCollapsed.favorites ? 'Expand Favorites' : 'Collapse Favorites'}
+                                >
+                                    <span className={`icon icon-chevron-${sectionCollapsed.favorites ? 'up' : 'down'}`}></span>
+                                </button>
                             </div>
+                        </div>
+                        {!sectionCollapsed.favorites && (
+                            <Favorites
+                                onItemClick={handleItemClick}
+                                onRemove={handleRemoveFromFavorites}
+                                onAdd={addToFavorites}
+                            />
                         )}
-                        <Favorites
-                            isCollapsed={isCollapsed}
-                            onItemClick={handleItemClick}
-                            onRemove={handleRemoveFromFavorites}
-                            onAdd={addToFavorites}
-                        />
                     </section>
 
                     {/* Drives/Volumes section */}
                     <section className="sidebar-section">
-                        {!isCollapsed && <h3 className="sidebar-section-title">Drives</h3>}
-                        <ul className="sidebar-list">
-                            {volumes.map((volume) => (
-                                <SidebarItem
-                                    key={volume.mount_point}
-                                    icon={volume.is_removable ? 'usb' : 'drive'}
-                                    name={volume.volume_name || volume.mount_point}
-                                    path={volume.mount_point}
-                                    isCollapsed={isCollapsed}
-                                    isActive={currentPath === volume.mount_point}
-                                    onClick={() => handleItemClick(volume.mount_point)}
-                                    info={`${(volume.available_space / 1024 / 1024 / 1024).toFixed(1)}GB free of ${(volume.size / 1024 / 1024 / 1024).toFixed(1)}GB`}
-                                    actions={volume.is_removable ? [
-                                        {
-                                            icon: 'eject',
-                                            tooltip: 'Safely eject',
-                                            onClick: async () => {
-                                                const confirmEject = confirm(`Are you sure you want to safely eject ${volume.volume_name}?`);
-                                                if (!confirmEject) return;
+                        <div className="sidebar-section-header">
+                            <h3 className="sidebar-section-title">Drives</h3>
+                            <button
+                                className="section-collapse-button"
+                                onClick={() => toggleSectionCollapse('drives')}
+                                aria-label={sectionCollapsed.drives ? 'Expand Drives' : 'Collapse Drives'}
+                            >
+                                <span className={`icon icon-chevron-${sectionCollapsed.drives ? 'up' : 'down'}`}></span>
+                            </button>
+                        </div>
+                        {!sectionCollapsed.drives && (
+                            <ul className="sidebar-list">
+                                {volumes.map((volume) => (
+                                    <SidebarItem
+                                        key={volume.mount_point}
+                                        icon={volume.is_removable ? 'usb' : 'drive'}
+                                        name={volume.volume_name || volume.mount_point}
+                                        path={volume.mount_point}
+                                        isActive={currentPath === volume.mount_point}
+                                        onClick={() => handleItemClick(volume.mount_point)}
+                                        info={`${(volume.available_space / 1024 / 1024 / 1024).toFixed(1)}GB free of ${(volume.size / 1024 / 1024 / 1024).toFixed(1)}GB`}
+                                        actions={volume.is_removable ? [
+                                            {
+                                                icon: 'eject',
+                                                tooltip: 'Safely eject',
+                                                onClick: async () => {
+                                                    const confirmEject = confirm(`Are you sure you want to safely eject ${volume.volume_name}?`);
+                                                    if (!confirmEject) return;
 
-                                                try {
-                                                    const { invoke } = await import('@tauri-apps/api/core');
-                                                    const command = systemInfo?.current_running_os === 'windows'
-                                                        ? `eject ${volume.mount_point}`
-                                                        : `umount ${volume.mount_point}`;
+                                                    try {
+                                                        const { invoke } = await import('@tauri-apps/api/core');
+                                                        const command = systemInfo?.current_running_os === 'windows'
+                                                            ? `eject ${volume.mount_point}`
+                                                            : `umount ${volume.mount_point}`;
 
-                                                    await invoke('execute_command', { command });
-                                                    alert(`${volume.volume_name} has been safely ejected.`);
-                                                } catch (error) {
-                                                    console.error('Failed to eject volume:', error);
-                                                    alert(`Failed to eject ${volume.volume_name}: ${error.message || error}`);
+                                                        await invoke('execute_command', { command });
+                                                        alert(`${volume.volume_name} has been safely ejected.`);
+                                                    } catch (error) {
+                                                        console.error('Failed to eject volume:', error);
+                                                        alert(`Failed to eject ${volume.volume_name}: ${error.message || error}`);
+                                                    }
                                                 }
                                             }
-                                        }
-                                    ] : []}
-                                />
-                            ))}
-                        </ul>
+                                        ] : []}
+                                    />
+                                ))}
+                            </ul>
+                        )}
                     </section>
                 </div>
 
@@ -368,7 +407,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                         title="Toggle Terminal (Ctrl+`)"
                     >
                         <span className="icon icon-terminal"></span>
-                        {!isCollapsed && <span>Terminal</span>}
+                        <span>Terminal</span>
                     </button>
 
                     <button
@@ -378,7 +417,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                         title="Settings"
                     >
                         <span className="icon icon-settings"></span>
-                        {!isCollapsed && <span>Settings</span>}
+                        <span>Settings</span>
                     </button>
 
                     <button
@@ -388,7 +427,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                         title="Templates"
                     >
                         <span className="icon icon-template"></span>
-                        {!isCollapsed && <span>Templates</span>}
+                        <span>Templates</span>
                     </button>
 
                     <button
@@ -398,7 +437,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                         onClick={handleAddSource}
                     >
                         <span className="icon icon-plus"></span>
-                        {!isCollapsed && <span>Add Source</span>}
+                        <span>Add Source</span>
                     </button>
                 </div>
             </aside>
