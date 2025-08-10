@@ -29,6 +29,7 @@ fn connect_to_sftp_via_password(
     session.sftp().map_err(|e| e.to_string()).map_err(|e| e.to_string())
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub fn connect_to_sftp(
     host: String,

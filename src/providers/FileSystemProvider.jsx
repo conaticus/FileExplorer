@@ -8,6 +8,7 @@ const FileSystemContext = createContext({
     currentDirData: null,
     isLoading: false,
     selectedItems: [],
+    focusedItem: null,
     volumes: [],
     error: null,
     loadDirectory: () => {},
@@ -19,6 +20,7 @@ const FileSystemContext = createContext({
     selectItem: () => {},
     selectMultiple: () => {},
     clearSelection: () => {},
+    setFocusedItem: () => {},
     zipItems: () => {},
     unzipItem: () => {},
     loadVolumes: () => {},
@@ -28,6 +30,7 @@ export default function FileSystemProvider({ children }) {
     const [currentDirData, setCurrentDirData] = useState(null);
     const [isLoading, setIsLoading] = useState(true); // Starten Sie mit isLoading=true
     const [selectedItems, setSelectedItems] = useState([]);
+    const [focusedItem, setFocusedItem] = useState(null);
     const [volumes, setVolumes] = useState([]);
     const [error, setError] = useState(null);
     const { navigateTo, currentPath } = useHistory();
@@ -399,6 +402,11 @@ export default function FileSystemProvider({ children }) {
         setSelectedItems([]);
     }, []);
 
+    // Set focused item (for keyboard navigation and preview)
+    const setFocusedItemCallback = useCallback((item) => {
+        setFocusedItem(item);
+    }, []);
+
     // Load volumes on mount
     useEffect(() => {
         loadVolumes();
@@ -415,6 +423,7 @@ export default function FileSystemProvider({ children }) {
         currentDirData,
         isLoading,
         selectedItems,
+        focusedItem,
         volumes,
         error,
         loadDirectory,
@@ -426,6 +435,7 @@ export default function FileSystemProvider({ children }) {
         selectItem,
         selectMultiple,
         clearSelection,
+        setFocusedItem: setFocusedItemCallback,
         zipItems,
         unzipItem,
         loadVolumes,

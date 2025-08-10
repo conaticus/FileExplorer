@@ -3,6 +3,12 @@
     flex-direction: column;
     height: 100%;
     width: 100%;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .tab-bar {
@@ -40,6 +46,24 @@
     transition: background-color var(--transition-fast);
     position: relative;
     flex-shrink: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.tab * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.tab::selection,
+.tab *::selection {
+    background: transparent;
 }
 
 .tab:first-child {
@@ -72,6 +96,10 @@
     padding: 0 var(--space-md);
     width: 100%;
     overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .tab-icon {
@@ -92,6 +120,10 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .tab-close {
@@ -107,6 +139,26 @@
     flex-shrink: 0;
     opacity: 0;
     transition: opacity var(--transition-fast);
+    border: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.tab-close * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.tab-close::selection,
+.tab-close *::selection {
+    background: transparent;
 }
 
 .tab:hover .tab-close {
@@ -139,6 +191,24 @@
     padding: 0 var(--space-xs);
     margin-left: var(--space-xs);
     flex-shrink: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.new-tab-button * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.new-tab-button::selection,
+.new-tab-button *::selection {
+    background: transparent;
 }
 
 .new-tab-button button {

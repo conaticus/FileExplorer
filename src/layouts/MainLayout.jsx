@@ -26,6 +26,7 @@ import GlobalSearch from '../components/search/GlobalSearch';
 import SettingsPanel from '../components/settings/SettingsPanel';
 import ThisPCView from '../components/thisPc/ThisPCView';
 import TemplateList from '../components/templates/TemplateList';
+import PreviewModal from '../components/preview/PreviewModal';
 
 // Hash Modals
 import HashFileModal from '../components/common/HashFileModal.jsx';
@@ -34,6 +35,9 @@ import HashDisplayModal from '../components/common/HashDisplayModal.jsx';
 
 // Settings Applier
 import SettingsApplier from '../utils/SettingsApplier.js';
+
+// Hooks
+import { usePreview } from '../hooks/usePreview';
 
 import '../styles/layouts/mainLayout.css';
 import {replaceFileName} from "../utils/pathUtils.js";
@@ -46,7 +50,7 @@ import {replaceFileName} from "../utils/pathUtils.js";
  */
 const MainLayout = () => {
     const { theme, toggleTheme } = useTheme();
-    const { isLoading, currentDirData, selectedItems, loadDirectory, volumes } = useFileSystem();
+    const { isLoading, currentDirData, selectedItems, loadDirectory, volumes, focusedItem, setFocusedItem } = useFileSystem();
     const { isOpen: isContextMenuOpen, position, items, closeContextMenu } = useContextMenu();
     const { currentPath } = useHistory();
     const { settings } = useSettings();
@@ -72,9 +76,125 @@ const MainLayout = () => {
     const [isHashDisplayModalOpen, setIsHashDisplayModalOpen] = useState(false);
     const [hashModalItem, setHashModalItem] = useState(null);
     const [hashDisplayData, setHashDisplayData] = useState({ hash: '', fileName: '' });
+    const [columnsPerRow, setColumnsPerRow] = useState(4); // Track columns for preview navigation
 
     // Get terminal height for padding calculations
     const terminalHeight = settings.terminal_height || 240;
+
+    // Get sorted data the same way FileList does
+    const getSortedData = useCallback(() => {
+        const data = searchResults || currentDirData;
+        if (!data || (!data.directories?.length && !data.files?.length)) {
+            return [];
+        }
+
+        // Combine directories and files for sorting (same as FileList)
+        const combinedItems = [
+            ...(data.directories || []).map(dir => ({ ...dir, isDirectory: true })),
+            ...(data.files || []).map(file => ({ ...file, isDirectory: false }))
+        ];
+
+        // Sort by name with directories first (same as FileList default)
+        const sortedItems = [...combinedItems].sort((a, b) => {
+            // Directories always come before files
+            if (a.isDirectory && !b.isDirectory) return -1;
+            if (!a.isDirectory && b.isDirectory) return 1;
+
+            // Sort by name
+            const aName = a.name.toLowerCase();
+            const bName = b.name.toLowerCase();
+            return aName.localeCompare(bName);
+        });
+
+        return sortedItems;
+    }, [searchResults, currentDirData]);
+
+    // Initialize preview functionality
+    const getFocusedItem = () => {
+        // For search results, use the focused item from search
+        if (searchResults && searchResults.length > 0) {
+            // This would need to be implemented in search components
+            return null; // Placeholder for now
+        }
+        
+        // For regular file list, use the focused item from FileSystemProvider
+        return focusedItem;
+    };
+
+    // 2D Grid navigation functions using sorted data
+    const navigateUp = useCallback(() => {
+        const sortedItems = getSortedData();
+        if (!sortedItems.length) return;
+        
+        const currentIndex = focusedItem ? sortedItems.findIndex(item => item.path === focusedItem.path) : -1;
+        const newIndex = currentIndex - columnsPerRow;
+        
+        if (newIndex >= 0) {
+            setFocusedItem(sortedItems[newIndex]);
+        } else {
+            // Wrap to bottom row
+            const remainder = currentIndex % columnsPerRow;
+            const totalRows = Math.ceil(sortedItems.length / columnsPerRow);
+            const lastRowStartIndex = (totalRows - 1) * columnsPerRow;
+            const targetIndex = Math.min(lastRowStartIndex + remainder, sortedItems.length - 1);
+            setFocusedItem(sortedItems[targetIndex]);
+        }
+    }, [getSortedData, focusedItem, setFocusedItem, columnsPerRow]);
+
+    const navigateDown = useCallback(() => {
+        const sortedItems = getSortedData();
+        if (!sortedItems.length) return;
+        
+        const currentIndex = focusedItem ? sortedItems.findIndex(item => item.path === focusedItem.path) : -1;
+        const newIndex = currentIndex + columnsPerRow;
+        
+        if (newIndex < sortedItems.length) {
+            setFocusedItem(sortedItems[newIndex]);
+        } else {
+            // Wrap to top row
+            const remainder = currentIndex % columnsPerRow;
+            setFocusedItem(sortedItems[remainder]);
+        }
+    }, [getSortedData, focusedItem, setFocusedItem, columnsPerRow]);
+
+    const navigateLeft = useCallback(() => {
+        const sortedItems = getSortedData();
+        if (!sortedItems.length) return;
+        
+        const currentIndex = focusedItem ? sortedItems.findIndex(item => item.path === focusedItem.path) : -1;
+        
+        if (currentIndex % columnsPerRow === 0) {
+            // At leftmost column, wrap to rightmost of same row or previous row
+            const currentRow = Math.floor(currentIndex / columnsPerRow);
+            const nextRowLastIndex = Math.min((currentRow + 1) * columnsPerRow - 1, sortedItems.length - 1);
+            setFocusedItem(sortedItems[nextRowLastIndex]);
+        } else {
+            setFocusedItem(sortedItems[currentIndex - 1]);
+        }
+    }, [getSortedData, focusedItem, setFocusedItem, columnsPerRow]);
+
+    const navigateRight = useCallback(() => {
+        const sortedItems = getSortedData();
+        if (!sortedItems.length) return;
+        
+        const currentIndex = focusedItem ? sortedItems.findIndex(item => item.path === focusedItem.path) : -1;
+        
+        if ((currentIndex + 1) % columnsPerRow === 0 || currentIndex === sortedItems.length - 1) {
+            // At rightmost column or last item, wrap to leftmost of same row
+            const currentRow = Math.floor(currentIndex / columnsPerRow);
+            const rowStartIndex = currentRow * columnsPerRow;
+            setFocusedItem(sortedItems[rowStartIndex]);
+        } else {
+            setFocusedItem(sortedItems[currentIndex + 1]);
+        }
+    }, [getSortedData, focusedItem, setFocusedItem, columnsPerRow]);
+
+    const { 
+        open: isPreviewOpen, 
+        payload: previewPayload, 
+        isLoading: isPreviewLoading,
+        closePreview 
+    } = usePreview(getFocusedItem, navigateUp, navigateDown, navigateLeft, navigateRight);
 
     /**
      * Effect to update UI state when settings change
@@ -517,6 +637,8 @@ const MainLayout = () => {
                             isLoading={isLoading}
                             viewMode={viewMode}
                             isSearching={!!searchValue}
+                            disableArrowKeys={isPreviewOpen}
+                            onColumnsChange={setColumnsPerRow}
                         />
                     </div>
                 );
@@ -695,6 +817,15 @@ const MainLayout = () => {
                 hash={hashDisplayData.hash}
                 fileName={hashDisplayData.fileName}
             />
+
+            {/* Preview Modal */}
+            {(isPreviewOpen || isPreviewLoading) && (
+                <PreviewModal
+                    payload={previewPayload}
+                    onClose={closePreview}
+                    isLoading={isPreviewLoading}
+                />
+            )}
         </div>
     );
 };

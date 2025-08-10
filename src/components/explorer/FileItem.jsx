@@ -16,6 +16,7 @@ import './fileItem.css';
  * @param {Object} props.item - The file or directory object to display
  * @param {string} [props.viewMode='grid'] - The view mode: 'grid', 'list', or 'details'
  * @param {boolean} [props.isSelected=false] - Whether the item is currently selected
+ * @param {boolean} [props.isFocused=false] - Whether the item is currently focused for keyboard navigation
  * @param {Function} props.onClick - Click handler function
  * @param {Function} props.onDoubleClick - Double-click handler function
  * @param {Function} props.onContextMenu - Context menu handler function
@@ -25,6 +26,7 @@ const FileItem = ({
                       item,
                       viewMode = 'grid',
                       isSelected = false,
+                      isFocused = false,
                       onClick,
                       onDoubleClick,
                       onContextMenu
@@ -114,10 +116,38 @@ const FileItem = ({
     };
 
     /**
+     * Handles mouse down events to prevent text selection
+     * @param {React.MouseEvent} e - The mouse down event
+     */
+    const handleMouseDown = (e) => {
+        // Prevent text selection on mouse down
+        e.preventDefault();
+    };
+
+    /**
+     * Handles selectstart events to prevent text selection
+     * @param {React.SyntheticEvent} e - The selectstart event
+     */
+    const handleSelectStart = (e) => {
+        // Prevent any text selection
+        e.preventDefault();
+        return false;
+    };
+
+    /**
      * Handles double-click events on the file item
      * @param {React.MouseEvent} e - The double-click event
      */
     const handleDoubleClick = (e) => {
+        // Prevent text selection on double-click
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Clear any existing text selection
+        if (window.getSelection) {
+            window.getSelection().removeAllRanges();
+        }
+        
         if (onDoubleClick) onDoubleClick(e);
     };
 
@@ -132,9 +162,11 @@ const FileItem = ({
     return (
         <>
             <div
-                className={`file-item view-mode-${viewMode.toLowerCase()} ${isSelected ? 'selected' : ''} ${isDirectory ? 'directory' : 'file'} ${isCut ? 'cut' : ''}`}
+                className={`file-item view-mode-${viewMode.toLowerCase()} ${(isSelected || isFocused) ? 'focused' : ''} ${isDirectory ? 'directory' : 'file'} ${isCut ? 'cut' : ''}`}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
+                onMouseDown={handleMouseDown}
+                onSelectStart={handleSelectStart}
                 onContextMenu={handleContextMenu}
                 data-path={item.path}
             >
@@ -143,19 +175,16 @@ const FileItem = ({
                         <div className="file-icon-container">
                             <FileIcon filename={item.name} isDirectory={isDirectory} />
                         </div>
-
                         <div className="file-name truncate" title={item.name}>
                             {item.name}
                         </div>
                     </div>
                 )}
-
                 {viewMode === 'list' && (
                     <div className="file-item-list">
                         <div className="file-icon-container">
                             <FileIcon filename={item.name} isDirectory={isDirectory} />
                         </div>
-
                         <div className="file-details">
                             <div className="file-name truncate" title={item.name}>
                                 {item.name}
@@ -166,34 +195,28 @@ const FileItem = ({
                         </div>
                     </div>
                 )}
-
                 {viewMode === 'details' && (
                     <div className="file-item-details">
                         <div className="file-column column-name">
                             <div className="file-icon-container">
                                 <FileIcon filename={item.name} isDirectory={isDirectory} />
                             </div>
-
                             <div className="file-name truncate" title={item.name}>
                                 {item.name}
                             </div>
                         </div>
-
                         <div className="file-column column-size">
                             {size}
                         </div>
-
                         <div className="file-column column-type">
                             {fileType}
                         </div>
-
                         <div className="file-column column-modified">
                             {modified}
                         </div>
                     </div>
                 )}
             </div>
-
             {/* Rename Modal */}
             <RenameModal
                 isOpen={isRenameModalOpen}

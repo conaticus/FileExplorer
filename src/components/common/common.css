@@ -1,3 +1,15 @@
+.icon.icon-size-xlarge {
+    width: 96px !important;
+    height: 96px !important;
+    min-width: 96px;
+    min-height: 96px;
+    max-width: 96px;
+    max-height: 96px;
+}
+.icon-size-xlarge {
+    width: 96px;
+    height: 96px;
+}
 /* Button Component */
 .btn {
     display: inline-flex;

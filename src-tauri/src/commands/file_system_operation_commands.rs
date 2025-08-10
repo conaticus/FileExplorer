@@ -2101,12 +2101,12 @@ mod tests_file_system_operation_commands {
         assert!(result.is_ok(), "Failed to extract zip: {:?}", result);
 
         // Verify extracted contents
-        let extract_path = zip_path.with_extension("");
-        let test_file = extract_path.join("test.txt");
+        // For single file, the file is extracted to the parent directory of the zip
+        let test_file = zip_path.parent().unwrap().join("test.txt");
 
         assert!(test_file.exists(), "Extracted test.txt should exist");
         assert_eq!(
-            fs::read_to_string(test_file).unwrap(),
+            fs::read_to_string(&test_file).unwrap(),
             "Hello, World!",
             "Extracted content should match"
         );

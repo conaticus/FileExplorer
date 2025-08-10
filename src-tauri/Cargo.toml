@@ -8,10 +8,11 @@ repository = ""
 edition = "2021"
 
 [dependencies]
-tauri = { version = "2.4", features = ["unstable"] }
+tauri = { version = "2.4", features = [ "protocol-asset", "unstable"] }
 serde = { version = "1", features = ["derive"] }
 sysinfo = "0.33.1"
 walkdir = "2.3.3"
+infer = "0.19.0"
 tokio = { version = "1.28.2", features = ["full"] }
 tauri-plugin-shell = "2.0.0-rc"
 tauri-plugin-dialog = "2.0.0-rc"
@@ -32,7 +33,9 @@ smallvec = "1.15.0"
 open = "5.3.2"
 rustc-hash = "2.1.1"
 ssh2 = "0.9.5"
-rayon = "1.10.0"
+anyhow = "1.0.98"
+base64 = "0.22.1"
+chardetng = "0.1.17"
 
 # macOS-spezifische Dependencies
 [target.'cfg(target_os = "macos")'.dependencies]

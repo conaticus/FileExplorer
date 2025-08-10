@@ -1,9 +1,26 @@
 .file-item {
     user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
     position: relative;
     border-radius: var(--radius-md);
     transition: background-color var(--transition-fast);
     cursor: pointer;
+}
+
+.file-item * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.file-item::selection,
+.file-item *::selection {
+    background: transparent;
 }
 
 .file-item:hover {
@@ -12,6 +29,17 @@
 
 .file-item.selected {
     background-color: var(--accent-surface);
+}
+
+.file-item.focused {
+    /* Just use a slightly different background - very subtle */
+    background-color: var(--surface-hover);
+    /* No border at all - purely background-based indication */
+}
+
+.file-item.focused.selected {
+    background-color: var(--accent-surface);
+    /* Keep the accent background when both focused and selected */
 }
 
 /* Cut state - files marked for moving */
