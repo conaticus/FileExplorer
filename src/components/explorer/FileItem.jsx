@@ -162,7 +162,7 @@ const FileItem = ({
     return (
         <>
             <div
-                className={`file-item view-mode-${viewMode.toLowerCase()} ${(isSelected || isFocused) ? 'focused' : ''} ${isDirectory ? 'directory' : 'file'} ${isCut ? 'cut' : ''}`}
+                className={`file-item view-mode-${viewMode.toLowerCase()} ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''} ${isDirectory ? 'directory' : 'file'} ${isCut ? 'cut' : ''}`}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
                 onMouseDown={handleMouseDown}
@@ -175,16 +175,19 @@ const FileItem = ({
                         <div className="file-icon-container">
                             <FileIcon filename={item.name} isDirectory={isDirectory} />
                         </div>
+
                         <div className="file-name truncate" title={item.name}>
                             {item.name}
                         </div>
                     </div>
                 )}
+
                 {viewMode === 'list' && (
                     <div className="file-item-list">
                         <div className="file-icon-container">
                             <FileIcon filename={item.name} isDirectory={isDirectory} />
                         </div>
+
                         <div className="file-details">
                             <div className="file-name truncate" title={item.name}>
                                 {item.name}
@@ -195,28 +198,34 @@ const FileItem = ({
                         </div>
                     </div>
                 )}
+
                 {viewMode === 'details' && (
                     <div className="file-item-details">
                         <div className="file-column column-name">
                             <div className="file-icon-container">
                                 <FileIcon filename={item.name} isDirectory={isDirectory} />
                             </div>
+
                             <div className="file-name truncate" title={item.name}>
                                 {item.name}
                             </div>
                         </div>
+
                         <div className="file-column column-size">
                             {size}
                         </div>
+
                         <div className="file-column column-type">
                             {fileType}
                         </div>
+
                         <div className="file-column column-modified">
                             {modified}
                         </div>
                     </div>
                 )}
             </div>
+
             {/* Rename Modal */}
             <RenameModal
                 isOpen={isRenameModalOpen}

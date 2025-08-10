@@ -493,7 +493,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, dis
             return;
         }
 
-        // For single click, handle selection
+        // For single click, handle selection only (do not set focus)
         const isAlreadySelected = selectedItems.some(selected => selected.path === item.path);
 
         if (isShiftKeyPressed && lastSelectedIndex !== -1) {
