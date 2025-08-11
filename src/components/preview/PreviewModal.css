@@ -1,3 +1,29 @@
+/* Line numbers for plain text preview */
+.with-line-numbers {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono, monospace);
+  font-size: 1rem;
+  background: inherit;
+  padding: 0;
+  margin: 0;
+}
+.preview-text-line {
+  display: flex;
+  align-items: flex-start;
+}
+.preview-line-number {
+  user-select: none;
+  color: var(--text-tertiary, #bbb);
+  min-width: 2.5em;
+  text-align: right;
+  padding-right: 1em;
+  opacity: 0.7;
+}
+.preview-line-content {
+  white-space: pre-wrap;
+  flex: 1;
+}
 /* Folder Preview (macOS style) */
 .preview-folder-container {
   display: flex;

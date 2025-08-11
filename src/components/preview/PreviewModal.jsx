@@ -154,11 +154,17 @@ function PreviewContent({ payload }) {
         </div>
       );
 
-    case 'Text':
+    case 'Text': {
+      const lines = payload.text ? payload.text.split('\n') : [];
       return (
         <div className="preview-text-container">
-          <pre className="preview-text">
-            {payload.text}
+          <pre className="preview-text with-line-numbers">
+            {lines.map((line, idx) => (
+              <div key={idx} className="preview-text-line">
+                <span className="preview-line-number">{idx + 1}</span>
+                <span className="preview-line-content">{line || '\u00A0'}</span>
+              </div>
+            ))}
           </pre>
           {payload.truncated && (
             <div className="preview-text-truncated">
@@ -167,6 +173,7 @@ function PreviewContent({ payload }) {
           )}
         </div>
       );
+    }
 
     case 'Unknown':
       return (

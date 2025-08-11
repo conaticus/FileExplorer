@@ -235,103 +235,105 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, dis
                     ? sortedItems.findIndex(item => item.path === focusedItem.path)
                     : -1;
 
+                let newFocusedIndex = currentFocusedIndex;
+                let moved = false;
+
                 switch (e.key) {
                     case 'ArrowDown':
                         e.preventDefault();
                         if (viewMode === 'grid') {
-                            // Grid: move down one row (dynamic columns per row)
-                            const newIndex = currentFocusedIndex + columnsPerRow;
-                            
-                            if (newIndex < sortedItems.length) {
-                                setFocusedItem(sortedItems[newIndex]);
+                            newFocusedIndex = currentFocusedIndex + columnsPerRow;
+                            if (newFocusedIndex < sortedItems.length) {
+                                setFocusedItem(sortedItems[newFocusedIndex]);
+                                moved = true;
                             } else {
-                                // Wrap to top row
                                 const remainder = currentFocusedIndex % columnsPerRow;
                                 setFocusedItem(sortedItems[remainder]);
+                                newFocusedIndex = remainder;
+                                moved = true;
                             }
                         } else {
-                            // List: move to next item
-                            const nextIndex = currentFocusedIndex < sortedItems.length - 1 
+                            newFocusedIndex = currentFocusedIndex < sortedItems.length - 1 
                                 ? currentFocusedIndex + 1 
                                 : 0;
-                            setFocusedItem(sortedItems[nextIndex]);
+                            setFocusedItem(sortedItems[newFocusedIndex]);
+                            moved = true;
                         }
                         break;
-                    
                     case 'ArrowUp':
                         e.preventDefault();
                         if (viewMode === 'grid') {
-                            // Grid: move up one row (dynamic columns per row)
-                            const newIndex = currentFocusedIndex - columnsPerRow;
-                            
-                            if (newIndex >= 0) {
-                                setFocusedItem(sortedItems[newIndex]);
+                            newFocusedIndex = currentFocusedIndex - columnsPerRow;
+                            if (newFocusedIndex >= 0) {
+                                setFocusedItem(sortedItems[newFocusedIndex]);
+                                moved = true;
                             } else {
-                                // Wrap to bottom row
                                 const remainder = currentFocusedIndex % columnsPerRow;
                                 const totalRows = Math.ceil(sortedItems.length / columnsPerRow);
                                 const lastRowStartIndex = (totalRows - 1) * columnsPerRow;
                                 const targetIndex = Math.min(lastRowStartIndex + remainder, sortedItems.length - 1);
                                 setFocusedItem(sortedItems[targetIndex]);
+                                newFocusedIndex = targetIndex;
+                                moved = true;
                             }
                         } else {
-                            // List: move to previous item
-                            const prevIndex = currentFocusedIndex > 0 
+                            newFocusedIndex = currentFocusedIndex > 0 
                                 ? currentFocusedIndex - 1 
                                 : sortedItems.length - 1;
-                            setFocusedItem(sortedItems[prevIndex]);
+                            setFocusedItem(sortedItems[newFocusedIndex]);
+                            moved = true;
                         }
                         break;
-
                     case 'ArrowRight':
                         e.preventDefault();
                         if (viewMode === 'grid') {
-                            // Grid: move right one column
                             if ((currentFocusedIndex + 1) % columnsPerRow === 0 || currentFocusedIndex === sortedItems.length - 1) {
-                                // At rightmost column or last item, wrap to leftmost of same row
                                 const currentRow = Math.floor(currentFocusedIndex / columnsPerRow);
                                 const rowStartIndex = currentRow * columnsPerRow;
                                 setFocusedItem(sortedItems[rowStartIndex]);
+                                newFocusedIndex = rowStartIndex;
+                                moved = true;
                             } else {
                                 setFocusedItem(sortedItems[currentFocusedIndex + 1]);
+                                newFocusedIndex = currentFocusedIndex + 1;
+                                moved = true;
                             }
                         } else {
-                            // List: move to next item
-                            const nextIndex = currentFocusedIndex < sortedItems.length - 1 
+                            newFocusedIndex = currentFocusedIndex < sortedItems.length - 1 
                                 ? currentFocusedIndex + 1 
                                 : 0;
-                            setFocusedItem(sortedItems[nextIndex]);
+                            setFocusedItem(sortedItems[newFocusedIndex]);
+                            moved = true;
                         }
                         break;
-
                     case 'ArrowLeft':
                         e.preventDefault();
                         if (viewMode === 'grid') {
-                            // Grid: move left one column
                             if (currentFocusedIndex % columnsPerRow === 0) {
-                                // At leftmost column, wrap to rightmost of same row or previous row
                                 const currentRow = Math.floor(currentFocusedIndex / columnsPerRow);
                                 const nextRowLastIndex = Math.min((currentRow + 1) * columnsPerRow - 1, sortedItems.length - 1);
                                 setFocusedItem(sortedItems[nextRowLastIndex]);
+                                newFocusedIndex = nextRowLastIndex;
+                                moved = true;
                             } else {
                                 setFocusedItem(sortedItems[currentFocusedIndex - 1]);
+                                newFocusedIndex = currentFocusedIndex - 1;
+                                moved = true;
                             }
                         } else {
-                            // List: move to previous item
-                            const prevIndex = currentFocusedIndex > 0 
+                            newFocusedIndex = currentFocusedIndex > 0 
                                 ? currentFocusedIndex - 1 
                                 : sortedItems.length - 1;
-                            setFocusedItem(sortedItems[prevIndex]);
+                            setFocusedItem(sortedItems[newFocusedIndex]);
+                            moved = true;
                         }
                         break;
-
                     case 'Enter':
                         if (focusedItem) {
                             e.preventDefault();
                             if (focusedItem.isDirectory) {
                                 loadDirectory(focusedItem.path);
                             } else {
-                                // Open file in default app
                                 const openFile = async () => {
                                     try {
                                         await invoke('open_in_default_app', { path: focusedItem.path });
@@ -344,6 +346,38 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, dis
                             }
                         }
                         break;
+                }
+
+                const item = sortedItems[newFocusedIndex];
+                if (moved && item) {
+                    if (e.shiftKey && lastSelectedIndex !== -1) {
+                        // Shift+Arrow: select range from lastSelectedIndex to newFocusedIndex
+                        const start = Math.min(lastSelectedIndex, newFocusedIndex);
+                        const end = Math.max(lastSelectedIndex, newFocusedIndex);
+                        const itemsToSelect = sortedItems.slice(start, end + 1);
+                        clearSelection();
+                        itemsToSelect.forEach(rangeItem => {
+                            selectItem(rangeItem, true);
+                        });
+                    } else if (e.ctrlKey || e.metaKey) {
+                        // Cmd/Ctrl+Arrow: add/remove focused item to selection
+                        const isAlreadySelected = selectedItems.some(selected => selected.path === item.path);
+                        if (isAlreadySelected) {
+                            // Deselect by clearing and re-selecting others
+                            const otherSelected = selectedItems.filter(selected => selected.path !== item.path);
+                            clearSelection();
+                            otherSelected.forEach(otherItem => {
+                                selectItem(otherItem, true);
+                            });
+                        } else {
+                            selectItem(item, true);
+                        }
+                        setLastSelectedIndex(newFocusedIndex);
+                    } else {
+                        // No modifier: single selection
+                        selectItem(item, false);
+                        setLastSelectedIndex(newFocusedIndex);
+                    }
                 }
             }
         };
@@ -493,7 +527,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, dis
             return;
         }
 
-        // For single click, handle selection only (do not set focus)
+        // For single click, handle selection
         const isAlreadySelected = selectedItems.some(selected => selected.path === item.path);
 
         if (isShiftKeyPressed && lastSelectedIndex !== -1) {
