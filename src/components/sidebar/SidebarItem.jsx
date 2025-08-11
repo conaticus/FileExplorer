@@ -38,10 +38,47 @@ const SidebarItem = ({
         }
     };
 
+    /**
+     * Handles double-click events to prevent text selection
+     * @param {React.MouseEvent} e - The double-click event
+     */
+    const handleDoubleClick = (e) => {
+        // Prevent text selection on double-click
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Clear any existing text selection
+        if (window.getSelection) {
+            window.getSelection().removeAllRanges();
+        }
+    };
+
+    /**
+     * Handles mouse down events to prevent text selection
+     * @param {React.MouseEvent} e - The mouse down event
+     */
+    const handleMouseDown = (e) => {
+        // Prevent text selection on mouse down
+        e.preventDefault();
+    };
+
+    /**
+     * Handles selectstart events to prevent text selection
+     * @param {React.SyntheticEvent} e - The selectstart event
+     */
+    const handleSelectStart = (e) => {
+        // Prevent any text selection
+        e.preventDefault();
+        return false;
+    };
+
     return (
         <li
             className={`sidebar-item ${isActive ? 'active' : ''}`}
             onClick={onClick}
+            onDoubleClick={handleDoubleClick}
+            onMouseDown={handleMouseDown}
+            onSelectStart={handleSelectStart}
             onContextMenu={handleContextMenu}
             title={isCollapsed ? name : undefined}
         >

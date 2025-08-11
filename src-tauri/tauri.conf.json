@@ -11,7 +11,11 @@
   },
   "app": {
     "security": {
-      "csp": null
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; media-src 'self' asset: http://asset.localhost; frame-src 'self' asset: http://asset.localhost data: blob; object-src 'self' asset: http://asset.localhost data: blob",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["*/**"]
+      }
     },
     "windows": [
       {

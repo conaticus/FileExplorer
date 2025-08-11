@@ -7,6 +7,12 @@
     flex-direction: column;
     transition: width var(--transition-normal);
     overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .sidebar-collapsed {
@@ -61,6 +67,10 @@
     letter-spacing: 0.5px;
     padding: 0 var(--space-md) var(--space-xs);
     margin: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .sidebar-section .sidebar-list {
@@ -84,6 +94,24 @@
     position: relative;
     transition: background-color var(--transition-fast);
     margin: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.sidebar-item * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.sidebar-item::selection,
+.sidebar-item *::selection {
+    background: transparent;
 }
 
 .sidebar-item:hover {
@@ -232,6 +260,24 @@
     border: none;
     cursor: pointer;
     transition: background-color var(--transition-fast), color var(--transition-fast);
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.sidebar-action-button * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.sidebar-action-button::selection,
+.sidebar-action-button *::selection {
+    background: transparent;
 }
 
 .sidebar-action-button:hover {
@@ -300,6 +346,24 @@
     border: none;
     cursor: pointer;
     transition: background-color var(--transition-fast), color var(--transition-fast);
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.section-add-button * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.section-add-button::selection,
+.section-add-button *::selection {
+    background: transparent;
 }
 
 .section-add-button:hover {
@@ -324,6 +388,24 @@
     border: none;
     cursor: pointer;
     transition: background-color var(--transition-fast), color var(--transition-fast);
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.section-collapse-button * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.section-collapse-button::selection,
+.section-collapse-button *::selection {
+    background: transparent;
 }
 
 .section-collapse-button:hover {

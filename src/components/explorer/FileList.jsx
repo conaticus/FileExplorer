@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useContextMenu } from '../../providers/ContextMenuProvider';
 import { invoke } from '@tauri-apps/api/core';
@@ -14,148 +14,133 @@ import './fileList.css';
  * @param {boolean} props.isLoading - Whether the file list is currently loading
  * @param {string} [props.viewMode='grid'] - Display mode: 'grid', 'list', or 'details'
  * @param {boolean} [props.isSearching=false] - Whether the list is showing search results
+ * @param {boolean} [props.disableArrowKeys=false] - Whether to disable arrow key navigation
+ * @param {Function} [props.onColumnsChange] - Callback when columns per row changes
  * @returns {React.ReactElement} File list component
  */
-const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) => {
-    const { selectedItems, selectItem, loadDirectory, clearSelection } = useFileSystem();
+const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, disableArrowKeys = false, onColumnsChange }) => {
+    const { selectedItems, selectItem, loadDirectory, clearSelection, focusedItem, setFocusedItem } = useFileSystem();
     const { openContextMenu } = useContextMenu();
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     const [isShiftKeyPressed, setIsShiftKeyPressed] = useState(false);
     const [isCtrlKeyPressed, setIsCtrlKeyPressed] = useState(false);
+    const [columnsPerRow, setColumnsPerRow] = useState(4); // Dynamic column calculation
+    const containerRef = useRef(null);
     const [lastSelectedIndex, setLastSelectedIndex] = useState(-1);
 
     /**
-     * Handles click on the container (empty space)
-     * @param {React.MouseEvent} e - The click event
+     * Calculate columns per row based on container width and item size
      */
-    const handleContainerClick = (e) => {
-        // Only clear if clicking directly on the container, not on items
-        // Also check that it's not a scroll-related interaction
-        if (e.target === e.currentTarget && e.detail !== 0) {
-            clearSelection();
-            setLastSelectedIndex(-1);
+    const calculateColumnsPerRow = useCallback(() => {
+        if (!containerRef.current || viewMode !== 'grid') {
+            setColumnsPerRow(1);
+            onColumnsChange?.(1);
+            return;
         }
-    };
 
-    /**
-     * Handles right-click context menu
-     * @param {React.MouseEvent} e - The context menu event
-     */
-    const handleContextMenu = (e) => {
-        // Always prevent default browser context menu in our container
-        e.preventDefault();
-        e.stopPropagation();
+        const container = containerRef.current;
+        
+        // Try to get computed styles first
+        const computedStyle = window.getComputedStyle(container);
+        const gridTemplateColumns = computedStyle.getPropertyValue('grid-template-columns');
+        
+        // If CSS Grid is being used, count the columns from grid-template-columns
+        if (gridTemplateColumns && gridTemplateColumns !== 'none') {
+            const columns = gridTemplateColumns.split(' ').length;
+            setColumnsPerRow(columns);
+            onColumnsChange?.(columns);
+            return;
+        }
+        
+        // Fallback: Calculate based on container width
+        const containerWidth = container.offsetWidth || container.clientWidth;
+        
+        if (containerWidth === 0) {
+            // Container not ready yet, use default
+            setColumnsPerRow(4);
+            onColumnsChange?.(4);
+            return;
+        }
+        
+        // Try counting actual file items in the DOM
+        const fileItems = container.querySelectorAll('[data-path]');
+        if (fileItems.length >= 2) {
+            const firstItem = fileItems[0];
+            const firstItemRect = firstItem.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            
+            let columnsInFirstRow = 1;
+            for (let i = 1; i < fileItems.length; i++) {
+                const itemRect = fileItems[i].getBoundingClientRect();
+                if (Math.abs(itemRect.top - firstItemRect.top) < 10) {
+                    // Same row (within 10px tolerance)
+                    columnsInFirstRow++;
+                } else {
+                    // Different row, stop counting
+                    break;
+                }
+            }
+            
+            if (columnsInFirstRow > 1) {
+                setColumnsPerRow(columnsInFirstRow);
+                onColumnsChange?.(columnsInFirstRow);
+                return;
+            }
+        }
+        
+        // More conservative estimates for item width
+        const estimatedItemWidth = 160;
+        const gap = 12;
+        const padding = 32;
+        
+        const availableWidth = containerWidth - padding;
+        const columns = Math.max(1, Math.floor((availableWidth + gap) / (estimatedItemWidth + gap)));
+        
+        setColumnsPerRow(columns);
+        onColumnsChange?.(columns);
+    }, [viewMode, onColumnsChange]);
 
-        // Determine if we clicked on an item or empty space
-        const clickedItem = e.target.closest('[data-path]');
-        const item = clickedItem ? sortedItems.find(item => item.path === clickedItem.dataset.path) : null;
-
-        openContextMenu(e, item);
-    };
-
-    /**
-     * Sets up keyboard event listeners for multi-selection
-     */
+    // Calculate columns on mount and resize
     useEffect(() => {
-        const handleKeyDown = (e) => {
-            setIsShiftKeyPressed(e.shiftKey);
-            setIsCtrlKeyPressed(e.ctrlKey || e.metaKey);
+        calculateColumnsPerRow();
+        
+        const handleResize = () => {
+            setTimeout(calculateColumnsPerRow, 100);
         };
-
-        const handleKeyUp = (e) => {
-            setIsShiftKeyPressed(e.shiftKey);
-            setIsCtrlKeyPressed(e.ctrlKey || e.metaKey);
-        };
-
-        /**
-         * Prevents default browser context menu while allowing scrolling
-         * @param {MouseEvent} e - The mouse event
-         */
-        const preventDefaultContextMenu = (e) => {
-            // Only prevent if the target is within our file list AND it's actually a right-click
-            if (e.button === 2 && (e.target.closest('.file-list-container') || e.target.closest('.empty-state-container'))) {
-                e.preventDefault();
-            }
-        };
-
-        /**
-         * Handles select-item events from context menu
-         * @param {CustomEvent} e - The custom event
-         */
-        const handleSelectItem = (e) => {
-            if (e.detail && e.detail.item) {
-                selectItem(e.detail.item, false);
-            }
-        };
-
-        /**
-         * Handles clear selection events
-         */
-        const handleClearSelection = () => {
-            clearSelection();
-            setLastSelectedIndex(-1);
-        };
-
-        // Use passive listeners where possible to improve scroll performance
-        window.addEventListener('keydown', handleKeyDown, { passive: true });
-        window.addEventListener('keyup', handleKeyUp, { passive: true });
-        window.addEventListener('mousedown', preventDefaultContextMenu, { passive: false });
-        document.addEventListener('select-item', handleSelectItem);
-        document.addEventListener('clear-selection', handleClearSelection);
-
+        
+        window.addEventListener('resize', handleResize);
+        
+        // Use ResizeObserver if available for more accurate detection
+        let resizeObserver;
+        if (containerRef.current && window.ResizeObserver) {
+            resizeObserver = new ResizeObserver(() => {
+                setTimeout(calculateColumnsPerRow, 50);
+            });
+            resizeObserver.observe(containerRef.current);
+        }
+        
         return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
-            window.removeEventListener('mousedown', preventDefaultContextMenu);
-            document.removeEventListener('select-item', handleSelectItem);
-            document.removeEventListener('clear-selection', handleClearSelection);
+            window.removeEventListener('resize', handleResize);
+            if (resizeObserver) {
+                resizeObserver.disconnect();
+            }
         };
-    }, [selectItem, clearSelection]);
+    }, [calculateColumnsPerRow]);
 
-    /**
-     * Clears selection when displayed data changes
-     */
+    // Also recalculate when view mode changes or data changes
     useEffect(() => {
-        clearSelection();
-        setLastSelectedIndex(-1);
-    }, [data, clearSelection]);
-
-    // If data is null or loading, show loading state
-    if (isLoading) {
-        return (
-            <div className="file-list-container">
-                <div className="loading-state">
-                    <div className="loading-spinner"></div>
-                    <p>Loading...</p>
-                </div>
-            </div>
-        );
-    }
-
-    // If data is empty, show empty state
-    if (!data || (!data.directories?.length && !data.files?.length)) {
-        return (
-            <div className="file-list-container">
-                <div
-                    className="empty-state-container"
-                    onClick={handleContainerClick}
-                    onContextMenu={handleContextMenu}
-                    style={{ height: '100%', width: '100%' }}
-                >
-                    <EmptyState
-                        type={isSearching ? 'no-results' : 'empty-folder'}
-                        searchTerm={isSearching ? "your search" : undefined}
-                    />
-                </div>
-            </div>
-        );
-    }
+        setTimeout(calculateColumnsPerRow, 100);
+    }, [viewMode, data, calculateColumnsPerRow]);
 
     /**
      * Returns sorted data based on current sort configuration
      * @returns {Array} Sorted array of files and directories
      */
     const getSortedData = () => {
+        if (!data || (!data.directories?.length && !data.files?.length)) {
+            return [];
+        }
+
         const { key, direction } = sortConfig;
 
         // Combine directories and files for sorting
@@ -194,7 +179,305 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
         return sortedItems;
     };
 
+    /**
+     * Handles click on the container (empty space)
+     * @param {React.MouseEvent} e - The click event
+     */
+    const handleContainerClick = (e) => {
+        // Only clear if clicking directly on the container, not on items
+        // Also check that it's not a scroll-related interaction
+        if (e.target === e.currentTarget && e.detail !== 0) {
+            clearSelection();
+            setLastSelectedIndex(-1);
+        }
+    };
+
+    /**
+     * Handles right-click context menu
+     * @param {React.MouseEvent} e - The context menu event
+     */
+    const handleContextMenu = (e) => {
+        // Always prevent default browser context menu in our container
+        e.preventDefault();
+        e.stopPropagation();
+
+        const currentSortedItems = getSortedData();
+        
+        // Determine if we clicked on an item or empty space
+        const clickedItem = e.target.closest('[data-path]');
+        const item = clickedItem ? currentSortedItems.find(item => item.path === clickedItem.dataset.path) : null;
+
+        openContextMenu(e, item);
+    };
+
+    // Get sorted data - call this before useEffects that need it
     const sortedItems = getSortedData();
+
+    /**
+     * Sets up keyboard event listeners for multi-selection
+     */
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            setIsShiftKeyPressed(e.shiftKey);
+            setIsCtrlKeyPressed(e.ctrlKey || e.metaKey);
+
+            // Don't handle arrow keys if user is typing in an input or textarea
+            if (e.target instanceof HTMLInputElement || 
+                e.target instanceof HTMLTextAreaElement || 
+                e.target.isContentEditable ||
+                disableArrowKeys) {
+                return;
+            }
+
+            // Handle arrow key navigation for focused item
+            if (sortedItems && sortedItems.length > 0) {
+                const currentFocusedIndex = focusedItem 
+                    ? sortedItems.findIndex(item => item.path === focusedItem.path)
+                    : -1;
+
+                let newFocusedIndex = currentFocusedIndex;
+                let moved = false;
+
+                switch (e.key) {
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        if (viewMode === 'grid') {
+                            newFocusedIndex = currentFocusedIndex + columnsPerRow;
+                            if (newFocusedIndex < sortedItems.length) {
+                                setFocusedItem(sortedItems[newFocusedIndex]);
+                                moved = true;
+                            } else {
+                                const remainder = currentFocusedIndex % columnsPerRow;
+                                setFocusedItem(sortedItems[remainder]);
+                                newFocusedIndex = remainder;
+                                moved = true;
+                            }
+                        } else {
+                            newFocusedIndex = currentFocusedIndex < sortedItems.length - 1 
+                                ? currentFocusedIndex + 1 
+                                : 0;
+                            setFocusedItem(sortedItems[newFocusedIndex]);
+                            moved = true;
+                        }
+                        break;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        if (viewMode === 'grid') {
+                            newFocusedIndex = currentFocusedIndex - columnsPerRow;
+                            if (newFocusedIndex >= 0) {
+                                setFocusedItem(sortedItems[newFocusedIndex]);
+                                moved = true;
+                            } else {
+                                const remainder = currentFocusedIndex % columnsPerRow;
+                                const totalRows = Math.ceil(sortedItems.length / columnsPerRow);
+                                const lastRowStartIndex = (totalRows - 1) * columnsPerRow;
+                                const targetIndex = Math.min(lastRowStartIndex + remainder, sortedItems.length - 1);
+                                setFocusedItem(sortedItems[targetIndex]);
+                                newFocusedIndex = targetIndex;
+                                moved = true;
+                            }
+                        } else {
+                            newFocusedIndex = currentFocusedIndex > 0 
+                                ? currentFocusedIndex - 1 
+                                : sortedItems.length - 1;
+                            setFocusedItem(sortedItems[newFocusedIndex]);
+                            moved = true;
+                        }
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        if (viewMode === 'grid') {
+                            if ((currentFocusedIndex + 1) % columnsPerRow === 0 || currentFocusedIndex === sortedItems.length - 1) {
+                                const currentRow = Math.floor(currentFocusedIndex / columnsPerRow);
+                                const rowStartIndex = currentRow * columnsPerRow;
+                                setFocusedItem(sortedItems[rowStartIndex]);
+                                newFocusedIndex = rowStartIndex;
+                                moved = true;
+                            } else {
+                                setFocusedItem(sortedItems[currentFocusedIndex + 1]);
+                                newFocusedIndex = currentFocusedIndex + 1;
+                                moved = true;
+                            }
+                        } else {
+                            newFocusedIndex = currentFocusedIndex < sortedItems.length - 1 
+                                ? currentFocusedIndex + 1 
+                                : 0;
+                            setFocusedItem(sortedItems[newFocusedIndex]);
+                            moved = true;
+                        }
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        if (viewMode === 'grid') {
+                            if (currentFocusedIndex % columnsPerRow === 0) {
+                                const currentRow = Math.floor(currentFocusedIndex / columnsPerRow);
+                                const nextRowLastIndex = Math.min((currentRow + 1) * columnsPerRow - 1, sortedItems.length - 1);
+                                setFocusedItem(sortedItems[nextRowLastIndex]);
+                                newFocusedIndex = nextRowLastIndex;
+                                moved = true;
+                            } else {
+                                setFocusedItem(sortedItems[currentFocusedIndex - 1]);
+                                newFocusedIndex = currentFocusedIndex - 1;
+                                moved = true;
+                            }
+                        } else {
+                            newFocusedIndex = currentFocusedIndex > 0 
+                                ? currentFocusedIndex - 1 
+                                : sortedItems.length - 1;
+                            setFocusedItem(sortedItems[newFocusedIndex]);
+                            moved = true;
+                        }
+                        break;
+                    case 'Enter':
+                        if (focusedItem) {
+                            e.preventDefault();
+                            if (focusedItem.isDirectory) {
+                                loadDirectory(focusedItem.path);
+                            } else {
+                                const openFile = async () => {
+                                    try {
+                                        await invoke('open_in_default_app', { path: focusedItem.path });
+                                    } catch (error) {
+                                        console.error('Failed to open file:', error);
+                                        showError(`Failed to open file: ${error.message || error}`);
+                                    }
+                                };
+                                openFile();
+                            }
+                        }
+                        break;
+                }
+
+                const item = sortedItems[newFocusedIndex];
+                if (moved && item) {
+                    if (e.shiftKey && lastSelectedIndex !== -1) {
+                        // Shift+Arrow: select range from lastSelectedIndex to newFocusedIndex
+                        const start = Math.min(lastSelectedIndex, newFocusedIndex);
+                        const end = Math.max(lastSelectedIndex, newFocusedIndex);
+                        const itemsToSelect = sortedItems.slice(start, end + 1);
+                        clearSelection();
+                        itemsToSelect.forEach(rangeItem => {
+                            selectItem(rangeItem, true);
+                        });
+                    } else if (e.ctrlKey || e.metaKey) {
+                        // Cmd/Ctrl+Arrow: add/remove focused item to selection
+                        const isAlreadySelected = selectedItems.some(selected => selected.path === item.path);
+                        if (isAlreadySelected) {
+                            // Deselect by clearing and re-selecting others
+                            const otherSelected = selectedItems.filter(selected => selected.path !== item.path);
+                            clearSelection();
+                            otherSelected.forEach(otherItem => {
+                                selectItem(otherItem, true);
+                            });
+                        } else {
+                            selectItem(item, true);
+                        }
+                        setLastSelectedIndex(newFocusedIndex);
+                    } else {
+                        // No modifier: single selection
+                        selectItem(item, false);
+                        setLastSelectedIndex(newFocusedIndex);
+                    }
+                }
+            }
+        };
+
+        const handleKeyUp = (e) => {
+            setIsShiftKeyPressed(e.shiftKey);
+            setIsCtrlKeyPressed(e.ctrlKey || e.metaKey);
+        };
+
+        /**
+         * Prevents default browser context menu while allowing scrolling
+         * @param {MouseEvent} e - The mouse event
+         */
+        const preventDefaultContextMenu = (e) => {
+            // Only prevent if the target is within our file list AND it's actually a right-click
+            if (e.button === 2 && (e.target.closest('.file-list-container') || e.target.closest('.empty-state-container'))) {
+                e.preventDefault();
+            }
+        };
+
+        /**
+         * Handles select-item events from context menu
+         * @param {CustomEvent} e - The custom event
+         */
+        const handleSelectItem = (e) => {
+            if (e.detail && e.detail.item) {
+                selectItem(e.detail.item, false);
+            }
+        };
+
+        /**
+         * Handles clear selection events
+         */
+        const handleClearSelection = () => {
+            clearSelection();
+            setLastSelectedIndex(-1);
+        };
+
+        // Use passive listeners where possible to improve scroll performance
+        // Note: keydown cannot be passive because we need preventDefault for arrow keys
+        window.addEventListener('keydown', handleKeyDown, { passive: false });
+        window.addEventListener('keyup', handleKeyUp, { passive: true });
+        window.addEventListener('mousedown', preventDefaultContextMenu, { passive: false });
+        document.addEventListener('select-item', handleSelectItem);
+        document.addEventListener('clear-selection', handleClearSelection);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('mousedown', preventDefaultContextMenu);
+            document.removeEventListener('select-item', handleSelectItem);
+            document.removeEventListener('clear-selection', handleClearSelection);
+        };
+    }, [selectItem, clearSelection, sortedItems, focusedItem, setFocusedItem, loadDirectory, viewMode, showError, disableArrowKeys, columnsPerRow]);
+
+    /**
+     * Clears selection when displayed data changes
+     */
+    useEffect(() => {
+        clearSelection();
+        setLastSelectedIndex(-1);
+    }, [data, clearSelection]);
+
+    // Set initial focus to first item if no focused item and we have items
+    useEffect(() => {
+        if (sortedItems.length > 0 && !focusedItem) {
+            setFocusedItem(sortedItems[0]);
+        }
+    }, [sortedItems, focusedItem, setFocusedItem]);
+
+    // If data is null or loading, show loading state
+    if (isLoading) {
+        return (
+            <div className="file-list-container">
+                <div className="loading-state">
+                    <div className="loading-spinner"></div>
+                    <p>Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // If data is empty, show empty state
+    if (!data || (!data.directories?.length && !data.files?.length)) {
+        return (
+            <div className="file-list-container">
+                <div
+                    className="empty-state-container"
+                    onClick={handleContainerClick}
+                    onContextMenu={handleContextMenu}
+                    style={{ height: '100%', width: '100%' }}
+                >
+                    <EmptyState
+                        type={isSearching ? 'no-results' : 'empty-folder'}
+                        searchTerm={isSearching ? "your search" : undefined}
+                    />
+                </div>
+            </div>
+        );
+    }
 
     /**
      * Handles changing the sort column/direction
@@ -222,6 +505,9 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
      * @param {boolean} [isDoubleClick=false] - Whether this is a double-click
      */
     const handleItemClick = (item, index, isDoubleClick = false) => {
+        // Always set the focused item when clicking on it
+        setFocusedItem(item);
+
         // For double-click, open the item
         if (isDoubleClick) {
             if (item.isDirectory) {
@@ -285,6 +571,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
     return (
         <div className="file-list-wrapper">
             <div
+                ref={containerRef}
                 className={`file-list-container view-mode-${viewMode.toLowerCase()} scrollable-content`}
                 onClick={handleContainerClick}
                 onContextMenu={handleContextMenu}
@@ -339,6 +626,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false }) =
                             item={item}
                             viewMode={viewMode}
                             isSelected={selectedItems.some(selected => selected.path === item.path)}
+                            isFocused={focusedItem && focusedItem.path === item.path}
                             onClick={(e) => handleItemClick(item, index)}
                             onDoubleClick={() => handleItemClick(item, index, true)}
                             onContextMenu={handleContextMenu}
