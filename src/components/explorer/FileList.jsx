@@ -436,15 +436,25 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, dis
     /**
      * Clears selection when displayed data changes
      */
+
+    // Track if this is the first mount or a navigation (not a deselection)
+    const isFirstMount = useRef(true);
+    const prevDataRef = useRef();
+
     useEffect(() => {
-        clearSelection();
-        setLastSelectedIndex(-1);
+        // Only clear selection if the data object reference actually changed (navigation), not just selection
+        if (prevDataRef.current !== data) {
+            clearSelection();
+            setLastSelectedIndex(-1);
+            prevDataRef.current = data;
+        }
     }, [data, clearSelection]);
 
-    // Set initial focus to first item if no focused item and we have items
     useEffect(() => {
-        if (sortedItems.length > 0 && !focusedItem) {
+        // Only focus first item on first mount or navigation, not after deselection
+        if (sortedItems.length > 0 && !focusedItem && isFirstMount.current) {
             setFocusedItem(sortedItems[0]);
+            isFirstMount.current = false;
         }
     }, [sortedItems, focusedItem, setFocusedItem]);
 
