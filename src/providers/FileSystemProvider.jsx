@@ -400,6 +400,7 @@ export default function FileSystemProvider({ children }) {
     // Clear selection
     const clearSelection = useCallback(() => {
         setSelectedItems([]);
+        setFocusedItem(null);
     }, []);
 
     // Set focused item (for keyboard navigation and preview)
