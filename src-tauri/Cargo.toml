@@ -1,7 +1,7 @@
 [package]
 name = "src-tauri"
 version = "0.1.0"
-description = "File Explorer"
+description = "Explr - Modern File Explorer"
 authors = ["Conaticus", "ProtogenDelta", "Marco Brandt", "Lauritz Wiebusch", "Daniel Schatz", "Sören Panten"]
 license = ""
 repository = ""
@@ -46,7 +46,7 @@ cocoa = "0.25"
 tauri-build = { version = "2.1", features = [] }
 
 [package.metadata.tauri]
-bundle.identifier = "com.software.fileexplorer"
+bundle.identifier = "com.explr.app"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
