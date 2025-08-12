@@ -36,6 +36,8 @@ ssh2 = { version = "0.9.5", features = ["vendored-openssl"] }
 anyhow = "1.0.98"
 base64 = "0.22.1"
 chardetng = "0.1.17"
+bumpalo = "3.14"  # Arena allocation for temporary objects
+parking_lot = "0.12"  # Better RwLock implementation
 
 # macOS-spezifische Dependencies
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -72,3 +74,4 @@ full-no-generate-test-data = ["long-tests", "benchmarks", "open-file-in-app"]
 open-file-in-app = []
 generate-test-data = []
 long-tests = []
+sftp-tests = []

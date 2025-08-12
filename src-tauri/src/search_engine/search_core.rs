@@ -64,6 +64,13 @@ pub struct SearchCore {
 
     /// Track if the last search was a cache hit
     last_search_was_cache_hit: bool,
+    
+    
+    /// Cached lowercase query to avoid repeated allocations
+    lowercase_query_cache: HashMap<String, String>,
+    
+    /// String buffer for path normalization
+    path_buffer: String,
 }
 
 impl SearchCore {
@@ -110,6 +117,8 @@ impl SearchCore {
             results_buffer: Vec::with_capacity(cap),
             results_capacity: cap,
             last_search_was_cache_hit: false,
+            lowercase_query_cache: HashMap::with_capacity(64), // Cache for recent queries
+            path_buffer: String::with_capacity(512), // Pre-allocate reasonable buffer
         }
     }
 
@@ -130,8 +139,11 @@ impl SearchCore {
     ///
     /// # Performance
     /// O(m) where m is the length of the path
-    fn normalize_path(&self, path: &str) -> String {
-        let mut result = String::with_capacity(path.len());
+    fn normalize_path(&mut self, path: &str) -> String {
+        // Reuse buffer to avoid allocation
+        self.path_buffer.clear();
+        self.path_buffer.reserve(path.len());
+        
         let mut saw_slash = false;
         let mut started = false;
 
@@ -148,7 +160,7 @@ impl SearchCore {
 
         if let Some(&first) = chars.peek() {
             if first == '/' || first == '\\' {
-                result.push('/');
+                self.path_buffer.push('/');
                 saw_slash = true;
                 started = true;
                 chars.next();
@@ -159,12 +171,12 @@ impl SearchCore {
             match c {
                 '/' | '\\' => {
                     if !saw_slash && started {
-                        result.push('/');
+                        self.path_buffer.push('/');
                         saw_slash = true;
                     }
                 }
                 _ => {
-                    result.push(c);
+                    self.path_buffer.push(c);
                     saw_slash = false;
                     started = true;
                 }
@@ -172,12 +184,13 @@ impl SearchCore {
         }
 
         // Remove trailing slash (unless result is exactly "/")
-        let len = result.len();
-        if len > 1 && result.ends_with('/') {
-            result.truncate(len - 1);
+        let len = self.path_buffer.len();
+        if len > 1 && self.path_buffer.ends_with('/') {
+            self.path_buffer.truncate(len - 1);
         }
 
-        result
+        // Clone the buffer content to return owned string
+        self.path_buffer.clone()
     }
 
     /// Sets the current directory context for improved search result ranking.
@@ -392,7 +405,7 @@ impl SearchCore {
     ///
     /// # Performance
     /// O(n) where n is the number of excluded patterns
-    pub fn should_exclude_path(&self, path: &str, excluded_patterns: &Vec<String>) -> bool {
+    pub fn should_exclude_path(&mut self, path: &str, excluded_patterns: &Vec<String>) -> bool {
         if excluded_patterns.is_empty() {
             return false;
         }
@@ -797,13 +810,15 @@ impl SearchCore {
             return Vec::new();
         }
 
-        let normalized_query = query.trim().to_string();
+        // Use trimmed query directly, avoid unnecessary allocation for now
+        let normalized_query = query.trim();
+        let normalized_query_owned = normalized_query.to_string(); // Only allocate when needed
 
         #[cfg(feature = "search-progress-logging")]
         log_info!("Normalized query: '{}'", normalized_query);
 
         // 1. Check cache first
-        if let Some(cached_data) = self.cache.get(&normalized_query) {
+        if let Some(cached_data) = self.cache.get(&normalized_query_owned) {
             #[cfg(feature = "search-progress-logging")]
             log_info!("Cache hit for query: '{}', found {} cached results", 
                      normalized_query, cached_data.results.len());
@@ -825,13 +840,8 @@ impl SearchCore {
         #[cfg(feature = "search-progress-logging")]
         let prefix_start = Instant::now();
 
-        // 2. Reuse buffer for results
-        // Swap out old buffer and replace with fresh-capacity Vec
-        let mut results = std::mem::replace(
-            &mut self.results_buffer,
-            Vec::with_capacity(self.results_capacity),
-        );
-        results.clear();
+        // 2. Reuse buffer for results - more efficient approach
+        self.results_buffer.clear(); // Keep allocated capacity
 
         // 3. ART prefix search
         //let current_dir_ref = self.current_directory.as_deref();
@@ -851,23 +861,23 @@ impl SearchCore {
             );
         }
 
-        results.extend(prefix_results);
+        self.results_buffer.extend(prefix_results);
 
         // 4. Only use fuzzy search if we don't have enough results
-        if results.len() < self.max_results.min(10) {
+        if self.results_buffer.len() < self.max_results.min(10) {
             #[cfg(feature = "search-progress-logging")]
             let fuzzy_start = Instant::now();
 
             #[cfg(feature = "search-progress-logging")]
             log_info!(
                 "Insufficient prefix results ({}), performing fuzzy search for up to {} more results", 
-                results.len(), 
-                self.max_results - results.len()
+                self.results_buffer.len(), 
+                self.max_results - self.results_buffer.len()
             );
 
             let fuzzy_results = self
                 .fuzzy_matcher
-                .search(&normalized_query, self.max_results - results.len());
+                .search(&normalized_query, self.max_results - self.results_buffer.len());
             
             #[cfg(feature = "search-progress-logging")]
             {
@@ -879,14 +889,14 @@ impl SearchCore {
                 );
             }
 
-            let mut seen: HashSet<String> = results.iter().map(|(p, _)| p.clone()).collect();
+            let mut seen: HashSet<String> = self.results_buffer.iter().map(|(p, _)| p.clone()).collect();
             #[allow(unused_variables)]
             let mut added_fuzzy = 0;
             
             for (p, s) in fuzzy_results {
                 if !seen.contains(&p) {
                     seen.insert(p.clone());
-                    results.push((p, s));
+                    self.results_buffer.push((p, s));
                     added_fuzzy += 1;
                 }
             }
@@ -895,7 +905,7 @@ impl SearchCore {
             log_info!("Added {} unique fuzzy results after deduplication", added_fuzzy);
         }
         
-        if results.is_empty() {
+        if self.results_buffer.is_empty() {
             #[cfg(feature = "search-error-logging")]
             log_error!("No results found for query: '{}'", normalized_query);
             
@@ -910,26 +920,29 @@ impl SearchCore {
         let ranking_start = Instant::now();
         
         #[cfg(feature = "search-progress-logging")]
-        log_info!("Ranking {} combined results", results.len());
+        log_info!("Ranking {} combined results", self.results_buffer.len());
         
-        self.rank_results(&mut results, &normalized_query);
+        // Clone buffer temporarily to avoid borrowing conflicts
+        let mut temp_results = self.results_buffer.clone();
+        self.rank_results(&mut temp_results, &normalized_query);
+        self.results_buffer = temp_results;
         
         #[cfg(feature = "search-progress-logging")]
         log_info!("Ranking completed in {:?}", ranking_start.elapsed());
 
         // 5. Limit to max results
-        let _original_len = results.len();
-        if results.len() > self.max_results {
-            results.truncate(self.max_results);
+        let _original_len = self.results_buffer.len();
+        if self.results_buffer.len() > self.max_results {
+            self.results_buffer.truncate(self.max_results);
             
             #[cfg(feature = "search-progress-logging")]
             log_info!("Truncated {} results to max_results: {}", _original_len, self.max_results);
         }
 
         // Reserve capacity for cache - store up to max_results for better cache hits
-        let cache_size = results.len().min(self.max_results);
+        let cache_size = self.results_buffer.len().min(self.max_results);
         let mut cached_results = Vec::with_capacity(cache_size);
-        for (p, s) in results.iter().take(cache_size) {
+        for (p, s) in self.results_buffer.iter().take(cache_size) {
             cached_results.push((p.clone(), *s));
         }
         
@@ -938,29 +951,37 @@ impl SearchCore {
         
         self.cache.insert(normalized_query.to_string().clone(), cached_results);
         
-        if !results.is_empty() {
+        if !self.results_buffer.is_empty() {
             #[cfg(feature = "search-progress-logging")]
-            log_info!("Recording usage for top result: '{}'", results[0].0);
+            log_info!("Recording usage for top result: '{}'", self.results_buffer[0].0);
             
-            self.record_path_usage(&results[0].0);
+            let first_result = self.results_buffer[0].0.clone();
+            self.record_path_usage(&first_result);
         }
         
-        self.results_buffer = results.clone();
+        // Create final results vector to return
+        let final_results = self.results_buffer.clone();
+        
+        // Cache the results for future identical queries
+        let cached_results = crate::search_engine::path_cache_wrapper::CachedSearchResults {
+            results: final_results.clone(),
+        };
+        self.cache.put(normalized_query_owned, cached_results);
         
         #[cfg(feature = "search-progress-logging")]
         {
             let total_duration = search_start.elapsed();
-            log_info!("Search completed in {:?} with {} results", total_duration, results.len());
+            log_info!("Search completed in {:?} with {} results", total_duration, final_results.len());
             
-            if !results.is_empty() {
+            if !final_results.is_empty() {
                 log_info!("Top 3 results:");
-                for (i, (path, score)) in results.iter().take(3).enumerate() {
+                for (i, (path, score)) in final_results.iter().take(3).enumerate() {
                     log_info!("  #{}: '{}' (score: {:.4})", i + 1, path, score);
                 }
             }
         }
         
-        results
+        final_results
     }
 
     /// Ranks search results based on various relevance factors.
@@ -984,7 +1005,7 @@ impl SearchCore {
         #[cfg(feature = "search-progress-logging")]
         let ranking_detailed_start = Instant::now();
         
-        // Precompute lowercase query once
+        // Precompute lowercase query once  
         let q_lc = query.to_lowercase();
         
         #[cfg(feature = "search-progress-logging")]

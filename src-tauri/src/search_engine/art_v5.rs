@@ -9,6 +9,10 @@ pub struct ART {
     root: Option<Box<ARTNode>>,
     path_count: usize,
     max_results: usize,
+    /// Reusable buffer for node operations to reduce allocations
+    operation_buffer: Vec<u8>,
+    /// Cache for frequent key operations
+    key_cache: Vec<Vec<u8>>,
 }
 
 // Constants for different node types
@@ -347,49 +351,58 @@ impl Clone for ARTNode {
 
 // Node4: Stores up to 4 children in a small array
 #[derive(Clone)]
+// Pack struct for better cache locality
+#[repr(C)]
 struct Node4 {
     prefix: Prefix,
-    is_terminal: bool,
-    score: Option<f32>,
     keys: SmallVec<[KeyType; NODE4_MAX]>,
     children: SmallVec<[Option<Box<ARTNode>>; NODE4_MAX]>,
+    score: Option<f32>,
+    is_terminal: bool,
 }
 
+// Pack struct for better cache locality
+#[repr(C)]
 struct Node16 {
     prefix: Prefix,
-    is_terminal: bool,
-    score: Option<f32>,
     keys: SmallVec<[KeyType; NODE16_MAX]>,
     children: SmallVec<[Option<Box<ARTNode>>; NODE16_MAX]>,
+    score: Option<f32>,
+    is_terminal: bool,
 }
 
 // Only Node48 and Node256 have a size field
+// Pack struct for better cache locality
+#[repr(C)]
 struct Node48 {
     prefix: Prefix,
-    is_terminal: bool,
-    score: Option<f32>,
     child_index: [Option<u8>; 256],
     children: Box<[Option<Box<ARTNode>>]>, // 48 slots
+    score: Option<f32>,
     size: usize,
+    is_terminal: bool,
 }
 
+// Pack struct for better cache locality
+#[repr(C)]
 struct Node256 {
     prefix: Prefix,
-    is_terminal: bool,
-    score: Option<f32>,
     children: Box<[Option<Box<ARTNode>>]>, // 256 slots
+    score: Option<f32>,
     size: usize,
+    is_terminal: bool,
 }
 
 // --- Node4/Node16 implementations ---
 impl Node4 {
+    #[inline]
     fn new() -> Self {
         Node4 {
             prefix: SmallVec::new(),
-            is_terminal: false,
-            score: None,
             keys: SmallVec::new(),
             children: SmallVec::new(),
+            score: None,
+            is_terminal: false,
         }
     }
 
@@ -743,6 +756,8 @@ impl ART {
             root: None,
             path_count: 0,
             max_results,
+            operation_buffer: Vec::with_capacity(256),
+            key_cache: Vec::with_capacity(16),
         }
     }
 

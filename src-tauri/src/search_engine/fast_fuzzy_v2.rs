@@ -70,6 +70,8 @@ static mut CHAR_MAPPING: [u8; 256] = [0; 256];
 pub struct PathMatcher {
     paths: Vec<String>,
     trigram_index: TrigramMap,
+    /// Reusable buffer for trigram extraction to avoid repeated allocations
+    extraction_buffer: Vec<u8>,
 }
 
 impl PathMatcher {
@@ -92,7 +94,9 @@ impl PathMatcher {
 
         PathMatcher {
             paths: Vec::new(),
-            trigram_index: FxHashMap::with_capacity_and_hasher(4096, Default::default()),
+            // Better capacity estimation: ~20 trigrams per path on average
+            trigram_index: FxHashMap::with_capacity_and_hasher(8192, Default::default()),
+            extraction_buffer: Vec::with_capacity(1024), // Pre-allocate reasonable buffer
         }
     }
 
@@ -223,16 +227,39 @@ impl PathMatcher {
             return;
         }
 
+        // Use stack allocation for small paths, heap for larger ones
+        const MAX_STACK_PATH: usize = 512;
         let mut trigram_bytes = [0u8; 3];
-        let mut padded = Vec::with_capacity(bytes.len() + 4);
-        padded.push(b' ');
-        padded.push(b' ');
-        padded.extend_from_slice(bytes);
-        padded.push(b' ');
-        padded.push(b' ');
+        
+        if bytes.len() <= MAX_STACK_PATH {
+            // Use stack-allocated buffer for small paths
+            let mut stack_buffer = [b' '; MAX_STACK_PATH + 4];
+            stack_buffer[0] = b' ';
+            stack_buffer[1] = b' ';
+            stack_buffer[2..2+bytes.len()].copy_from_slice(bytes);
+            stack_buffer[2+bytes.len()] = b' ';
+            stack_buffer[3+bytes.len()] = b' ';
+            
+            self.process_trigrams(&stack_buffer[..bytes.len() + 4], path_idx, &mut trigram_bytes);
+        } else {
+            // Use reusable buffer for larger paths
+            self.extraction_buffer.clear();
+            self.extraction_buffer.reserve(bytes.len() + 4);
+            self.extraction_buffer.push(b' ');
+            self.extraction_buffer.push(b' ');
+            self.extraction_buffer.extend_from_slice(bytes);
+            self.extraction_buffer.push(b' ');
+            self.extraction_buffer.push(b' ');
+            
+            // Clone buffer to avoid borrowing issues
+            let buffer_copy = self.extraction_buffer.clone();
+            self.process_trigrams(&buffer_copy, path_idx, &mut trigram_bytes);
+        }
+    }
 
-        let mut seen_trigrams =
-            FxHashSet::with_capacity_and_hasher(padded.len(), Default::default());
+    /// Helper function to process trigrams from a padded byte array
+    fn process_trigrams(&mut self, padded: &[u8], path_idx: u32, trigram_bytes: &mut [u8; 3]) {
+        let mut seen_trigrams = FxHashSet::with_capacity_and_hasher(padded.len(), Default::default());
 
         for i in 0..padded.len() - 2 {
             trigram_bytes[0] = Self::fast_lowercase(padded[i]);
