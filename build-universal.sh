@@ -75,8 +75,24 @@ print_success "Previous builds cleaned"
 
 # Step 2: Install dependencies
 print_step "Installing Node.js dependencies..."
-npm install
-print_success "Node.js dependencies installed"
+# Avoid slow/recursive lifecycle by ignoring scripts; prefer clean, reproducible install
+if [ -d node_modules ]; then
+    print_status "node_modules exists; skipping clean install"
+else
+    if command -v npm >/dev/null 2>&1; then
+        # Try npm ci first for reproducibility; fall back to install if lockfile mismatch
+        if npm ci --no-audit --no-fund --ignore-scripts; then
+            print_success "Node.js dependencies installed (ci)"
+        else
+            print_warning "npm ci failed; falling back to npm install"
+            npm install --no-audit --no-fund --ignore-scripts
+            print_success "Node.js dependencies installed (install)"
+        fi
+    else
+        print_error "npm not found. Please install Node.js."
+        exit 1
+    fi
+fi
 
 print_step "Installing Rust dependencies..."
 cd src-tauri
@@ -90,8 +106,6 @@ npm run build
 print_success "React frontend built"
 
 # Step 4: Build for each target
-declare -A BUILD_PATHS
-declare -A DMG_PATHS
 
 for i in "${!TARGETS[@]}"; do
     target="${TARGETS[$i]}"
@@ -101,12 +115,11 @@ for i in "${!TARGETS[@]}"; do
     
     print_step "Compiling Rust application for $target..."
     cd src-tauri
-    cargo tauri build --target "$target"
+    # In some macOS setups, create-dmg AppleScript steps can fail; set CI=true to skip Finder automation
+    CI=true cargo tauri build --target "$target"
     cd ..
     
-    # Store paths for later use
-    BUILD_PATHS["$target"]="target/$target/release/bundle"
-    DMG_PATHS["$target"]="target/$target/release/bundle/dmg/${APP_NAME}_${VERSION}_$(echo $target | cut -d- -f1).dmg"
+    # Paths can be derived on demand; no associative arrays (macOS Bash 3.2)
     
     print_success "Build completed for $target_name"
 done

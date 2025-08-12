@@ -5,6 +5,10 @@
 
 echo "🔧 Running post-build macOS fixes..."
 
+# Resolve paths relative to repo root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 # Get the target architecture
 TARGET_ARCH="${CARGO_CFG_TARGET_ARCH:-aarch64}"
 TARGET_OS="${CARGO_CFG_TARGET_OS:-macos}"
@@ -15,9 +19,27 @@ if [ "$TARGET_OS" != "macos" ]; then
 fi
 
 APP_NAME="Explr"
-BUILD_DIR="../target/${TARGET_ARCH}-apple-darwin/release/bundle"
+# Tauri outputs into repo root `target/`, not `src-tauri/target/`
+BUILD_DIR="$ROOT_DIR/target/${TARGET_ARCH}-apple-darwin/release/bundle"
 APP_PATH="$BUILD_DIR/macos/$APP_NAME.app"
-DMG_PATH="$BUILD_DIR/dmg/${APP_NAME}_0.2.3_${TARGET_ARCH}.dmg"
+
+# Resolve DMG path robustly across arch naming variations (x86_64 vs x64, aarch64 vs arm64)
+DMG_DIR="$BUILD_DIR/dmg"
+
+# Preferred pattern: suffix matches TARGET_ARCH exactly
+DMG_PATH=""
+for pattern in \
+    "$DMG_DIR/${APP_NAME}_*_${TARGET_ARCH}.dmg" \
+    "$DMG_DIR/${APP_NAME}_*_x64.dmg" \
+    "$DMG_DIR/${APP_NAME}_*_arm64.dmg" \
+    "$DMG_DIR/${APP_NAME}_*.dmg"; do
+    for f in $pattern; do
+        if [ -f "$f" ]; then
+            DMG_PATH="$f"
+            break 2
+        fi
+    done
+done
 
 echo "🔍 Checking for app bundle at: $APP_PATH"
 

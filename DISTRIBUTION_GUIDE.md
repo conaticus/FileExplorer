@@ -26,11 +26,11 @@ npm run tauri:build:intel
 
 After running the universal build, you'll find distribution files in:
 ```
-dist/Explr-0.2.3-macos/
+dist/file-explorer-0.2.3-macos/
 ├── Explr-0.2.3-aarch64.dmg    # Apple Silicon (M-series)
 ├── Explr-0.2.3-x86_64.dmg     # Intel Macs
-├── checksums.sha256                     # File verification
-└── README.md                           # User installation guide
+├── checksums.sha256           # File verification
+└── README.md                  # User installation guide
 ```
 
 ## Architecture Guide for Users
@@ -194,15 +194,17 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies fast
+        run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Build universal
-        run: ./build-universal.sh
+        env:
+          CI: "true"  # skip Finder AppleScript during DMG creation
+        run: npm run dist
       - name: Upload assets
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./dist/Explr-0.2.3-macos/
+          asset_path: ./dist/file-explorer-0.2.3-macos/
 ```
 
 ## Support and Maintenance
