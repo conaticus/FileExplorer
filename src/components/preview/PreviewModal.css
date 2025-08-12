@@ -180,15 +180,15 @@
 
 /* PDF Preview */
 .preview-pdf-container {
-  min-height: 500px;
-  max-height: 85vh;
+  min-height: 700px;
+  max-height: 90vh;
   position: relative;
 }
 
 .preview-pdf {
   width: 100%;
   height: 100%;
-  min-height: 500px;
+  min-height: 700px;
   border: none;
 }
 

@@ -755,6 +755,12 @@ export default function ContextMenuProvider({ children }) {
         openContextMenu,
         closeContextMenu,
         removeFromFavorites, // Export this for Sidebar to use
+        copyToClipboard,
+        cutToClipboard,
+        pasteFromClipboard,
+        deleteItems,
+        renameItem,
+        showProperties,
     };
 
     return (

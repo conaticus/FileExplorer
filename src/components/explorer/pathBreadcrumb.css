@@ -4,7 +4,6 @@
     flex: 1;
     height: 32px;
     min-width: 0;
-    padding-right: 16px;
 }
 
 .path-breadcrumb {
@@ -21,6 +20,14 @@
     min-width: 0;
 }
 
+.action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: 12px;
+    flex-shrink: 0;
+}
+
 .path-breadcrumb:hover {
     background-color: var(--surface-hover);
 }
@@ -32,10 +39,11 @@
 .breadcrumb-segments {
     display: flex;
     align-items: center;
-    width: 100%;
+    flex: 1;
     overflow-x: auto;
     white-space: nowrap;
     scrollbar-width: none; /* Hide scrollbar in Firefox */
+    min-width: 0;
 }
 
 .breadcrumb-segments::-webkit-scrollbar {
@@ -79,6 +87,108 @@
     color: var(--text-primary);
     font-size: var(--font-size-sm);
     outline: none;
+}
+
+.path-input:focus {
+    outline: none;
+    border: none;
+    box-shadow: none;
+}
+
+.path-search-input {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    outline: none;
+}
+
+.path-search-input:focus {
+    outline: none;
+    border: none;
+    box-shadow: none;
+}
+
+.path-search-input::placeholder {
+    color: var(--text-tertiary);
+    font-style: italic;
+}
+
+.search-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.search-icon-btn:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.search-icon-btn .icon {
+    width: 14px;
+    height: 14px;
+}
+
+.copy-path-btn-internal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.copy-path-btn-internal:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.copy-path-btn-internal .icon {
+    width: 14px;
+    height: 14px;
+}
+
+.copy-separator {
+    width: 1px;
+    height: 16px;
+    background-color: var(--border);
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+
+.search-separator {
+    width: 1px;
+    height: 16px;
+    background-color: var(--border);
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+
+.path-breadcrumb.searching:not(.editing) .breadcrumb-segments {
+    display: none;
+}
+
+.path-breadcrumb {
+    position: relative;
 }
 
 .copy-path-btn {
