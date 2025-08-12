@@ -14,11 +14,12 @@ import './fileList.css';
  * @param {boolean} props.isLoading - Whether the file list is currently loading
  * @param {string} [props.viewMode='grid'] - Display mode: 'grid', 'list', or 'details'
  * @param {boolean} [props.isSearching=false] - Whether the list is showing search results
+ * @param {string} [props.searchTerm=''] - The search term being used
  * @param {boolean} [props.disableArrowKeys=false] - Whether to disable arrow key navigation
  * @param {Function} [props.onColumnsChange] - Callback when columns per row changes
  * @returns {React.ReactElement} File list component
  */
-const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, disableArrowKeys = false, onColumnsChange }) => {
+const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, searchTerm = '', disableArrowKeys = false, onColumnsChange }) => {
     const { selectedItems, selectItem, loadDirectory, clearSelection, focusedItem, setFocusedItem } = useFileSystem();
     const { openContextMenu } = useContextMenu();
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
@@ -482,7 +483,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, dis
                 >
                     <EmptyState
                         type={isSearching ? 'no-results' : 'empty-folder'}
-                        searchTerm={isSearching ? "your search" : undefined}
+                        searchTerm={isSearching ? searchTerm : undefined}
                     />
                 </div>
             </div>

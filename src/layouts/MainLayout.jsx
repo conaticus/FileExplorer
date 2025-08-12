@@ -12,7 +12,6 @@ import Sidebar from '../components/sidebar/Sidebar';
 import PathBreadcrumb from '../components/explorer/PathBreadcrumb';
 import NavigationButtons from '../components/explorer/NavigationButtons';
 import FileList from '../components/explorer/FileList';
-import SearchBar from '../components/search/SearchBar';
 import DetailsPanel from '../components/explorer/DetailsPanel';
 import ContextMenu from '../components/contextMenu/ContextMenu';
 import ViewModes from '../components/explorer/ViewModes';
@@ -51,9 +50,21 @@ import {replaceFileName} from "../utils/pathUtils.js";
 const MainLayout = () => {
     const { theme, toggleTheme } = useTheme();
     const { isLoading, currentDirData, selectedItems, loadDirectory, volumes, focusedItem, setFocusedItem } = useFileSystem();
-    const { isOpen: isContextMenuOpen, position, items, closeContextMenu } = useContextMenu();
+    const { 
+        isOpen: isContextMenuOpen, 
+        position, 
+        items, 
+        closeContextMenu, 
+        clipboard,
+        copyToClipboard,
+        cutToClipboard,
+        pasteFromClipboard,
+        deleteItems,
+        renameItem,
+        showProperties
+    } = useContextMenu();
     const { currentPath } = useHistory();
-    const { settings } = useSettings();
+    const { settings, updateSetting } = useSettings();
 
     // UI State - Initialize from settings
     const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(settings.show_details_panel || false);
@@ -68,7 +79,7 @@ const MainLayout = () => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
-    const [renameItem, setRenameItem] = useState(null);
+    const [itemToRename, setItemToRename] = useState(null);
 
     // Hash Modal states
     const [isHashFileModalOpen, setIsHashFileModalOpen] = useState(false);
@@ -324,8 +335,15 @@ const MainLayout = () => {
          */
         const handleOpenRenameModal = (e) => {
             if (e.detail && e.detail.item) {
-                setRenameItem(e.detail.item);
-                setIsRenameModalOpen(true);
+                // Close any existing modal first to prevent duplicates
+                setIsRenameModalOpen(false);
+                setItemToRename(null);
+                
+                // Small delay to ensure cleanup, then open new modal
+                setTimeout(() => {
+                    setItemToRename(e.detail.item);
+                    setIsRenameModalOpen(true);
+                }, 10);
             }
         };
 
@@ -602,6 +620,59 @@ const MainLayout = () => {
     }, [isDetailsPanelOpen]);
 
     /**
+     * Handles hidden files visibility toggle with settings persistence
+     */
+    const handleHiddenFilesToggle = useCallback(async () => {
+        const newState = !settings.show_hidden_files_and_folders;
+        
+        try {
+            await updateSetting('show_hidden_files_and_folders', newState);
+            // Reload the current directory to reflect the change
+            if (currentPath) {
+                await loadDirectory(currentPath);
+            }
+        } catch (error) {
+            console.error('Failed to toggle hidden files setting:', error);
+        }
+    }, [settings.show_hidden_files_and_folders, updateSetting, currentPath, loadDirectory]);
+
+    /**
+     * File operation handlers - use the existing context menu functionality
+     */
+    const handleCut = useCallback(() => {
+        if (selectedItems.length === 0) return;
+        cutToClipboard(selectedItems);
+    }, [selectedItems, cutToClipboard]);
+
+    const handleCopy = useCallback(() => {
+        if (selectedItems.length === 0) return;
+        copyToClipboard(selectedItems);
+    }, [selectedItems, copyToClipboard]);
+
+    const handlePaste = useCallback(() => {
+        if (!clipboard.items || clipboard.items.length === 0) return;
+        pasteFromClipboard();
+    }, [clipboard.items, pasteFromClipboard]);
+
+    const handleRenameToolbar = useCallback(() => {
+        if (selectedItems.length !== 1) return;
+        // Directly dispatch the event instead of calling renameItem to avoid conflicts
+        document.dispatchEvent(new CustomEvent('open-rename-modal', {
+            detail: { item: selectedItems[0] }
+        }));
+    }, [selectedItems]);
+
+    const handleDelete = useCallback(() => {
+        if (selectedItems.length === 0) return;
+        deleteItems(selectedItems);
+    }, [selectedItems, deleteItems]);
+
+    const handleProperties = useCallback(() => {
+        if (selectedItems.length === 0) return;
+        showProperties(selectedItems[0]);
+    }, [selectedItems, showProperties]);
+
+    /**
      * Effect to clear search when changing directory
      */
     useEffect(() => {
@@ -629,7 +700,107 @@ const MainLayout = () => {
                 return (
                     <div className="files-container">
                         <div className="action-bar">
-                            <CreateFileButton />
+                            <div className="action-bar-left">
+                                <CreateFileButton />
+                                
+                                <div className="action-divider"></div>
+                                
+                                <button
+                                    className="icon-button"
+                                    onClick={handleCut}
+                                    disabled={selectedItems.length === 0}
+                                    title="Cut (Ctrl+X)"
+                                    aria-label="Cut selected items"
+                                >
+                                    <span className="icon icon-cut"></span>
+                                </button>
+                                
+                                <button
+                                    className="icon-button"
+                                    onClick={handleCopy}
+                                    disabled={selectedItems.length === 0}
+                                    title="Copy (Ctrl+C)"
+                                    aria-label="Copy selected items"
+                                >
+                                    <span className="icon icon-copy"></span>
+                                </button>
+                                
+                                <button
+                                    className="icon-button"
+                                    onClick={handlePaste}
+                                    disabled={!clipboard.items || clipboard.items.length === 0}
+                                    title="Paste (Ctrl+V)"
+                                    aria-label="Paste items"
+                                >
+                                    <span className="icon icon-paste"></span>
+                                </button>
+                                
+                                <button
+                                    className="icon-button"
+                                    onClick={handleRenameToolbar}
+                                    disabled={selectedItems.length !== 1}
+                                    title="Rename (F2)"
+                                    aria-label="Rename selected item"
+                                >
+                                    <span className="icon icon-rename"></span>
+                                </button>
+                                
+                                <button
+                                    className="icon-button"
+                                    onClick={handleDelete}
+                                    disabled={selectedItems.length === 0}
+                                    title="Delete (Del)"
+                                    aria-label="Delete selected items"
+                                >
+                                    <span className="icon icon-trash"></span>
+                                </button>
+                                
+                                <button
+                                    className="icon-button"
+                                    onClick={handleProperties}
+                                    disabled={selectedItems.length === 0}
+                                    title="Properties (Alt+Enter)"
+                                    aria-label="Show properties"
+                                >
+                                    <span className="icon icon-properties"></span>
+                                </button>
+                            </div>
+
+                            <div className="action-bar-right">
+                                {currentView === 'explorer' && (
+                                    <ViewModes
+                                        currentMode={viewMode}
+                                        onChange={handleViewModeChange}
+                                    />
+                                )}
+                                
+                                <button
+                                    className="icon-button"
+                                    onClick={toggleTheme}
+                                    title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
+                                    aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+                                >
+                                    <span className={`icon ${theme === 'light' ? 'icon-moon' : 'icon-sun'}`}></span>
+                                </button>
+                                
+                                <button
+                                    className="icon-button toggle-hidden-files"
+                                    onClick={handleHiddenFilesToggle}
+                                    title={`${settings.show_hidden_files_and_folders ? 'Hide' : 'Show'} hidden files and folders`}
+                                    aria-label="Toggle hidden files visibility"
+                                >
+                                    <span className={`icon ${settings.show_hidden_files_and_folders ? 'icon-eye' : 'icon-eye-off'}`}></span>
+                                </button>
+                                
+                                <button
+                                    className={`icon-button ${isDetailsPanelOpen ? 'active' : ''}`}
+                                    onClick={handleDetailsPanelToggle}
+                                    title="Details Panel"
+                                    aria-label="Toggle details panel"
+                                >
+                                    <span className="icon icon-panel-right"></span>
+                                </button>
+                            </div>
                         </div>
 
                         <FileList
@@ -637,6 +808,7 @@ const MainLayout = () => {
                             isLoading={isLoading}
                             viewMode={viewMode}
                             isSearching={!!searchValue}
+                            searchTerm={searchValue}
                             disableArrowKeys={isPreviewOpen}
                             onColumnsChange={setColumnsPerRow}
                         />
@@ -652,33 +824,17 @@ const MainLayout = () => {
 
             {/* Full-width tabs at the top */}
             <TabManager>
-                <div className="layout-content">
-                    {/* Sidebar */}
-                    <Sidebar
-                        onTerminalToggle={() => setIsTerminalOpen(!isTerminalOpen)}
-                        isTerminalOpen={isTerminalOpen}
-                        currentView={currentView}
-                    />
-
-                    {/* Main content area */}
-                    <div className="content-area">
-                        {/* Toolbar with navigation and actions */}
-                        <div className="toolbar">
+                {/* Full-width toolbar */}
+                <div className="toolbar">
                         <div className="toolbar-left">
                             <NavigationButtons />
                             <PathBreadcrumb
                                 onCopyPath={copyCurrentPath}
                                 isVisible={currentView === 'explorer'}
+                                onSearch={handleSearch}
                             />
                         </div>
                         <div className="toolbar-center">
-                            {currentView === 'explorer' && (
-                                <SearchBar
-                                    value={searchValue}
-                                    onChange={handleSearch}
-                                    placeholder="Search in current folder"
-                                />
-                            )}
                         </div>
                         <div className="toolbar-right">
                             <button
@@ -690,34 +846,22 @@ const MainLayout = () => {
                                 <span className="icon icon-search-global"></span>
                             </button>
 
-                            {currentView === 'explorer' && (
-                                <ViewModes
-                                    currentMode={viewMode}
-                                    onChange={handleViewModeChange}
-                                />
-                            )}
 
-                            <button
-                                className={`icon-button ${isDetailsPanelOpen ? 'active' : ''}`}
-                                onClick={handleDetailsPanelToggle}
-                                title="Details Panel"
-                                aria-label="Toggle details panel"
-                            >
-                                <span className="icon icon-panel-right"></span>
-                            </button>
 
-                            <button
-                                className="icon-button"
-                                onClick={toggleTheme}
-                                title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
-                                aria-label="Toggle theme"
-                            >
-                                <span className={`icon icon-${theme === 'light' ? 'moon' : 'sun'}`}></span>
-                            </button>
                         </div>
-                    </div>
+                </div>
 
-                    {/* Main content with file list and optional details panel */}
+                <div className="layout-content">
+                    {/* Sidebar */}
+                    <Sidebar
+                        onTerminalToggle={() => setIsTerminalOpen(!isTerminalOpen)}
+                        isTerminalOpen={isTerminalOpen}
+                        currentView={currentView}
+                    />
+
+                    {/* Main content area */}
+                    <div className="content-area">
+                        {/* Main content with file list and optional details panel */}
                     <div
                         className="main-content"
                         style={isTerminalOpen ? { paddingBottom: `${terminalHeight}px` } : {}}
@@ -782,7 +926,7 @@ const MainLayout = () => {
             <RenameModal
                 isOpen={isRenameModalOpen}
                 onClose={() => setIsRenameModalOpen(false)}
-                item={renameItem}
+                item={itemToRename}
                 onRename={handleRename}
             />
 

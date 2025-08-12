@@ -12,12 +12,15 @@ import './pathBreadcrumb.css';
  * @param {boolean} [props.isVisible=true] - Whether the breadcrumb is visible
  * @returns {React.ReactElement} PathBreadcrumb component
  */
-const PathBreadcrumb = ({ onCopyPath, isVisible = true }) => {
+const PathBreadcrumb = ({ onCopyPath, isVisible = true, onSearch }) => {
     const { currentPath, navigateTo } = useHistory();
-    const { loadDirectory } = useFileSystem();
+    const { loadDirectory, currentDirData } = useFileSystem();
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState('');
+    const [isSearchVisible, setIsSearchVisible] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const inputRef = useRef(null);
+    const searchInputRef = useRef(null);
 
     /**
      * Parses the current path into segments for breadcrumb navigation
@@ -121,6 +124,66 @@ const PathBreadcrumb = ({ onCopyPath, isVisible = true }) => {
         loadDirectory(path);
     };
 
+    /**
+     * Handles search icon click to show/hide search overlay
+     */
+    const handleSearchClick = () => {
+        if (isSearchVisible) {
+            // Clear search completely and return to breadcrumb view
+            setSearchQuery('');
+            if (onSearch) {
+                onSearch('');
+            }
+            setIsSearchVisible(false);
+            setIsEditing(false); // Ensure we're not in editing mode
+        } else {
+            // Show search overlay and focus input
+            setIsEditing(false); // Exit editing mode when starting search
+            setIsSearchVisible(true);
+            setTimeout(() => {
+                if (searchInputRef.current) {
+                    searchInputRef.current.focus();
+                }
+            }, 0);
+        }
+    };
+
+    /**
+     * Handles search input changes and performs local folder search
+     */
+    const handleSearchChange = (e) => {
+        const query = e.target.value;
+        setSearchQuery(query);
+        
+        // Perform local search like in MainLayout
+        if (!query.trim()) {
+            // Clear search results
+            if (onSearch) {
+                onSearch('');
+            }
+            return;
+        }
+
+        // Simple local search filtering current directory contents
+        if (currentDirData && onSearch) {
+            onSearch(query);
+        }
+    };
+
+    /**
+     * Handles search input key events
+     */
+    const handleSearchKeyDown = (e) => {
+        if (e.key === 'Escape') {
+            // Clear search completely and return to breadcrumb view
+            setSearchQuery('');
+            if (onSearch) {
+                onSearch('');
+            }
+            setIsSearchVisible(false);
+        }
+    };
+
     // Focus input when editing starts
     useEffect(() => {
         if (isEditing && inputRef.current) {
@@ -141,8 +204,35 @@ const PathBreadcrumb = ({ onCopyPath, isVisible = true }) => {
 
     return (
         <div className="path-breadcrumb-container">
-            <div className={`path-breadcrumb ${isEditing ? 'editing' : ''}`} onClick={!isEditing ? handleClick : undefined}>
-                {isEditing ? (
+            <div className={`path-breadcrumb ${isEditing ? 'editing' : ''} ${isSearchVisible ? 'searching' : ''}`} onClick={!isEditing && !isSearchVisible ? (e) => {
+                // Only handle click if it's not on the search icon button
+                if (!e.target.closest('.search-icon-btn')) {
+                    handleClick(e);
+                }
+            } : undefined}>
+                {isSearchVisible ? (
+                    <input
+                        ref={searchInputRef}
+                        className="path-search-input"
+                        value={searchQuery}
+                        onChange={handleSearchChange}
+                        onKeyDown={handleSearchKeyDown}
+                        onBlur={(e) => {
+                            // Delay blur handler to allow click handler to run first
+                            setTimeout(() => {
+                                if (!searchQuery.trim() && isSearchVisible) {
+                                    // Clear search completely and return to breadcrumb view
+                                    if (onSearch) {
+                                        onSearch('');
+                                    }
+                                    setIsSearchVisible(false);
+                                }
+                            }, 100);
+                        }}
+                        placeholder="Search in current folder"
+                        aria-label="Search in current folder"
+                    />
+                ) : isEditing ? (
                     <input
                         ref={inputRef}
                         className="path-input"
@@ -170,18 +260,45 @@ const PathBreadcrumb = ({ onCopyPath, isVisible = true }) => {
                         ))}
                     </div>
                 )}
-            </div>
+                
+                
+                {/* Action buttons container */}
+                <div className="action-buttons">
+                    {/* Copy path button with separator when not in search mode */}
+                    {!isSearchVisible && onCopyPath && currentPath && (
+                        <>
+                            <div className="copy-separator"></div>
+                            <button
+                                className="copy-path-btn-internal"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCopyPath();
+                                }}
+                                title="Copy current path"
+                                aria-label="Copy current path"
+                            >
+                                <span className="icon icon-copy"></span>
+                            </button>
+                        </>
+                    )}
 
-            {onCopyPath && currentPath && (
-                <button
-                    className="copy-path-btn"
-                    onClick={onCopyPath}
-                    title="Copy current path"
-                    aria-label="Copy current path"
-                >
-                    <span className="icon icon-copy"></span>
-                </button>
-            )}
+                    {/* Separation line when not in search mode */}
+                    {!isSearchVisible && <div className="search-separator"></div>}
+                    
+                    {/* Always show search icon - changes to cross when search is active */}
+                    <button
+                        className="search-icon-btn"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleSearchClick();
+                        }}
+                        title={isSearchVisible ? "Clear search" : "Search in current folder"}
+                        aria-label={isSearchVisible ? "Clear search" : "Search in current folder"}
+                    >
+                        <span className={`icon ${isSearchVisible ? 'icon-x' : 'icon-search'}`}></span>
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

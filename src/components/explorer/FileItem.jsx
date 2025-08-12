@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import FileIcon from './FileIcon';
-import RenameModal from '../common/RenameModal';
 import { formatFileSize, formatDate, getFileType } from '../../utils/formatters';
 import { replaceFileName } from '../../utils/pathUtils.js';
 import { invoke } from '@tauri-apps/api/core';
@@ -31,7 +30,6 @@ const FileItem = ({
                       onDoubleClick,
                       onContextMenu
                   }) => {
-    const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const { loadDirectory } = useFileSystem();
     const { currentPath } = useHistory();
     const { clipboard } = useContextMenu();
@@ -49,22 +47,6 @@ const FileItem = ({
     // Format modified date
     const modified = formatDate(item.last_modified);
 
-    /**
-     * Sets up event listener for rename modal events
-     */
-    useEffect(() => {
-        const handleOpenRenameModal = (e) => {
-            if (e.detail && e.detail.item && e.detail.item.path === item.path) {
-                setIsRenameModalOpen(true);
-            }
-        };
-
-        document.addEventListener('open-rename-modal', handleOpenRenameModal);
-
-        return () => {
-            document.removeEventListener('open-rename-modal', handleOpenRenameModal);
-        };
-    }, [item.path]);
 
     /**
      * Handles the rename operation with robust path handling
@@ -226,13 +208,6 @@ const FileItem = ({
                 )}
             </div>
 
-            {/* Rename Modal */}
-            <RenameModal
-                isOpen={isRenameModalOpen}
-                onClose={() => setIsRenameModalOpen(false)}
-                item={item}
-                onRename={handleRename}
-            />
         </>
     );
 };

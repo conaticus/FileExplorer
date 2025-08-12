@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useHistory } from './HistoryProvider';
+import { useSettings } from './SettingsProvider';
 import { getDirectoryPath } from '../utils/pathUtils';
 
 // Create file system context
@@ -34,6 +35,35 @@ export default function FileSystemProvider({ children }) {
     const [volumes, setVolumes] = useState([]);
     const [error, setError] = useState(null);
     const { navigateTo, currentPath } = useHistory();
+    const { settings } = useSettings();
+
+    // Helper function to check if a file or directory is hidden
+    const isHiddenItem = useCallback((name) => {
+        // Files/folders starting with a dot are considered hidden on Unix-like systems
+        return name.startsWith('.');
+    }, []);
+
+    // Helper function to filter directory data based on hidden files setting
+    const filterDirectoryData = useCallback((dirData) => {
+        if (!dirData) return dirData;
+        
+        // If show_hidden_files_and_folders is true, return data as-is
+        if (settings.show_hidden_files_and_folders) {
+            return dirData;
+        }
+
+        // Filter out hidden files and directories
+        const filteredDirectories = dirData.directories ? 
+            dirData.directories.filter(dir => !isHiddenItem(dir.name)) : [];
+        const filteredFiles = dirData.files ? 
+            dirData.files.filter(file => !isHiddenItem(file.name)) : [];
+
+        return {
+            ...dirData,
+            directories: filteredDirectories,
+            files: filteredFiles
+        };
+    }, [settings.show_hidden_files_and_folders, isHiddenItem]);
 
     // Load system volumes information
     const loadVolumes = useCallback(async () => {
@@ -94,7 +124,8 @@ export default function FileSystemProvider({ children }) {
 
             try {
                 const dirData = JSON.parse(dirContent);
-                setCurrentDirData(dirData);
+                const filteredData = filterDirectoryData(dirData);
+                setCurrentDirData(filteredData);
                 navigateTo(path);
                 console.log(`Successfully loaded directory: ${path}`);
                 return true;
@@ -109,7 +140,7 @@ export default function FileSystemProvider({ children }) {
             // Stelle sicher, dass isLoading auf jeden Fall auf false gesetzt wird
             setIsLoading(false);
         }
-    }, [navigateTo]);
+    }, [navigateTo, filterDirectoryData]);
 
 // Verbesserte getDefaultDirectory-Funktion
     const getDefaultDirectory = useCallback(async () => {
@@ -419,6 +450,13 @@ export default function FileSystemProvider({ children }) {
             loadDirectory(currentPath);
         }
     }, [currentPath, loadDirectory]);
+
+    // Reload current directory when hidden files setting changes
+    useEffect(() => {
+        if (currentPath) {
+            loadDirectory(currentPath);
+        }
+    }, [settings.show_hidden_files_and_folders, currentPath, loadDirectory]);
 
     const contextValue = {
         currentDirData,
