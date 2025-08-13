@@ -67,6 +67,55 @@ const NavigationButtons = () => {
                 }, 3000);
             }
         }
+        else {
+            try {
+                // Refresh volumes (disks, space, etc.)
+                await loadVolumes();
+                console.log('Volumes refreshed successfully');
+
+                // Optionally show a brief success indicator
+                const notification = document.createElement('div');
+                notification.textContent = 'Volumes refreshed';
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: var(--success);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    z-index: 10000;
+                    font-size: 14px;
+                    animation: slideIn 0.3s ease-out;
+                `;
+                document.body.appendChild(notification);
+                setTimeout(() => {
+                    notification.remove();
+                }, 2000);
+            } catch (error) {
+                console.error('Failed to refresh volumes:', error);
+
+                // Show error notification
+                const notification = document.createElement('div');
+                notification.textContent = 'Failed to refresh volumes';
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: var(--error);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    z-index: 10000;
+                    font-size: 14px;
+                    animation: slideIn 0.3s ease-out;
+                `;
+                document.body.appendChild(notification);
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+            }
+        }
     };
 
     return (
