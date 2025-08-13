@@ -1,5 +1,5 @@
 {
-  "name": "file-explorer",
+  "name": "explr",
   "private": true,
   "version": "0.2.3",
   "type": "module",
@@ -8,7 +8,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "prepare": "npm install && cd src-tauri && npm install"
+    "tauri:build:macos": "cargo tauri build --target aarch64-apple-darwin && cd src-tauri/scripts && ./post-build.sh",
+    "tauri:build:intel": "cargo tauri build --target x86_64-apple-darwin && cd src-tauri/scripts && ./post-build.sh",
+    "build:universal": "./build-universal.sh",
+    "dist": "./build-universal.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",
