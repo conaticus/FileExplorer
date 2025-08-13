@@ -3,17 +3,19 @@
     flex-direction: column;
     background-color: #1e1e1e;
     color: #ddd;
-    font-family: 'Cascadia Code', 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 14px;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace;
+    font-size: 13px;
+    line-height: 1.2;
     overflow: hidden;
     border-radius: 8px 8px 0 0;
-    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.6);
     width: 100%;
     z-index: 10;
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
+    border-top: 1px solid #333;
 }
 
 .terminal-header {
@@ -24,6 +26,7 @@
     padding: 8px 12px;
     border-bottom: 1px solid #444;
     user-select: none;
+    min-height: 40px;
 }
 
 .terminal-title {
@@ -31,15 +34,13 @@
     align-items: center;
     gap: 8px;
     font-weight: bold;
-}
-
-.terminal-title .icon-terminal, .terminal-controls {
-    filter: invert();
+    color: #ddd;
+    font-size: 14px;
 }
 
 .terminal-controls {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 }
 
 .terminal-control {
@@ -50,32 +51,45 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.2s ease;
 }
 
 .terminal-control:hover {
     background-color: #444;
+    color: #fff;
+    transform: scale(1.05);
+}
+
+.terminal-clear:hover {
+    background-color: #444;
+}
+
+.terminal-close:hover {
+    background-color: #e74c3c;
     color: #fff;
 }
 
 .terminal-content {
     flex: 1;
     overflow-y: auto;
-    padding: 12px;
+    padding: 16px;
     height: calc(100% - 40px); /* Account for header */
+    background-color: #1e1e1e;
 }
 
 .terminal-line {
-    margin-bottom: 8px;
-    line-height: 1.4;
+    margin-bottom: 4px;
+    line-height: 1.3;
     white-space: pre-wrap;
     word-break: break-word;
 }
 
 .terminal-system {
-    color: #3794ff;
+    color: #ddd;
 }
 
 .terminal-command {
@@ -84,10 +98,12 @@
 
 .terminal-output {
     color: #ddd;
+    margin-left: 0;
 }
 
 .terminal-error {
-    color: #f44747;
+    color: #ff6b6b;
+    margin-left: 0;
 }
 
 .terminal-entry {
@@ -95,9 +111,63 @@
     flex-direction: column;
 }
 
+/* Legacy prompt class - keeping for compatibility */
 .terminal-prompt {
     color: #3ad900;
     margin-right: 8px;
+    user-select: none;
+}
+
+/* New colorized prompt components */
+.terminal-command-line {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 2px;
+}
+
+.terminal-current-prompt {
+    display: flex;
+    align-items: baseline;
+    user-select: none;
+}
+
+.terminal-prompt-user {
+    color: #3ad900; /* Original green */
+    font-weight: 500;
+}
+
+.terminal-prompt-at {
+    color: #3ad900; /* Original green */
+}
+
+.terminal-prompt-host {
+    color: #3ad900; /* Original green */
+    font-weight: 500;
+}
+
+.terminal-prompt-colon {
+    color: #3ad900; /* Original green */
+}
+
+.terminal-prompt-path {
+    color: #3ad900; /* Original green */
+    font-weight: 500;
+}
+
+.terminal-prompt-dollar {
+    color: #3ad900; /* Original green */
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+.terminal-command-text {
+    color: #ffffff; /* Bright white for the actual command */
+    font-weight: normal;
+}
+
+.terminal-prompt-search {
+    color: #f39c12;
+    font-style: italic;
     user-select: none;
 }
 
@@ -118,27 +188,28 @@
 .terminal-input-line {
     display: flex;
     align-items: baseline;
-    margin-top: 8px;
+    margin-top: 4px;
     width: 100%;
     position: relative;
+    min-height: 18px;
 }
 
 .terminal-input {
     flex: 1;
     background: transparent;
     border: none;
-    color: #ddd;
+    color: #ffffff;
     font-family: inherit;
     font-size: inherit;
+    font-weight: normal;
     padding: 0;
     margin: 0;
     outline: none;
-    caret-color: #fff;
 }
 
-/* Ensure input text is visible and not overlaid by special characters */
+/* Selection styling for input */
 .terminal-input::selection {
-    background-color: rgba(79, 128, 255, 0.5);
+    background-color: rgba(97, 218, 251, 0.3);
 }
 
 .terminal-executing {
@@ -172,18 +243,126 @@
 
 /* Scrollbar styles */
 .terminal-content::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
 }
 
 .terminal-content::-webkit-scrollbar-track {
-    background: #1e1e1e;
+    background: #0c0c0c;
 }
 
 .terminal-content::-webkit-scrollbar-thumb {
-    background: #444;
-    border-radius: 4px;
+    background: #333;
+    border-radius: 3px;
 }
 
 .terminal-content::-webkit-scrollbar-thumb:hover {
-    background: #555;
+    background: #444;
 }
+
+/* Add some visual improvements */
+.terminal-text {
+    margin: 0;
+    padding: 0;
+    font-family: inherit;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Cursor blink animation */
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+/* Enhanced terminal cursor */
+.terminal-input {
+    position: relative;
+    caret-color: #ffffff !important;
+    caret-width: thick;
+}
+
+.terminal-input:focus {
+    caret-color: #ffffff !important;
+}
+
+/* Terminal window styling improvements */
+.enhanced-terminal::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #333, transparent);
+}
+
+/* Syntax highlighting for output */
+.terminal-directory {
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.terminal-file {
+    color: #cccccc;
+}
+
+.terminal-file-js, .terminal-file-jsx {
+    color: #f7df1e;
+}
+
+.terminal-file-ts, .terminal-file-tsx {
+    color: #3178c6;
+}
+
+.terminal-file-py {
+    color: #306998;
+}
+
+.terminal-file-rs {
+    color: #ce422b;
+}
+
+.terminal-path {
+    color: #c678dd;
+}
+
+.terminal-url {
+    color: #61dafb;
+    text-decoration: underline;
+}
+
+.terminal-number {
+    color: #d19a66;
+}
+
+.terminal-string {
+    color: #98c379;
+}
+
+/* Force dark theme colors for terminal icons */
+.terminal-icon {
+    color: #f3f4f6 !important;
+}
+
+.terminal-control:hover .terminal-icon {
+    color: #ffffff !important;
+}
+
+/* Override icon backgrounds with white versions for terminal */
+.terminal-icon.icon-trash {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23f3f4f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3 6 5 6 21 6'%3E%3C/polyline%3E%3Cpath d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'%3E%3C/path%3E%3Cline x1='10' y1='11' x2='10' y2='17'%3E%3C/line%3E%3Cline x1='14' y1='11' x2='14' y2='17'%3E%3C/line%3E%3C/svg%3E") !important;
+}
+
+.terminal-icon.icon-x {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23f3f4f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E") !important;
+}
+
+/* Hover states with pure white */
+.terminal-control:hover .terminal-icon.icon-trash {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3 6 5 6 21 6'%3E%3C/polyline%3E%3Cpath d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'%3E%3C/path%3E%3Cline x1='10' y1='11' x2='10' y2='17'%3E%3C/line%3E%3Cline x1='14' y1='11' x2='14' y2='17'%3E%3C/line%3E%3C/svg%3E") !important;
+}
+
+.terminal-control:hover .terminal-icon.icon-x {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E") !important;
+}
+

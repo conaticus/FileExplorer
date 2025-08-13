@@ -786,7 +786,7 @@ mod tests_logging {
     
     #[test]
     fn test_log_file_creation() {
-        let (logger, temp_dir) = setup_test_logger();
+        let (logger, _temp_dir) = setup_test_logger();
         let log_path = &logger.log_path;
 
         // Ensure the log file is created
@@ -804,7 +804,7 @@ mod tests_logging {
     
     #[test]
     fn test_log_file_creation_after_rotation() {
-        let (logger, temp_dir) = setup_test_logger();
+        let (logger, _temp_dir) = setup_test_logger();
         let log_path = &logger.log_path;
 
         // Ensure the log file is created

@@ -29,7 +29,9 @@ fn all_commands() -> fn(Invoke) -> bool {
         file_system_operation_commands::zip,
         file_system_operation_commands::unzip,
         // Command execution commands
-        command_exec_commands::execute_command, // Add the execute_command function
+        command_exec_commands::execute_command,
+        command_exec_commands::execute_command_improved,
+        command_exec_commands::execute_command_with_timeout,
         // Metadata commands
         meta_data_commands::get_meta_data_as_json,
         meta_data_commands::update_meta_data,

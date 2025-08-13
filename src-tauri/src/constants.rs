@@ -1,7 +1,6 @@
 use std::env;
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use chrono::Local;
 
 pub static VERSION: &str = "0.2.3";
 
