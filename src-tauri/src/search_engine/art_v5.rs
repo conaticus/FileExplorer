@@ -9,10 +9,6 @@ pub struct ART {
     root: Option<Box<ARTNode>>,
     path_count: usize,
     max_results: usize,
-    /// Reusable buffer for node operations to reduce allocations
-    operation_buffer: Vec<u8>,
-    /// Cache for frequent key operations
-    key_cache: Vec<Vec<u8>>,
 }
 
 // Constants for different node types
@@ -756,8 +752,6 @@ impl ART {
             root: None,
             path_count: 0,
             max_results,
-            operation_buffer: Vec::with_capacity(256),
-            key_cache: Vec::with_capacity(16),
         }
     }
 

@@ -161,6 +161,7 @@ where
     /// }
     /// ```
     #[inline]
+    #[allow(dead_code)]
     pub fn check_ttl(&self, key: &K) -> bool {
         if let Some(&node_ptr) = self.map.get(key) {
             // SAFETY: The pointer is valid as it's managed by the cache
@@ -442,6 +443,7 @@ where
     /// * `Some(V)` - The value associated with the key if it exists and is not expired.
     /// * `None` - If the key does not exist or the entry has expired.
     #[inline]
+    #[allow(dead_code)]
     pub fn get_immutable(&self, key: &K) -> Option<V> {
         if let Some(&node_ptr) = self.map.get(key) {
             // SAFETY: The pointer is valid as it's managed by the cache

@@ -59,15 +59,8 @@ pub struct SearchCore {
     /// Temporary storage to avoid reallocating per search
     results_buffer: Vec<(String, f32)>,
 
-    /// Fixed capacity for the buffer: ~max_results * 2
-    results_capacity: usize,
-
     /// Track if the last search was a cache hit
     last_search_was_cache_hit: bool,
-    
-    
-    /// Cached lowercase query to avoid repeated allocations
-    lowercase_query_cache: HashMap<String, String>,
     
     /// String buffer for path normalization
     path_buffer: String,
@@ -115,9 +108,7 @@ impl SearchCore {
             stop_indexing: AtomicBool::new(false),
             ranking_config, // Use the provided ranking_config instead of default
             results_buffer: Vec::with_capacity(cap),
-            results_capacity: cap,
             last_search_was_cache_hit: false,
-            lowercase_query_cache: HashMap::with_capacity(64), // Cache for recent queries
             path_buffer: String::with_capacity(512), // Pre-allocate reasonable buffer
         }
     }

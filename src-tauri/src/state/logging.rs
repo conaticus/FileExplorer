@@ -657,7 +657,7 @@ mod tests_logging {
 
     #[test]
     fn test_log_rotate_when_max_size_reached() {
-        let (logger, temp_dir) = setup_test_logger();
+        let (logger, _temp_dir) = setup_test_logger();
 
         // Create a log file that exceeds our test max size
         let large_entry = "X".repeat(1000); // 1KB per entry
@@ -690,7 +690,7 @@ mod tests_logging {
         );
 
         // Check that an archive log file was created with timestamp in the name
-        let entries = fs::read_dir(temp_dir.path())
+        let entries = fs::read_dir(_temp_dir.path())
             .expect("Failed to read temp directory")
             .filter_map(Result::ok)
             .collect::<Vec<_>>();
@@ -747,8 +747,8 @@ mod tests_logging {
     }
     #[test]
     fn test_enforce_log_file_limit() {
-        let (logger, temp_dir) = setup_test_logger();
-        let temp_path = temp_dir.path();
+        let (logger, _temp_dir) = setup_test_logger();
+        let temp_path = _temp_dir.path();
 
         // Create base log file
         let base_log = temp_path.join("app.log");
@@ -786,7 +786,7 @@ mod tests_logging {
     
     #[test]
     fn test_log_file_creation() {
-        let (logger, temp_dir) = setup_test_logger();
+        let (logger, _temp_dir) = setup_test_logger();
         let log_path = &logger.log_path;
 
         // Ensure the log file is created
@@ -804,7 +804,7 @@ mod tests_logging {
     
     #[test]
     fn test_log_file_creation_after_rotation() {
-        let (logger, temp_dir) = setup_test_logger();
+        let (logger, _temp_dir) = setup_test_logger();
         let log_path = &logger.log_path;
 
         // Ensure the log file is created
