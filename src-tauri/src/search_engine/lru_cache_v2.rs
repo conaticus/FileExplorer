@@ -93,6 +93,7 @@ where
     /// ```
     pub fn new(capacity: usize) -> Self {
         assert!(capacity > 0, "Capacity must be greater than zero");
+        
         Self {
             capacity,
             map: HashMap::with_capacity(capacity),
@@ -160,6 +161,7 @@ where
     /// }
     /// ```
     #[inline]
+    #[allow(dead_code)]
     pub fn check_ttl(&self, key: &K) -> bool {
         if let Some(&node_ptr) = self.map.get(key) {
             // SAFETY: The pointer is valid as it's managed by the cache
@@ -270,8 +272,7 @@ where
 
             // SAFETY: The pointer is valid as it's managed by the cache, and we own it now
             unsafe {
-                //first convert to box and drop
-                drop(Box::from_raw(node_ptr.as_ptr()));
+                self.deallocate_node(node_ptr);
             }
 
             true
@@ -333,13 +334,7 @@ where
             }
         }
 
-        let node = Box::new(Node {
-            key: key.clone(),
-            value,
-            prev: None,
-            next: None,
-            last_accessed: Instant::now(),
-        });
+        let node = self.allocate_node(key.clone(), value);
 
         // Convert Box to raw pointer
         let node_ptr = unsafe { NonNull::new_unchecked(Box::into_raw(node)) };
@@ -428,6 +423,58 @@ where
     #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
+    }
+
+    /// Retrieves a value from the cache by its key without updating LRU order.
+    ///
+    /// This is a read-only operation that does not modify the cache state.
+    /// Used for read-heavy workloads with RwLock optimization.
+    ///
+    /// # Time Complexity
+    ///
+    /// - O(1) - Constant time hash lookup
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The key to look up in the cache.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(V)` - The value associated with the key if it exists and is not expired.
+    /// * `None` - If the key does not exist or the entry has expired.
+    #[inline]
+    #[allow(dead_code)]
+    pub fn get_immutable(&self, key: &K) -> Option<V> {
+        if let Some(&node_ptr) = self.map.get(key) {
+            // SAFETY: The pointer is valid as it's managed by the cache
+            let node = unsafe { &*node_ptr.as_ptr() };
+
+            // Check if expired
+            if let Some(ttl) = self.ttl {
+                if node.last_accessed.elapsed() > ttl {
+                    return None;
+                }
+            }
+
+            Some(node.value.clone())
+        } else {
+            None
+        }
+    }
+
+    /// Inserts a key-value pair into the cache (alias for insert).
+    ///
+    /// # Time Complexity
+    ///
+    /// - O(1) - Constant time hash insertion + linked list update
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The key to insert.
+    /// * `value` - The value to associate with the key.
+    #[inline]
+    pub fn put(&mut self, key: K, value: V) {
+        self.insert(key, value);
     }
 
     /// Purges all expired entries from the cache.
@@ -548,6 +595,24 @@ where
                 self.tail = Some(node_ptr);
             }
         }
+    }
+
+    /// Optimized node allocation
+    #[inline]
+    fn allocate_node(&mut self, key: K, value: V) -> Box<Node<K, V>> {
+        Box::new(Node {
+            key,
+            value,
+            prev: None,
+            next: None,
+            last_accessed: Instant::now(),
+        })
+    }
+
+    /// Optimized node deallocation
+    #[inline]
+    unsafe fn deallocate_node(&mut self, node_ptr: NonNull<Node<K, V>>) {
+        drop(Box::from_raw(node_ptr.as_ptr()));
     }
 }
 

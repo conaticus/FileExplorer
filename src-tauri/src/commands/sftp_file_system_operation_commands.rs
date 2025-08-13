@@ -296,6 +296,7 @@ pub fn move_directory_sftp(
 }
 
 #[cfg(test)]
+#[cfg(feature = "sftp-tests")]
 mod sftp_file_system_operation_commands_tests {
     use super::*;
 
