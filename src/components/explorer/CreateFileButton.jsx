@@ -16,6 +16,7 @@ const CreateFileButton = () => {
     const [itemName, setItemName] = useState('');
     const dropdownRef = useRef(null);
     const inputRef = useRef(null);
+    const skipNextToggle = useRef(false);
 
     const { createFile, createDirectory } = useFileSystem();
     const { currentPath } = useHistory();
@@ -44,7 +45,12 @@ const CreateFileButton = () => {
     /**
      * Toggles the dropdown menu
      */
+    // Prevent immediate reopen after closing
     const toggleDropdown = () => {
+        if (skipNextToggle.current) {
+            skipNextToggle.current = false;
+            return;
+        }
         setIsDropdownOpen(prev => !prev);
     };
 
@@ -53,6 +59,7 @@ const CreateFileButton = () => {
      */
     const closeDropdown = () => {
         setIsDropdownOpen(false);
+        skipNextToggle.current = true;
     };
 
     /**
@@ -64,6 +71,7 @@ const CreateFileButton = () => {
         setItemName(getDefaultName(type));
         setIsCreateModalOpen(true);
         closeDropdown();
+        skipNextToggle.current = false;
 
         // Focus input on next render
         setTimeout(() => {
@@ -202,6 +210,7 @@ const CreateFileButton = () => {
                                     onClick={() => {
                                         document.dispatchEvent(new CustomEvent('open-templates'));
                                         closeDropdown();
+                                        skipNextToggle.current = false;
                                     }}
                                 >
                                     <span className="icon icon-template"></span>

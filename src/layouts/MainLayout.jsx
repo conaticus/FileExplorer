@@ -63,7 +63,7 @@ const MainLayout = () => {
         renameItem,
         showProperties
     } = useContextMenu();
-    const { currentPath } = useHistory();
+    const { currentPath, navigateTo } = useHistory();
     const { settings, updateSetting } = useSettings();
 
     // UI State - Initialize from settings
@@ -225,6 +225,7 @@ const MainLayout = () => {
         }
     }, [settings.default_view]);
 
+
     /**
      * Effect to load default location on first render
      */
@@ -234,6 +235,15 @@ const MainLayout = () => {
             setCurrentView('this-pc');
         }
     }, [volumes, currentDirData, currentPath]);
+
+    /**
+     * Effect to close details panel when switching to This PC view
+     */
+    useEffect(() => {
+        if (currentView === 'this-pc') {
+            setIsDetailsPanelOpen(false);
+        }
+    }, [currentView]);
 
     /**
      * Effect to auto-start indexing when app loads
@@ -299,6 +309,7 @@ const MainLayout = () => {
         const handleOpenTemplates = () => {
             setCurrentView('templates');
             setIsTemplatesOpen(true);
+            navigateTo(null); // Clear explorer path
         };
 
         /**
@@ -313,6 +324,7 @@ const MainLayout = () => {
          */
         const handleOpenThisPC = () => {
             setCurrentView('this-pc');
+            navigateTo(null); // Clear explorer path bug fix
         };
 
         /**
@@ -390,15 +402,16 @@ const MainLayout = () => {
         };
 
         // Register event listeners
-        document.addEventListener('open-templates', handleOpenTemplates);
-        document.addEventListener('show-properties', handleShowProperties);
-        document.addEventListener('open-this-pc', handleOpenThisPC);
-        document.addEventListener('open-settings', handleOpenSettings);
-        document.addEventListener('toggle-terminal', handleToggleTerminal);
-        document.addEventListener('open-rename-modal', handleOpenRenameModal);
-        document.addEventListener('open-hash-file-modal', handleOpenHashFileModal);
-        document.addEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
-        document.addEventListener('open-hash-display-modal', handleOpenHashDisplayModal);
+    document.addEventListener('open-templates', handleOpenTemplates);
+    document.addEventListener('show-properties', handleShowProperties);
+    document.addEventListener('open-this-pc', handleOpenThisPC);
+    document.addEventListener('open-settings', handleOpenSettings);
+    document.addEventListener('toggle-terminal', handleToggleTerminal);
+    document.addEventListener('open-rename-modal', handleOpenRenameModal);
+    document.addEventListener('open-hash-file-modal', handleOpenHashFileModal);
+    document.addEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
+    document.addEventListener('open-hash-display-modal', handleOpenHashDisplayModal);
+    document.addEventListener('force-explorer-view', () => setCurrentView('explorer'));
 
         console.log('MainLayout: All event listeners registered');
 
@@ -412,6 +425,7 @@ const MainLayout = () => {
             document.removeEventListener('open-hash-file-modal', handleOpenHashFileModal);
             document.removeEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
             document.removeEventListener('open-hash-display-modal', handleOpenHashDisplayModal);
+            document.removeEventListener('force-explorer-view', () => setCurrentView('explorer'));
             console.log('MainLayout: All event listeners removed');
         };
     }, []);

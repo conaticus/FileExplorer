@@ -7,6 +7,7 @@ import Favorites from './Favorites';
 import QuickAccess from './QuickAccess';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
+import { ask, message } from '@tauri-apps/plugin-dialog';
 import './sidebar.css';
 
 /**
@@ -19,8 +20,8 @@ import './sidebar.css';
  * @returns {React.ReactElement} Sidebar component
  */
 const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
-    const { volumes, loadDirectory } = useFileSystem();
-    const { currentPath } = useHistory();
+    const { volumes, loadDirectory, loadVolumes } = useFileSystem();
+    const { currentPath, navigateTo } = useHistory();
     const { removeFromFavorites } = useContextMenu();
 
     const [systemInfo, setSystemInfo] = useState(null);
@@ -81,8 +82,8 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
      * Handles clicking on a sidebar item with navigation history update
      * @param {string} path - Path to navigate to
      */
-    const handleItemClick = (path) => {
-        // Update navigation history immediately
+    const handleItemClick = async (path) => {
+        // Always update navigation history and reload directory, even if path is the same
         try {
             const existingHistory = JSON.parse(sessionStorage.getItem('fileExplorerHistory') || '[]');
             const updatedHistory = [path, ...existingHistory.filter(p => p !== path)].slice(0, 10);
@@ -95,8 +96,18 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
             console.error('Failed to update navigation history:', err);
         }
 
-        loadDirectory(path);
+        // Always refresh disks when opening a directory
+        await loadVolumes();
+        // Always reload the directory, even if it's already selected
+        window.dispatchEvent(new CustomEvent('force-explorer-view'));
+        await loadDirectory(path);
     };
+    // Refresh disks when switching to 'this-pc' or 'explorer' view
+    React.useEffect(() => {
+        if (currentView === 'this-pc' || currentView === 'explorer') {
+            loadVolumes();
+        }
+    }, [currentView, loadVolumes]);
 
     /**
      * Adds a location to favorites
@@ -247,7 +258,9 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
     return (
         <>
             <aside className="sidebar">
-                <div className="sidebar-content">{/* Quick Access section */}
+                <div className="sidebar-content">
+                    {/* Quick Access section */}
+                    {/*
                     <section className="sidebar-section">
                         <div className="sidebar-section-header">
                             <h3 className="sidebar-section-title">Quick Access</h3>
@@ -262,9 +275,12 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                         {!sectionCollapsed.quickAccess && (
                             <QuickAccess
                                 onItemClick={handleItemClick}
+                                currentView={currentView}
+                                currentPath={currentPath}
                             />
                         )}
                     </section>
+                    */}
 
                     {/* This PC section */}
                     <section className="sidebar-section">
@@ -285,7 +301,10 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                     name="This PC"
                                     path="this-pc"
                                     isActive={currentView === 'this-pc'}
-                                    onClick={() => document.dispatchEvent(new CustomEvent('open-this-pc'))}
+                                    onClick={() => {
+                                        navigateTo(null); // Clear explorer path
+                                        document.dispatchEvent(new CustomEvent('open-this-pc'));
+                                    }}
                                 />
 
                                 {/* User volume (for macOS/Windows user directory) */}
@@ -294,7 +313,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                         icon="user"
                                         name={`User (${userVolume.volume_name || 'User Disk'})`}
                                         path={userVolume.mount_point}
-                                        isActive={currentPath === userVolume.mount_point}
+                                        isActive={currentView === 'explorer' && currentPath === userVolume.mount_point}
                                         onClick={() => handleItemClick(userVolume.mount_point)}
                                         info={`${(userVolume.available_space / 1024 / 1024 / 1024).toFixed(1)}GB free`}
                                     />
@@ -307,7 +326,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                         icon={dir.icon}
                                         name={dir.name}
                                         path={dir.path}
-                                        isActive={currentPath === dir.path}
+                                        isActive={currentView === 'explorer' && currentPath === dir.path}
                                         onClick={() => handleItemClick(dir.path)}
                                     />
                                 ))}
@@ -341,6 +360,8 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                 onItemClick={handleItemClick}
                                 onRemove={handleRemoveFromFavorites}
                                 onAdd={addToFavorites}
+                                currentView={currentView}
+                                currentPath={currentPath}
                             />
                         )}
                     </section>
@@ -365,7 +386,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                         icon={volume.is_removable ? 'usb' : 'drive'}
                                         name={volume.volume_name || volume.mount_point}
                                         path={volume.mount_point}
-                                        isActive={currentPath === volume.mount_point}
+                                        isActive={currentView === 'explorer' && currentPath === volume.mount_point}
                                         onClick={() => handleItemClick(volume.mount_point)}
                                         info={`${(volume.available_space / 1024 / 1024 / 1024).toFixed(1)}GB free of ${(volume.size / 1024 / 1024 / 1024).toFixed(1)}GB`}
                                         actions={volume.is_removable ? [
@@ -373,20 +394,51 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                                 icon: 'eject',
                                                 tooltip: 'Safely eject',
                                                 onClick: async () => {
-                                                    const confirmEject = confirm(`Are you sure you want to safely eject ${volume.volume_name}?`);
+                                                    const confirmEject = await ask(`Are you sure you want to safely eject ${volume.volume_name}?`);
                                                     if (!confirmEject) return;
 
                                                     try {
                                                         const { invoke } = await import('@tauri-apps/api/core');
-                                                        const command = systemInfo?.current_running_os === 'windows'
-                                                            ? `eject ${volume.mount_point}`
-                                                            : `umount ${volume.mount_point}`;
+                                                        let command;
+                                                        const os = systemInfo?.current_running_os?.toLowerCase();
+                                                        
+                                                        if (os === 'windows') {
+                                                            command = `eject ${volume.mount_point}`;
+                                                        } else if (os === 'macos' || os === 'darwin') {
+                                                            // Use diskutil for proper ejection on macOS
+                                                            command = `diskutil eject "${volume.mount_point}"`;
+                                                        } else {
+                                                            // Linux and other Unix-like systems
+                                                            command = `umount "${volume.mount_point}"`;
+                                                        }
 
-                                                        await invoke('execute_command', { command });
-                                                        alert(`${volume.volume_name} has been safely ejected.`);
+                                                        const result = await invoke('execute_command', { command });
+                                                        
+                                                        // Parse the command result to check for success
+                                                        const commandResponse = JSON.parse(result);
+                                                        
+                                                        if (commandResponse.status === 0) {
+                                                            await message(`${volume.volume_name} has been safely ejected.`);
+                                                            // Reload volumes to update the UI after ejection
+                                                            setTimeout(() => {
+                                                                loadVolumes();
+                                                            }, 1000);
+                                                        } else {
+                                                            throw new Error(commandResponse.stderr || commandResponse.stdout || 'Ejection failed');
+                                                        }
                                                     } catch (error) {
                                                         console.error('Failed to eject volume:', error);
-                                                        alert(`Failed to eject ${volume.volume_name}: ${error.message || error}`);
+                                                        let errorMessage = error.message || error;
+                                                        
+                                                        // Parse error message if it's JSON
+                                                        try {
+                                                            const parsedError = JSON.parse(errorMessage);
+                                                            errorMessage = parsedError.custom_message || parsedError.error_message || errorMessage;
+                                                        } catch (e) {
+                                                            // If not JSON, use as-is
+                                                        }
+                                                        
+                                                        await message(`Failed to eject ${volume.volume_name}: ${errorMessage}`);
                                                     }
                                                 }
                                             }
@@ -412,7 +464,10 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
 
                     <button
                         className="sidebar-action-button"
-                        onClick={() => document.dispatchEvent(new CustomEvent('open-settings'))}
+                        onClick={() => {
+                            navigateTo(null); // Clear explorer path
+                            document.dispatchEvent(new CustomEvent('open-settings'));
+                        }}
                         aria-label="Settings"
                         title="Settings"
                     >
@@ -422,7 +477,10 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
 
                     <button
                         className="sidebar-action-button"
-                        onClick={() => document.dispatchEvent(new CustomEvent('open-templates'))}
+                        onClick={() => {
+                            navigateTo(null); // Clear explorer path
+                            document.dispatchEvent(new CustomEvent('open-templates'));
+                        }}
                         aria-label="Templates"
                         title="Templates"
                     >

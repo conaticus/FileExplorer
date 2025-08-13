@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { ask, message } from '@tauri-apps/plugin-dialog';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useHistory } from '../../providers/HistoryProvider';
 import FileIcon from '../explorer/FileIcon';
@@ -15,7 +16,7 @@ import './thisPc.css';
 const ThisPCView = () => {
     const [systemInfo, setSystemInfo] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const { volumes, loadDirectory } = useFileSystem();
+    const { volumes, loadDirectory, loadVolumes } = useFileSystem();
     const { navigateTo } = useHistory();
 
     // Common folders for different operating systems
@@ -263,20 +264,50 @@ const ThisPCView = () => {
     const ejectVolume = async (volume) => {
         if (!volume.is_removable) return;
 
-        const confirmEject = confirm(`Are you sure you want to safely eject ${volume.volume_name}?`);
+        const confirmEject = await ask(`Are you sure you want to safely eject ${volume.volume_name}?`);
         if (!confirmEject) return;
 
         try {
-            // Use system command to eject the volume
-            const command = systemInfo?.current_running_os === 'windows'
-                ? `eject ${volume.mount_point}`
-                : `umount ${volume.mount_point}`;
+            let command;
+            const os = systemInfo?.current_running_os?.toLowerCase();
+            
+            if (os === 'windows') {
+                command = `eject ${volume.mount_point}`;
+            } else if (os === 'macos' || os === 'darwin') {
+                // Use diskutil for proper ejection on macOS
+                command = `diskutil eject "${volume.mount_point}"`;
+            } else {
+                // Linux and other Unix-like systems
+                command = `umount "${volume.mount_point}"`;
+            }
 
-            await invoke('execute_command', { command });
-            alert(`${volume.volume_name} has been safely ejected.`);
+            const result = await invoke('execute_command', { command });
+            
+            // Parse the command result to check for success
+            const commandResponse = JSON.parse(result);
+            
+            if (commandResponse.status === 0) {
+                await message(`${volume.volume_name} has been safely ejected.`);
+                // Reload volumes to update the UI after ejection
+                setTimeout(() => {
+                    loadVolumes();
+                }, 1000);
+            } else {
+                throw new Error(commandResponse.stderr || commandResponse.stdout || 'Ejection failed');
+            }
         } catch (error) {
             console.error('Failed to eject volume:', error);
-            alert(`Failed to eject ${volume.volume_name}: ${error.message || error}`);
+            let errorMessage = error.message || error;
+            
+            // Parse error message if it's JSON
+            try {
+                const parsedError = JSON.parse(errorMessage);
+                errorMessage = parsedError.custom_message || parsedError.error_message || errorMessage;
+            } catch (e) {
+                // If not JSON, use as-is
+            }
+            
+            await message(`Failed to eject ${volume.volume_name}: ${errorMessage}`);
         }
     };
 

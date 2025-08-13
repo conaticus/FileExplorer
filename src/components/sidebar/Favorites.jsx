@@ -9,13 +9,17 @@ import SidebarItem from './SidebarItem';
  * @param {Function} props.onItemClick - Callback when an item is clicked
  * @param {Function} props.onRemove - Callback to remove an item from favorites
  * @param {Function} props.onAdd - Callback to add an item to favorites
+ * @param {string} props.currentView - Current view being displayed
+ * @param {string} props.currentPath - Current path being displayed
  * @returns {React.ReactElement} Favorites component
  */
 const Favorites = ({
                        isCollapsed = false,
                        onItemClick,
                        onRemove,
-                       onAdd
+                       onAdd,
+                       currentView,
+                       currentPath
                    }) => {
     const [favorites, setFavorites] = useState([]);
 
@@ -101,6 +105,7 @@ const Favorites = ({
                     name={item.name}
                     path={item.path}
                     isCollapsed={isCollapsed}
+                    isActive={currentView === 'explorer' && currentPath === item.path}
                     onClick={() => onItemClick(item.path)}
                     onContextMenu={(e) => handleContextMenu(e, item)}
                     actions={[

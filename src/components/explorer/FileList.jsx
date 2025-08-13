@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { getFileType } from '../../utils/formatters';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useContextMenu } from '../../providers/ContextMenuProvider';
 import { invoke } from '@tauri-apps/api/core';
@@ -156,20 +157,27 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, sea
             if (a.isDirectory && !b.isDirectory) return -1;
             if (!a.isDirectory && b.isDirectory) return 1;
 
-            // Sort by the specified key
-            let aValue = a[key];
-            let bValue = b[key];
-
-            // Handle string comparisons
-            if (typeof aValue === 'string' && typeof bValue === 'string') {
+            let aValue, bValue;
+            if (key === 'size_in_bytes') {
+                // Folders: always sort as 0 (or -1) so they group together and don't mix with files
+                aValue = a.isDirectory ? -1 : a.size_in_bytes || 0;
+                bValue = b.isDirectory ? -1 : b.size_in_bytes || 0;
+            } else if (key === 'type') {
+                // Folders: always 'Folder', Files: use getFileType
+                aValue = a.isDirectory ? 'Folder' : (a.name ? getFileType(a.name) : '');
+                bValue = b.isDirectory ? 'Folder' : (b.name ? getFileType(b.name) : '');
                 aValue = aValue.toLowerCase();
                 bValue = bValue.toLowerCase();
-            }
-
-            // Handle date strings
-            if (key === 'created' || key === 'last_modified' || key === 'accessed') {
-                aValue = new Date(aValue).getTime();
-                bValue = new Date(bValue).getTime();
+            } else if (key === 'created' || key === 'last_modified' || key === 'accessed') {
+                aValue = new Date(a[key]).getTime();
+                bValue = new Date(b[key]).getTime();
+            } else {
+                aValue = a[key];
+                bValue = b[key];
+                if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    aValue = aValue.toLowerCase();
+                    bValue = bValue.toLowerCase();
+                }
             }
 
             if (aValue < bValue) return direction === 'asc' ? -1 : 1;

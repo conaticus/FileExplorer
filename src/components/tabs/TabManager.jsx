@@ -282,7 +282,6 @@ const TabManager = ({ children }) => {
                         <IconButton
                             icon="plus"
                             size="sm"
-                            tooltip="New tab"
                             onClick={createNewTab}
                         />
                     </div>

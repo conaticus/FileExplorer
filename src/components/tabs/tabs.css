@@ -211,15 +211,26 @@
     background: transparent;
 }
 
-.new-tab-button button {
+.new-tab-button .btn {
     border: none;
-    background: transparent;
+    background: transparent !important;
     border-radius: var(--radius-sm);
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-.new-tab-button button:hover {
-    background-color: var(--surface-hover);
+.new-tab-button .btn:hover:not(:disabled) {
+    background-color: var(--surface-hover) !important;
+    color: var(--text-primary) !important;
+    transform: none !important;
+}
+
+/* Fallback with explicit colors for visibility */
+.new-tab-button .btn:hover {
+    background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-theme="dark"] .new-tab-button .btn:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .tab-content-area {

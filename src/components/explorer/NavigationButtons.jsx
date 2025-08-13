@@ -9,7 +9,7 @@ import './navigationButtons.css';
  */
 const NavigationButtons = () => {
     const { canGoBack, canGoForward, goBack, goForward, currentPath } = useHistory();
-    const { loadDirectory } = useFileSystem();
+    const { loadDirectory, loadVolumes } = useFileSystem();
 
     /**
      * Handles directory refresh action
@@ -19,12 +19,14 @@ const NavigationButtons = () => {
     const handleRefresh = async () => {
         if (currentPath) {
             try {
+                // Refresh volumes (disks, space, etc.)
+                await loadVolumes();
                 await loadDirectory(currentPath);
-                console.log('Directory refreshed successfully');
+                console.log('Directory and volumes refreshed successfully');
 
                 // Optionally show a brief success indicator
                 const notification = document.createElement('div');
-                notification.textContent = 'Directory refreshed';
+                notification.textContent = 'Directory and disks refreshed';
                 notification.style.cssText = `
                     position: fixed;
                     top: 20px;
@@ -42,11 +44,11 @@ const NavigationButtons = () => {
                     notification.remove();
                 }, 2000);
             } catch (error) {
-                console.error('Failed to refresh directory:', error);
+                console.error('Failed to refresh directory or disks:', error);
 
                 // Show error notification
                 const notification = document.createElement('div');
-                notification.textContent = 'Failed to refresh directory';
+                notification.textContent = 'Failed to refresh directory or disks';
                 notification.style.cssText = `
                     position: fixed;
                     top: 20px;

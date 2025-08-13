@@ -7,9 +7,11 @@ import SidebarItem from './SidebarItem';
  * @param {Object} props - Component props
  * @param {boolean} [props.isCollapsed=false] - Whether the sidebar is collapsed
  * @param {Function} props.onItemClick - Callback for item click
+ * @param {string} props.currentView - Current view being displayed
+ * @param {string} props.currentPath - Current path being displayed
  * @returns {React.ReactElement} QuickAccess component
  */
-const QuickAccess = ({ isCollapsed = false, onItemClick }) => {
+const QuickAccess = ({ isCollapsed = false, onItemClick, currentView, currentPath }) => {
     const [recentItems, setRecentItems] = useState([]);
 
     /**
@@ -104,6 +106,7 @@ const QuickAccess = ({ isCollapsed = false, onItemClick }) => {
                     name={item.name}
                     path={item.path}
                     isCollapsed={isCollapsed}
+                    isActive={currentView === 'explorer' && currentPath === item.path}
                     onClick={() => onItemClick(item.path)}
                 />
             ))}

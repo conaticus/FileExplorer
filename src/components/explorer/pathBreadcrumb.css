@@ -50,31 +50,41 @@
     display: none; /* Hide scrollbar in Chrome/Safari/Edge */
 }
 
+
 .segment-button {
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--radius-sm);
+    padding: 0 8px;
+    height: 24px;
+    border-radius: var(--radius-md);
     font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    background-color: transparent;
+    color: var(--text-on-accent, #fff);
+    background-color: var(--background-breadcrumb, rgba(80, 120, 255, 0.18));
     cursor: pointer;
-    transition: color var(--transition-fast), background-color var(--transition-fast);
+    border: none;
+    margin: 0 8px;
+    transition: color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
     white-space: nowrap;
     flex-shrink: 0;
+    box-shadow: none;
+    font-weight: 500;
+    max-width: 220px;
+    text-overflow: ellipsis;
+    overflow: hidden;
 }
 
 .segment-button:hover {
-    color: var(--text-primary);
-    background-color: var(--surface-hover);
+    color: var(--text-on-accent, #fff);
+    background-color: var(--background-breadcrumb-hover, rgba(80, 120, 255, 0.32));
 }
 
 .segment-button.current {
     color: var(--accent);
     font-weight: var(--font-weight-medium);
+    background-color: var(--background-breadcrumb, rgba(80, 120, 255, 0.18));
 }
 
 .segment-divider {
     color: var(--text-tertiary);
-    margin: 0 var(--space-xxs);
+    margin: 0 2px 0 0;
     flex-shrink: 0;
 }
 
@@ -241,5 +251,21 @@
 
     .path-breadcrumb {
         min-width: 120px;
+    }
+}
+
+:root {
+    --background-breadcrumb: color-mix(in srgb, var(--accent) 8%, white 40%);
+    --background-breadcrumb-hover: color-mix(in srgb, var(--accent) 16%, white 20%);
+    --text-breadcrumb: var(--text-primary);
+    --text-on-accent: #000;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background-breadcrumb: color-mix(in srgb, var(--accent) 70%, black 30%);
+        --background-breadcrumb-hover: color-mix(in srgb, var(--accent) 90%, black 10%);
+        --text-breadcrumb: #fff;
+        --text-on-accent: #fff;
     }
 }

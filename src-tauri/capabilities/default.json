@@ -5,9 +5,8 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
-  ],
-  "capabilities": [
-
+    "shell:default",
+    "dialog:allow-ask",
+    "dialog:allow-message"
   ]
 }
