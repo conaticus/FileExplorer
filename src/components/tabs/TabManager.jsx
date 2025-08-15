@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useHistory } from '../../providers/HistoryProvider';
 import { useFileSystem } from '../../providers/FileSystemProvider';
-import Button from '../common/Button';
+import { useSftp } from '../../providers/SftpProvider';
 import IconButton from '../common/IconButton';
 import './tabs.css';
 
@@ -17,6 +17,7 @@ const TabManager = ({ children }) => {
     const [activeTabId, setActiveTabId] = useState(null);
     const { currentPath } = useHistory();
     const { loadDirectory } = useFileSystem();
+    const { isSftpPath, parseSftpPath } = useSftp();
 
     /**
      * Initialize with current path
@@ -64,8 +65,48 @@ const TabManager = ({ children }) => {
      */
     const getTabTitle = (path) => {
         if (!path) return 'Home';
+        
+        // Handle SFTP paths
+        if (isSftpPath(path)) {
+            const parsed = parseSftpPath(path);
+            if (parsed && parsed.connection) {
+                const remotePath = parsed.remotePath || '.';
+                if (remotePath === '.' || remotePath === '/') {
+                    return parsed.connection.name;
+                } else {
+                    const segments = remotePath.split('/').filter(Boolean);
+                    const folderName = segments.length > 0 ? segments[segments.length - 1] : parsed.connection.name;
+                    return `${parsed.connection.name}: ${folderName}`;
+                }
+            }
+            return 'SFTP';
+        }
+        
+        // Handle regular file system paths
         const segments = path.split(/[/\\]/).filter(Boolean);
         return segments.length > 0 ? segments[segments.length - 1] : 'Root';
+    };
+
+    /**
+     * Gets the full path for tooltip display
+     * @param {string} path - The file path
+     * @returns {string} The full path for tooltip
+     */
+    const getFullPathForTooltip = (path) => {
+        if (!path) return 'Home';
+        
+        // Handle SFTP paths - convert to standard format
+        if (isSftpPath(path)) {
+            const parsed = parseSftpPath(path);
+            if (parsed && parsed.connection) {
+                const remotePath = parsed.remotePath || '/';
+                return `sftp://${parsed.connection.username}@${parsed.connection.host}:${parsed.connection.port}${remotePath}`;
+            }
+            return path;
+        }
+        
+        // Return regular path as-is
+        return path;
     };
 
     /**
@@ -259,7 +300,7 @@ const TabManager = ({ children }) => {
                                 <span className="tab-icon">
                                     <span className="icon icon-folder"></span>
                                 </span>
-                                <span className="tab-title" title={tab.path}>
+                                <span className="tab-title" title={getFullPathForTooltip(tab.path)}>
                                     {tab.title}
                                 </span>
                                 {tabs.length > 1 && (

@@ -261,8 +261,17 @@ pub async fn remove_template_impl(
         return Err(error_msg);
     }
 
-    // Remove the template
-    match fs::remove_dir_all(template_path) {
+    // Remove the template (file or directory)
+    let path = Path::new(template_path);
+    let remove_result = if path.is_dir() {
+        fs::remove_dir_all(path)
+    } else if path.is_file() {
+        fs::remove_file(path)
+    } else {
+        return Err(format!("Template path is neither file nor directory: {}", template_path));
+    };
+
+    match remove_result {
         Ok(_) => {
             let success_msg = format!("Template '{}' removed successfully", template_path);
             log_info!(success_msg.as_str());

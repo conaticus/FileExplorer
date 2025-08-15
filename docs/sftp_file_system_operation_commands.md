@@ -16,6 +16,9 @@ Error Structure as json can be found [here](./error_structure.md).
 - [Rename Directory](#rename_directory_sftp-endpoint)
 - [Copy Directory](#copy_directory_sftp-endpoint)
 - [Move Directory](#move_directory_sftp-endpoint)
+- [Build Preview](#build_preview_sftp-endpoint)
+- [Download and Open File](#download_and_open_sftp_file-endpoint)
+- [Cleanup SFTP Temp Files](#cleanup_sftp_temp_files-endpoint)
 
 ---
 
@@ -489,6 +492,114 @@ const moveDirectory = async () => {
   }
 };
 ```
+
+---
+
+# `build_preview_sftp` endpoint
+
+Generates a preview payload for a file or directory on the SFTP server, including type detection and metadata.
+
+## Parameters
+
+- `host`: String - The SFTP server hostname or IP address
+- `port`: u16 - The SFTP server port (typically 22)
+- `username`: String - The username for authentication
+- `password`: String - The password for authentication
+- `file_path`: String - The path to the file or directory to preview
+
+## Returns
+
+- Ok(PreviewPayload) - A JSON object describing the preview (text, image, pdf, folder, or unknown)
+- Err(String) - An error message if connection fails, authentication fails, or file/directory doesn't exist
+
+## Example call
+
+```typescript jsx
+const preview = async () => {
+  try {
+    const result = await invoke("build_preview_sftp", {
+      host: "localhost",
+      port: 2222,
+      username: "explorer",
+      password: "explorer",
+      file_path: "example.txt"
+    });
+    console.log("Preview payload:", result);
+  } catch (error) {
+    console.error("Error building preview:", error);
+  }
+};
+```
+
+---
+
+# `download_and_open_sftp_file` endpoint
+
+Downloads a file from the SFTP server to a temporary local directory and optionally opens it with the default application.
+
+## Parameters
+
+- `host`: String - The SFTP server hostname or IP address
+- `port`: u16 - The SFTP server port (typically 22)
+- `username`: String - The username for authentication
+- `password`: String - The password for authentication
+- `file_path`: String - The path to the file to download
+- `open_file`: Option<bool> - Whether to open the file after downloading (default: true)
+
+## Returns
+
+- Ok(String) - The local path to the downloaded file, or a message indicating it was opened
+- Err(String) - An error message if connection fails, authentication fails, or file doesn't exist
+
+## Example call
+
+```typescript jsx
+const downloadAndOpen = async () => {
+  try {
+    const result = await invoke("download_and_open_sftp_file", {
+      host: "localhost",
+      port: 2222,
+      username: "explorer",
+      password: "explorer",
+      file_path: "example.txt",
+      open_file: true
+    });
+    console.log("Download result:", result);
+  } catch (error) {
+    console.error("Error downloading file:", error);
+  }
+};
+```
+
+---
+
+# `cleanup_sftp_temp_files` endpoint
+
+Removes temporary files downloaded from the SFTP server that are older than 24 hours from the local temp directory.
+
+## Parameters
+
+- None
+
+## Returns
+
+- Ok(String) - A message indicating how many files were cleaned
+- Err(String) - An error message if the temp directory cannot be read or cleaned
+
+## Example call
+
+```typescript jsx
+const cleanupTempFiles = async () => {
+  try {
+    const result = await invoke("cleanup_sftp_temp_files");
+    console.log("Cleanup result:", result);
+  } catch (error) {
+    console.error("Error cleaning up temp files:", error);
+  }
+};
+```
+
+---
 
 ## Notes
 

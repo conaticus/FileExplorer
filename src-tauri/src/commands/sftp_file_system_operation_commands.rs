@@ -1,7 +1,11 @@
 use std::io::{Read, Write};
 use ssh2::{Session, Sftp};
 use std::net::TcpStream;
+use std::path::Path;
+use std::fs;
 use crate::models::SFTPDirectory;
+use crate::commands::preview_commands::PreviewPayload;
+use base64::Engine;
 
 fn connect_to_sftp_via_password(
     host: String,
@@ -17,6 +21,9 @@ fn connect_to_sftp_via_password(
     session.set_tcp_stream(tcp);
     session.handshake().map_err(|e| e.to_string())?;
 
+    // Generates a unique SFTP destination path by appending a number if the path already exists on the remote server.
+    // For example: "file.txt" -> "file (1).txt" -> "file (2).txt"
+    // For directories: "folder" -> "folder (1)" -> "folder (2)"
     // Authenticate
     session.userauth_password(&username, &password).map_err(|e| e.to_string())?;
     
@@ -293,6 +300,280 @@ pub fn move_directory_sftp(
     sftp.rename(source_path.as_ref(), destination_path.as_ref(), None).map_err(|e| e.to_string())?;
     
     Ok(format!("Directory moved from {} to {}", source_path, destination_path))
+}
+
+fn filename_from_path(path: &str) -> String {
+    if let Some(name) = path.split('/').last() {
+        if !name.is_empty() {
+            return name.to_string();
+        }
+    }
+    "file".to_string()
+}
+
+fn detect_mime_sftp(path: &str, head: &[u8]) -> Option<&'static str> {
+    if let Some(kind) = infer::get(head) {
+        return Some(kind.mime_type());
+    }
+    
+    if let Some(ext) = path.split('.').last().map(|s| s.to_lowercase()) {
+        return Some(match ext.as_str() {
+            "md" | "rs" | "ts" | "tsx" | "js" | "jsx" | "json" | "txt" | "log" | "toml" | "yaml" | "yml" | "xml" | "ini" | "csv" => "text/plain",
+            "pdf" => "application/pdf",
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "webp" => "image/webp",
+            "mp4" => "video/mp4",
+            "mov" => "video/quicktime",
+            "mp3" => "audio/mpeg",
+            "wav" => "audio/wav",
+            _ => "application/octet-stream",
+        });
+    }
+    None
+}
+
+fn read_sftp_prefix(sftp: &Sftp, path: &str, max_bytes: usize) -> Result<Vec<u8>, String> {
+    let mut file = sftp.open(Path::new(path)).map_err(|e| e.to_string())?;
+    let mut buf = Vec::with_capacity(max_bytes.min(1024 * 1024));
+    let mut temp_buf = vec![0u8; max_bytes.min(8192)];
+    let mut total_read = 0;
+    
+    while total_read < max_bytes {
+        let chunk_size = std::cmp::min(temp_buf.len(), max_bytes - total_read);
+        match file.read(&mut temp_buf[..chunk_size]) {
+            Ok(0) => break, // EOF
+            Ok(n) => {
+                buf.extend_from_slice(&temp_buf[..n]);
+                total_read += n;
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    Ok(buf)
+}
+
+#[tauri::command]
+pub fn build_preview_sftp(
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+    file_path: String,
+) -> Result<PreviewPayload, String> {
+    let sftp = connect_to_sftp_via_password(host, port, username, password)?;
+    let name = filename_from_path(&file_path);
+    
+    // Get file stats to check if it's a directory or file
+    let stat = sftp.stat(Path::new(&file_path)).map_err(|e| e.to_string())?;
+    
+    // Handle directories
+    if stat.is_dir() {
+        // Count items (files + dirs, not recursive)
+        let mut item_count = 0;
+        let mut size: u64 = 0;
+        let mut latest_modified: Option<u64> = None;
+        
+        if let Ok(entries) = sftp.readdir(Path::new(&file_path)) {
+            for (_, entry_stat) in entries {
+                item_count += 1;
+                if let Some(entry_size) = entry_stat.size {
+                    size += entry_size;
+                }
+                if let Some(mtime) = entry_stat.mtime {
+                    let mtime_u64 = mtime as u64;
+                    latest_modified = match latest_modified {
+                        Some(current) if current > mtime_u64 => Some(current),
+                        _ => Some(mtime_u64),
+                    };
+                }
+            }
+        }
+        
+        // Use folder's own modified time if no children
+        let folder_modified = stat.mtime;
+        let modified_time = latest_modified.or(folder_modified);
+        let modified_str = modified_time.map(|t| {
+            chrono::DateTime::from_timestamp(t as i64, 0)
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| "unknown".to_string())
+        });
+        
+        return Ok(PreviewPayload::Folder {
+            name,
+            size,
+            item_count,
+            modified: modified_str,
+        });
+    }
+    
+    // Files
+    let bytes = stat.size.unwrap_or(0) as usize;
+    // Read a small head for detection + maybe text
+    let head = read_sftp_prefix(&sftp, &file_path, 256 * 1024).map_err(|e| e.to_string())?;
+    let mime = detect_mime_sftp(&file_path, &head).unwrap_or("application/octet-stream");
+    
+    // Branch by mime top-level type - exactly like original
+    if mime.starts_with("image/") {
+        // Encode entire file only if small; else just the head (fast path)
+        let cap = 6 * 1024 * 1024;
+        let data = if bytes <= cap {
+            let mut full_file = sftp.open(Path::new(&file_path)).map_err(|e| e.to_string())?;
+            let mut full_data = Vec::new();
+            full_file.read_to_end(&mut full_data).map_err(|e| e.to_string())?;
+            full_data
+        } else {
+            head.clone()
+        };
+        let data_uri = format!("data:{};base64,{}", mime, base64::engine::general_purpose::STANDARD.encode(data));
+        return Ok(PreviewPayload::Image { name, data_uri, bytes });
+    }
+    
+    if mime == "application/pdf" {
+        // Encode entire file only if small; else just the head (fast path)
+        let cap = 12 * 1024 * 1024; // Allow larger PDFs than images
+        let data = if bytes <= cap {
+            let mut full_file = sftp.open(Path::new(&file_path)).map_err(|e| e.to_string())?;
+            let mut full_data = Vec::new();
+            full_file.read_to_end(&mut full_data).map_err(|e| e.to_string())?;
+            full_data
+        } else {
+            head.clone()
+        };
+        let data_uri = format!("data:{};base64,{}", mime, base64::engine::general_purpose::STANDARD.encode(data));
+        return Ok(PreviewPayload::Pdf { name, data_uri, bytes });
+    }
+
+    if mime.starts_with("video/") {
+        // For SFTP videos, treat as unknown since we can't stream remote files
+        return Ok(PreviewPayload::Unknown { name });
+    }
+
+    if mime.starts_with("audio/") {
+        // For SFTP audio, treat as unknown since we can't stream remote files
+        return Ok(PreviewPayload::Unknown { name });
+    }
+
+    // Heuristic: treat smallish or text‑ish files as text
+    let looks_texty = mime.starts_with("text/") || head.iter().all(|&b| b == 9 || b == 10 || b == 13 || (b >= 32 && b < 0xF5));
+    if looks_texty || bytes <= 2 * 1024 * 1024 {
+        let mut det = chardetng::EncodingDetector::new();
+        det.feed(&head, true);
+        let enc = det.guess(None, true);
+        let (cow, _, _) = enc.decode(&head);
+        let mut text = cow.to_string();
+        let mut truncated = false;
+        if text.len() > 200_000 {
+            text.truncate(200_000);
+            text.push_str("\n…(truncated)");
+            truncated = true;
+        }
+        return Ok(PreviewPayload::Text { name, text, truncated });
+    }
+
+    Ok(PreviewPayload::Unknown { name })
+}
+
+#[tauri::command]
+pub fn download_and_open_sftp_file(
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+    file_path: String,
+    open_file: Option<bool>,
+) -> Result<String, String> {
+    let sftp = connect_to_sftp_via_password(host, port, username, password)?;
+    
+    // Get the filename from the path
+    let filename = filename_from_path(&file_path);
+    
+    // Create a temporary directory if it doesn't exist
+    let temp_dir = std::env::temp_dir().join("file_explorer_sftp");
+    if !temp_dir.exists() {
+        fs::create_dir_all(&temp_dir).map_err(|e| format!("Failed to create temp directory: {}", e))?;
+    }
+    
+    // Create a unique temporary file path
+    let temp_file_path = temp_dir.join(&filename);
+    
+    // Download the file from SFTP
+    let mut remote_file = sftp.open(Path::new(&file_path)).map_err(|e| e.to_string())?;
+    let mut local_file = fs::File::create(&temp_file_path).map_err(|e| e.to_string())?;
+    
+    // Copy the file content
+    std::io::copy(&mut remote_file, &mut local_file).map_err(|e| e.to_string())?;
+    
+    // Only open the file if explicitly requested (default is true for backward compatibility)
+    let should_open = open_file.unwrap_or(true);
+    
+    if should_open {
+        // Open the file with the default application
+        #[cfg(target_os = "windows")]
+        {
+            std::process::Command::new("cmd")
+                .args(&["/C", "start", "", &temp_file_path.to_string_lossy()])
+                .spawn()
+                .map_err(|e| format!("Failed to open file: {}", e))?;
+        }
+        
+        #[cfg(target_os = "macos")]
+        {
+            std::process::Command::new("open")
+                .arg(&temp_file_path)
+                .spawn()
+                .map_err(|e| format!("Failed to open file: {}", e))?;
+        }
+        
+        #[cfg(target_os = "linux")]
+        {
+            std::process::Command::new("xdg-open")
+                .arg(&temp_file_path)
+                .spawn()
+                .map_err(|e| format!("Failed to open file: {}", e))?;
+        }
+        
+        Ok(format!("File downloaded to {} and opened", temp_file_path.to_string_lossy()))
+    } else {
+        // Return the temporary file path without opening
+        Ok(temp_file_path.to_string_lossy().to_string())
+    }
+}
+
+#[tauri::command]
+pub fn cleanup_sftp_temp_files() -> Result<String, String> {
+    let temp_dir = std::env::temp_dir().join("file_explorer_sftp");
+    
+    if !temp_dir.exists() {
+        return Ok("No temporary directory to clean".to_string());
+    }
+    
+    let mut cleaned_count = 0;
+    
+    match fs::read_dir(&temp_dir) {
+        Ok(entries) => {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    if let Ok(metadata) = entry.metadata() {
+                        if let Ok(modified) = metadata.modified() {
+                            // Delete files older than 24 hours
+                            if let Ok(elapsed) = modified.elapsed() {
+                                if elapsed.as_secs() > 24 * 60 * 60 {
+                                    if fs::remove_file(entry.path()).is_ok() {
+                                        cleaned_count += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Err(e) => return Err(format!("Failed to read temp directory: {}", e)),
+    }
+    
+    Ok(format!("Cleaned {} old temporary files", cleaned_count))
 }
 
 #[cfg(test)]

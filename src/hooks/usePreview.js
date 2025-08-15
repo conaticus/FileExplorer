@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useState, useCallback } from 'react';
+import { useSftp } from '../providers/SftpProvider';
 
 /**
  * Hook for managing file/folder preview functionality
@@ -14,6 +15,7 @@ export function usePreview(getFocusedItem, navigateUp = null, navigateDown = nul
   const [open, setOpen] = useState(false);
   const [payload, setPayload] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { isSftpPath, parseSftpPath } = useSftp();
 
   /**
    * Opens preview for the specified path
@@ -24,7 +26,28 @@ export function usePreview(getFocusedItem, navigateUp = null, navigateDown = nul
 
     setIsLoading(true);
     try {
-      const previewPayload = await invoke('build_preview', { path });
+      let previewPayload;
+      
+      // Check if this is an SFTP path
+      if (isSftpPath(path)) {
+        const parsed = parseSftpPath(path);
+        if (parsed && parsed.connection) {
+          // Use SFTP preview command
+          previewPayload = await invoke('build_preview_sftp', {
+            host: parsed.connection.host,
+            port: parseInt(parsed.connection.port, 10),
+            username: parsed.connection.username,
+            password: parsed.connection.password,
+            filePath: parsed.remotePath
+          });
+        } else {
+          throw new Error('Invalid SFTP path or connection not found');
+        }
+      } else {
+        // Use regular preview command for local files
+        previewPayload = await invoke('build_preview', { path });
+      }
+      
       setPayload(previewPayload);
       setOpen(true);
     } catch (error) {
@@ -38,7 +61,7 @@ export function usePreview(getFocusedItem, navigateUp = null, navigateDown = nul
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading]);
+  }, [isLoading, isSftpPath, parseSftpPath]);
 
   /**
    * Closes the preview modal

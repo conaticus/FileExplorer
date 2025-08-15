@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getFileType } from '../../utils/formatters';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useContextMenu } from '../../providers/ContextMenuProvider';
-import { invoke } from '@tauri-apps/api/core';
 import { showError } from '../../utils/NotificationSystem';
 import FileItem from './FileItem';
 import EmptyState from './EmptyState';
@@ -21,7 +20,7 @@ import './fileList.css';
  * @returns {React.ReactElement} File list component
  */
 const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, searchTerm = '', disableArrowKeys = false, onColumnsChange }) => {
-    const { selectedItems, selectItem, loadDirectory, clearSelection, focusedItem, setFocusedItem } = useFileSystem();
+    const { selectedItems, selectItem, loadDirectory, clearSelection, focusedItem, setFocusedItem, openFile } = useFileSystem();
     const { openContextMenu } = useContextMenu();
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     const [isShiftKeyPressed, setIsShiftKeyPressed] = useState(false);
@@ -343,15 +342,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, sea
                             if (focusedItem.isDirectory) {
                                 loadDirectory(focusedItem.path);
                             } else {
-                                const openFile = async () => {
-                                    try {
-                                        await invoke('open_in_default_app', { path: focusedItem.path });
-                                    } catch (error) {
-                                        console.error('Failed to open file:', error);
-                                        showError(`Failed to open file: ${error.message || error}`);
-                                    }
-                                };
-                                openFile();
+                                openFile(focusedItem.path);
                             }
                         }
                         break;
@@ -532,16 +523,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, sea
             if (item.isDirectory) {
                 loadDirectory(item.path);
             } else {
-                // Use the correct API for opening files in default app
-                const openFile = async () => {
-                    try {
-                        await invoke('open_in_default_app', { path: item.path });
-                    } catch (error) {
-                        console.error('Failed to open file:', error);
-                        showError(`Failed to open file: ${error.message || error}`);
-                    }
-                };
-                openFile();
+                openFile(item.path);
             }
             return;
         }

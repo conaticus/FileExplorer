@@ -21,13 +21,13 @@ const RenameModal = ({ isOpen, onClose, item, onRename }) => {
      * Initialize name when modal opens and select appropriate portion of text
      */
     useEffect(() => {
-        if (isOpen && item) {
+        if (isOpen && item && item.name) {
             setNewName(item.name);
             // Focus and select name without extension for files
             setTimeout(() => {
                 if (inputRef.current) {
                     inputRef.current.focus();
-                    const isDirectory = item.isDirectory || 'sub_file_count' in item;
+                    const isDirectory = item.isDirectory || (typeof item === 'object' && 'sub_file_count' in item);
                     if (!isDirectory && item.name.includes('.')) {
                         const lastDotIndex = item.name.lastIndexOf('.');
                         inputRef.current.setSelectionRange(0, lastDotIndex);
@@ -36,6 +36,9 @@ const RenameModal = ({ isOpen, onClose, item, onRename }) => {
                     }
                 }
             }, 100);
+        } else if (!isOpen) {
+            // Reset when modal closes
+            setNewName('');
         }
     }, [isOpen, item]);
 
@@ -45,8 +48,13 @@ const RenameModal = ({ isOpen, onClose, item, onRename }) => {
      */
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (newName.trim() && newName !== item.name) {
+        console.log('RenameModal handleSubmit called with:', { newName, itemName: item?.name });
+        
+        if (newName && newName.trim() && newName.trim() !== item.name) {
+            console.log('RenameModal: Calling onRename with:', item, newName.trim());
             onRename(item, newName.trim());
+        } else {
+            console.log('RenameModal: Not calling onRename - conditions not met');
         }
         onClose();
     };
@@ -56,7 +64,7 @@ const RenameModal = ({ isOpen, onClose, item, onRename }) => {
      * @param {React.ChangeEvent<HTMLInputElement>} e - Input change event
      */
     const handleChange = (e) => {
-        setNewName(e.target.value);
+        setNewName(e.target.value || '');
     };
 
     /**
@@ -69,9 +77,9 @@ const RenameModal = ({ isOpen, onClose, item, onRename }) => {
         }
     };
 
-    if (!item) return null;
+    if (!item || typeof item !== 'object' || !item.name) return null;
 
-    const isDirectory = item.isDirectory || 'sub_file_count' in item;
+    const isDirectory = item.isDirectory || ('sub_file_count' in item);
 
     return (
         <Modal
@@ -90,7 +98,7 @@ const RenameModal = ({ isOpen, onClose, item, onRename }) => {
                     <Button
                         type="submit"
                         variant="primary"
-                        disabled={!newName.trim() || newName === item.name}
+                        disabled={!newName || !newName.trim() || newName.trim() === item.name}
                         onClick={handleSubmit}
                     >
                         Rename
@@ -107,7 +115,7 @@ const RenameModal = ({ isOpen, onClose, item, onRename }) => {
                         ref={inputRef}
                         type="text"
                         id="new-name"
-                        value={newName}
+                        value={newName || ''}
                         onChange={handleChange}
                         onKeyDown={handleKeyDown}
                         className="input"

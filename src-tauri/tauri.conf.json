@@ -17,6 +17,7 @@
         "scope": ["*/**"]
       }
     },
+    "withGlobalTauri": false,
     "windows": [
       {
         "label": "main",
@@ -62,7 +63,8 @@
       "exceptionDomain": "",
       "frameworks": [],
       "providerShortName": null,
-      "signingIdentity": null
+      "signingIdentity": null,
+      "entitlements": "src-tauri/entitlements.plist"
     }
   }
 }

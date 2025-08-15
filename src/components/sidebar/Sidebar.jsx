@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useFileSystem } from '../../providers/FileSystemProvider';
-import { useHistory } from '../../providers/HistoryProvider';
-import { useContextMenu } from '../../providers/ContextMenuProvider';
+import React, {useEffect, useRef, useState} from 'react';
+import {useFileSystem} from '../../providers/FileSystemProvider';
+import {useHistory} from '../../providers/HistoryProvider';
+import {useContextMenu} from '../../providers/ContextMenuProvider';
+import {useSftp} from '../../providers/SftpProvider';
 import SidebarItem from './SidebarItem';
 import Favorites from './Favorites';
-import QuickAccess from './QuickAccess';
+//import QuickAccess from './QuickAccess';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
-import { ask, message } from '@tauri-apps/plugin-dialog';
+import AddSftpConnectionView from './AddSftpConnectionView';
+import PermissionHelper from '../common/PermissionHelper';
+import {ask, message, open} from '@tauri-apps/plugin-dialog';
 import './sidebar.css';
 
 /**
@@ -23,11 +26,94 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
     const { volumes, loadDirectory, loadVolumes } = useFileSystem();
     const { currentPath, navigateTo } = useHistory();
     const { removeFromFavorites } = useContextMenu();
+    const { navigateToSftpConnection, createSftpUrl, isSftpPath, parseSftpPath, createSftpPath } = useSftp();
 
     const [systemInfo, setSystemInfo] = useState(null);
     const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false);
     const [newSourcePath, setNewSourcePath] = useState('');
     const addSourceInputRef = useRef(null);
+
+    // SFTP Connections state
+    const [sftpConnections, setSftpConnections] = useState([]);
+    const [isAddSftpModalOpen, setIsAddSftpModalOpen] = useState(false);
+    
+    // Permission helper state
+    const [isPermissionHelperOpen, setIsPermissionHelperOpen] = useState(false);
+    const [permissionDirectory, setPermissionDirectory] = useState(null);
+
+    // Quick browse to protected folder
+    const browseToProtectedFolder = async (folderName, expectedPath) => {
+        try {
+            const selectedPath = await open({
+                directory: true,
+                title: `Browse to your ${folderName} folder`,
+                defaultPath: expectedPath ? expectedPath.substring(0, expectedPath.lastIndexOf('/')) : undefined
+            });
+            
+            if (selectedPath) {
+                await handleItemClick(selectedPath, folderName);
+            }
+        } catch (error) {
+            console.error(`Failed to browse to ${folderName}:`, error);
+        }
+    };
+    // Load SFTP connections from localStorage
+    const loadSftpConnections = React.useCallback(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem('fileExplorerSftpConnections') || '[]');
+            setSftpConnections(saved);
+        } catch (err) {
+            setSftpConnections([]);
+        }
+    }, []);
+
+    // Load on mount and on custom event
+    React.useEffect(() => {
+        loadSftpConnections();
+        const handler = () => loadSftpConnections();
+        window.addEventListener('sftp-connections-updated', handler);
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'fileExplorerSftpConnections') loadSftpConnections();
+        });
+        return () => {
+            window.removeEventListener('sftp-connections-updated', handler);
+        };
+    }, [loadSftpConnections]);
+
+    // Add SFTP connection
+    const addSftpConnection = (conn) => {
+        try {
+            const existing = JSON.parse(localStorage.getItem('fileExplorerSftpConnections') || '[]');
+            const newConnections = [...existing, conn];
+            localStorage.setItem('fileExplorerSftpConnections', JSON.stringify(newConnections));
+            window.dispatchEvent(new CustomEvent('sftp-connections-updated'));
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: 'fileExplorerSftpConnections',
+                newValue: JSON.stringify(newConnections)
+            }));
+        } catch (err) {
+            // ignore
+        }
+        setIsAddSftpModalOpen(false);
+    };
+
+    // Remove SFTP connection with confirmation
+    const removeSftpConnection = async (name) => {
+        const confirmRemove = await ask(`Are you sure you want to remove the SFTP connection "${name}"?`);
+        if (!confirmRemove) return;
+        try {
+            const existing = JSON.parse(localStorage.getItem('fileExplorerSftpConnections') || '[]');
+            const newConnections = existing.filter(c => c.name !== name);
+            localStorage.setItem('fileExplorerSftpConnections', JSON.stringify(newConnections));
+            window.dispatchEvent(new CustomEvent('sftp-connections-updated'));
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: 'fileExplorerSftpConnections',
+                newValue: JSON.stringify(newConnections)
+            }));
+        } catch (err) {
+            // ignore
+        }
+    };
 
     // State for collapsible sections
     const [sectionCollapsed, setSectionCollapsed] = useState(() => {
@@ -79,14 +165,37 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
     };
 
     /**
-     * Handles clicking on a sidebar item with navigation history update
+     * Handles clicking on a sidebar item with navigation history update and permission handling
      * @param {string} path - Path to navigate to
+     * @param {string} [name] - Display name of the directory (for permission helper)
      */
-    const handleItemClick = async (path) => {
+    const handleItemClick = async (path, name = null) => {
+        let targetPath = path;
+        
+        // Handle SFTP files - navigate to parent directory instead of trying to open as directory
+        if (isSftpPath(path)) {
+            // Check if this is a favorite item and if it looks like a file
+            // For SFTP favorites, check if the path ends with a file extension or doesn't look like a directory
+            const favorites = JSON.parse(localStorage.getItem('fileExplorerFavorites') || '[]');
+            const favoriteItem = favorites.find(fav => fav.path === path);
+            
+            if (favoriteItem && favoriteItem.icon === 'file') {
+                // This is an SFTP file favorite, navigate to its parent directory
+                const parsed = parseSftpPath(path);
+                if (parsed && parsed.connection) {
+                    const pathParts = parsed.remotePath.split('/').filter(part => part && part !== '.');
+                    pathParts.pop(); // Remove the file name
+                    const parentPath = pathParts.length > 0 ? pathParts.join('/') : '.';
+                    targetPath = createSftpPath(parsed.connection, parentPath);
+                    console.log('SFTP file favorite detected, navigating to parent:', targetPath);
+                }
+            }
+        }
+        
         // Always update navigation history and reload directory, even if path is the same
         try {
             const existingHistory = JSON.parse(sessionStorage.getItem('fileExplorerHistory') || '[]');
-            const updatedHistory = [path, ...existingHistory.filter(p => p !== path)].slice(0, 10);
+            const updatedHistory = [targetPath, ...existingHistory.filter(p => p !== targetPath)].slice(0, 10);
             sessionStorage.setItem('fileExplorerHistory', JSON.stringify(updatedHistory));
 
             // Dispatch events to update quick access immediately
@@ -100,7 +209,20 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
         await loadVolumes();
         // Always reload the directory, even if it's already selected
         window.dispatchEvent(new CustomEvent('force-explorer-view'));
-        await loadDirectory(path);
+        
+        const success = await loadDirectory(targetPath);
+        
+        // If loading failed and it's a user directory, offer permission helper
+        if (!success && name) {
+            const isUserDir = ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Movies', 'Music'].some(dir => 
+                targetPath.toLowerCase().includes(dir.toLowerCase())
+            );
+            
+            if (isUserDir) {
+                setPermissionDirectory({ path: targetPath, name });
+                setIsPermissionHelperOpen(true);
+            }
+        }
     };
     // Refresh disks when switching to 'this-pc' or 'explorer' view
     React.useEffect(() => {
@@ -246,11 +368,9 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
         const homeDir = systemInfo.user_home_dir;
 
         // Find volume that contains user directory but is not root
-        const userVolume = volumes.find(vol =>
+        return volumes.find(vol =>
             homeDir.startsWith(vol.mount_point) && vol.mount_point !== '/'
         );
-
-        return userVolume;
     };
 
     const userVolume = getUserVolume();
@@ -320,16 +440,24 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                 )}
 
                                 {/* User directories */}
-                                {userDirectories.map((dir) => (
-                                    <SidebarItem
-                                        key={dir.path}
-                                        icon={dir.icon}
-                                        name={dir.name}
-                                        path={dir.path}
-                                        isActive={currentView === 'explorer' && currentPath === dir.path}
-                                        onClick={() => handleItemClick(dir.path)}
-                                    />
-                                ))}
+                                {userDirectories.map((dir) => {
+                                    const isProtectedDir = ['Desktop', 'Documents', 'Downloads'].includes(dir.name);
+                                    return (
+                                        <SidebarItem
+                                            key={dir.path}
+                                            icon={dir.icon}
+                                            name={dir.name}
+                                            path={dir.path}
+                                            isActive={currentView === 'explorer' && currentPath === dir.path}
+                                            onClick={() => handleItemClick(dir.path, dir.name)}
+                                            actions={isProtectedDir ? [{
+                                                icon: 'folder-open',
+                                                tooltip: `Browse to ${dir.name} folder`,
+                                                onClick: () => browseToProtectedFolder(dir.name, dir.path)
+                                            }] : []}
+                                        />
+                                    );
+                                })}
                             </ul>
                         )}
                     </section>
@@ -448,6 +576,80 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                             </ul>
                         )}
                     </section>
+                    {/* Network section */}
+                    <section>
+                        <div className="sidebar-section-header">
+                            <h3 className="sidebar-section-title">Network</h3>
+                            <div className="sidebar-section-actions">
+                                <button
+                                    className="section-add-button"
+                                    onClick={() => setIsAddSftpModalOpen(true)}
+                                    title="Add SFTP Connection"
+                                >
+                                    <span className="icon icon-plus-small"></span>
+                                </button>
+                                <button
+                                    className="section-collapse-button"
+                                    onClick={() => toggleSectionCollapse('network')}
+                                    aria-label={sectionCollapsed.network ? 'Expand Network' : 'Collapse Network'}
+                                >
+                                    <span className={`icon icon-chevron-${sectionCollapsed.network ? 'up' : 'down'}`}></span>
+                                </button>
+                            </div>
+                        </div>
+                        {!sectionCollapsed.network && (
+                            <ul className="sidebar-list">
+                                {sftpConnections.map((conn) => (
+                                    <SidebarItem
+                                        key={conn.name}
+                                        icon="network"
+                                        name={conn.name}
+                                        path={`sftp://${conn.username}@${conn.host}:${conn.port}`}
+                                        isActive={currentView === 'network' && currentPath === conn.name}
+                                        onClick={async () => {
+                                            // Navigate to SFTP connection using the new provider
+                                            try {
+                                                const sftpData = await navigateToSftpConnection(conn);
+                                                if (sftpData) {
+                                                    const sftpPath = createSftpUrl(conn, '.');
+                                                    await loadDirectory(sftpPath);
+                                                    navigateTo(sftpPath);
+                                                }
+                                            } catch (error) {
+                                                console.error('Failed to connect to SFTP:', error);
+                                            }
+                                        }}
+                                        actions={[{
+                                            icon: 'x',
+                                            tooltip: 'Remove SFTP Connection',
+                                            onClick: () => removeSftpConnection(conn.name)
+                                        }]}
+                                    />
+                                ))}
+                            </ul>
+                        )}
+                    </section>
+            {/* Modal for adding SFTP connection */}
+            <AddSftpConnectionView
+                isOpen={isAddSftpModalOpen}
+                onClose={() => setIsAddSftpModalOpen(false)}
+                onAdd={addSftpConnection}
+            />
+
+            {/* Permission Helper Modal */}
+            <PermissionHelper
+                isOpen={isPermissionHelperOpen}
+                onClose={() => {
+                    setIsPermissionHelperOpen(false);
+                    setPermissionDirectory(null);
+                }}
+                directoryPath={permissionDirectory?.path}
+                directoryName={permissionDirectory?.name}
+                onDirectorySelected={(selectedPath) => {
+                    // Navigate to the selected directory
+                    handleItemClick(selectedPath, permissionDirectory?.name);
+                }}
+            />
                 </div>
 
                 {/* Bottom actions */}

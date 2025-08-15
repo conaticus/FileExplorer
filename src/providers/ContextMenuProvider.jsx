@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileSystem } from './FileSystemProvider';
 import { useHistory } from './HistoryProvider';
+import { useSftp } from './SftpProvider';
 import { showNotification, showError, showSuccess, showConfirm } from '../utils/NotificationSystem';
 
 const ContextMenuContext = createContext({
@@ -22,8 +23,9 @@ export default function ContextMenuProvider({ children }) {
     const [clipboard, setClipboard] = useState({ items: [], operation: null });
     const [isProcessing, setIsProcessing] = useState(false);
 
-    const { selectedItems, loadDirectory, clearSelection } = useFileSystem();
+    const { selectedItems, loadDirectory, clearSelection, moveToTrash, currentDirData } = useFileSystem();
     const { currentPath } = useHistory();
+    const { isSftpPath, parseSftpPath, copySftpItem, moveSftpItem, downloadAndOpenSftpFile } = useSftp();
 
     // Check if item is in favorites
     const isInFavorites = useCallback((item) => {
@@ -107,13 +109,26 @@ export default function ContextMenuProvider({ children }) {
     // Copy path to clipboard
     const copyPath = useCallback(async (item) => {
         try {
-            await navigator.clipboard.writeText(item.path);
-            showSuccess(`Path copied to clipboard: ${item.path}`);
+            let pathToCopy = item.path;
+            
+            // Convert SFTP paths to standard format
+            if (isSftpPath(item.path)) {
+                const parsed = parseSftpPath(item.path);
+                if (parsed && parsed.connection) {
+                    const remotePath = parsed.remotePath || '/';
+                    // Ensure path starts with forward slash
+                    const formattedPath = remotePath.startsWith('/') ? remotePath : `/${remotePath}`;
+                    pathToCopy = `sftp://${parsed.connection.username}@${parsed.connection.host}:${parsed.connection.port}${formattedPath}`;
+                }
+            }
+            
+            await navigator.clipboard.writeText(pathToCopy);
+            showSuccess(`Path copied to clipboard: ${pathToCopy}`);
         } catch (error) {
             console.error('Failed to copy path:', error);
             showError('Failed to copy path to clipboard.');
         }
-    }, []);
+    }, [isSftpPath, parseSftpPath]);
 
     // Add as template
     const addAsTemplate = useCallback(async (item) => {
@@ -124,8 +139,28 @@ export default function ContextMenuProvider({ children }) {
 
         setIsProcessing(true);
         try {
+            let templatePath = item.path;
+            
+            // Handle SFTP files by downloading them first
+            if (isSftpPath(item.path)) {
+                try {
+                    // Download SFTP file to a temporary location using SftpProvider function
+                    const tempPath = await downloadAndOpenSftpFile(item.path, false);
+                    
+                    if (!tempPath) {
+                        throw new Error('Failed to download SFTP file');
+                    }
+                    
+                    templatePath = tempPath;
+                } catch (downloadError) {
+                    console.error('Failed to download SFTP file for template:', downloadError);
+                    showError(`Failed to download SFTP file: ${downloadError.message || downloadError}`);
+                    return;
+                }
+            }
+            
             const result = await invoke('add_template', {
-                templatePath: item.path
+                templatePath: templatePath
             });
             showSuccess(`Template added successfully: ${result}`);
 
@@ -136,7 +171,7 @@ export default function ContextMenuProvider({ children }) {
         } finally {
             setIsProcessing(false);
         }
-    }, []);
+    }, [isSftpPath]);
 
     // Copy items to clipboard
     const copyToClipboard = useCallback(async (items) => {
@@ -161,7 +196,49 @@ export default function ContextMenuProvider({ children }) {
         }
     }, []);
 
-    // Paste items from clipboard
+    // Helper function to generate unique destination path
+    const generateUniqueDestPath = useCallback(async (basePath, fileName) => {
+        const currentDir = currentDirData;
+        if (!currentDir) return `${basePath}/${fileName}`;
+
+        // Get all existing file and directory names in the current directory
+        const existingNames = new Set();
+        if (currentDir.files) {
+            currentDir.files.forEach(file => existingNames.add(file.name));
+        }
+        if (currentDir.directories) {
+            currentDir.directories.forEach(dir => existingNames.add(dir.name));
+        }
+
+        // If the original name doesn't exist, use it
+        if (!existingNames.has(fileName)) {
+            return `${basePath}/${fileName}`;
+        }
+
+        // Extract file name and extension
+        const lastDotIndex = fileName.lastIndexOf('.');
+        let baseName, extension;
+        if (lastDotIndex === -1 || lastDotIndex === 0) {
+            // No extension or hidden file starting with dot
+            baseName = fileName;
+            extension = '';
+        } else {
+            baseName = fileName.substring(0, lastDotIndex);
+            extension = fileName.substring(lastDotIndex);
+        }
+
+        // Generate unique name with counter
+        let counter = 1;
+        let uniqueName;
+        do {
+            uniqueName = `${baseName} (${counter})${extension}`;
+            counter++;
+        } while (existingNames.has(uniqueName));
+
+        return `${basePath}/${uniqueName}`;
+    }, [currentDirData]);
+
+    // Paste items from clipboard - enhanced with SFTP support
     const pasteFromClipboard = useCallback(async () => {
         if (!clipboard.items.length || !currentPath) return;
 
@@ -170,9 +247,15 @@ export default function ContextMenuProvider({ children }) {
             for (const item of clipboard.items) {
                 const fileName = item.name;
                 const sourcePath = item.path;
-                const destPath = `${currentPath}/${fileName}`;
+
+                // Check if source and/or destination are SFTP paths
+                const sourceIsSftp = isSftpPath(sourcePath);
+                const destIsSftp = isSftpPath(currentPath);
 
                 if (clipboard.operation === 'cut') {
+                    // For move operations, use original filename (no duplicates)
+                    const destPath = `${currentPath}/${fileName}`;
+                    
                     // Check if we're trying to paste in the same directory
                     const sourceDir = sourcePath.substring(0, sourcePath.lastIndexOf('/')) || '/';
                     const destDir = currentPath;
@@ -182,20 +265,44 @@ export default function ContextMenuProvider({ children }) {
                     }
                     
                     // Move operation
-                    await invoke('rename', {
-                        oldPath: sourcePath,
-                        newPath: destPath
-                    });
+                    if (sourceIsSftp || destIsSftp) {
+                        if (sourceIsSftp && destIsSftp) {
+                            // SFTP to SFTP move
+                            await moveSftpItem(sourcePath, destPath);
+                        } else {
+                            showError('Moving between SFTP and local file systems is not yet supported');
+                            continue;
+                        }
+                    } else {
+                        // Local file system move
+                        await invoke('rename', {
+                            oldPath: sourcePath,
+                            newPath: destPath
+                        });
+                    }
                 } else {
-                    // Copy operation - use the copy_file_or_dir command
-                    console.log('DEBUG: About to invoke copy_file_or_dir with params:', {
-                        sourcePath: sourcePath,
-                        destinationPath: destPath
-                    });
-                    await invoke('copy_file_or_dir', {
-                        sourcePath: sourcePath,
-                        destinationPath: destPath
-                    });
+                    // Copy operation - generate unique destination path to allow duplicates
+                    const destPath = await generateUniqueDestPath(currentPath, fileName);
+                    
+                    if (sourceIsSftp || destIsSftp) {
+                        if (sourceIsSftp && destIsSftp) {
+                            // SFTP to SFTP copy
+                            await copySftpItem(sourcePath, destPath);
+                        } else {
+                            showError('Copying between SFTP and local file systems is not yet supported');
+                            continue;
+                        }
+                    } else {
+                        // Local file system copy
+                        console.log('DEBUG: About to invoke copy_file_or_dir with params:', {
+                            sourcePath: sourcePath,
+                            destinationPath: destPath
+                        });
+                        await invoke('copy_file_or_dir', {
+                            sourcePath: sourcePath,
+                            destinationPath: destPath
+                        });
+                    }
                 }
             }
 
@@ -212,7 +319,7 @@ export default function ContextMenuProvider({ children }) {
         } finally {
             setIsProcessing(false);
         }
-    }, [clipboard, currentPath, loadDirectory]);
+    }, [clipboard, currentPath, loadDirectory, isSftpPath, copySftpItem, moveSftpItem, generateUniqueDestPath]);
 
     // Delete items
     const deleteItems = useCallback(async (items) => {
@@ -227,19 +334,17 @@ export default function ContextMenuProvider({ children }) {
 
         setIsProcessing(true);
         try {
+            // Call moveToTrash for each item - it handles SFTP vs local paths and directory reload
             for (const item of items) {
-                await invoke('move_to_trash', { path: item.path });
+                await moveToTrash(item.path);
             }
-
-            clearSelection();
-            await loadDirectory(currentPath);
         } catch (error) {
             console.error('Delete operation failed:', error);
             showError(`Failed to delete: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
-    }, [currentPath, loadDirectory, clearSelection]);
+    }, [moveToTrash]);
 
     // Rename item - dispatch event to open rename modal
     const renameItem = useCallback((item) => {
@@ -252,40 +357,108 @@ export default function ContextMenuProvider({ children }) {
     const zipItems = useCallback(async (items) => {
         if (!items.length) return;
 
-        const sourcePaths = items.map(item => item.path);
+        // Check if we're working with SFTP items
+        const isSftpItems = items.some(item => isSftpPath(item.path));
+        const isAllSftp = items.every(item => isSftpPath(item.path));
+        
+        if (isSftpItems && !isAllSftp) {
+            showError('Cannot mix SFTP and local files in the same archive');
+            return;
+        }
+
         let destinationPath = null;
+        let zipName = null;
 
         if (items.length === 1) {
             // For single item, use its name as base for zip name
             const item = items[0];
             const baseName = item.name;
-            destinationPath = `${currentPath}/${baseName}.zip`;
+            zipName = `${baseName}.zip`;
         } else {
             // For multiple items, ask user for zip name
-            const zipName = window.prompt('Enter name for the zip file:', 'archive.zip');
+            zipName = window.prompt('Enter name for the zip file:', 'archive.zip');
             if (!zipName) return;
-            destinationPath = `${currentPath}/${zipName}`;
-            if (!destinationPath.endsWith('.zip')) {
-                destinationPath += '.zip';
+            if (!zipName.endsWith('.zip')) {
+                zipName += '.zip';
             }
         }
 
-        setIsProcessing(true);
-        try {
-            await invoke('zip', {
-                sourcePaths: sourcePaths,
-                destinationPath: destinationPath
-            });
+        if (isAllSftp) {
+            // Handle SFTP items
+            destinationPath = `${currentPath}/${zipName}`;
+            const sftpDestinationPath = destinationPath;
+            
+            setIsProcessing(true);
+            try {
+                // For SFTP items, we need to download them first, create zip locally, then upload
+                const tempPaths = [];
+                
+                for (const item of items) {
+                    const tempPath = await downloadAndOpenSftpFile(item.path, false);
+                    if (!tempPath) {
+                        throw new Error(`Failed to download ${item.name} for zipping`);
+                    }
+                    tempPaths.push(tempPath);
+                }
+                
+                // Create temp zip file in system temp directory
+                const tempZipPath = `/tmp/${zipName}`; // Use a standard temp path
+                
+                // Create zip from downloaded files
+                await invoke('zip', {
+                    sourcePaths: tempPaths,
+                    destinationPath: tempZipPath
+                });
+                
+                // Upload zip back to SFTP if current path is SFTP
+                if (isSftpPath(currentPath)) {
+                    // Parse current SFTP path to get connection details
+                    const parsed = parseSftpPath(currentPath);
+                    if (parsed && parsed.connection) {
+                        const targetRemotePath = `${parsed.remotePath}/${zipName}`.replace(/\/+/g, '/');
+                        
+                        // Upload the zip file (we'd need an upload function in SFTP provider)
+                        // For now, we'll copy it to local temp and let user know
+                        showSuccess(`ZIP created locally at: ${tempZipPath}. SFTP upload not yet implemented.`);
+                    }
+                } else {
+                    // Copy zip to current local directory
+                    await invoke('copy_file_or_dir', {
+                        sourcePath: tempZipPath,
+                        destinationPath: destinationPath
+                    });
+                    showSuccess(`Successfully created ${zipName}`);
+                }
+                
+                await loadDirectory(currentPath);
+            } catch (error) {
+                console.error('SFTP zip operation failed:', error);
+                showError(`Failed to create zip: ${error.message || error}`);
+            } finally {
+                setIsProcessing(false);
+            }
+        } else {
+            // Handle local items (original logic)
+            const sourcePaths = items.map(item => item.path);
+            destinationPath = `${currentPath}/${zipName}`;
+            
+            setIsProcessing(true);
+            try {
+                await invoke('zip', {
+                    sourcePaths: sourcePaths,
+                    destinationPath: destinationPath
+                });
 
-            await loadDirectory(currentPath);
-            showSuccess(`Successfully created ${destinationPath.split('/').pop()}`);
-        } catch (error) {
-            console.error('Zip operation failed:', error);
-            showError(`Failed to create zip: ${error.message || error}`);
-        } finally {
-            setIsProcessing(false);
+                await loadDirectory(currentPath);
+                showSuccess(`Successfully created ${destinationPath.split('/').pop()}`);
+            } catch (error) {
+                console.error('Zip operation failed:', error);
+                showError(`Failed to create zip: ${error.message || error}`);
+            } finally {
+                setIsProcessing(false);
+            }
         }
-    }, [currentPath, loadDirectory]);
+    }, [currentPath, loadDirectory, isSftpPath, downloadAndOpenSftpFile, parseSftpPath]);
 
     // Unzip item
     const unzipItem = useCallback(async (item) => {
@@ -293,20 +466,42 @@ export default function ContextMenuProvider({ children }) {
 
         setIsProcessing(true);
         try {
-            await invoke('unzip', {
-                zipPaths: [item.path],
-                destinationPath: currentPath
-            });
+            if (isSftpPath(item.path)) {
+                // Handle SFTP zip files - download first, then extract
+                console.log('📡 SFTP zip file detected, downloading for extraction...');
+                const tempZipPath = await downloadAndOpenSftpFile(item.path, false);
+                if (!tempZipPath) {
+                    throw new Error('Failed to download SFTP zip file for extraction');
+                }
+                
+                // Extract to temp directory first
+                const tempExtractPath = '/tmp/extracted_' + Date.now();
+                
+                await invoke('unzip', {
+                    zipPaths: [tempZipPath],
+                    destinationPath: tempExtractPath
+                });
+                
+                // For now, we'll extract locally and notify user
+                // TODO: Implement upload of extracted files back to SFTP
+                showSuccess(`ZIP extracted locally to: ${tempExtractPath}. SFTP upload of extracted files not yet implemented.`);
+            } else {
+                // Handle local zip files (original logic)
+                await invoke('unzip', {
+                    zipPaths: [item.path],
+                    destinationPath: currentPath
+                });
+                showSuccess(`Successfully extracted ${item.name}`);
+            }
 
             await loadDirectory(currentPath);
-            showSuccess(`Successfully extracted ${item.name}`);
         } catch (error) {
             console.error('Unzip operation failed:', error);
             showError(`Failed to extract: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
-    }, [currentPath, loadDirectory]);
+    }, [currentPath, loadDirectory, isSftpPath, downloadAndOpenSftpFile]);
 
     // Generate hash for a file - VERBESSERT MIT DEBUG
     const generateHash = useCallback(async (item) => {
@@ -322,8 +517,21 @@ export default function ContextMenuProvider({ children }) {
         setIsProcessing(true);
 
         try {
+            let hashPath = item.path;
+            
+            // Handle SFTP files by downloading them first
+            if (isSftpPath(item.path)) {
+                console.log('📡 SFTP file detected, downloading for hash generation...');
+                const tempPath = await downloadAndOpenSftpFile(item.path, false);
+                if (!tempPath) {
+                    throw new Error('Failed to download SFTP file for hash generation');
+                }
+                hashPath = tempPath;
+                console.log('✅ SFTP file downloaded to:', hashPath);
+            }
+            
             console.log('📞 Calling Tauri invoke gen_hash_and_return_string...');
-            const hash = await invoke('gen_hash_and_return_string', { path: item.path });
+            const hash = await invoke('gen_hash_and_return_string', { path: hashPath });
 
             console.log('✅ Hash generated:', hash.substring(0, 20) + '...');
 
@@ -346,10 +554,10 @@ export default function ContextMenuProvider({ children }) {
         } finally {
             setIsProcessing(false);
         }
-    }, []);
+    }, [isSftpPath, downloadAndOpenSftpFile]);
 
     // Generate hash and save to file - VERBESSERT MIT DEBUG
-    const generateHashToFile = useCallback((item) => {
+    const generateHashToFile = useCallback(async (item) => {
         console.log('🔧 generateHashToFile called with:', item?.name);
 
         if (!item || item.isDirectory || 'sub_file_count' in item) {
@@ -358,20 +566,48 @@ export default function ContextMenuProvider({ children }) {
             return;
         }
 
+        // For SFTP files, we need to modify the item to use downloaded path for hash generation
+        let processedItem = item;
+        
+        if (isSftpPath(item.path)) {
+            console.log('📡 SFTP file detected for hash file generation...');
+            setIsProcessing(true);
+            try {
+                const tempPath = await downloadAndOpenSftpFile(item.path, false);
+                if (!tempPath) {
+                    throw new Error('Failed to download SFTP file for hash generation');
+                }
+                // Create a modified item with the temp path for hash generation
+                processedItem = {
+                    ...item,
+                    path: tempPath,
+                    originalPath: item.path // Keep original path for reference
+                };
+                console.log('✅ SFTP file downloaded for hash generation:', tempPath);
+            } catch (error) {
+                console.error('Failed to download SFTP file for hash generation:', error);
+                showError(`Failed to download SFTP file: ${error.message || error}`);
+                setIsProcessing(false);
+                return;
+            } finally {
+                setIsProcessing(false);
+            }
+        }
+
         console.log('📤 Dispatching open-hash-file-modal event...');
 
         // Dispatch event to open hash file modal
         const event = new CustomEvent('open-hash-file-modal', {
-            detail: { item },
+            detail: { item: processedItem },
             bubbles: true
         });
 
         document.dispatchEvent(event);
         console.log('✅ Event dispatched successfully');
-    }, []);
+    }, [isSftpPath, downloadAndOpenSftpFile]);
 
     // Compare file with hash - VERBESSERT MIT DEBUG
-    const compareHash = useCallback((item) => {
+    const compareHash = useCallback(async (item) => {
         console.log('🔧 compareHash called with:', item?.name);
 
         if (!item || item.isDirectory || 'sub_file_count' in item) {
@@ -380,17 +616,45 @@ export default function ContextMenuProvider({ children }) {
             return;
         }
 
+        // For SFTP files, we need to modify the item to use downloaded path for hash comparison
+        let processedItem = item;
+        
+        if (isSftpPath(item.path)) {
+            console.log('📡 SFTP file detected for hash comparison...');
+            setIsProcessing(true);
+            try {
+                const tempPath = await downloadAndOpenSftpFile(item.path, false);
+                if (!tempPath) {
+                    throw new Error('Failed to download SFTP file for hash comparison');
+                }
+                // Create a modified item with the temp path for hash comparison
+                processedItem = {
+                    ...item,
+                    path: tempPath,
+                    originalPath: item.path // Keep original path for reference
+                };
+                console.log('✅ SFTP file downloaded for hash comparison:', tempPath);
+            } catch (error) {
+                console.error('Failed to download SFTP file for hash comparison:', error);
+                showError(`Failed to download SFTP file: ${error.message || error}`);
+                setIsProcessing(false);
+                return;
+            } finally {
+                setIsProcessing(false);
+            }
+        }
+
         console.log('📤 Dispatching open-hash-compare-modal event...');
 
         // Dispatch event to open hash compare modal
         const event = new CustomEvent('open-hash-compare-modal', {
-            detail: { item },
+            detail: { item: processedItem },
             bubbles: true
         });
 
         document.dispatchEvent(event);
         console.log('✅ Event dispatched successfully');
-    }, []);
+    }, [isSftpPath, downloadAndOpenSftpFile]);
 
     // Get current folder metadata by loading parent directory
     const getCurrentFolderMetadata = useCallback(async (folderPath) => {
@@ -487,8 +751,8 @@ export default function ContextMenuProvider({ children }) {
 
     // Generate menu items
     const getMenuItemsForContext = useCallback((contextTarget) => {
-        const isFile = contextTarget && !('sub_file_count' in contextTarget);
-        const isDirectory = contextTarget && ('sub_file_count' in contextTarget);
+        const isDirectory = contextTarget && (contextTarget.isDirectory || ('sub_file_count' in contextTarget));
+        const isFile = contextTarget && !isDirectory;
         const hasClipboard = clipboard.items.length > 0;
         const isZipFile = contextTarget && contextTarget.name.toLowerCase().endsWith('.zip');
 
@@ -552,7 +816,13 @@ export default function ContextMenuProvider({ children }) {
                         updateNavigationHistory(contextTarget.path);
                     } else {
                         try {
-                            await invoke('open_in_default_app', { path: contextTarget.path });
+                            // Handle SFTP files differently - download and open locally
+                            if (isSftpPath(contextTarget.path)) {
+                                await downloadAndOpenSftpFile(contextTarget.path);
+                            } else {
+                                // Regular local file - open with default app
+                                await invoke('open_in_default_app', { path: contextTarget.path });
+                            }
                         } catch (error) {
                             console.error('Failed to open file:', error);
                             showError(`Failed to open file: ${error.message || error}`);
@@ -724,7 +994,7 @@ export default function ContextMenuProvider({ children }) {
         );
 
         return menuItems;
-    }, [selectedItems, clipboard, isProcessing, currentPath, copyToClipboard, cutToClipboard, pasteFromClipboard, deleteItems, renameItem, loadDirectory, showProperties, addToFavorites, removeFromFavorites, updateNavigationHistory, zipItems, unzipItem, isInFavorites, getCurrentFolderMetadata, generateHash, generateHashToFile, compareHash, copyPath, addAsTemplate]);
+    }, [selectedItems, clipboard, isProcessing, currentPath, copyToClipboard, cutToClipboard, pasteFromClipboard, deleteItems, renameItem, loadDirectory, showProperties, addToFavorites, removeFromFavorites, updateNavigationHistory, zipItems, unzipItem, isInFavorites, getCurrentFolderMetadata, generateHash, generateHashToFile, compareHash, copyPath, addAsTemplate, isSftpPath, downloadAndOpenSftpFile, parseSftpPath]);
 
     // Open context menu
     const openContextMenu = useCallback((e, contextTarget = null) => {

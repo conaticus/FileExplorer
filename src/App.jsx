@@ -3,6 +3,7 @@ import SettingsProvider from './providers/SettingsProvider';
 import ThemeProvider from './providers/ThemeProvider';
 import AppStateProvider from './providers/AppStateProvider';
 import HistoryProvider from './providers/HistoryProvider';
+import SftpProvider from './providers/SftpProvider';
 import FileSystemProvider from './providers/FileSystemProvider';
 import ContextMenuProvider from './providers/ContextMenuProvider';
 import MainLayout from './layouts/MainLayout';
@@ -70,19 +71,22 @@ class App extends React.Component {
         // 2. ThemeProvider depends on settings and should come second
         // 3. AppStateProvider provides general app state
         // 4. HistoryProvider should come before FileSystemProvider since navigation depends on history
-        // 5. FileSystemProvider provides file system operations
-        // 6. ContextMenuProvider should come after FileSystemProvider to access selected items
+        // 5. SftpProvider should come before FileSystemProvider to provide SFTP operations
+        // 6. FileSystemProvider provides file system operations
+        // 7. ContextMenuProvider should come after FileSystemProvider to access selected items
         return (
             <div className="app-container">
                 <SettingsProvider>
                     <ThemeProvider>
                         <AppStateProvider>
                             <HistoryProvider>
-                                <FileSystemProvider>
-                                    <ContextMenuProvider>
-                                        <MainLayout />
-                                    </ContextMenuProvider>
-                                </FileSystemProvider>
+                                <SftpProvider>
+                                    <FileSystemProvider>
+                                        <ContextMenuProvider>
+                                            <MainLayout />
+                                        </ContextMenuProvider>
+                                    </FileSystemProvider>
+                                </SftpProvider>
                             </HistoryProvider>
                         </AppStateProvider>
                     </ThemeProvider>

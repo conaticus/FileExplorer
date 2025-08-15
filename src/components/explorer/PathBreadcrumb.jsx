@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useHistory } from '../../providers/HistoryProvider';
 import { useFileSystem } from '../../providers/FileSystemProvider';
+import { useSftp } from '../../providers/SftpProvider';
 import './pathBreadcrumb.css';
 
 /**
@@ -15,6 +16,7 @@ import './pathBreadcrumb.css';
 const PathBreadcrumb = ({ onCopyPath, isVisible = true, onSearch }) => {
     const { currentPath, navigateTo } = useHistory();
     const { loadDirectory, currentDirData } = useFileSystem();
+    const { isSftpPath, parseSftpPath, createSftpUrl, createSftpPath, sftpConnections } = useSftp();
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState('');
     const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -24,9 +26,9 @@ const PathBreadcrumb = ({ onCopyPath, isVisible = true, onSearch }) => {
 
     /**
      * Parses the current path into segments for breadcrumb navigation
-     * Handles both Windows and Unix-style paths
+     * Handles Windows, Unix, and SFTP paths
      *
-     * @returns {Array<{name: string, path: string}>} Array of path segments with display name and full path
+     * @returns {Array<{name: string, path: string, displayPath?: string}>} Array of path segments with display name and full path
      */
     const getPathSegments = () => {
         if (!currentPath) return [];
@@ -34,8 +36,35 @@ const PathBreadcrumb = ({ onCopyPath, isVisible = true, onSearch }) => {
         const segments = [];
         let currentSegment = '';
 
+        // Handle SFTP paths (sftp:connectionName:remotePath)
+        if (isSftpPath(currentPath)) {
+            const parsed = parseSftpPath(currentPath);
+            if (parsed && parsed.connection) {
+                // Add connection as root segment
+                segments.push({
+                    name: `${parsed.connection.username}@${parsed.connection.host}`,
+                    path: `sftp:${parsed.connectionName}:.`,
+                    displayPath: `sftp://${parsed.connection.username}@${parsed.connection.host}/`,
+                });
+
+                // Parse the remote path and add segments
+                if (parsed.remotePath && parsed.remotePath !== '.') {
+                    const pathParts = parsed.remotePath.split('/').filter(part => part && part !== '.');
+                    let buildPath = '';
+                    
+                    for (let i = 0; i < pathParts.length; i++) {
+                        buildPath += (buildPath ? '/' : '') + pathParts[i];
+                        segments.push({
+                            name: pathParts[i],
+                            path: `sftp:${parsed.connectionName}:${buildPath}`,
+                            displayPath: `sftp://${parsed.connection.username}@${parsed.connection.host}/${buildPath}`,
+                        });
+                    }
+                }
+            }
+        }
         // Handle Windows paths (C:\path\to\folder)
-        if (currentPath.includes(':\\')) {
+        else if (currentPath.includes(':\\')) {
             const parts = currentPath.split('\\');
 
             // Add the drive letter (e.g., C:)
@@ -86,16 +115,64 @@ const PathBreadcrumb = ({ onCopyPath, isVisible = true, onSearch }) => {
     const pathSegments = getPathSegments();
 
     /**
+     * Converts a standard SFTP URL back to internal format for navigation
+     * @param {string} inputPath - The path entered by user (could be standard SFTP URL or internal format)
+     * @returns {string} - Internal format path for navigation
+     */
+    const convertToInternalPath = (inputPath) => {
+        // If it's already internal format or not SFTP, return as-is
+        if (!inputPath.startsWith('sftp://')) {
+            return inputPath;
+        }
+        
+        try {
+            const url = new URL(inputPath);
+            const username = url.username;
+            const hostname = url.hostname;
+            const port = url.port || '22';
+            const remotePath = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
+            
+            // Find matching connection from saved connections
+            const connection = sftpConnections.find(conn => 
+                conn.username === username && 
+                conn.host === hostname && 
+                conn.port.toString() === port
+            );
+            
+            if (connection) {
+                return createSftpPath(connection, remotePath || '.');
+            }
+        } catch (error) {
+            console.error('Failed to parse SFTP URL:', error);
+        }
+        
+        // If conversion fails, return original input
+        return inputPath;
+    };
+
+    /**
      * Enables path editing mode when clicking on the breadcrumb
+     * For SFTP paths, shows the standard URL format for editing
      */
     const handleClick = () => {
         setIsEditing(true);
+        
+        // For SFTP paths, show standard URL format for editing
+        if (isSftpPath(currentPath)) {
+            const parsed = parseSftpPath(currentPath);
+            if (parsed && parsed.connection) {
+                const displayUrl = createSftpUrl(parsed.connection, parsed.remotePath);
+                setEditValue(displayUrl || currentPath || '');
+                return;
+            }
+        }
+        
         setEditValue(currentPath || '');
     };
 
     /**
      * Handles keyboard events in the path input
-     * - Enter: Navigate to the entered path
+     * - Enter: Navigate to the entered path (converts standard SFTP URLs to internal format)
      * - Escape: Cancel editing
      *
      * @param {React.KeyboardEvent} e - Keyboard event
@@ -106,7 +183,9 @@ const PathBreadcrumb = ({ onCopyPath, isVisible = true, onSearch }) => {
             setIsEditing(false);
 
             if (editValue && editValue !== currentPath) {
-                loadDirectory(editValue);
+                // Convert standard SFTP URL to internal format if needed
+                const internalPath = convertToInternalPath(editValue);
+                loadDirectory(internalPath);
             }
         } else if (e.key === 'Escape') {
             e.preventDefault();

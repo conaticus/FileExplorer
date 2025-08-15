@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { invoke } from '@tauri-apps/api/core';
 import { useHistory } from './HistoryProvider';
 import { useSettings } from './SettingsProvider';
+import { useSftp } from './SftpProvider';
 import { getDirectoryPath } from '../utils/pathUtils';
 
 // Create file system context
@@ -36,6 +37,15 @@ export default function FileSystemProvider({ children }) {
     const [error, setError] = useState(null);
     const { navigateTo, currentPath } = useHistory();
     const { settings } = useSettings();
+    const { 
+        isSftpPath, 
+        loadSftpDirectory, 
+        createSftpFile, 
+        createSftpDirectory, 
+        deleteSftpItem, 
+        renameSftpItem, 
+        downloadAndOpenSftpFile 
+    } = useSftp();
 
     // Helper function to check if a file or directory is hidden
     const isHiddenItem = useCallback((name) => {
@@ -93,8 +103,7 @@ export default function FileSystemProvider({ children }) {
         }
     }, []);
 
-    // Load directory contents
-    // Verbesserte loadDirectory-Funktion mit robuster Fehlerbehandlung
+    // Load directory contents - enhanced with SFTP support
     const loadDirectory = useCallback(async (path) => {
         if (!path) {
             console.error("Cannot load directory: path is empty");
@@ -107,15 +116,27 @@ export default function FileSystemProvider({ children }) {
         setError(null);
 
         try {
-            // Setze ein Timeout für den Fall, dass die Operation hängen bleibt
+            // Check if it's an SFTP path
+            if (isSftpPath(path)) {
+                console.log(`Loading SFTP directory: ${path}`);
+                const sftpData = await loadSftpDirectory(path);
+                if (sftpData) {
+                    const filteredData = filterDirectoryData(sftpData);
+                    setCurrentDirData(filteredData);
+                    navigateTo(path);
+                    console.log(`Successfully loaded SFTP directory: ${path}`);
+                    return true;
+                } else {
+                    throw new Error('Failed to load SFTP directory');
+                }
+            }
+
+            // Regular file system path
             const timeoutPromise = new Promise((_, reject) => {
                 setTimeout(() => reject(new Error(`Directory loading timed out: ${path}`)), 10000);
             });
 
-            // Versuche das Verzeichnis zu laden
             const loadPromise = invoke('open_directory', { path });
-
-            // Verwende Promise.race, um entweder das Ergebnis zu erhalten oder nach Timeout abzubrechen
             const dirContent = await Promise.race([loadPromise, timeoutPromise]);
 
             if (!dirContent) {
@@ -134,13 +155,28 @@ export default function FileSystemProvider({ children }) {
             }
         } catch (err) {
             console.error(`Failed to load directory: ${path}`, err);
-            setError(`Failed to load directory: ${err.message || err}`);
+            
+            // Handle permission errors specifically for macOS user directories
+            const errorMessage = err.message || err.toString();
+            if (errorMessage.includes('permission denied') || errorMessage.includes('Permission denied')) {
+                const folderName = path.split('/').pop() || path;
+                const isUserDir = ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Movies', 'Music'].some(dir => 
+                    path.toLowerCase().includes(dir.toLowerCase())
+                );
+                
+                if (isUserDir) {
+                    setError(`Access denied to "${folderName}". This app needs permission to access your ${folderName} folder. Please grant permission in System Preferences > Security & Privacy > Privacy > Files and Folders.`);
+                } else {
+                    setError(`Permission denied: Cannot access "${folderName}". You may need to grant additional permissions to this application.`);
+                }
+            } else {
+                setError(`Failed to load directory: ${errorMessage}`);
+            }
             return false;
         } finally {
-            // Stelle sicher, dass isLoading auf jeden Fall auf false gesetzt wird
             setIsLoading(false);
         }
-    }, [navigateTo, filterDirectoryData]);
+    }, [navigateTo, filterDirectoryData, isSftpPath, loadSftpDirectory]);
 
 // Verbesserte getDefaultDirectory-Funktion
     const getDefaultDirectory = useCallback(async () => {
@@ -255,64 +291,80 @@ export default function FileSystemProvider({ children }) {
         }
     }, [currentPath, loadDirectory]);
 
-    // Open a file
+    // Open a file - enhanced with SFTP support
     const openFile = useCallback(async (filePath) => {
         setIsLoading(true);
         setError(null);
 
         try {
-            await invoke('open_file', { filePath });
+            if (isSftpPath(filePath)) {
+                // Download and open SFTP file with default application
+                await downloadAndOpenSftpFile(filePath);
+            } else {
+                // Open local file with default application
+                await invoke('open_in_default_app', { path: filePath });
+            }
         } catch (err) {
             console.error(`Failed to open file: ${filePath}`, err);
             setError(`Failed to open file: ${err.message || err}`);
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [isSftpPath, downloadAndOpenSftpFile]);
 
-    // Create a new file
+    // Create a new file - enhanced with SFTP support
     const createFile = useCallback(async (folderPath, fileName) => {
         setIsLoading(true);
         setError(null);
 
         try {
-            await invoke('create_file', {
-                folderPathAbs: folderPath,
-                fileName: fileName
-            });
-
-            // Reload directory to show the new file
-            await loadDirectory(folderPath);
+            if (isSftpPath(folderPath)) {
+                const success = await createSftpFile(folderPath, fileName);
+                if (success) {
+                    await loadDirectory(folderPath);
+                }
+            } else {
+                await invoke('create_file', {
+                    folderPathAbs: folderPath,
+                    fileName: fileName
+                });
+                await loadDirectory(folderPath);
+            }
         } catch (err) {
             console.error(`Failed to create file: ${fileName}`, err);
             setError(`Failed to create file: ${err.message || err}`);
         } finally {
             setIsLoading(false);
         }
-    }, [loadDirectory]);
+    }, [loadDirectory, isSftpPath, createSftpFile]);
 
-    // Create a new directory
+    // Create a new directory - enhanced with SFTP support
     const createDirectory = useCallback(async (folderPath, directoryName) => {
         setIsLoading(true);
         setError(null);
 
         try {
-            await invoke('create_directory', {
-                folderPathAbs: folderPath,
-                folderName: directoryName
-            });
-
-            // Reload directory to show the new directory
-            await loadDirectory(folderPath);
+            if (isSftpPath(folderPath)) {
+                const success = await createSftpDirectory(folderPath, directoryName);
+                if (success) {
+                    await loadDirectory(folderPath);
+                }
+            } else {
+                await invoke('create_directory', {
+                    folderPathAbs: folderPath,
+                    folderName: directoryName
+                });
+                await loadDirectory(folderPath);
+            }
         } catch (err) {
             console.error(`Failed to create directory: ${directoryName}`, err);
             setError(`Failed to create directory: ${err.message || err}`);
         } finally {
             setIsLoading(false);
         }
-    }, [loadDirectory]);
+    }, [loadDirectory, isSftpPath, createSftpDirectory]);
 
-    // Rename an item (file or directory) with robust path handling
+    // Rename an item - enhanced with SFTP support
     const renameItem = useCallback(async (oldPath, newPath) => {
         setIsLoading(true);
         setError(null);
@@ -320,42 +372,61 @@ export default function FileSystemProvider({ children }) {
         try {
             console.log(`FileSystemProvider: Renaming "${oldPath}" -> "${newPath}"`);
 
-            await invoke('rename', { oldPath, newPath });
+            if (isSftpPath(oldPath)) {
+                const pathParts = newPath.split('/');
+                const newName = pathParts[pathParts.length - 1];
+                const success = await renameSftpItem(oldPath, newName);
+                if (success) {
+                    // For SFTP paths, reload the current directory instead of trying to extract parent path
+                    if (currentPath) {
+                        await loadDirectory(currentPath);
+                    }
+                }
+            } else {
+                await invoke('rename', { oldPath, newPath });
+                const dirPath = getDirectoryPath(oldPath);
+                await loadDirectory(dirPath);
+            }
 
             console.log('FileSystemProvider: Rename operation completed successfully');
-
-            // Extract directory path from the old path to reload using robust path utility
-            const dirPath = getDirectoryPath(oldPath);
-            await loadDirectory(dirPath);
         } catch (err) {
             console.error(`Failed to rename item: ${oldPath}`, err);
             setError(`Failed to rename item: ${err.message || err}`);
         } finally {
             setIsLoading(false);
         }
-    }, [loadDirectory]);
+    }, [loadDirectory, isSftpPath, renameSftpItem]);
 
-    // Move item to trash
+    // Move item to trash - enhanced with SFTP support
     const moveToTrash = useCallback(async (path) => {
         setIsLoading(true);
         setError(null);
 
         try {
-            await invoke('move_to_trash', { path });
-
-            // Extract directory path to reload
-            const dirPath = path.substring(0, path.lastIndexOf('/'));
-            await loadDirectory(dirPath);
-
-            // Clear selection if the deleted item was selected
-            setSelectedItems(prev => prev.filter(item => !item.path.startsWith(path)));
+            if (isSftpPath(path)) {
+                const success = await deleteSftpItem(path);
+                if (success) {
+                    // For SFTP paths, reload the current directory instead of trying to extract parent path
+                    if (currentPath) {
+                        await loadDirectory(currentPath);
+                    }
+                    // Clear selection if the deleted item was selected
+                    setSelectedItems(prev => prev.filter(item => !item.path.startsWith(path)));
+                }
+            } else {
+                await invoke('move_to_trash', { path });
+                const dirPath = path.substring(0, path.lastIndexOf('/'));
+                await loadDirectory(dirPath);
+                // Clear selection if the deleted item was selected
+                setSelectedItems(prev => prev.filter(item => !item.path.startsWith(path)));
+            }
         } catch (err) {
             console.error(`Failed to move item to trash: ${path}`, err);
             setError(`Failed to move item to trash: ${err.message || err}`);
         } finally {
             setIsLoading(false);
         }
-    }, [loadDirectory]);
+    }, [loadDirectory, isSftpPath, deleteSftpItem, currentPath]);
 
     // Zip selected items
     const zipItems = useCallback(async (sourcePaths, destinationPath = null) => {

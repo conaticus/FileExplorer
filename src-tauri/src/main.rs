@@ -10,7 +10,7 @@ mod state;
 
 use crate::commands::{
     command_exec_commands, file_system_operation_commands, hash_commands, meta_data_commands,
-    search_engine_commands, settings_commands, template_commands, volume_operations_commands, sftp_file_system_operation_commands, preview_commands
+    search_engine_commands, settings_commands, template_commands, volume_operations_commands, sftp_file_system_operation_commands, preview_commands, permission_commands
 };
 use tauri::ipc::Invoke;
 use tauri::Manager;
@@ -84,6 +84,13 @@ fn all_commands() -> fn(Invoke) -> bool {
         sftp_file_system_operation_commands::rename_directory_sftp,
         sftp_file_system_operation_commands::copy_directory_sftp,
         sftp_file_system_operation_commands::move_directory_sftp,
+        sftp_file_system_operation_commands::build_preview_sftp,
+        sftp_file_system_operation_commands::download_and_open_sftp_file,
+        sftp_file_system_operation_commands::cleanup_sftp_temp_files,
+
+        // Permission commands
+        permission_commands::request_full_disk_access,
+        permission_commands::check_directory_access,
     ]
 }
 
@@ -99,6 +106,14 @@ async fn main() {
                 let _ = window.show();
                 let _ = window.set_focus();
             }
+            
+            // Clean up old SFTP temporary files on startup
+            tokio::spawn(async {
+                if let Err(e) = commands::sftp_file_system_operation_commands::cleanup_sftp_temp_files() {
+                    eprintln!("Failed to cleanup SFTP temp files: {}", e);
+                }
+            });
+            
             Ok(())
         });
 

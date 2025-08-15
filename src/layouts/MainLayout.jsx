@@ -4,6 +4,7 @@ import { useFileSystem } from '../providers/FileSystemProvider';
 import { useContextMenu } from '../providers/ContextMenuProvider';
 import { useHistory } from '../providers/HistoryProvider';
 import { useSettings } from '../providers/SettingsProvider';
+import { useSftp } from '../providers/SftpProvider';
 import { invoke } from '@tauri-apps/api/core';
 import { showError, showConfirm, showSuccess } from '../utils/NotificationSystem';
 
@@ -24,6 +25,7 @@ import TabManager from '../components/tabs/TabManager';
 import GlobalSearch from '../components/search/GlobalSearch';
 import SettingsPanel from '../components/settings/SettingsPanel';
 import ThisPCView from '../components/thisPc/ThisPCView';
+import NetworkView from '../components/network/NetworkView';
 import TemplateList from '../components/templates/TemplateList';
 import PreviewModal from '../components/preview/PreviewModal';
 
@@ -49,7 +51,8 @@ import {replaceFileName} from "../utils/pathUtils.js";
  */
 const MainLayout = () => {
     const { theme, toggleTheme } = useTheme();
-    const { isLoading, currentDirData, selectedItems, loadDirectory, volumes, focusedItem, setFocusedItem } = useFileSystem();
+    const { isLoading, currentDirData, selectedItems, loadDirectory, volumes, focusedItem, setFocusedItem, renameItem: fsRenameItem } = useFileSystem();
+    const { isSftpPath, parseSftpPath, createSftpUrl } = useSftp();
     const { 
         isOpen: isContextMenuOpen, 
         position, 
@@ -80,6 +83,11 @@ const MainLayout = () => {
     const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const [itemToRename, setItemToRename] = useState(null);
+
+    // Text viewer modal state
+    const [isTextViewerOpen, setIsTextViewerOpen] = useState(false);
+    const [textViewerContent, setTextViewerContent] = useState('');
+    const [textViewerFileName, setTextViewerFileName] = useState('');
 
     // Hash Modal states
     const [isHashFileModalOpen, setIsHashFileModalOpen] = useState(false);
@@ -328,6 +336,14 @@ const MainLayout = () => {
         };
 
         /**
+         * Handler for opening Network view
+         */
+        const handleOpenNetwork = () => {
+            setCurrentView('network');
+            navigateTo(null); // Clear explorer path
+        };
+
+        /**
          * Handler for opening settings panel
          */
         const handleOpenSettings = () => {
@@ -346,15 +362,18 @@ const MainLayout = () => {
          * @param {CustomEvent} e - Event with item details
          */
         const handleOpenRenameModal = (e) => {
-            if (e.detail && e.detail.item) {
+            if (e.detail && e.detail.item && typeof e.detail.item === 'object') {
                 // Close any existing modal first to prevent duplicates
                 setIsRenameModalOpen(false);
                 setItemToRename(null);
                 
                 // Small delay to ensure cleanup, then open new modal
                 setTimeout(() => {
-                    setItemToRename(e.detail.item);
-                    setIsRenameModalOpen(true);
+                    // Double-check the item is still valid before setting it
+                    if (e.detail.item && typeof e.detail.item === 'object' && e.detail.item.name) {
+                        setItemToRename(e.detail.item);
+                        setIsRenameModalOpen(true);
+                    }
                 }, 10);
             }
         };
@@ -401,16 +420,29 @@ const MainLayout = () => {
             }
         };
 
+        // SFTP File Opened Handler
+        const handleSftpFileOpened = (e) => {
+            console.log('SFTP File Opened:', e.detail);
+            if (e.detail?.path && e.detail?.content !== undefined) {
+                const fileName = e.detail.path.split('/').pop() || 'Unknown File';
+                setTextViewerFileName(fileName);
+                setTextViewerContent(e.detail.content);
+                setIsTextViewerOpen(true);
+            }
+        };
+
         // Register event listeners
     document.addEventListener('open-templates', handleOpenTemplates);
     document.addEventListener('show-properties', handleShowProperties);
     document.addEventListener('open-this-pc', handleOpenThisPC);
+    document.addEventListener('open-network', handleOpenNetwork);
     document.addEventListener('open-settings', handleOpenSettings);
     document.addEventListener('toggle-terminal', handleToggleTerminal);
     document.addEventListener('open-rename-modal', handleOpenRenameModal);
     document.addEventListener('open-hash-file-modal', handleOpenHashFileModal);
     document.addEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
     document.addEventListener('open-hash-display-modal', handleOpenHashDisplayModal);
+    document.addEventListener('sftp-file-opened', handleSftpFileOpened);
     document.addEventListener('force-explorer-view', () => setCurrentView('explorer'));
 
         console.log('MainLayout: All event listeners registered');
@@ -419,12 +451,14 @@ const MainLayout = () => {
             document.removeEventListener('open-templates', handleOpenTemplates);
             document.removeEventListener('show-properties', handleShowProperties);
             document.removeEventListener('open-this-pc', handleOpenThisPC);
+            document.removeEventListener('open-network', handleOpenNetwork);
             document.removeEventListener('open-settings', handleOpenSettings);
             document.removeEventListener('toggle-terminal', handleToggleTerminal);
             document.removeEventListener('open-rename-modal', handleOpenRenameModal);
             document.removeEventListener('open-hash-file-modal', handleOpenHashFileModal);
             document.removeEventListener('open-hash-compare-modal', handleOpenHashCompareModal);
             document.removeEventListener('open-hash-display-modal', handleOpenHashDisplayModal);
+            document.removeEventListener('sftp-file-opened', handleSftpFileOpened);
             document.removeEventListener('force-explorer-view', () => setCurrentView('explorer'));
             console.log('MainLayout: All event listeners removed');
         };
@@ -527,12 +561,26 @@ const MainLayout = () => {
 
     /**
      * Copies current path to clipboard
+     * For SFTP paths, copies the standard URL format
      */
     const copyCurrentPath = useCallback(async () => {
         if (!currentPath) return;
 
         try {
-            await navigator.clipboard.writeText(currentPath);
+            let pathToCopy = currentPath;
+            
+            // For SFTP paths, copy the standard URL format instead of internal format
+            if (isSftpPath(currentPath)) {
+                const parsed = parseSftpPath(currentPath);
+                if (parsed && parsed.connection) {
+                    const remotePath = parsed.remotePath || '/';
+                    // Ensure path starts with forward slash
+                    const formattedPath = remotePath.startsWith('/') ? remotePath : `/${remotePath}`;
+                    pathToCopy = `sftp://${parsed.connection.username}@${parsed.connection.host}:${parsed.connection.port}${formattedPath}`;
+                }
+            }
+            
+            await navigator.clipboard.writeText(pathToCopy);
             // Show temporary notification
             const notification = document.createElement('div');
             notification.textContent = 'Path copied to clipboard';
@@ -554,7 +602,7 @@ const MainLayout = () => {
         } catch (error) {
             console.error('Failed to copy path:', error);
         }
-    }, [currentPath]);
+    }, [currentPath, isSftpPath, parseSftpPath]);
 
     /**
      * Handles renaming a file or directory
@@ -562,7 +610,12 @@ const MainLayout = () => {
      * @param {string} newName - The new name
      */
     const handleRename = async (item, newName) => {
-        if (!newName || newName === item.name) return;
+        console.log('handleRename called with:', { item, newName });
+        
+        if (!newName || newName === item.name) {
+            console.log('handleRename: Early return - newName is empty or same as current name');
+            return;
+        }
 
         console.log(`Renaming "${replaceFileName(item.path, newName)}"`);
 
@@ -578,15 +631,8 @@ const MainLayout = () => {
 
             console.log("Debug - new path:", newPath);
 
-            await invoke('rename', {
-                oldPath: item.path,
-                newPath: newPath
-            });
-
-            // Reload current directory
-            if (currentPath) {
-                await loadDirectory(currentPath);
-            }
+            // Use FileSystemProvider's renameItem which handles both local and SFTP paths
+            await fsRenameItem(item.path, newPath);
         } catch (error) {
             console.error('Rename operation failed:', error);
             if (error.message && error.message.includes('already exists')) {
@@ -683,8 +729,14 @@ const MainLayout = () => {
 
     const handleProperties = useCallback(() => {
         if (selectedItems.length === 0) return;
-        showProperties(selectedItems[0]);
-    }, [selectedItems, showProperties]);
+        // Toggle the details panel: close if open, open if closed
+        if (isDetailsPanelOpen) {
+            setIsDetailsPanelOpen(false);
+        } else {
+            showProperties(selectedItems[0]);
+            setIsDetailsPanelOpen(true);
+        }
+    }, [selectedItems, showProperties, isDetailsPanelOpen]);
 
     /**
      * Effect to clear search when changing directory
@@ -705,6 +757,8 @@ const MainLayout = () => {
         switch (currentView) {
             case 'this-pc':
                 return <ThisPCView />;
+            case 'network':
+                return <NetworkView />;
             case 'templates':
                 return <TemplateList onClose={() => {
                     setCurrentView('explorer');
@@ -831,6 +885,10 @@ const MainLayout = () => {
         }
     };
 
+    // Removed SFTP event listener - now handled by SftpProvider
+
+    // Removed renderSftpFileList - now handled seamlessly by the regular explorer view
+
     return (
         <div className={`main-layout ${isTerminalOpen ? 'with-terminal' : ''}`}>
             {/* Settings Applier - applies settings to DOM */}
@@ -859,9 +917,6 @@ const MainLayout = () => {
                             >
                                 <span className="icon icon-search-global"></span>
                             </button>
-
-
-
                         </div>
                 </div>
 
@@ -876,43 +931,43 @@ const MainLayout = () => {
                     {/* Main content area */}
                     <div className="content-area">
                         {/* Main content with file list and optional details panel */}
-                    <div
-                        className="main-content"
-                        style={isTerminalOpen ? { paddingBottom: `${terminalHeight}px` } : {}}
-                    >
-                        {renderMainContent()}
+                        <div
+                            className="main-content"
+                            style={isTerminalOpen ? { paddingBottom: `${terminalHeight}px` } : {}}
+                        >
+                            {renderMainContent()}
 
-                        {/* Details panel (when selected) */}
-                        {isDetailsPanelOpen && (
-                            <>
-                                <div className="panel-resize-handle"></div>
-                                <DetailsPanel
-                                    item={selectedItems[0] || null}
-                                    isMultipleSelection={selectedItems.length > 1}
+                            {/* Details panel (when selected) */}
+                            {isDetailsPanelOpen && (
+                                <>
+                                    <div className="panel-resize-handle"></div>
+                                    <DetailsPanel
+                                        item={selectedItems[0] || null}
+                                        isMultipleSelection={selectedItems.length > 1}
+                                    />
+                                </>
+                            )}
+                        </div>
+
+                        {/* Terminal positioned absolutely at the bottom */}
+                        <div 
+                            className="terminal-wrapper"
+                            style={{
+                                position: isTerminalOpen ? 'absolute' : 'static',
+                                bottom: isTerminalOpen ? 0 : 'auto',
+                                left: isTerminalOpen ? 0 : 'auto',
+                                right: isTerminalOpen ? 0 : 'auto',
+                                height: isTerminalOpen ? `${terminalHeight}px` : 0,
+                                overflow: isTerminalOpen ? 'visible' : 'hidden'
+                            }}
+                        >
+                            {isTerminalOpen && (
+                                <Terminal
+                                    isOpen={isTerminalOpen}
+                                    onToggle={() => setIsTerminalOpen(!isTerminalOpen)}
                                 />
-                            </>
-                        )}
-                    </div>
-
-                    {/* Terminal positioned absolutely at the bottom */}
-                    <div 
-                        className="terminal-wrapper"
-                        style={{
-                            position: isTerminalOpen ? 'absolute' : 'static',
-                            bottom: isTerminalOpen ? 0 : 'auto',
-                            left: isTerminalOpen ? 0 : 'auto',
-                            right: isTerminalOpen ? 0 : 'auto',
-                            height: isTerminalOpen ? `${terminalHeight}px` : 0,
-                            overflow: isTerminalOpen ? 'visible' : 'hidden'
-                        }}
-                    >
-                        {isTerminalOpen && (
-                            <Terminal
-                                isOpen={isTerminalOpen}
-                                onToggle={() => setIsTerminalOpen(!isTerminalOpen)}
-                            />
-                        )}
-                    </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </TabManager>
