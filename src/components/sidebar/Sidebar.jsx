@@ -599,33 +599,45 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                         </div>
                         {!sectionCollapsed.network && (
                             <ul className="sidebar-list">
-                                {sftpConnections.map((conn) => (
-                                    <SidebarItem
-                                        key={conn.name}
-                                        icon="network"
-                                        name={conn.name}
-                                        path={`sftp://${conn.username}@${conn.host}:${conn.port}`}
-                                        isActive={currentView === 'network' && currentPath === conn.name}
-                                        onClick={async () => {
-                                            // Navigate to SFTP connection using the new provider
-                                            try {
-                                                const sftpData = await navigateToSftpConnection(conn);
-                                                if (sftpData) {
-                                                    const sftpPath = createSftpUrl(conn, '.');
-                                                    await loadDirectory(sftpPath);
-                                                    navigateTo(sftpPath);
+                                {sftpConnections.length === 0 ? (
+                                    <div className="sidebar-empty-state">
+                                        <div className="empty-state-icon">
+                                            <span className="icon icon-network"></span>
+                                        </div>
+                                        <div className="empty-state-text">
+                                            <p>No SFTP connections</p>
+                                            <span>Add a connection to get started</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    sftpConnections.map((conn) => (
+                                        <SidebarItem
+                                            key={conn.name}
+                                            icon="network"
+                                            name={conn.name}
+                                            path={`sftp://${conn.username}@${conn.host}:${conn.port}`}
+                                            isActive={currentView === 'network' && currentPath === conn.name}
+                                            onClick={async () => {
+                                                // Navigate to SFTP connection using the new provider
+                                                try {
+                                                    const sftpData = await navigateToSftpConnection(conn);
+                                                    if (sftpData) {
+                                                        const sftpPath = createSftpUrl(conn, '.');
+                                                        await loadDirectory(sftpPath);
+                                                        navigateTo(sftpPath);
+                                                    }
+                                                } catch (error) {
+                                                    console.error('Failed to connect to SFTP:', error);
                                                 }
-                                            } catch (error) {
-                                                console.error('Failed to connect to SFTP:', error);
-                                            }
-                                        }}
-                                        actions={[{
-                                            icon: 'x',
-                                            tooltip: 'Remove SFTP Connection',
-                                            onClick: () => removeSftpConnection(conn.name)
-                                        }]}
-                                    />
-                                ))}
+                                            }}
+                                            actions={[{
+                                                icon: 'x',
+                                                tooltip: 'Remove SFTP Connection',
+                                                onClick: () => removeSftpConnection(conn.name)
+                                            }]}
+                                        />
+                                    ))
+                                )}
                             </ul>
                         )}
                     </section>

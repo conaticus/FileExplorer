@@ -90,8 +90,13 @@ const Favorites = ({
 
         return (
             <div className="sidebar-empty-state">
-                <small className="empty-state-title">No favorites added <br /></small>
-                <small className="empty-state-subtitle">Right-click a folder and select<br />"Add to Favorites"</small>
+                <div className="empty-state-icon">
+                    <span className="icon icon-star"></span>
+                </div>
+                <div className="empty-state-text">
+                    <p>No favorites added</p>
+                    <span>Right-click an item and select <br /> "Add to Favorites"</span>
+                </div>
             </div>
         );
     }
