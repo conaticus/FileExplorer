@@ -214,7 +214,42 @@
 }
 
 .sidebar-empty-state {
-    padding: 0 var(--space-md) var(--space-xs);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-lg) var(--space-md);
+    text-align: center;
+    gap: 0;
+}
+
+.empty-state-icon {
+    margin-bottom: 0;
+    opacity: 0.5;
+}
+
+.empty-state-icon .icon {
+    width: 24px;
+    height: 24px;
+    color: var(--text-tertiary);
+}
+
+.empty-state-text {
+    margin-top: -32px;
+}
+
+.empty-state-text p {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-xs) 0;
+    padding: 0;
+    line-height: 1;
+}
+
+.empty-state-text span {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    margin: 0;
 }
 
 .empty-state-title {
