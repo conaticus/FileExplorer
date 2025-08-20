@@ -113,9 +113,16 @@ impl ARTNode {
             ARTNode::Node4(n) => {
                 // Check if we need to grow first before taking the child
                 if n.keys.len() >= NODE4_MAX && !n.keys.contains(&key) {
-                    let grown_node = self.grow();
-                    grown = true;
-                    *self = grown_node;
+                    match self.grow() {
+                        Ok(grown_node) => {
+                            grown = true;
+                            *self = grown_node;
+                        }
+                        Err(e) => {
+                            log_error!("Failed to grow node: {}", e);
+                            return false;
+                        }
+                    }
                     let added = self.add_child(key, child.take());
                     added
                 } else {
@@ -124,9 +131,16 @@ impl ARTNode {
             }
             ARTNode::Node16(n) => {
                 if n.keys.len() >= NODE16_MAX && !n.keys.contains(&key) {
-                    let grown_node = self.grow();
-                    grown = true;
-                    *self = grown_node;
+                    match self.grow() {
+                        Ok(grown_node) => {
+                            grown = true;
+                            *self = grown_node;
+                        }
+                        Err(e) => {
+                            log_error!("Failed to grow node: {}", e);
+                            return false;
+                        }
+                    }
                     let added = self.add_child(key, child.take());
                     added
                 } else {
@@ -135,9 +149,16 @@ impl ARTNode {
             }
             ARTNode::Node48(n) => {
                 if n.size >= NODE48_MAX && n.child_index[key as usize].is_none() {
-                    let grown_node = self.grow();
-                    grown = true;
-                    *self = grown_node;
+                    match self.grow() {
+                        Ok(grown_node) => {
+                            grown = true;
+                            *self = grown_node;
+                        }
+                        Err(e) => {
+                            log_error!("Failed to grow node: {}", e);
+                            return false;
+                        }
+                    }
                     let added = self.add_child(key, child.take());
                     added
                 } else {
@@ -175,8 +196,10 @@ impl ARTNode {
                 let removed = n.remove_child(key);
                 if n.keys.len() < NODE4_MAX / 2 {
                     // Shrink to Node4
-                    let shrunk = self.shrink();
-                    *self = shrunk;
+                    match self.shrink() {
+                        Ok(shrunk) => *self = shrunk,
+                        Err(e) => log_error!("Failed to shrink node: {}", e),
+                    }
                 }
                 removed
             }
@@ -184,8 +207,10 @@ impl ARTNode {
                 let removed = n.remove_child(key);
                 if n.size < NODE16_MAX / 2 {
                     // Shrink to Node16
-                    let shrunk = self.shrink();
-                    *self = shrunk;
+                    match self.shrink() {
+                        Ok(shrunk) => *self = shrunk,
+                        Err(e) => log_error!("Failed to shrink node: {}", e),
+                    }
                 }
                 removed
             }
@@ -193,8 +218,10 @@ impl ARTNode {
                 let removed = n.remove_child(key);
                 if n.size < NODE48_MAX / 2 {
                     // Shrink to Node48
-                    let shrunk = self.shrink();
-                    *self = shrunk;
+                    match self.shrink() {
+                        Ok(shrunk) => *self = shrunk,
+                        Err(e) => log_error!("Failed to shrink node: {}", e),
+                    }
                 }
                 removed
             }
@@ -221,7 +248,7 @@ impl ARTNode {
     }
 
     // Grow to a larger node type
-    fn grow(&mut self) -> Self {
+    fn grow(&mut self) -> Result<Self, String> {
         match self {
             ARTNode::Node4(n) => {
                 let mut n16 = Node16::new();
@@ -235,7 +262,7 @@ impl ARTNode {
                     let child_opt = n.remove_child(key);
                     n16.add_child(key, child_opt);
                 }
-                ARTNode::Node16(n16)
+                Ok(ARTNode::Node16(n16))
             }
             ARTNode::Node16(n) => {
                 let mut n48 = Node48::new();
@@ -248,7 +275,7 @@ impl ARTNode {
                         n48.add_child(key, Some(child_node));
                     }
                 }
-                ARTNode::Node48(n48)
+                Ok(ARTNode::Node48(n48))
             }
             ARTNode::Node48(n) => {
                 let mut n256 = Node256::new();
@@ -262,17 +289,17 @@ impl ARTNode {
                         n256.add_child(key, Some(child_node));
                     }
                 }
-                ARTNode::Node256(n256)
+                Ok(ARTNode::Node256(n256))
             }
             ARTNode::Node256(_) => {
                 log_error!("Node256 cannot be grown further");
-                panic!("Node256 cannot be grown further");
+                Err("Node256 cannot be grown further".to_string())
             }
         }
     }
 
     // Shrink to a smaller node type
-    fn shrink(&mut self) -> Self {
+    fn shrink(&mut self) -> Result<Self, String> {
         match self {
             ARTNode::Node16(n) => {
                 let mut n4 = Node4::new();
@@ -283,7 +310,7 @@ impl ARTNode {
                     n4.keys.push(n.keys[i]);
                     n4.children.push(n.children[i].take());
                 }
-                ARTNode::Node4(n4)
+                Ok(ARTNode::Node4(n4))
             }
             ARTNode::Node48(n) => {
                 let mut n16 = Node16::new();
@@ -303,7 +330,7 @@ impl ARTNode {
                         }
                     }
                 }
-                ARTNode::Node16(n16)
+                Ok(ARTNode::Node16(n16))
             }
             ARTNode::Node256(n) => {
                 let mut n48 = Node48::new();
@@ -322,11 +349,11 @@ impl ARTNode {
                     }
                 }
                 n48.size = count;
-                ARTNode::Node48(n48)
+                Ok(ARTNode::Node48(n48))
             }
             _ => {
                 log_error!("Cannot shrink node smaller than Node4");
-                panic!("Cannot shrink node smaller than Node4");
+                Err("Cannot shrink node smaller than Node4".to_string())
             }
         }
     }
