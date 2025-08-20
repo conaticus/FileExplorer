@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ask, message } from '@tauri-apps/plugin-dialog';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useHistory } from '../../providers/HistoryProvider';
-import FileIcon from '../explorer/FileIcon';
-import { formatFileSize, formatDate } from '../../utils/formatters';
+import { formatFileSize } from '../../utils/formatters';
 import './thisPc.css';
 
 /**
@@ -264,7 +262,7 @@ const ThisPCView = () => {
     const ejectVolume = async (volume) => {
         if (!volume.is_removable) return;
 
-        const confirmEject = await ask(`Are you sure you want to safely eject ${volume.volume_name}?`);
+        const confirmEject = confirm(`Are you sure you want to safely eject ${volume.volume_name}?`);
         if (!confirmEject) return;
 
         try {
@@ -287,7 +285,7 @@ const ThisPCView = () => {
             const commandResponse = JSON.parse(result);
             
             if (commandResponse.status === 0) {
-                await message(`${volume.volume_name} has been safely ejected.`);
+                alert(`${volume.volume_name} has been safely ejected.`);
                 // Reload volumes to update the UI after ejection
                 setTimeout(() => {
                     loadVolumes();
@@ -307,7 +305,7 @@ const ThisPCView = () => {
                 // If not JSON, use as-is
             }
             
-            await message(`Failed to eject ${volume.volume_name}: ${errorMessage}`);
+            alert(`Failed to eject ${volume.volume_name}: ${errorMessage}`);
         }
     };
 
