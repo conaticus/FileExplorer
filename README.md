@@ -12,17 +12,51 @@
 
 </div>
 
+## ✨ Features
+
+- **🚀 Blazing Fast Search**: Multiple search algorithms with ~15ms response time vs 3min 45sec for Windows Explorer
+- **🔍 Advanced Search Engine**: 
+  - Fast fuzzy search with ART (Adaptive Radix Tree) implementation
+  - LRU caching for optimal performance
+  - Multiple search algorithms for different use cases
+- **📁 Comprehensive File Operations**: Copy, move, delete, rename with robust error handling
+- **🌐 SFTP Support**: Full remote file system operations including browsing, uploading, and downloading
+- **🔐 Advanced Permissions**: File and directory permission management
+- **📊 File Metadata**: Comprehensive metadata viewing and management
+- **🔨 File Hashing**: MD5, SHA2, and CRC32 hash generation for file integrity
+- **📄 File Templates**: Template system for creating new files
+- **👁️ File Preview**: Built-in preview system for various file types (spotlight-like)
+- **💾 Volume Operations**: Drive management and volume operations
+- **⚙️ Customizable Settings**: Extensive configuration options
+- **🎨 Modern UI**: React-based interface with context menus and responsive design
+
 ## 🔍 Current Status
 
-Cross platform compatibility is given and it supports all common Linux distros, which are supported
-by Tauri. If there is an interest of contributing feel free to join the
+Cross platform compatibility is given and it supports all common Linux distros, macOS, and Windows
+which are supported by Tauri. If there is an interest in contributing feel free to join the
 [discord channel](https://discord.com/invite/dnVJQtNXjr) from Connaticus or message me or my team.
+
+## 🏗️ Architecture
+
+This is a Tauri-based application with a **Rust backend** and **React frontend**:
+
+### Backend (Rust)
+- **Search Engine**: Multiple algorithms with LRU caching
+- **File System Operations**: Local and SFTP file operations
+- **Command System**: Modular command handlers for different operations
+- **Error Handling**: Centralized error management with standardized codes (401-500)
+- **Feature Flags**: Extensive Cargo features for different build configurations
+
+### Frontend (React)
+- **Provider Pattern**: Hierarchical context providers for state management
+- **Modern UI**: Component-based architecture with custom hooks
+- **Responsive Design**: Adaptive layouts for different screen sizes
 
 ## Coming Soon
 
-- Caching service with real-time file watching
-- Search/caching progress indicator
-- A better terminal emulator (maybe it is possible to have the systems default terminal integrated)
+- Real-time file watching with caching service
+- Search/caching progress indicators
+- Enhanced terminal integration
 
 # 🛠️ Installation
 
@@ -114,6 +148,26 @@ cargo tauri build
 cargo tauri dev
 ```
 
+### Testing and Development Commands
+
+The project uses feature flags for different configurations:
+
+```bash
+# Run all tests including long-running ones
+cargo test --features full
+
+# Run with benchmark features
+cargo test --features benchmarks
+
+# Enable all logging during tests
+cargo test --features log-all
+```
+
+Available feature combinations:
+- `full` - All features including long tests, benchmarks, and file opening
+- `log-search` - Enable search progress and error logging
+- `log-index` - Enable indexing progress and error logging
+
 ## 📸 Images
 
 <div align="center">
@@ -142,12 +196,27 @@ repo can be found under [FileExplorer](https://github.com/CodeMarco05/FileExplor
 
 ## ⚡ Performance
 
-Our benchmarks show extraordinary performance improvements over native solutions, based on 170
-thousand paths:
+This file explorer emphasizes extreme performance with benchmarks showing significant improvements
+over native solutions (tested on 170,000 paths):
 
 | Operation   | Fast File Explorer | Windows Explorer |
-| ----------- | :----------------: | :--------------: |
-| File search |        ~2ms        |   (3min 45sec)   |
+| ----------- |:------------------:| :--------------: |
+| File search |       ~15ms        |   3min 45sec     |
+
+### Technical Implementation
+- **Multiple Search Algorithms**: Fast fuzzy search, ART (Adaptive Radix Tree)
+- **LRU Caching**: Intelligent caching for search results
+- **Rust Backend**: Memory-safe, zero-cost abstractions
+- **Modular Architecture**: Command-based system with feature flags
+
+## ⚙️ Configuration
+
+The application uses several configuration files:
+
+- `src-tauri/config/settings.json` - Application settings
+- `src-tauri/config/meta_data.json` - Metadata configuration  
+- `src-tauri/tauri.conf.json` - Tauri application configuration
+- `package.json` - Frontend dependencies and scripts
 
 ## 🤝 Contributing
 

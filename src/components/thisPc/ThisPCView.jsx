@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ask, message } from '@tauri-apps/plugin-dialog';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useHistory } from '../../providers/HistoryProvider';
-import FileIcon from '../explorer/FileIcon';
-import { formatFileSize, formatDate } from '../../utils/formatters';
+import { formatFileSize } from '../../utils/formatters';
 import './thisPc.css';
+import {showConfirm, showError, showSuccess} from "../../utils/NotificationSystem.js";
 
 /**
  * ThisPCView component - Displays system information, user folders, and storage drives
@@ -244,7 +243,7 @@ const ThisPCView = () => {
             navigateTo(path);
         } catch (error) {
             console.error('Failed to navigate to folder:', error);
-            alert(`Cannot access ${path}. The folder may not exist or is inaccessible.`);
+            showError(`Cannot access ${path}. The folder may not exist or is inaccessible.`);
         }
     };
 
@@ -264,7 +263,7 @@ const ThisPCView = () => {
     const ejectVolume = async (volume) => {
         if (!volume.is_removable) return;
 
-        const confirmEject = await ask(`Are you sure you want to safely eject ${volume.volume_name}?`);
+        const confirmEject = await showConfirm(`Are you sure you want to safely eject ${volume.volume_name}?`);
         if (!confirmEject) return;
 
         try {
@@ -287,7 +286,7 @@ const ThisPCView = () => {
             const commandResponse = JSON.parse(result);
             
             if (commandResponse.status === 0) {
-                await message(`${volume.volume_name} has been safely ejected.`);
+                showSuccess(`${volume.volume_name} has been safely ejected.`);
                 // Reload volumes to update the UI after ejection
                 setTimeout(() => {
                     loadVolumes();
@@ -307,7 +306,7 @@ const ThisPCView = () => {
                 // If not JSON, use as-is
             }
             
-            await message(`Failed to eject ${volume.volume_name}: ${errorMessage}`);
+            showError(`Failed to eject ${volume.volume_name}: ${errorMessage}`);
         }
     };
 
