@@ -10,8 +10,9 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 import AddSftpConnectionView from './AddSftpConnectionView';
 import PermissionHelper from '../common/PermissionHelper';
-import {ask, message, open} from '@tauri-apps/plugin-dialog';
+import {open} from '@tauri-apps/plugin-dialog';
 import './sidebar.css';
+import {showConfirm, showError, showSuccess} from "../../utils/NotificationSystem.js";
 
 /**
  * Sidebar component - Provides navigation, favorites, and quick access
@@ -99,7 +100,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
 
     // Remove SFTP connection with confirmation
     const removeSftpConnection = async (name) => {
-        const confirmRemove = await ask(`Are you sure you want to remove the SFTP connection "${name}"?`);
+        const confirmRemove = await showConfirm(`Are you sure you want to remove the SFTP connection "${name}"?`);
         if (!confirmRemove) return;
         try {
             const existing = JSON.parse(localStorage.getItem('fileExplorerSftpConnections') || '[]');
@@ -110,8 +111,9 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                 key: 'fileExplorerSftpConnections',
                 newValue: JSON.stringify(newConnections)
             }));
+            showSuccess('SFTP COnnection "${name}" removed successfully.', 'success');
         } catch (err) {
-            // ignore
+            showError('Failed to remove SFTP connection: ' + err.message, 'error');
         }
     };
 
@@ -522,7 +524,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                                 icon: 'eject',
                                                 tooltip: 'Safely eject',
                                                 onClick: async () => {
-                                                    const confirmEject = await ask(`Are you sure you want to safely eject ${volume.volume_name}?`);
+                                                    const confirmEject = await showConfirm(`Are you sure you want to safely eject ${volume.volume_name}?`);
                                                     if (!confirmEject) return;
 
                                                     try {
@@ -546,7 +548,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                                         const commandResponse = JSON.parse(result);
                                                         
                                                         if (commandResponse.status === 0) {
-                                                            await message(`${volume.volume_name} has been safely ejected.`);
+                                                            showSuccess(`${volume.volume_name} has been safely ejected.`, 'success');
                                                             // Reload volumes to update the UI after ejection
                                                             setTimeout(() => {
                                                                 loadVolumes();
@@ -566,7 +568,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                                             // If not JSON, use as-is
                                                         }
                                                         
-                                                        await message(`Failed to eject ${volume.volume_name}: ${errorMessage}`);
+                                                        showError(`Failed to eject ${volume.volume_name}: ${errorMessage}`, 'error');
                                                     }
                                                 }
                                             }
