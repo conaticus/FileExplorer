@@ -178,14 +178,14 @@ pub async fn open_directory(path: String) -> Result<String, String> {
 
         if file_type.is_dir() {
             directories.push(models::Directory {
-                name: entry.file_name().to_str().unwrap().to_string(),
-                path: path_of_entry.to_str().unwrap().to_string(),
+                name: entry.file_name().to_str().unwrap_or("[invalid name]").to_string(),
+                path: path_of_entry.to_str().unwrap_or("[invalid path]").to_string(),
                 is_symlink: path_of_entry.is_symlink(),
                 access_rights_as_string: get_access_permission_string(metadata.permissions(), true),
                 access_rights_as_number: get_access_permission_number(metadata.permissions(), true),
                 size_in_bytes: 0,
-                sub_file_count: count_subfiles(path_of_entry.to_str().unwrap()),
-                sub_dir_count: count_subdirectories(path_of_entry.to_str().unwrap()),
+                sub_file_count: path_of_entry.to_str().map(count_subfiles).unwrap_or(0),
+                sub_dir_count: path_of_entry.to_str().map(count_subdirectories).unwrap_or(0),
                 created: metadata
                     .created()
                     .map_or("1970-01-01 00:00:00".to_string(), |time| {
@@ -204,8 +204,8 @@ pub async fn open_directory(path: String) -> Result<String, String> {
             });
         } else if file_type.is_file() {
             files.push(models::File {
-                name: entry.file_name().to_str().unwrap().to_string(),
-                path: path_of_entry.to_str().unwrap().to_string(),
+                name: entry.file_name().to_str().unwrap_or("[invalid name]").to_string(),
+                path: path_of_entry.to_str().unwrap_or("[invalid path]").to_string(),
                 is_symlink: path_of_entry.is_symlink(),
                 access_rights_as_string: get_access_permission_string(
                     metadata.permissions(),
@@ -475,13 +475,13 @@ fn generate_unique_path(original_path: &str) -> String {
         return original_path.to_string();
     }
     
-    let parent = path.parent().unwrap_or(Path::new(""));
-    let file_name = path.file_name().unwrap().to_string_lossy();
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_else(|| "[invalid_name]".into());
     
     // Check if it's a file with extension or a directory
     if let Some(extension) = path.extension() {
         // It's a file with extension
-        let stem = path.file_stem().unwrap().to_string_lossy();
+        let stem = path.file_stem().map(|s| s.to_string_lossy()).unwrap_or_else(|| "[invalid_stem]".into());
         let ext = extension.to_string_lossy();
         
         for i in 1..=9999 {
@@ -595,8 +595,8 @@ pub async fn copy_file_or_dir(source_path: &str, destination_path: &str) -> Resu
             } else if entry_path.is_dir() {
                 // Recursively copy subdirectory
                 let sub_size = Box::pin(copy_file_or_dir(
-                    entry_path.to_str().unwrap(),
-                    dest_path.to_str().unwrap(),
+                    entry_path.to_str().unwrap_or("[invalid source path]"),
+                    dest_path.to_str().unwrap_or("[invalid dest path]"),
                 ))
                 .await?;
                 total_size += sub_size;

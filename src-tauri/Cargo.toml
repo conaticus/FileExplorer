@@ -69,8 +69,8 @@ index-progress-logging = []
 index-error-logging = []
 
 # Testing features
-full = ["long-tests", "generate-test-data", "benchmarks", "open-file-in-app"]
-full-no-generate-test-data = ["long-tests", "benchmarks", "open-file-in-app"]
+full = ["long-tests", "generate-test-data", "benchmarks", "open-file-in-app", "sftp-tests"]
+full-no-generate-test-data = ["long-tests", "benchmarks", "open-file-in-app", "sftp-tests"]
 open-file-in-app = []
 generate-test-data = []
 long-tests = []

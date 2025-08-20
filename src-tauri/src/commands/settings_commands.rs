@@ -29,8 +29,23 @@ pub fn get_settings_as_json(state: State<Arc<Mutex<SettingsState>>>) -> String {
 }
 
 pub fn get_settings_as_json_impl(state: Arc<Mutex<SettingsState>>) -> String {
-    let settings_inner = state.lock().unwrap().0.clone();
-    to_string(&settings_inner).unwrap()
+    let settings_inner = match state.lock() {
+        Ok(guard) => guard.0.clone(),
+        Err(_) => {
+            return Error::new(
+                ErrorCode::InternalError,
+                "Failed to acquire lock on settings state".to_string(),
+            ).to_json();
+        }
+    };
+    
+    match to_string(&settings_inner) {
+        Ok(json) => json,
+        Err(_) => Error::new(
+            ErrorCode::InternalError,
+            "Failed to serialize settings to JSON".to_string(),
+        ).to_json()
+    }
 }
 
 /// Retrieves the value of a specific setting field.
@@ -68,7 +83,12 @@ pub fn get_setting_field_impl(
     state: Arc<Mutex<SettingsState>>,
     key: String,
 ) -> Result<serde_json::Value, String> {
-    let settings_state = state.lock().unwrap();
+    let settings_state = state.lock().map_err(|_| {
+        Error::new(
+            ErrorCode::InternalError,
+            "Failed to acquire lock on settings state".to_string(),
+        ).to_json()
+    })?;
     settings_state.get_setting_field(&key).map_err(|e| {
         Error::new(
             ErrorCode::InternalError,
@@ -116,7 +136,12 @@ pub fn update_settings_field_impl(
     key: String,
     value: serde_json::Value,
 ) -> Result<String, String> {
-    let settings_state = state.lock().unwrap();
+    let settings_state = state.lock().map_err(|_| {
+        Error::new(
+            ErrorCode::InternalError,
+            "Failed to acquire lock on settings state".to_string(),
+        ).to_json()
+    })?;
     settings_state
         .update_setting_field(&key, value)
         .and_then(|updated| {
@@ -170,7 +195,12 @@ pub fn update_multiple_settings_impl(
     state: Arc<Mutex<SettingsState>>,
     updates: serde_json::Map<String, serde_json::Value>,
 ) -> Result<String, String> {
-    let settings_state = state.lock().unwrap();
+    let settings_state = state.lock().map_err(|_| {
+        Error::new(
+            ErrorCode::InternalError,
+            "Failed to acquire lock on settings state".to_string(),
+        ).to_json()
+    })?;
     settings_state
         .update_multiple_settings(&updates)
         .and_then(|updated| {
@@ -213,7 +243,12 @@ pub fn reset_settings_command(state: State<Arc<Mutex<SettingsState>>>) -> Result
 }
 
 pub fn reset_settings_impl(state: Arc<Mutex<SettingsState>>) -> Result<String, String> {
-    let settings_state = state.lock().unwrap();
+    let settings_state = state.lock().map_err(|_| {
+        Error::new(
+            ErrorCode::InternalError,
+            "Failed to acquire lock on settings state".to_string(),
+        ).to_json()
+    })?;
     settings_state
         .reset_settings()
         .and_then(|updated| {

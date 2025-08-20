@@ -57,7 +57,9 @@ impl Error {
         }
     }
     pub fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap()
+        serde_json::to_string(self).unwrap_or_else(|_| {
+            r#"{"code":500,"message_from_code":"InternalError","custom_message":"Failed to serialize error"}"#.to_string()
+        })
     }
 }
 

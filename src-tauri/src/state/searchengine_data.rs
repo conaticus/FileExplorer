@@ -195,8 +195,8 @@ impl SearchEngineState {
     pub fn new(settings_state: Arc<Mutex<SettingsState>>) -> Self {
         // Get config from settings_state
         let config = {
-            let settings = settings_state.lock().unwrap();
-            let inner_settings = settings.0.lock().unwrap();
+            let settings = settings_state.lock().expect("Failed to acquire lock on settings state during SearchEngineState initialization");
+            let inner_settings = settings.0.lock().expect("Failed to acquire lock on inner settings during SearchEngineState initialization");
             inner_settings.backend_settings.search_engine_config.clone()
         };
 
@@ -211,7 +211,7 @@ impl SearchEngineState {
         let engine = SearchCore::new(
             config.cache_size,
             config.max_results,
-            config.cache_ttl.unwrap(),
+            config.cache_ttl.unwrap_or_else(|| std::time::Duration::from_secs(3600)),  // Default 1 hour TTL
             ranking_config,
         );
 
@@ -279,8 +279,8 @@ impl SearchEngineState {
     #[allow(dead_code)]
     pub fn start_indexing(&self, folder: PathBuf) -> Result<(), String> {
         // Get locks on both data and engine
-        let mut data = self.data.lock().unwrap();
-        let mut engine = self.engine.write().unwrap();
+        let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data")?;
+        let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine")?;
 
         // Check if search engine is enabled
         if !data.config.search_engine_enabled {
@@ -327,19 +327,20 @@ impl SearchEngineState {
 
             // Get the engine again for the recursive operation
             {
-                let mut engine = self.engine.write().unwrap();
+                let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine")?;
                 // Since add_paths_recursive is async, we need to use a runtime
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(engine.add_paths_recursive(folder_str, Some(&excluded_patterns.unwrap())));
+                let rt = tokio::runtime::Runtime::new().map_err(|_| "Failed to create tokio runtime")?;
+                let patterns = excluded_patterns.as_ref();
+                rt.block_on(engine.add_paths_recursive(folder_str, patterns));
             }
 
             // Update status and metrics after indexing completes or stops
-            let mut data = self.data.lock().unwrap();
+            let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data")?;
             let elapsed = start_time.elapsed();
             data.metrics.last_indexing_duration_ms = Some(elapsed.as_millis() as u64);
 
             // Check if it was cancelled
-            let engine = self.engine.read().unwrap();
+            let engine = self.engine.read().map_err(|_| "Failed to acquire read lock on search engine")?;
             if engine.should_stop_indexing() {
                 data.status = SearchEngineStatus::Cancelled;
                 #[cfg(test)]
@@ -382,8 +383,8 @@ impl SearchEngineState {
     /// * `Err(String)` - An error occurred during indexing
     pub fn start_chunked_indexing(&self, folder: PathBuf, chunk_size: usize) -> Result<(), String> {
         // Get locks on both data and engine
-        let mut data = self.data.lock().unwrap();
-        let mut engine = self.engine.write().unwrap();
+        let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data")?;
+        let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine")?;
 
         // Check if search engine is enabled
         if !data.config.search_engine_enabled {
@@ -429,7 +430,7 @@ impl SearchEngineState {
 
             // Initialize progress tracking with immediate update
             {
-                let mut data = self.data.lock().unwrap();
+                let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data for progress update")?;
                 data.progress.files_discovered = 0;
                 data.progress.files_indexed = 0;
                 data.progress.percentage_complete = 0.0;
@@ -441,7 +442,8 @@ impl SearchEngineState {
             }
 
             // Use streaming indexing instead of collecting all paths first
-            self.index_directory_streaming(&folder, &excluded_patterns.unwrap_or_default(), chunk_size)?;
+            let patterns = excluded_patterns.unwrap_or_default();
+            self.index_directory_streaming(&folder, &patterns, chunk_size)?;
         } else {
             data.status = SearchEngineStatus::Failed;
             return Err("Invalid folder path".to_string());
@@ -482,12 +484,12 @@ impl SearchEngineState {
         }
 
         // Update final status
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data for final status update")?;
         let elapsed = start_time.elapsed();
         data.metrics.last_indexing_duration_ms = Some(elapsed.as_millis() as u64);
 
         // Check if it was cancelled
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().map_err(|_| "Failed to acquire read lock on search engine for status check")?;
         if engine.should_stop_indexing() {
             data.status = SearchEngineStatus::Cancelled;
             log_info!("Optimized streaming indexing was cancelled");
@@ -546,7 +548,7 @@ impl SearchEngineState {
 
             // Check for cancellation more frequently
             {
-                let engine = self.engine.read().unwrap();
+                let engine = self.engine.read().map_err(|_| "Failed to acquire read lock on search engine for cancellation check")?;
                 if engine.should_stop_indexing() {
                     return Ok(());
                 }
@@ -557,7 +559,7 @@ impl SearchEngineState {
                 for entry in entries.filter_map(Result::ok) {
                     // Check for cancellation on each entry to be more responsive
                     {
-                        let engine = self.engine.read().unwrap();
+                        let engine = self.engine.read().map_err(|_| "Failed to acquire read lock on search engine for entry cancellation check")?;
                         if engine.should_stop_indexing() {
                             return Ok(());
                         }
@@ -648,7 +650,7 @@ impl SearchEngineState {
 
         // Check for cancellation before processing
         {
-            let engine = self.engine.read().unwrap();
+            let engine = self.engine.read().map_err(|_| "Failed to acquire read lock on search engine for batch cancellation check")?;
             if engine.should_stop_indexing() {
                 return Ok(());
             }
@@ -660,7 +662,7 @@ impl SearchEngineState {
         for chunk in batch.chunks(SUB_BATCH_SIZE) {
             // Check for cancellation before each sub-batch
             {
-                let engine = self.engine.read().unwrap();
+                let engine = self.engine.read().map_err(|_| "Failed to acquire read lock on search engine for sub-batch cancellation check")?;
                 if engine.should_stop_indexing() {
                     return Ok(());
                 }
@@ -668,7 +670,7 @@ impl SearchEngineState {
 
             // Process the sub-batch
             {
-                let mut engine = self.engine.write().unwrap();
+                let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine for sub-batch processing")?;
                 let batch_refs: Vec<&str> = chunk.iter().map(|s| s.as_str()).collect();
                 engine.add_paths_batch(batch_refs, None);
             } // Release write lock immediately
@@ -739,7 +741,7 @@ impl SearchEngineState {
     /// }
     /// ```
     pub fn search(&self, query: &str) -> Result<Vec<(String, f32)>, String> {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data for search operation")?;
 
         // Check if search engine is enabled
         if !data.config.search_engine_enabled {
@@ -770,7 +772,7 @@ impl SearchEngineState {
         // Always use write lock to ensure caching works properly
         // Update directory context if needed, then perform cached search
         let results = {
-            let mut engine = self.engine.write().unwrap();
+            let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine for search operation")?;
             
             // Update directory context if needed
             if let Some(current_dir) = &current_dir {
@@ -790,7 +792,7 @@ impl SearchEngineState {
         let (search_results, search_time, was_cache_hit) = results;
 
         // Update metrics
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data for metrics update")?;
         data.metrics.total_searches += 1;
 
         // Track cache hits
@@ -873,7 +875,7 @@ impl SearchEngineState {
         query: &str,
         extensions: Vec<String>,
     ) -> Result<Vec<(String, f32)>, String> {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data for extension search")?;
 
         // Check if search engine is enabled
         if !data.config.search_engine_enabled {
@@ -901,7 +903,7 @@ impl SearchEngineState {
         drop(data);
 
         // Use write lock for modifying extension preferences
-        let mut engine = self.engine.write().unwrap();
+        let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine for extension search")?;
 
         // Set current directory context if available
         if let Some(current_dir) = &current_dir {
@@ -944,7 +946,7 @@ impl SearchEngineState {
         drop(engine);
 
         // Update metrics
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data for extension search metrics update")?;
         data.metrics.total_searches += 1;
 
         // Track cache hits
@@ -1021,7 +1023,7 @@ impl SearchEngineState {
         total: usize,
         current_path: Option<String>,
     ) {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().expect("Failed to lock search engine data for progress update");
 
         data.progress.files_indexed = indexed;
         data.progress.files_discovered = total;
@@ -1059,7 +1061,7 @@ impl SearchEngineState {
     ///
     /// O(1) - Simple field access operations
     pub fn get_stats(&self) -> EngineStatsSerializable {
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().expect("Failed to acquire read lock on search engine for stats retrieval");
         let stats = engine.get_stats();
         EngineStatsSerializable::from(stats)
     }
@@ -1077,7 +1079,20 @@ impl SearchEngineState {
     ///
     /// O(1) - Simple field aggregation operations
     pub fn get_search_engine_info(&self) -> SearchEngineInfo {
-        let data = self.data.lock().unwrap();
+        let data = match self.data.lock() {
+            Ok(data) => data,
+            Err(_) => {
+                log_error!("Failed to lock search engine data for info retrieval, returning minimal info");
+                return SearchEngineInfo {
+                    status: SearchEngineStatus::Failed,
+                    progress: IndexingProgress::default(),
+                    metrics: SearchEngineMetrics::default(),
+                    recent_activity: RecentActivity::default(),
+                    stats: EngineStatsSerializable { cache_size: 0, trie_size: 0 },
+                    last_updated: 0,
+                };
+            }
+        };
 
         // Get stats from engine
         let stats = self.get_stats();
@@ -1110,12 +1125,12 @@ impl SearchEngineState {
     /// O(1) plus cache invalidation cost for changed preferences
     #[cfg(test)]
     pub fn update_config(&self, path: Option<String>) -> Result<(), String> {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data for config update")?;
 
         // Get fresh config from settings state
         let config = {
-            let settings = self.settings_state.lock().unwrap();
-            let inner_settings = settings.0.lock().unwrap();
+            let settings = self.settings_state.lock().map_err(|_| "Failed to lock settings state for config update")?;
+            let inner_settings = settings.0.lock().map_err(|_| "Failed to lock inner settings for config update")?;
             inner_settings.backend_settings.search_engine_config.clone()
         };
 
@@ -1128,7 +1143,7 @@ impl SearchEngineState {
         // Release data lock before acquiring engine lock
         drop(data);
 
-        let mut engine = self.engine.write().unwrap();
+        let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine for config update")?;
         engine.set_preferred_extensions(config.preferred_extensions);
 
         Ok(())
@@ -1148,7 +1163,7 @@ impl SearchEngineState {
     /// * `Ok(())` - Path was successfully added
     /// * `Err(String)` - An error occurred while adding the path
     pub fn add_path(&self, path: &str) -> Result<(), String> {
-        let data = self.data.lock().unwrap();
+        let data = self.data.lock().map_err(|_| "Failed to lock search engine data for path addition")?;
 
         // Check if search engine is enabled
         if !data.config.search_engine_enabled {
@@ -1160,9 +1175,9 @@ impl SearchEngineState {
         let excluded_patterns = data.config.excluded_patterns.clone();
         drop(data);
 
-        let mut engine = self.engine.write().unwrap();
+        let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine for path addition")?;
         // Use the new method to check exclusions before adding
-        engine.add_path_with_exclusion_check(path, Some(&excluded_patterns.unwrap()));
+        engine.add_path_with_exclusion_check(path, Some(&excluded_patterns.ok_or("No excluded patterns configuration available")?));
         Ok(())
     }
 
@@ -1180,7 +1195,7 @@ impl SearchEngineState {
     /// * `Ok(())` - Path was successfully removed
     /// * `Err(String)` - An error occurred while removing the path
     pub fn remove_path(&self, path: &str) -> Result<(), String> {
-        let data = self.data.lock().unwrap();
+        let data = self.data.lock().map_err(|_| "Failed to lock search engine data for path removal")?;
 
         // Check if search engine is enabled
         if !data.config.search_engine_enabled {
@@ -1190,7 +1205,7 @@ impl SearchEngineState {
 
         drop(data);
 
-        let mut engine = self.engine.write().unwrap();
+        let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine for path removal")?;
         engine.remove_path(path);
         Ok(())
     }
@@ -1209,7 +1224,7 @@ impl SearchEngineState {
     /// * `Ok(())` - Path and its contents were successfully removed
     /// * `Err(String)` - An error occurred during removal
     pub fn remove_paths_recursive(&self, path: &str) -> Result<(), String> {
-        let data = self.data.lock().unwrap();
+        let data = self.data.lock().map_err(|_| "Failed to lock search engine data for recursive path removal")?;
 
         // Check if search engine is enabled
         if !data.config.search_engine_enabled {
@@ -1219,7 +1234,7 @@ impl SearchEngineState {
 
         drop(data);
 
-        let mut engine = self.engine.write().unwrap();
+        let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine for recursive path removal")?;
         engine.remove_paths_recursive(path);
         Ok(())
     }
@@ -1239,7 +1254,7 @@ impl SearchEngineState {
     /// O(1) - Simple flag operation
     #[cfg(test)] // maybe use in a later release
     pub fn stop_indexing(&self) -> Result<(), String> {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().map_err(|_| "Failed to lock search engine data for stop indexing")?;
 
         if matches!(data.status, SearchEngineStatus::Indexing) {
             // Update state first
@@ -1250,7 +1265,7 @@ impl SearchEngineState {
             drop(data);
 
             // Signal the engine to stop indexing (works for both traditional and chunked)
-            let mut engine = self.engine.write().unwrap();
+            let mut engine = self.engine.write().map_err(|_| "Failed to acquire write lock on search engine for stop indexing")?;
             engine.stop_indexing();
 
             #[cfg(test)]

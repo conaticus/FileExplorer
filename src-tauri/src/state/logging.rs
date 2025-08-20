@@ -218,9 +218,11 @@ impl Logger {
         }
         
         if let Some(parent) = ERROR_LOG_FILE_ABS_PATH.parent() {
-            if parent != LOG_FILE_ABS_PATH.parent().unwrap() {
-                if let Err(e) = std::fs::create_dir_all(parent) {
-                    eprintln!("Failed to create parent error log directory: {}", e);
+            if let Some(log_parent) = LOG_FILE_ABS_PATH.parent() {
+                if parent != log_parent {
+                    if let Err(e) = std::fs::create_dir_all(parent) {
+                        eprintln!("Failed to create parent error log directory: {}", e);
+                    }
                 }
             }
         }
@@ -307,9 +309,10 @@ impl Logger {
     fn rotate_logs(&self, path: &PathBuf) {
         // Use timestamp-based naming for archived logs
         let timestamp = Local::now().format("%Y%m%d_%H%M%S");
-        let archive_path = path.with_file_name(format!("{}.{}.log",
-                                                       path.file_stem().unwrap().to_str().unwrap(),
-                                                       timestamp));
+        let stem = path.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("log");
+        let archive_path = path.with_file_name(format!("{}.{}.log", stem, timestamp));
 
         // Move current log to archive and create new file
         if let Err(e) = fs::rename(path, &archive_path) {

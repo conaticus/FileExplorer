@@ -46,7 +46,7 @@ pub fn search_impl(
         "Search implementation called with query: {}",
         query
     );
-    let engine = state.lock().unwrap();
+    let engine = state.lock().map_err(|_| "lock poisoned")?;
     engine.search(&query)
 }
 
@@ -96,7 +96,7 @@ pub fn search_with_extension_impl(
         "Search with extension called: query='{}', extensions={:?}",
         query, extensions
     );
-    let engine = state.lock().unwrap();
+    let engine = state.lock().map_err(|_| "Failed to acquire lock on search engine state")?;
     engine.search_by_extension(&query, extensions)
 }
 
@@ -173,7 +173,7 @@ pub fn add_paths_recursive_impl(
 
     log_info!("Starting optimized chunked indexing for path: {} with chunk size: {}", folder, default_chunk_size);
 
-    let engine_state = state.lock().unwrap();
+    let engine_state = state.lock().map_err(|_| "Failed to acquire lock on search engine state")?;
     let result = engine_state.start_chunked_indexing(path, default_chunk_size);
 
     match &result {
@@ -212,7 +212,7 @@ pub fn add_path(
 
 pub fn add_path_impl(path: String, state: Arc<Mutex<SearchEngineState>>) -> Result<(), String> {
     log_info!("Add path called with: {}", path);
-    let engine = state.lock().unwrap();
+    let engine = state.lock().map_err(|_| "Failed to acquire lock on search engine state")?;
     engine.add_path(&path)
 }
 
@@ -250,7 +250,7 @@ pub fn remove_paths_recursive_impl(
         "Remove paths recursive called with folder: {}",
         folder
     );
-    let engine = state.lock().unwrap();
+    let engine = state.lock().map_err(|_| "Failed to acquire lock on search engine state")?;
     engine.remove_paths_recursive(&folder)
 }
 
@@ -282,7 +282,7 @@ pub fn remove_path(
 
 pub fn remove_path_impl(path: String, state: Arc<Mutex<SearchEngineState>>) -> Result<(), String> {
     log_info!("Remove path called with: {}", path);
-    let engine = state.lock().unwrap();
+    let engine = state.lock().map_err(|_| "Failed to acquire lock on search engine state")?;
     engine.remove_path(&path)
 }
 
@@ -313,12 +313,12 @@ pub fn clear_search_engine(
 pub fn clear_search_engine_impl(state: Arc<Mutex<SearchEngineState>>) -> Result<(), String> {
     log_info!("Clear search engine called");
 
-    let state = state.lock().unwrap();
-    let mut engine = state.engine.write().unwrap();
+    let state = state.lock().map_err(|_| "Failed to acquire lock on search engine state")?;
+    let mut engine = state.engine.write().map_err(|_| "Failed to acquire write lock on search engine")?;
     engine.clear();
 
     // Update state
-    let mut data = state.data.lock().unwrap();
+    let mut data = state.data.lock().map_err(|_| "Failed to acquire lock on search engine data")?;
     data.last_updated = chrono::Utc::now().timestamp_millis() as u64;
 
     Ok(())
@@ -376,7 +376,7 @@ pub fn get_search_engine_info_impl(
     state: Arc<Mutex<SearchEngineState>>,
 ) -> Result<SearchEngineInfo, String> {
     log_info!("Get search engine info called");
-    let engine = state.lock().unwrap();
+    let engine = state.lock().map_err(|_| "Failed to acquire lock on search engine state")?;
     Ok(engine.get_search_engine_info())
 }
 
@@ -395,7 +395,7 @@ pub async fn get_indexing_progress(
         progress.files_indexed,
         progress.files_discovered,
         progress.percentage_complete,
-        progress.current_path.as_ref().map(|p| p.split('/').last().unwrap_or(p)),
+        progress.current_path.as_ref().and_then(|p| p.split('/').last()).unwrap_or(""),
         data.status
     );
 
@@ -756,11 +756,11 @@ pub fn get_suggestions_impl(
         return Ok(Vec::new());
     }
 
-    let search_engine_state = state.lock().unwrap();
+    let search_engine_state = state.lock().map_err(|_| "Failed to acquire lock on search engine state")?;
     
     // Check if search engine is enabled
     {
-        let data = search_engine_state.data.lock().unwrap();
+        let data = search_engine_state.data.lock().map_err(|_| "Failed to acquire lock on search engine data")?;
         if !data.config.search_engine_enabled {
             log_error!("Search engine is disabled in configuration.");
             return Err("Search engine is disabled in configuration".to_string());

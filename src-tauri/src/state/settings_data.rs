@@ -268,7 +268,7 @@ impl SettingsState {
     /// println!("Updated settings: {:?}", result);
     /// ```
     pub fn update_setting_field(&self, key: &str, value: Value) -> Result<Settings, Error> {
-        let mut settings = self.0.lock().unwrap();
+        let mut settings = self.0.lock().map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to acquire settings lock"))?;
 
         let mut settings_map = Self::settings_to_json_map(&settings)?;
 
@@ -373,7 +373,7 @@ impl SettingsState {
     /// println!("Current theme: {}", theme);
     /// ```
     pub fn get_setting_field(&self, key: &str) -> Result<Value, Error> {
-        let settings = self.0.lock().unwrap();
+        let settings = self.0.lock().map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to acquire settings lock"))?;
         let settings_value =
             serde_json::to_value(&*settings).map_err(|e| Error::new(io::ErrorKind::Other, e))?;
 
@@ -512,7 +512,7 @@ impl SettingsState {
     /// }
     /// ```
     pub fn reset_settings(&self) -> Result<Settings, Error> {
-        let mut settings = self.0.lock().unwrap();
+        let mut settings = self.0.lock().map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to acquire settings lock"))?;
 
         let default_settings = Settings::default();
         *settings = default_settings.clone();

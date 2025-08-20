@@ -614,10 +614,9 @@ impl PathMatcher {
                         let variation_index = variation_idx as f32 / variations.len() as f32;
                         let mut score = 0.9 - (variation_index * 0.2);
                         // Bonus for matching first char
-                        if !query_lower.is_empty() && !filename_lower.is_empty() {
-                            if query_lower.chars().next().unwrap()
-                                == filename_lower.chars().next().unwrap()
-                            {
+                        if let (Some(query_first), Some(filename_first)) = 
+                            (query_lower.chars().next(), filename_lower.chars().next()) {
+                            if query_first == filename_first {
                                 score += 0.3;
                             }
                         }

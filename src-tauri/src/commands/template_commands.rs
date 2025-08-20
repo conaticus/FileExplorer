@@ -105,7 +105,11 @@ pub async fn add_template_impl(
 
     // Extract what we need from the metadata state before any await points
     let dest_path = {
-        let metadata_state = state.lock().unwrap();
+        let metadata_state = state.lock().map_err(|e| {
+            let error_msg = format!("Error acquiring lock on metadata state: {:?}", e);
+            log_error!(error_msg.as_str());
+            error_msg
+        })?;
         let inner_metadata = metadata_state.0.lock().map_err(|e| {
             let error_msg = format!("Error acquiring lock on metadata state: {:?}", e);
             log_error!(error_msg.as_str());
@@ -128,7 +132,12 @@ pub async fn add_template_impl(
     }
 
     // Copy the template using our helper function
-    let size = copy_to_dest_path(template_path, dest_path.to_str().unwrap()).await?;
+    let dest_path_str = dest_path.to_str().ok_or_else(|| {
+        let error_msg = "Invalid destination path encoding".to_string();
+        log_error!(error_msg.as_str());
+        error_msg
+    })?;
+    let size = copy_to_dest_path(template_path, dest_path_str).await?;
 
     // Update the template paths in the metadata state
     let update_result = {

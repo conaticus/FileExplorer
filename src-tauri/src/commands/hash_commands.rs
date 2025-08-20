@@ -58,7 +58,7 @@ impl Display for HashError {
 async fn get_checksum_method(
     state: Arc<Mutex<SettingsState>>,
 ) -> Result<ChecksumMethod, HashError> {
-    let settings_state = state.lock().unwrap();
+    let settings_state = state.lock().map_err(|_| HashError::SettingsLockError)?;
     let inner_settings = settings_state
         .0
         .lock()

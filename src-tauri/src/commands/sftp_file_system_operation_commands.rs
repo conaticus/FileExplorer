@@ -266,7 +266,10 @@ pub fn copy_directory_sftp(
     let entries = sftp.readdir(&source_path).map_err(|e| e.to_string())?;
     
     for (path, stat) in entries {
-        let new_path = format!("{}/{}", destination_path, path.file_name().unwrap().to_str().unwrap());
+        let file_name = path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("[invalid_filename]");
+        let new_path = format!("{}/{}", destination_path, file_name);
         
         if stat.is_file() {
             // Copy file
@@ -278,7 +281,8 @@ pub fn copy_directory_sftp(
             destination_file.write_all(&buffer).map_err(|e| e.to_string())?;
         } else if stat.is_dir() {
             // Recursively copy directory
-            copy_directory_sftp(host.clone(), port, username.clone(), password.clone(), path.to_str().unwrap().to_string(), new_path)?;
+            let path_str = path.to_str().unwrap_or("[invalid_path]").to_string();
+            copy_directory_sftp(host.clone(), port, username.clone(), password.clone(), path_str, new_path)?;
         }
     }
     

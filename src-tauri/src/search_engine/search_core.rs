@@ -483,7 +483,9 @@ impl SearchCore {
 
                     if let Ok(metadata) = std::fs::metadata(path) {
                         if metadata.is_file() || metadata.is_dir() {
-                            collected_paths_clone.lock().unwrap().push(path_str.to_string());
+                            if let Ok(mut paths) = collected_paths_clone.lock() {
+                                paths.push(path_str.to_string());
+                            }
                         }
                     } else {
                         #[cfg(feature = "index-error-logging")]
@@ -492,7 +494,9 @@ impl SearchCore {
                 }
             }
             // After collecting, shrink the vector to fit
-            collected_paths_clone.lock().unwrap().shrink_to_fit();
+            if let Ok(mut paths) = collected_paths_clone.lock() {
+                paths.shrink_to_fit();
+            }
         }).await;
 
         if let Err(_err) = result {
@@ -502,8 +506,9 @@ impl SearchCore {
         }
 
         let collected = Arc::try_unwrap(collected_paths)
-            .map(|mutex| mutex.into_inner().unwrap())
-            .unwrap_or_else(|arc| arc.lock().unwrap().clone());
+            .map(|mutex| mutex.into_inner().map_err(|_| "Failed to extract paths from mutex"))
+            .unwrap_or_else(|arc| arc.lock().map(|guard| guard.clone()).map_err(|_| "Failed to lock paths"))
+            .unwrap_or_else(|_| Vec::new());
 
         // Assert or log error if nothing was indexed
         if collected.is_empty() {

@@ -29,17 +29,27 @@ use tauri::State;
 /// ```
 #[tauri::command]
 pub fn get_meta_data_as_json(state: State<Arc<Mutex<MetaDataState>>>) -> Result<String, String> {
-    let meta_data = state.lock().unwrap().refresh_volumes();
+    let meta_data = state.lock().map_err(|_| {
+        Error::new(
+            ErrorCode::InternalError,
+            "Failed to acquire lock on metadata state".to_string(),
+        ).to_json()
+    })?.refresh_volumes();
 
-    if meta_data.is_err() {
+    if let Err(e) = meta_data {
         return Err(Error::new(
             ErrorCode::InternalError,
-            format!("Error: {}", meta_data.err().unwrap()),
+            format!("Error refreshing volumes: {}", e),
         )
         .to_json());
     }
 
-    let meta_data = state.lock().unwrap().0.clone();
+    let meta_data = state.lock().map_err(|_| {
+        Error::new(
+            ErrorCode::InternalError,
+            "Failed to acquire lock on metadata state".to_string(),
+        ).to_json()
+    })?.0.clone();
 
     serde_json::to_string(&meta_data).map_err(|e| {
         Error::new(
@@ -52,17 +62,27 @@ pub fn get_meta_data_as_json(state: State<Arc<Mutex<MetaDataState>>>) -> Result<
 
 #[cfg(test)]
 pub fn get_meta_data_as_json_impl(state: Arc<Mutex<MetaDataState>>) -> Result<String, String> {
-    let meta_data = state.lock().unwrap().refresh_volumes();
+    let meta_data = state.lock().map_err(|_| {
+        Error::new(
+            ErrorCode::InternalError,
+            "Failed to acquire lock on metadata state".to_string(),
+        ).to_json()
+    })?.refresh_volumes();
 
-    if meta_data.is_err() {
+    if let Err(e) = meta_data {
         return Err(Error::new(
             ErrorCode::InternalError,
-            format!("Error: {}", meta_data.err().unwrap()),
+            format!("Error refreshing volumes: {}", e),
         )
         .to_json());
     }
 
-    let meta_data = state.lock().unwrap().0.clone();
+    let meta_data = state.lock().map_err(|_| {
+        Error::new(
+            ErrorCode::InternalError,
+            "Failed to acquire lock on metadata state".to_string(),
+        ).to_json()
+    })?.0.clone();
 
     serde_json::to_string(&meta_data).map_err(|e| {
         Error::new(
