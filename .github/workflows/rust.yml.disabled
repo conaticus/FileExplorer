@@ -1,11 +1,12 @@
-name: Rust Testing
+# Disabled - using test-only.yml instead
+# name: Rust Testing
 
-on:
-  push:
-    branches: [ "*" ]  # Run on all branches
-  pull_request:
-    branches: [ "*" ]  # Run on PRs to any branch
-  workflow_dispatch:    # Enable manual trigger button
+# on:
+#   push:
+#     branches: [ "*" ]  # Run on all branches
+#   pull_request:
+#     branches: [ "*" ]  # Run on PRs to any branch
+#   workflow_dispatch:    # Enable manual trigger button
     inputs:
       run_full_tests:
         description: 'Run full test suite (including performance tests)'
