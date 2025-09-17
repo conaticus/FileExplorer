@@ -1,67 +1,136 @@
-name: Rust
+name: Rust Testing
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "*" ]  # Run on all branches
   pull_request:
-    branches: [ "main" ]
+    branches: [ "*" ]  # Run on PRs to any branch
+  workflow_dispatch:    # Enable manual trigger button
+    inputs:
+      run_full_tests:
+        description: 'Run full test suite (including performance tests)'
+        required: false
+        default: 'true'
+        type: boolean
+      run_benchmarks:
+        description: 'Run performance benchmarks'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
-  VERSION_MAJOR: 1
-  VERSION_MINOR: 0
 
 jobs:
-  build_windows:
-    runs-on: windows-latest
+  test_linux:
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Setup node
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
-    - run: npm i -g yarn
-    
-    - name: Make sure you have Tauri CLI installed
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Display workflow inputs
+      if: github.event_name == 'workflow_dispatch'
       run: |
-        cargo install tauri-cli
+        echo "🔧 Manual workflow trigger detected"
+        echo "📊 Run full tests: ${{ github.event.inputs.run_full_tests }}"
+        echo "🏃 Run benchmarks: ${{ github.event.inputs.run_benchmarks }}"
 
-    - name: Install dependencies
-      run: yarn
-    
-    - name: Build for production 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+        components: rustfmt, clippy
+
+    - name: Install system dependencies (Linux)
       run: |
-        cargo tauri build
-        dir "./src-tauri/target/release/bundle"
-    
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
-      with:
-        tag_name: v${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ github.run_number }}
-        release_name: Release ${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ github.run_number }}
+        sudo apt update
+        sudo apt install -y libwebkit2gtk-4.0-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
-    - name: Upload MSI
-      id: upload-release-asset-msi
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
-          asset_path: ./src-tauri/target/release/bundle/msi/file-explorer_0.0.0_x64_en-US.msi
-          asset_name: file-explorer_${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ github.run_number }}_x64_en-US.msi
-          asset_content_type: application/x-msi
+    - name: Install Node.js dependencies
+      run: npm install
 
-    - name: Upload Executable
-      id: upload-release-asset-exe
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Cache Rust dependencies
+      uses: actions/cache@v3
       with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./src-tauri/target/release/bundle/nsis/file-explorer_0.0.0_x64-setup.exe
-          asset_name: file-explorer_${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ github.run_number }}_x64-setup.exe
-          asset_content_type: application/x-msdownload
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Run cargo fmt check
+      run: cargo fmt --all -- --check
+      working-directory: ./src-tauri
+
+    - name: Run cargo clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+      working-directory: ./src-tauri
+
+    - name: Generate test data
+      run: |
+        echo "📁 Generating test data for fuzzy search..."
+        echo "This creates 176,840 empty files in ./src-tauri/test-data-for-fuzzy-search/"
+        cargo test create_test_data --features "generate-test-data" -- --nocapture
+      working-directory: ./src-tauri
+
+    - name: Run basic tests
+      run: |
+        echo "🧪 Running basic functionality tests..."
+        cargo test
+      working-directory: ./src-tauri
+
+    - name: Run comprehensive tests (without file opening)
+      if: github.event.inputs.run_full_tests != 'false'
+      run: |
+        echo "🚀 Running comprehensive test suite..."
+        echo "Note: This runs the full feature set but without opening default apps"
+        cargo test --features "full-no-generate-test-data" -- --test-threads=1
+      working-directory: ./src-tauri
+
+    - name: Run performance benchmarks
+      if: github.event.inputs.run_benchmarks == 'true'
+      run: |
+        echo "⚡ Running performance benchmarks..."
+        cargo test --features benchmarks --release -- bench
+      working-directory: ./src-tauri
+      continue-on-error: true
+
+    - name: Verify test data was created
+      run: |
+        echo "📊 Verifying test data creation..."
+        if [ -d "./src-tauri/test-data-for-fuzzy-search" ]; then
+          echo "✅ Test data directory exists"
+          find ./src-tauri/test-data-for-fuzzy-search -type f | wc -l | xargs echo "Total files created:"
+        else
+          echo "❌ Test data directory not found"
+        fi
+
+    - name: Upload test logs
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-logs
+        path: |
+          ./src-tauri/logs/
+          ./src-tauri/app.log
+          ./src-tauri/error.log
+
+    - name: Upload test data artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-data
+        path: |
+          ./src-tauri/test-data-for-fuzzy-search/
+        if-no-files-found: warn
