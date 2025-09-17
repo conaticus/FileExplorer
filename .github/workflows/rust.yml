@@ -59,7 +59,7 @@ jobs:
       run: npm install
 
     - name: Cache Rust dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/bin/
@@ -117,7 +117,7 @@ jobs:
         fi
 
     - name: Upload test logs
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: test-logs
@@ -127,7 +127,7 @@ jobs:
           ./src-tauri/error.log
 
     - name: Upload test data artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: test-data
