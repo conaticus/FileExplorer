@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["access_permission_string_windows","access_rights_to_string_unix","count_subdirectories","count_subfiles","count_subfiles_and_subdirectories","format_system_time","get_access_permission_number","get_access_permission_string","get_directory_size_in_bytes"],"struct":["Entries"]};

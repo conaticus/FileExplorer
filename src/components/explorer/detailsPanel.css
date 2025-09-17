@@ -1,0 +1,121 @@
+.details-panel {
+    width: var(--details-panel-width);
+    height: 100%;
+    background-color: var(--background-secondary);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.details-header {
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--border);
+}
+
+.details-title {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.details-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: var(--space-md);
+}
+
+.details-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-lg) 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: var(--space-lg);
+}
+
+.details-icon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: var(--space-md);
+}
+
+.details-name {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    text-align: center;
+    max-width: 100%;
+}
+
+.details-type {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-top: var(--space-xs);
+}
+
+.details-section {
+    margin-bottom: var(--space-xl);
+}
+
+.details-section-title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-md) 0;
+    padding-bottom: var(--space-xs);
+    border-bottom: 1px solid var(--border);
+}
+
+.details-row {
+    display: flex;
+    margin-bottom: var(--space-sm);
+}
+
+.details-label {
+    width: 90px;
+    flex-shrink: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.details-value {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.details-value-secondary {
+    color: var(--text-tertiary);
+}
+
+.details-empty, .details-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    color: var(--text-secondary);
+    padding: var(--space-xl);
+}
+
+.file-icon-large {
+    width: 64px;
+    height: 64px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .details-panel {
+        width: 100%;
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        z-index: var(--z-index-fixed);
+        box-shadow: var(--shadow-lg);
+    }
+}

@@ -1,48 +1,129 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
+mod commands;
+pub mod constants;
+mod error_handling;
 mod filesystem;
-mod search;
-mod errors;
+pub mod models;
+mod search_engine;
+mod state;
 
-use filesystem::explorer::{open_file, open_directory, create_file, create_directory, rename_file, delete_file};
-use filesystem::volume::get_volumes;
-use search::search_directory;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use crate::commands::{
+    command_exec_commands, file_system_operation_commands, hash_commands, meta_data_commands,
+    search_engine_commands, settings_commands, template_commands, volume_operations_commands, sftp_file_system_operation_commands, preview_commands, permission_commands
+};
+use tauri::ipc::Invoke;
+use tauri::Manager;
 
-#[derive(Serialize, Deserialize)]
-pub struct CachedPath {
-    #[serde(rename = "p")]
-    file_path: String,
-    #[serde(rename = "t")]
-    file_type: String,
+fn all_commands() -> fn(Invoke) -> bool {
+    tauri::generate_handler![
+        // Filesystem commands
+        //file_system_operation_commands::open_file,
+        file_system_operation_commands::open_directory,
+        file_system_operation_commands::open_in_default_app,
+        file_system_operation_commands::create_file,
+        file_system_operation_commands::create_directory,
+        file_system_operation_commands::rename,
+        file_system_operation_commands::move_to_trash,
+        file_system_operation_commands::copy_file_or_dir,
+        file_system_operation_commands::zip,
+        file_system_operation_commands::unzip,
+        // Command execution commands
+        command_exec_commands::execute_command,
+        command_exec_commands::execute_command_improved,
+        command_exec_commands::execute_command_with_timeout,
+        // Metadata commands
+        meta_data_commands::get_meta_data_as_json,
+        meta_data_commands::update_meta_data,
+        // Volume commands
+        volume_operations_commands::get_system_volumes_information_as_json,
+        volume_operations_commands::get_system_volumes_information,
+        // Settings commands
+        settings_commands::get_settings_as_json,
+        settings_commands::update_settings_field,
+        settings_commands::get_setting_field,
+        settings_commands::update_multiple_settings_command,
+        settings_commands::reset_settings_command,
+        // Hash commands
+        hash_commands::gen_hash_and_return_string,
+        hash_commands::gen_hash_and_save_to_file,
+        hash_commands::compare_file_or_dir_with_hash,
+        // Template commands
+        template_commands::get_template_paths_as_json,
+        template_commands::add_template,
+        template_commands::use_template,
+        template_commands::remove_template,
+        // Autocomplete commands
+        search_engine_commands::search,
+        search_engine_commands::search_with_extension,
+        search_engine_commands::add_paths_recursive,
+        search_engine_commands::add_path,
+        search_engine_commands::remove_path,
+        search_engine_commands::remove_paths_recursive,
+        search_engine_commands::clear_search_engine,
+        search_engine_commands::get_search_engine_info,
+        search_engine_commands::add_paths_recursive_async,
+        search_engine_commands::get_indexing_progress,
+        search_engine_commands::get_indexing_status,
+        search_engine_commands::stop_indexing,
+        search_engine_commands::get_suggestions,
+
+        // Preview commands
+        preview_commands::build_preview,
+
+        //sftp commands
+        sftp_file_system_operation_commands::load_dir,
+        sftp_file_system_operation_commands::open_file_sftp,
+        sftp_file_system_operation_commands::create_file_sftp,
+        sftp_file_system_operation_commands::delete_file_sftp,
+        sftp_file_system_operation_commands::rename_file_sftp,
+        sftp_file_system_operation_commands::copy_file_sftp,
+        sftp_file_system_operation_commands::move_file_sftp,
+        sftp_file_system_operation_commands::create_directory_sftp,
+        sftp_file_system_operation_commands::delete_directory_sftp,
+        sftp_file_system_operation_commands::rename_directory_sftp,
+        sftp_file_system_operation_commands::copy_directory_sftp,
+        sftp_file_system_operation_commands::move_directory_sftp,
+        sftp_file_system_operation_commands::build_preview_sftp,
+        sftp_file_system_operation_commands::download_and_open_sftp_file,
+        sftp_file_system_operation_commands::cleanup_sftp_temp_files,
+
+        // Permission commands
+        permission_commands::request_full_disk_access,
+        permission_commands::check_directory_access,
+    ]
 }
-
-pub type VolumeCache = HashMap<String, Vec<CachedPath>>;
-
-#[derive(Default)]
-pub struct AppState {
-    system_cache: HashMap<String, VolumeCache>,
-}
-
-pub type StateSafe = Arc<Mutex<AppState>>;
 
 #[tokio::main]
 async fn main() {
-    tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![
-            get_volumes,
-            open_directory,
-            search_directory,
-            open_file,
-            create_file,
-            create_directory,
-            rename_file,
-            delete_file
-        ])
-        .manage(Arc::new(Mutex::new(AppState::default())))
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
+        .invoke_handler(all_commands())
+        .setup(|app| {
+            // Safely show/focus the main window if it exists
+            if let Some(window) = app.get_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            
+            // Clean up old SFTP temporary files on startup
+            tokio::spawn(async {
+                if let Err(e) = commands::sftp_file_system_operation_commands::cleanup_sftp_temp_files() {
+                    eprintln!("Failed to cleanup SFTP temp files: {}", e);
+                }
+            });
+            
+            Ok(())
+        });
+
+    let app = state::setup_app_state(app);
+
+    log_info!("Starting Tauri application...");
+
+    app.run(tauri::generate_context!()).expect({
+        let error_msg = "error while running tauri application";
+        log_critical!(error_msg);
+        &error_msg.to_string()
+    });
 }

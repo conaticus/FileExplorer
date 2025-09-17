@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["get_system_volumes_information","get_system_volumes_information_as_json"]};

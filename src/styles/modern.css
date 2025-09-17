@@ -1,0 +1,296 @@
+/**
+ * Modern styles for the file explorer.
+ * This file contains additional modern styling enhancements and effects.
+ */
+
+/* Glass morphism effect for panels */
+.glass-panel {
+    background: rgba(var(--background-rgb), 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(var(--border-rgb), 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* CSS variables for RGB color values */
+:root {
+    --background-rgb: 255, 255, 255;
+    --border-rgb: 224, 228, 232;
+    --accent-rgb: 6, 114, 239;
+}
+
+.theme-dark {
+    --background-rgb: 20, 21, 24;
+    --border-rgb: 42, 45, 58;
+    --accent-rgb: 59, 130, 246;
+}
+
+/* Modern spotlight effect for hovering items */
+.spotlight-effect {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.spotlight-effect::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(
+            circle at var(--x, 50%) var(--y, 50%),
+            rgba(var(--accent-rgb), 0.1) 0%,
+            transparent 50%
+    );
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: -1;
+}
+
+.spotlight-effect:hover::before {
+    opacity: 1;
+}
+
+/* Modern subtle animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes zoomIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+}
+
+.animate-slide-down {
+    animation: slideDown 0.3s ease-out;
+}
+
+.animate-zoom-in {
+    animation: zoomIn 0.3s ease-out;
+}
+
+/* Modern scrollbars */
+.modern-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.modern-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modern-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(var(--border-rgb), 0.7);
+    border-radius: 3px;
+}
+
+.modern-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(var(--accent-rgb), 0.5);
+}
+
+/* Auto-hiding scrollbars */
+.auto-hide-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.3s;
+}
+
+.auto-hide-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.auto-hide-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.auto-hide-scrollbar::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+    transition: background 0.3s;
+}
+
+.auto-hide-scrollbar:hover::-webkit-scrollbar-thumb {
+    background: rgba(var(--border-rgb), 0.7);
+}
+
+.auto-hide-scrollbar:hover::-webkit-scrollbar-thumb:hover {
+    background: rgba(var(--accent-rgb), 0.5);
+}
+
+/* Neumorphism effects */
+.neumorphic {
+    border-radius: var(--radius-lg);
+    background: var(--background);
+    box-shadow:
+            8px 8px 16px rgba(0, 0, 0, 0.05),
+            -8px -8px 16px rgba(255, 255, 255, 0.05);
+}
+
+.neumorphic-inset {
+    border-radius: var(--radius-lg);
+    background: var(--background);
+    box-shadow:
+            inset 5px 5px 10px rgba(0, 0, 0, 0.05),
+            inset -5px -5px 10px rgba(255, 255, 255, 0.05);
+}
+
+/* Modern gradients */
+.gradient-primary {
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, purple));
+}
+
+.gradient-surface {
+    background: linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--surface) 90%, var(--accent)));
+}
+
+/* Button hover effects */
+.btn-hover-float {
+    transition: transform 0.3s ease;
+}
+
+.btn-hover-float:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 7px 14px rgba(var(--accent-rgb), 0.1);
+}
+
+.btn-hover-glow {
+    position: relative;
+}
+
+.btn-hover-glow::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: var(--accent);
+    z-index: -1;
+    border-radius: calc(var(--radius-md) + 2px);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.btn-hover-glow:hover::after {
+    opacity: 0.3;
+}
+
+/* Text gradients */
+.text-gradient {
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 70%, purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
+}
+
+/* Modern grid layout */
+.grid-modern {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-gap: var(--space-md);
+    padding: var(--space-md);
+}
+
+.grid-modern .grid-item {
+    transition: all 0.3s ease;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.grid-modern .grid-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus ring enhancements */
+.focus-ring {
+    outline: none;
+    transition: box-shadow 0.3s ease;
+}
+
+.focus-ring:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.4);
+}
+
+/* Skeleton loading animation */
+.skeleton {
+    background: linear-gradient(
+            90deg,
+            var(--background-secondary) 25%,
+            var(--background-tertiary) 50%,
+            var(--background-secondary) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .hide-on-mobile {
+        display: none !important;
+    }
+
+    .mobile-full-width {
+        width: 100% !important;
+    }
+
+    .mobile-stack {
+        flex-direction: column !important;
+    }
+
+    .mobile-compact {
+        padding: var(--space-sm) !important;
+        gap: var(--space-sm) !important;
+    }
+}

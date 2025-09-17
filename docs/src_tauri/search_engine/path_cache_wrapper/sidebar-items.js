@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["RECENT_QUERY"],"struct":["PathCache","PathData"]};

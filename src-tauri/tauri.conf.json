@@ -1,49 +1,70 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Explr",
+  "version": "0.2.3",
+  "identifier": "com.explr.app",
   "build": {
-    "beforeDevCommand": "yarn dev",
-    "beforeBuildCommand": "yarn build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist",
-    "withGlobalTauri": false
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "File Explorer",
-    "version": "0.0.0"
-  },
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "dialog": {
-        "all": true
-      },
-      "shell": {
-        "all": false,
-        "open": true
+  "app": {
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; media-src 'self' asset: http://asset.localhost; frame-src 'self' asset: http://asset.localhost data: blob; object-src 'self' asset: http://asset.localhost data: blob",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["*/**"]
       }
     },
-    "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "com.tauri.dev.test",
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ]
-    },
-    "security": {
-      "csp": null
-    },
+    "withGlobalTauri": false,
     "windows": [
       {
-        "fullscreen": false,
+        "label": "main",
+        "title": "Explr",
+        "width": 1200,
+        "height": 800,
         "resizable": true,
-        "title": "file-explorer",
-        "width": 1024,
-        "height": 678
+        "visible": true,
+        "fullscreen": false
       }
     ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "rpm", "dmg", "msi"],
+    "icon": ["icons/logo_32x32.png", "icons/logo_128x128.png", "icons/logo.icns", "icons/logo.ico"],
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      },
+      "nsis": {
+        "installMode": "perMachine"
+      }
+    },
+    "macOS": {
+      "dmg": {
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        },
+        "windowSize": {
+          "height": 400,
+          "width": 660
+        }
+      },
+      "files": {},
+      "hardenedRuntime": true,
+      "minimumSystemVersion": "10.13",
+      "exceptionDomain": "",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null,
+      "entitlements": "src-tauri/entitlements.plist"
+    }
   }
 }

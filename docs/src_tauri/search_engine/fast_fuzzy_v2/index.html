@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Fast Fuzzy Path Matcher"><title>src_tauri::search_engine::fast_fuzzy_v2 - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-6c3ea77c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="src_tauri" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0 (05f9846f8 2025-03-31)" data-channel="1.86.0" data-search-js="search-581efc7a.js" data-settings-js="settings-6dad6058.js" ><script src="../../../static.files/storage-3a5871a4.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../static.files/main-4d63596a.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../src_tauri/index.html">src_<wbr>tauri</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module fast_<wbr>fuzzy_<wbr>v2</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#fast-fuzzy-path-matcher" title="Fast Fuzzy Path Matcher">Fast Fuzzy Path Matcher</a><ul><li><a href="#use-cases" title="Use Cases">Use Cases</a></li><li><a href="#performance-benchmarks" title="Performance Benchmarks">Performance Benchmarks</a></li><li><a href="#comparison-to-other-algorithms" title="Comparison to Other Algorithms">Comparison to Other Algorithms</a></li><li><a href="#features" title="Features">Features</a></li></ul></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#statics" title="Statics">Statics</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In src_<wbr>tauri::<wbr>search_<wbr>engine</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">src_tauri</a>::<wbr><a href="../index.html">search_engine</a></div><h1>Module <span>fast_fuzzy_v2</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/src_tauri/search_engine/fast_fuzzy_v2.rs.html#1-1987">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="fast-fuzzy-path-matcher"><a class="doc-anchor" href="#fast-fuzzy-path-matcher">§</a>Fast Fuzzy Path Matcher</h2>
+<p>A high-performance fuzzy path matching engine using trigram indexing for efficient searches
+through large collections of file paths. This implementation provides sublinear search
+performance even with hundreds of thousands of paths.</p>
+<h3 id="use-cases"><a class="doc-anchor" href="#use-cases">§</a>Use Cases</h3>
+<ul>
+<li><strong>File Explorers</strong>: Quickly find files and folders by partial name, even with typos</li>
+<li><strong>Command Palettes</strong>: Implement fuzzy command matching like in VS Code or JetBrains IDEs</li>
+<li><strong>Autocompletion</strong>: Power autocomplete for paths, filenames, or any textual data</li>
+<li><strong>Search Fields</strong>: Backend for “search-as-you-type” interfaces with typo tolerance</li>
+</ul>
+<h3 id="performance-benchmarks"><a class="doc-anchor" href="#performance-benchmarks">§</a>Performance Benchmarks</h3>
+<p>Empirical measurements show sublinear scaling with path count:</p>
+<div><table><thead><tr><th>Paths</th><th>Avg Search Time (µs)</th><th>Scaling Factor</th></tr></thead><tbody>
+<tr><td>10</td><td>8.05</td><td>-</td></tr>
+<tr><td>100</td><td>25.21</td><td>3.1×</td></tr>
+<tr><td>1,000</td><td>192.05</td><td>7.6×</td></tr>
+<tr><td>10,000</td><td>548.39</td><td>2.9×</td></tr>
+<tr><td>170,456</td><td>3,431.88</td><td>6.3×</td></tr>
+</tbody></table>
+</div>
+<p>With 10× more paths, search is typically only 3-7× slower, demonstrating <strong>O(n^a)</strong>
+scaling where <strong>a ≈ 0.5-0.7</strong>.</p>
+<h3 id="comparison-to-other-algorithms"><a class="doc-anchor" href="#comparison-to-other-algorithms">§</a>Comparison to Other Algorithms</h3><div><table><thead><tr><th>Algorithm</th><th>Theoretical Complexity</th><th>Practical Scaling</th><th>Suitability</th></tr></thead><tbody>
+<tr><td>Levenshtein (brute force)</td><td>O(N*M²)</td><td>Linear/Quadratic</td><td>Poor for large N</td></tr>
+<tr><td>Substring/Regex (scan)</td><td>O(N*Q)</td><td>Linear</td><td>Poor for large N</td></tr>
+<tr><td>Trie/Prefix Tree</td><td>O(Q)</td><td>Sub-linear</td><td>Good for prefixes</td></tr>
+<tr><td><strong>Trigram Index (this)</strong></td><td><strong>O(Q+S)</strong></td><td><strong>Sub-linear</strong></td><td><strong>Best for large N</strong></td></tr>
+<tr><td>FZF/Sublime fuzzy scan</td><td>O(N*Q)</td><td>Linear</td><td>Good for small N</td></tr>
+</tbody></table>
+</div>
+<p>Where:</p>
+<ul>
+<li>N = number of paths</li>
+<li>M = average string length</li>
+<li>Q = query length</li>
+<li>S = number of candidate paths (typically S &lt;&lt; N)</li>
+</ul>
+<h3 id="features"><a class="doc-anchor" href="#features">§</a>Features</h3>
+<ul>
+<li>Handles typos, transpositions, and character substitutions</li>
+<li>Case-insensitive matching with fast character mapping</li>
+<li>Boosts exact matches and filename matches over partial matches</li>
+<li>Length normalization to prevent bias toward longer paths</li>
+<li>Memory-efficient trigram storage with FxHashMap and SmallVec</li>
+</ul>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.PathMatcher.html" title="struct src_tauri::search_engine::fast_fuzzy_v2::PathMatcher">Path<wbr>Matcher</a></dt><dd>A fast fuzzy path matching engine that uses trigram indexing for efficient searches.
+The PathMatcher enables rapid searching through large collections of file paths
+with support for fuzzy matching, allowing for typos and variations in search queries.</dd></dl><h2 id="statics" class="section-header">Statics<a href="#statics" class="anchor">§</a></h2><dl class="item-table"><dt><a class="static" href="static.CHAR_MAPPING.html" title="static src_tauri::search_engine::fast_fuzzy_v2::CHAR_MAPPING">CHAR_<wbr>MAPPING</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dt><a class="static" href="static.CHAR_MAPPING_INIT.html" title="static src_tauri::search_engine::fast_fuzzy_v2::CHAR_MAPPING_INIT">CHAR_<wbr>MAPPING_<wbr>INIT</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.TrigramMap.html" title="type src_tauri::search_engine::fast_fuzzy_v2::TrigramMap">Trigram<wbr>Map</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl></section></div></main></body></html>

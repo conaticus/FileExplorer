@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"static":["CHAR_MAPPING","CHAR_MAPPING_INIT"],"struct":["PathMatcher"],"type":["TrigramMap"]};

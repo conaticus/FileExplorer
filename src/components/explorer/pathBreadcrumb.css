@@ -1,0 +1,271 @@
+.path-breadcrumb-container {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    height: 32px;
+    min-width: 0;
+}
+
+.path-breadcrumb {
+    flex: 1;
+    height: 32px;
+    padding: 0 var(--space-md);
+    border-radius: var(--radius-md);
+    background-color: var(--background-tertiary);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    cursor: text;
+    transition: background-color var(--transition-fast);
+    min-width: 0;
+}
+
+.action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: 12px;
+    flex-shrink: 0;
+}
+
+.path-breadcrumb:hover {
+    background-color: var(--surface-hover);
+}
+
+.path-breadcrumb.editing {
+    cursor: auto;
+}
+
+.breadcrumb-segments {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none; /* Hide scrollbar in Firefox */
+    min-width: 0;
+}
+
+.breadcrumb-segments::-webkit-scrollbar {
+    display: none; /* Hide scrollbar in Chrome/Safari/Edge */
+}
+
+
+.segment-button {
+    padding: 0 8px;
+    height: 24px;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-on-accent, #fff);
+    background-color: var(--background-breadcrumb, rgba(80, 120, 255, 0.18));
+    cursor: pointer;
+    border: none;
+    margin: 0 8px;
+    transition: color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
+    white-space: nowrap;
+    flex-shrink: 0;
+    box-shadow: none;
+    font-weight: 500;
+    max-width: 220px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.segment-button:hover {
+    color: var(--text-on-accent, #fff);
+    background-color: var(--background-breadcrumb-hover, rgba(80, 120, 255, 0.32));
+}
+
+.segment-button.current {
+    color: var(--accent);
+    font-weight: var(--font-weight-medium);
+    background-color: var(--background-breadcrumb, rgba(80, 120, 255, 0.18));
+}
+
+.segment-divider {
+    color: var(--text-tertiary);
+    margin: 0 2px 0 0;
+    flex-shrink: 0;
+}
+
+.path-input {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    outline: none;
+}
+
+.path-input:focus {
+    outline: none;
+    border: none;
+    box-shadow: none;
+}
+
+.path-search-input {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    outline: none;
+}
+
+.path-search-input:focus {
+    outline: none;
+    border: none;
+    box-shadow: none;
+}
+
+.path-search-input::placeholder {
+    color: var(--text-tertiary);
+    font-style: italic;
+}
+
+.search-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.search-icon-btn:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.search-icon-btn .icon {
+    width: 14px;
+    height: 14px;
+}
+
+.copy-path-btn-internal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.copy-path-btn-internal:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.copy-path-btn-internal .icon {
+    width: 14px;
+    height: 14px;
+}
+
+.copy-separator {
+    width: 1px;
+    height: 16px;
+    background-color: var(--border);
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+
+.search-separator {
+    width: 1px;
+    height: 16px;
+    background-color: var(--border);
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+
+.path-breadcrumb.searching:not(.editing) .breadcrumb-segments {
+    display: none;
+}
+
+.path-breadcrumb {
+    position: relative;
+}
+
+.copy-path-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.copy-path-btn:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
+    border-color: var(--text-tertiary);
+}
+
+.copy-path-btn .icon {
+    width: 16px;
+    height: 16px;
+}
+
+.path-breadcrumb-placeholder {
+    flex: 1;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
+    font-style: italic;
+}
+
+.path-breadcrumb-placeholder::before {
+    content: "Navigate to view path";
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .path-breadcrumb-container {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .path-breadcrumb {
+        min-width: 120px;
+    }
+}
+
+:root {
+    --background-breadcrumb: color-mix(in srgb, var(--accent) 8%, white 40%);
+    --background-breadcrumb-hover: color-mix(in srgb, var(--accent) 16%, white 20%);
+    --text-breadcrumb: var(--text-primary);
+    --text-on-accent: #000;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background-breadcrumb: color-mix(in srgb, var(--accent) 70%, black 30%);
+        --background-breadcrumb-hover: color-mix(in srgb, var(--accent) 90%, black 10%);
+        --text-breadcrumb: #fff;
+        --text-on-accent: #fff;
+    }
+}

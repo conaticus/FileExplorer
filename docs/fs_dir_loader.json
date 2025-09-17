@@ -1,0 +1,141 @@
+{
+  "directories":[
+    {
+      "name":"icons",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/icons",
+      "is_symlink":false,
+      "access_rights_as_string":"rwxr-xr-x",
+      "access_rights_as_number":16877,
+      "size_in_bytes":245993,
+      "sub_file_count":16,
+      "sub_dir_count":1,
+      "created":"2025-03-20 20:06:59",
+      "last_modified":"2025-03-20 20:06:59",
+      "accessed":"2025-03-29 20:00:19"
+    },
+    {
+      "name":"src",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/src",
+      "is_symlink":false,
+      "access_rights_as_string":"rwxr-xr-x",
+      "access_rights_as_number":16877,
+      "size_in_bytes":37117,
+      "sub_file_count":21,
+      "sub_dir_count":5,
+      "created":"2025-03-20 20:06:59",
+      "last_modified":"2025-03-29 20:10:44",
+      "accessed":"2025-03-29 20:10:44"
+    },
+    {
+      "name":"gen",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/gen",
+      "is_symlink":false,
+      "access_rights_as_string":"rwxr-xr-x",
+      "access_rights_as_number":16877,
+      "size_in_bytes":269341,
+      "sub_file_count":4,
+      "sub_dir_count":2,
+      "created":"2025-03-20 20:08:00",
+      "last_modified":"2025-03-20 20:08:00",
+      "accessed":"2025-03-29 20:00:19"
+    },
+    {
+      "name":"tests",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/tests",
+      "is_symlink":false,
+      "access_rights_as_string":"rwxr-xr-x",
+      "access_rights_as_number":16877,
+      "size_in_bytes":1906,
+      "sub_file_count":5,
+      "sub_dir_count":4,
+      "created":"2025-03-20 20:39:58",
+      "last_modified":"2025-03-27 21:44:21",
+      "accessed":"2025-03-29 19:45:28"
+    },
+    {
+      "name":"target",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/target",
+      "is_symlink":false,
+      "access_rights_as_string":"rwxr-xr-x",
+      "access_rights_as_number":16877,
+      "size_in_bytes":3747650891,
+      "sub_file_count":3813,
+      "sub_dir_count":724,
+      "created":"2025-03-27 21:42:53",
+      "last_modified":"2025-03-27 21:43:44",
+      "accessed":"2025-03-29 19:45:28"
+    },
+    {
+      "name":"capabilities",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/capabilities",
+      "is_symlink":false,
+      "access_rights_as_string":"rwxr-xr-x",
+      "access_rights_as_number":16877,
+      "size_in_bytes":220,
+      "sub_file_count":1,
+      "sub_dir_count":1,
+      "created":"2025-03-27 21:44:21",
+      "last_modified":"2025-03-27 21:44:21",
+      "accessed":"2025-03-29 19:45:28"
+    },
+    {
+      "name":"config",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/config",
+      "is_symlink":false,
+      "access_rights_as_string":"rwxr-xr-x",
+      "access_rights_as_number":16877,
+      "size_in_bytes":1560,
+      "sub_file_count":1,
+      "sub_dir_count":1,
+      "created":"2025-03-29 20:04:25",
+      "last_modified":"2025-03-29 20:04:25",
+      "accessed":"2025-03-29 20:04:25"
+    }
+  ],
+  "files":[
+    {
+      "name":"build.rs",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/build.rs",
+      "is_symlink":false,
+      "access_rights_as_string":"rw-r--r--",
+      "access_rights_as_number":33188,
+      "size_in_bytes":39,
+      "created":"2025-03-20 20:06:59",
+      "last_modified":"2025-03-20 20:06:59",
+      "accessed":"2025-03-29 19:45:31"
+    },
+    {
+      "name":"tauri.conf.json",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/tauri.conf.json",
+      "is_symlink":false,
+      "access_rights_as_string":"rw-r--r--",
+      "access_rights_as_number":33188,
+      "size_in_bytes":705,
+      "created":"2025-03-27 21:44:21",
+      "last_modified":"2025-03-27 21:44:21",
+      "accessed":"2025-03-29 19:45:30"
+    },
+    {
+      "name":".gitignore",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/.gitignore",
+      "is_symlink":false,
+      "access_rights_as_string":"rw-r--r--",
+      "access_rights_as_number":33188,
+      "size_in_bytes":172,
+      "created":"2025-03-29 20:10:44",
+      "last_modified":"2025-03-29 20:10:44",
+      "accessed":"2025-03-29 20:10:44"
+    },
+    {
+      "name":"Cargo.toml",
+      "path":"/home/marco/Documents/FileExplorer/src-tauri/Cargo.toml",
+      "is_symlink":false,
+      "access_rights_as_string":"rw-r--r--",
+      "access_rights_as_number":33188,
+      "size_in_bytes":1156,
+      "created":"2025-03-29 20:10:44",
+      "last_modified":"2025-03-29 21:11:06",
+      "accessed":"2025-03-29 21:11:06"
+    }
+  ]
+}

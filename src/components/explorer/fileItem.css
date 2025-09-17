@@ -1,0 +1,257 @@
+.file-item {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+    cursor: pointer;
+}
+
+.file-item * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.file-item::selection,
+.file-item *::selection {
+    background: transparent;
+}
+
+.file-item:hover {
+    background-color: var(--surface-hover);
+}
+
+.file-item.selected {
+    background-color: var(--accent-surface);
+}
+
+.file-item.focused {
+    /* Just use a slightly different background - very subtle */
+    background-color: var(--surface-hover);
+    /* No border at all - purely background-based indication */
+}
+
+.file-item.focused.selected {
+    background-color: var(--accent-surface);
+    /* Keep the accent background when both focused and selected */
+}
+
+/* Cut state - files marked for moving */
+.file-item.cut {
+    opacity: 0.6;
+    filter: grayscale(50%);
+}
+
+.file-item.cut .file-name {
+    color: var(--text-tertiary);
+}
+
+.file-item.cut .file-icon-container {
+    opacity: 0.7;
+}
+
+/* Grid view */
+.file-item.view-mode-grid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-md);
+    min-width: 100px;
+    text-align: center;
+}
+
+.file-item-grid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.file-item.view-mode-grid .file-icon-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 64px;
+    height: 64px;
+    margin-bottom: var(--space-sm);
+}
+
+.file-item.view-mode-grid .file-name {
+    max-width: 100%;
+    font-size: var(--font-size-sm);
+}
+
+/* List view */
+.file-item.view-mode-list {
+    padding: var(--space-sm) var(--space-md);
+}
+
+.file-item-list {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.file-item.view-mode-list .file-icon-container {
+    display: flex;
+    align-items: center;
+    margin-right: var(--space-md);
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.file-item.view-mode-list .file-details {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.file-item.view-mode-list .file-name {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+.file-item.view-mode-list .file-info {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+}
+
+/* Details view */
+.file-item.view-mode-details {
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+}
+
+.file-item-details {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    padding: var(--space-sm) var(--space-md);
+}
+
+.file-item.view-mode-details .file-column {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-sm);
+}
+
+.file-item.view-mode-details .column-name {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 200px;
+}
+
+.file-item.view-mode-details .file-icon-container {
+    display: flex;
+    align-items: center;
+    margin-right: var(--space-md);
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.file-item.view-mode-details .column-size {
+    width: 100px;
+    color: var(--text-secondary);
+}
+
+.file-item.view-mode-details .column-type {
+    width: 120px;
+    color: var(--text-secondary);
+}
+
+.file-item.view-mode-details .column-modified {
+    width: 150px;
+    color: var(--text-secondary);
+}
+
+/* Rename input */
+.rename-form {
+    width: 100%;
+}
+
+.rename-input {
+    width: 100%;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface);
+    color: var(--text-primary);
+    font-size: inherit;
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-surface);
+}
+
+/* File icon styles */
+.file-icon {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+}
+
+.file-item.directory .file-icon {
+    color: var(--accent);
+}
+
+/* Custom icons for different file types */
+.file-icon-image {
+    color: #4ade80; /* green */
+}
+
+.file-icon-video {
+    color: #f97316; /* orange */
+}
+
+.file-icon-audio {
+    color: #8b5cf6; /* purple */
+}
+
+.file-icon-code {
+    color: #3b82f6; /* blue */
+}
+
+.file-icon-archive {
+    color: #f59e0b; /* amber */
+}
+
+.file-icon-pdf {
+    color: #ef4444; /* red */
+}
+
+.file-icon-text {
+    color: #6b7280; /* gray */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .file-item.view-mode-grid {
+        min-width: 80px;
+        padding: var(--space-sm);
+    }
+
+    .file-item.view-mode-grid .file-icon-container {
+        width: 48px;
+        height: 48px;
+    }
+
+    .file-item.view-mode-details .column-type,
+    .file-item.view-mode-details .column-modified {
+        display: none;
+    }
+
+    .file-item.view-mode-details .column-size {
+        width: 70px;
+    }
+}

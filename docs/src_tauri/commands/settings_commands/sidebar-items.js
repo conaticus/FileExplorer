@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["get_setting_field","get_setting_field_impl","get_settings_as_json","get_settings_as_json_impl","reset_settings_command","reset_settings_impl","update_multiple_settings_command","update_multiple_settings_impl","update_settings_field","update_settings_field_impl"]};
