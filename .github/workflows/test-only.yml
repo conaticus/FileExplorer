@@ -1,0 +1,34 @@
+name: Test Only
+
+on:
+  push:
+    branches: [ "*" ]
+  pull_request:
+    branches: [ "*" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+
+    - name: Generate test data
+      run: cargo test create_test_data --features "generate-test-data" -- --nocapture
+      working-directory: ./src-tauri
+
+    - name: Run tests
+      run: cargo test
+      working-directory: ./src-tauri
