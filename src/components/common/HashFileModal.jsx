@@ -5,6 +5,7 @@ import { useFileSystem } from '../../providers/FileSystemProvider';
 import { showError, showSuccess } from '../../utils/NotificationSystem';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
+import zhCN from '../../locales/zh-CN.js';
 
 /**
  * Modal component for generating a hash file for a selected file or directory
@@ -63,11 +64,11 @@ const HashFileModal = ({ isOpen, onClose, item }) => {
             });
 
             await loadDirectory(currentPath);
-            showSuccess(`Hash generated and saved to ${fileName}: ${hash.substring(0, 16)}...`);
+            showSuccess(zhCN.hash.hashGenerated.replace('{file}', fileName).replace('{hash}', hash.substring(0, 16)));
             onClose();
         } catch (error) {
             console.error('Hash generation to file failed:', error);
-            showError(`Failed to generate hash file: ${error.message || error}`);
+            showError(`${zhCN.hash.hashGenerateFailed}: ${error.message || error}`);
         } finally {
             setIsGenerating(false);
         }
@@ -97,7 +98,7 @@ const HashFileModal = ({ isOpen, onClose, item }) => {
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="Generate Hash to File"
+            title={zhCN.hash.generateHashToFile}
             size="sm"
             footer={
                 <>
@@ -106,7 +107,7 @@ const HashFileModal = ({ isOpen, onClose, item }) => {
                         onClick={onClose}
                         disabled={isGenerating}
                     >
-                        Cancel
+                        {zhCN.common.cancel}
                     </Button>
                     <Button
                         type="submit"
@@ -114,7 +115,7 @@ const HashFileModal = ({ isOpen, onClose, item }) => {
                         disabled={!fileName.trim() || isGenerating}
                         onClick={handleSubmit}
                     >
-                        {isGenerating ? 'Generating...' : 'Generate Hash'}
+                        {isGenerating ? zhCN.hash.generating : zhCN.hash.generateHash}
                     </Button>
                 </>
             }
@@ -122,7 +123,7 @@ const HashFileModal = ({ isOpen, onClose, item }) => {
             <form onSubmit={handleSubmit}>
                 <div className="form-group">
                     <label htmlFor="hash-filename">
-                        Hash file name:
+                        {zhCN.hash.hashFileName}
                     </label>
                     <input
                         ref={inputRef}
@@ -132,11 +133,11 @@ const HashFileModal = ({ isOpen, onClose, item }) => {
                         onChange={handleChange}
                         onKeyDown={handleKeyDown}
                         className="input"
-                        placeholder="Enter hash file name"
+                        placeholder={zhCN.hash.hashFileNamePlaceholder}
                         disabled={isGenerating}
                     />
                     <div className="input-hint">
-                        The hash will be generated for "{item.name}" and saved to this file.
+                        {zhCN.hash.hashFileHint.replace('{name}', item.name)}
                     </div>
                 </div>
             </form>

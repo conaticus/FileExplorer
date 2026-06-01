@@ -1,5 +1,6 @@
 import React from 'react';
 import './emptyState.css';
+import zhCN from '../../locales/zh-CN.js';
 
 /**
  * Component for displaying various empty state messages
@@ -15,28 +16,28 @@ const EmptyState = ({ type = 'empty-folder', searchTerm = null, title = null, me
     const emptyStates = {
         'empty-folder': {
             icon: 'folder-empty',
-            title: 'This folder is empty',
-            message: 'Drag and drop files here or use the Create button to add content',
+            title: zhCN.emptyState.emptyFolder,
+            message: zhCN.emptyState.emptyFolderHint,
         },
         'no-results': {
             icon: 'search-empty',
-            title: `No results found${searchTerm ? ` for "${searchTerm}"` : ''}`,
-            message: 'Try different keywords or check your spelling',
+            title: searchTerm ? zhCN.emptyState.noResultsFor.replace('{term}', searchTerm) : zhCN.emptyState.noResults,
+            message: zhCN.emptyState.noResultsHint,
         },
         'no-favorites': {
             icon: 'star-empty',
-            title: 'No favorites yet',
-            message: 'Right-click on folders and files to add them to favorites',
+            title: zhCN.emptyState.noFavorites,
+            message: zhCN.emptyState.noFavoritesHint,
         },
         'no-templates': {
             icon: 'template-empty',
-            title: 'No templates',
-            message: 'You haven\'t saved any templates yet. Templates help you create files and folders with predefined structures.',
+            title: zhCN.emptyState.noTemplates,
+            message: zhCN.emptyState.noTemplatesHint,
         },
         'error': {
             icon: 'error',
-            title: 'Something went wrong',
-            message: 'Please try again or check your connection',
+            title: zhCN.emptyState.error,
+            message: zhCN.emptyState.errorHint,
         },
     };
 

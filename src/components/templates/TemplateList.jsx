@@ -10,6 +10,7 @@ import { useFileSystem } from '../../providers/FileSystemProvider';
 import { getTemplatePaths, useTemplate, removeTemplate, addTemplate } from '../../utils/fileOperations';
 import { showError, showSuccess } from '../../utils/NotificationSystem';
 import './templates.css';
+import zhCN from '../../locales/zh-CN.js';
 
 /**
  * TemplateList component - Displays and manages file and folder templates
@@ -92,7 +93,7 @@ const TemplateList = ({ onClose }) => {
                 setTemplates(templateObjects);
             } catch (err) {
                 console.error('Failed to load templates:', err);
-                setError('Failed to load templates. Please try again.');
+                setError(zhCN.templates.templateLoadFailed || '加载模板失败，请重试。');
 
                 // Mock data for development - properly structured
                 const mockTemplates = [
@@ -145,7 +146,7 @@ const TemplateList = ({ onClose }) => {
     const handleUseTemplate = (template) => {
         if (!template || !template.path) {
             console.error('Invalid template for use:', template);
-            showError('Invalid template selected.');
+            showError(zhCN.templates.invalidTemplate);
             return;
         }
 
@@ -171,10 +172,10 @@ const TemplateList = ({ onClose }) => {
             setIsUseModalOpen(false);
 
             // Show success message
-            showSuccess(`Template "${selectedTemplate.name}" applied successfully!`);
+            showSuccess(zhCN.templates.templateApplied.replace('{name}', selectedTemplate.name));
         } catch (err) {
             console.error('Failed to apply template:', err);
-            setError('Failed to apply template. Please try again.');
+            setError(zhCN.templates.templateApplyFailed);
         }
     };
 
@@ -186,7 +187,7 @@ const TemplateList = ({ onClose }) => {
     const handleRemoveTemplate = async (template) => {
         if (!template || !template.path) {
             console.error('Invalid template for removal:', template);
-            showError('Invalid template selected.');
+            showError(zhCN.templates.invalidTemplate);
             return;
         }
 
@@ -195,10 +196,10 @@ const TemplateList = ({ onClose }) => {
 
             // Update the template list
             setTemplates(prev => prev.filter(t => t.path !== template.path));
-            showSuccess(`Template "${template.name}" removed successfully.`);
+            showSuccess(zhCN.templates.templateRemoved.replace('{name}', template.name));
         } catch (err) {
             console.error('Failed to remove template:', err);
-            showError('Failed to remove template. Please try again.');
+            showError(zhCN.templates.templateRemoveFailed);
         }
     };
 
@@ -235,10 +236,10 @@ const TemplateList = ({ onClose }) => {
             setIsAddModalOpen(false);
             setNewTemplatePath('');
 
-            showSuccess('Template added successfully!');
+            showSuccess(zhCN.templates.templateAdded);
         } catch (err) {
             console.error('Failed to add template:', err);
-            showError(`Failed to add template: ${err.message || err}`);
+            showError(`${zhCN.templates.templateAddFailed}: ${err.message || err}`);
         }
     };
 
@@ -273,11 +274,11 @@ const TemplateList = ({ onClose }) => {
         <div className="template-list-container">
             <div className="template-list-header">
                 <div className="template-header-left">
-                    <h2>Templates</h2>
+                    <h2>{zhCN.templates.title}</h2>
                     <button
                         className="template-close-btn"
                         onClick={onClose}
-                        title="Close Templates"
+                        title={zhCN.templates.closeTemplates}
                     >
                         <span className="icon icon-x"></span>
                     </button>
@@ -287,7 +288,7 @@ const TemplateList = ({ onClose }) => {
                         variant="primary"
                         onClick={handleAddTemplate}
                     >
-                        Add Template
+                        {zhCN.templates.addTemplate}
                     </Button>
                 </div>
             </div>
@@ -296,7 +297,7 @@ const TemplateList = ({ onClose }) => {
                 {isLoading ? (
                     <div className="template-list-loading">
                         <div className="spinner"></div>
-                        <p>Loading templates...</p>
+                        <p>{zhCN.templates.loadingTemplates}</p>
                     </div>
                 ) : error ? (
                     <div className="template-list-error">
@@ -309,8 +310,8 @@ const TemplateList = ({ onClose }) => {
                 ) : templates.length === 0 ? (
                     <EmptyState
                         type="no-templates"
-                        title="No Templates"
-                        message="You haven't saved any templates yet. Templates help you create files and folders with predefined structures."
+                        title={zhCN.templates.noTemplates}
+                        message={zhCN.templates.noTemplatesHint}
                     />
                 ) : (
                     <div className="template-grid">
@@ -338,7 +339,7 @@ const TemplateList = ({ onClose }) => {
             <Modal
                 isOpen={isUseModalOpen}
                 onClose={() => setIsUseModalOpen(false)}
-                title="Use Template"
+                title={zhCN.templates.useTemplate}
                 size="sm"
                 footer={
                     <>
@@ -346,20 +347,20 @@ const TemplateList = ({ onClose }) => {
                             variant="ghost"
                             onClick={() => setIsUseModalOpen(false)}
                         >
-                            Cancel
+                            {zhCN.common.cancel}
                         </Button>
                         <Button
                             variant="primary"
                             onClick={applyTemplate}
                         >
-                            Apply Template
+                            {zhCN.templates.applyTemplate}
                         </Button>
                     </>
                 }
             >
                 <div className="template-use-form">
                     <div className="form-group">
-                        <label htmlFor="template-name">Template</label>
+                        <label htmlFor="template-name">{zhCN.templates.template}</label>
                         <input
                             type="text"
                             id="template-name"
@@ -370,17 +371,17 @@ const TemplateList = ({ onClose }) => {
                     </div>
 
                     <div className="form-group">
-                        <label htmlFor="destination-path">Destination</label>
+                        <label htmlFor="destination-path">{zhCN.templates.destination}</label>
                         <input
                             type="text"
                             id="destination-path"
                             className="input"
                             value={destinationPath}
                             onChange={(e) => setDestinationPath(e.target.value)}
-                            placeholder="Enter destination path"
+                            placeholder={zhCN.templates.destinationPlaceholder}
                         />
                         <div className="input-hint">
-                            This is where the template will be applied.
+                            {zhCN.templates.destinationHint}
                         </div>
                     </div>
                 </div>
@@ -390,7 +391,7 @@ const TemplateList = ({ onClose }) => {
             <Modal
                 isOpen={isAddModalOpen}
                 onClose={() => setIsAddModalOpen(false)}
-                title="Add Template"
+                title={zhCN.templates.addTemplate}
                 size="sm"
                 footer={
                     <>
@@ -398,14 +399,14 @@ const TemplateList = ({ onClose }) => {
                             variant="ghost"
                             onClick={() => setIsAddModalOpen(false)}
                         >
-                            Cancel
+                            {zhCN.common.cancel}
                         </Button>
                         <Button
                             variant="primary"
                             onClick={saveNewTemplate}
                             disabled={!newTemplatePath.trim()}
                         >
-                            Add Template
+                            {zhCN.templates.addTemplate}
                         </Button>
                     </>
                 }
@@ -413,7 +414,7 @@ const TemplateList = ({ onClose }) => {
                 <form onSubmit={handleAddTemplateSubmit}>
                     <div className="template-add-form">
                         <div className="form-group">
-                            <label htmlFor="template-path">Template Path</label>
+                            <label htmlFor="template-path">{zhCN.templates.templatePath}</label>
                             <input
                                 ref={addTemplateInputRef}
                                 type="text"
@@ -422,10 +423,10 @@ const TemplateList = ({ onClose }) => {
                                 value={newTemplatePath}
                                 onChange={handleAddTemplateInputChange}
                                 onKeyDown={handleAddTemplateKeyDown}
-                                placeholder="Enter path to file or folder to save as template"
+                                placeholder={zhCN.templates.templatePathPlaceholder}
                             />
                             <div className="input-hint">
-                                Enter the full path to a file or folder that you want to save as a template.
+                                {zhCN.templates.templatePathHint}
                             </div>
                         </div>
                     </div>

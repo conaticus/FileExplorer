@@ -4,6 +4,7 @@ import { useSettings } from '../../providers/SettingsProvider';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import './settings.css';
+import zhCN from '../../locales/zh-CN.js';
 
 /**
  * SettingsPanel component - Provides a comprehensive settings interface
@@ -23,10 +24,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
      * @type {Array<{id: string, label: string, icon: string}>}
      */
     const tabs = [
-        { id: 'appearance', label: 'Appearance', icon: 'palette' },
-        { id: 'behavior', label: 'Behavior', icon: 'settings' },
-        { id: 'search', label: 'Search', icon: 'search' },
-        { id: 'advanced', label: 'Advanced', icon: 'cog' }
+        { id: 'appearance', label: zhCN.settings.appearance, icon: 'palette' },
+        { id: 'behavior', label: zhCN.settings.behavior, icon: 'settings' },
+        { id: 'search', label: zhCN.settings.search, icon: 'search' },
+        { id: 'advanced', label: zhCN.settings.advanced, icon: 'cog' }
     ];
 
     /**
@@ -34,8 +35,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
      * @type {Array<{id: boolean, label: string}>}
      */
     const themes = [
-        { id: false, label: 'Light' },
-        { id: true, label: 'Dark' }
+        { id: false, label: zhCN.settings.light },
+        { id: true, label: zhCN.settings.dark }
     ];
 
     /**
@@ -43,9 +44,9 @@ const SettingsPanel = ({ isOpen, onClose }) => {
      * @type {Array<{id: string, label: string}>}
      */
     const viewModes = [
-        { id: 'grid', label: 'Grid View' },
-        { id: 'list', label: 'List View' },
-        { id: 'details', label: 'Details View' }
+        { id: 'grid', label: zhCN.settings.gridView },
+        { id: 'list', label: zhCN.settings.listView },
+        { id: 'details', label: zhCN.settings.detailsView }
     ];
 
     /**
@@ -53,9 +54,9 @@ const SettingsPanel = ({ isOpen, onClose }) => {
      * @type {Array<{id: string, label: string}>}
      */
     const fontSizes = [
-        { id: 'Small', label: 'Small' },
-        { id: 'Medium', label: 'Medium' },
-        { id: 'Large', label: 'Large' }
+        { id: 'Small', label: zhCN.settings.small },
+        { id: 'Medium', label: zhCN.settings.medium },
+        { id: 'Large', label: zhCN.settings.large }
     ];
 
     /**
@@ -63,10 +64,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
      * @type {Array<{id: string, label: string}>}
      */
     const sortOptions = [
-        { id: 'Name', label: 'Name' },
-        { id: 'Size', label: 'Size' },
-        { id: 'Modified', label: 'Date Modified' },
-        { id: 'Type', label: 'Type' }
+        { id: 'Name', label: zhCN.settings.sortByOptions.name },
+        { id: 'Size', label: zhCN.settings.sortByOptions.size },
+        { id: 'Modified', label: zhCN.settings.sortByOptions.modified },
+        { id: 'Type', label: zhCN.settings.sortByOptions.type }
     ];
 
     /**
@@ -74,8 +75,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
      * @type {Array<{id: string, label: string}>}
      */
     const sortDirections = [
-        { id: 'Ascending', label: 'Ascending' },
-        { id: 'Descending', label: 'Descending' }
+        { id: 'Ascending', label: zhCN.settings.ascending },
+        { id: 'Descending', label: zhCN.settings.descending }
     ];
 
     /**
@@ -83,8 +84,8 @@ const SettingsPanel = ({ isOpen, onClose }) => {
      * @type {Array<{id: string, label: string}>}
      */
     const doubleClickOptions = [
-        { id: 'OpenFilesAndFolders', label: 'Open files and folders' },
-        { id: 'SelectFilesAndFolders', label: 'Select files and folders' }
+        { id: 'OpenFilesAndFolders', label: zhCN.settings.openFilesAndFolders },
+        { id: 'SelectFilesAndFolders', label: zhCN.settings.selectFilesAndFolders }
     ];
 
     /**
@@ -115,7 +116,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
      * @async
      */
     const handleReset = async () => {
-        if (!confirm('Are you sure you want to reset all settings to default? This cannot be undone.')) {
+        if (!confirm(zhCN.settings.confirmResetSettings)) {
             return;
         }
 
@@ -123,10 +124,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         try {
             await resetSettings();
             setLocalError(null);
-            alert('Settings have been reset to default.');
+            alert(zhCN.settings.settingsResetSuccess);
         } catch (error) {
             console.error('Failed to reset settings:', error);
-            setLocalError('Failed to reset settings. Please try again.');
+            setLocalError(zhCN.settings.settingsResetFailed);
         } finally {
             setIsResetting(false);
         }
@@ -139,10 +140,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
     const handleClearSearchIndex = async () => {
         try {
             await invoke('clear_search_engine');
-            alert('Search index has been cleared.');
+            alert(zhCN.settings.searchIndexCleared);
         } catch (error) {
             console.error('Failed to clear search index:', error);
-            setLocalError('Failed to clear search index.');
+            setLocalError('清除搜索索引失败');
         }
     };
 
@@ -153,7 +154,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
     const renderAppearanceTab = () => (
         <div className="settings-tab-content">
             <div className="settings-section">
-                <h3>Theme</h3>
+                <h3>{zhCN.settings.theme}</h3>
                 <div className="radio-group">
                     {themes.map(theme => (
                         <label key={theme.id.toString()} className="radio-option">
@@ -171,7 +172,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
             </div>
 
             <div className="settings-section">
-                <h3>Default View</h3>
+                <h3>{zhCN.settings.defaultView}</h3>
                 <div className="radio-group">
                     {viewModes.map(mode => (
                         <label key={mode.id} className="radio-option">
@@ -189,7 +190,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
             </div>
 
             <div className="settings-section">
-                <h3>Font Size</h3>
+                <h3>{zhCN.settings.fontSize}</h3>
                 <select
                     value={settings.font_size || 'Medium'}
                     onChange={(e) => updateSetting('font_size', e.target.value)}
@@ -202,7 +203,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
             </div>
 
             <div className="settings-section">
-                <h3>Accent Color</h3>
+                <h3>{zhCN.settings.accentColor}</h3>
                 <div className="form-group">
                     <input
                         type="color"
@@ -211,7 +212,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         className="color-picker"
                     />
                     <div className="input-hint">
-                        Choose your preferred accent color for the interface.
+                        {zhCN.settings.accentColorHint}
                     </div>
                 </div>
             </div>
@@ -223,7 +224,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.show_details_panel || false}
                         onChange={(e) => updateSetting('show_details_panel', e.target.checked)}
                     />
-                    <span>Show details panel by default</span>
+                    <span>{zhCN.settings.showDetailsPanel}</span>
                 </label>
 
                 <label className="checkbox-option">
@@ -232,7 +233,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.show_file_extensions !== false}
                         onChange={(e) => updateSetting('show_file_extensions', e.target.checked)}
                     />
-                    <span>Show file extensions</span>
+                    <span>{zhCN.settings.showFileExtensions}</span>
                 </label>
             </div>
         </div>
@@ -245,14 +246,14 @@ const SettingsPanel = ({ isOpen, onClose }) => {
     const renderBehaviorTab = () => (
         <div className="settings-tab-content">
             <div className="settings-section">
-                <h3>File Operations</h3>
+                <h3>{zhCN.settings.fileOperations}</h3>
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
                         checked={settings.confirm_delete !== false}
                         onChange={(e) => updateSetting('confirm_delete', e.target.checked)}
                     />
-                    <span>Confirm before deleting files</span>
+                    <span>{zhCN.settings.confirmBeforeDelete}</span>
                 </label>
 
                 <label className="checkbox-option">
@@ -261,7 +262,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.show_hidden_files_and_folders || false}
                         onChange={(e) => updateSetting('show_hidden_files_and_folders', e.target.checked)}
                     />
-                    <span>Show hidden files and folders</span>
+                    <span>{zhCN.settings.showHiddenFiles}</span>
                 </label>
 
                 <label className="checkbox-option">
@@ -270,15 +271,15 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.auto_refresh_dir !== false}
                         onChange={(e) => updateSetting('auto_refresh_dir', e.target.checked)}
                     />
-                    <span>Auto-refresh directories</span>
+                    <span>{zhCN.settings.autoRefreshDirs}</span>
                 </label>
             </div>
 
             <div className="settings-section">
-                <h3>Default Sort</h3>
+                <h3>{zhCN.settings.defaultSort}</h3>
                 <div className="form-row">
                     <div className="form-group">
-                        <label>Sort by:</label>
+                        <label>{zhCN.settings.sortBy}</label>
                         <select
                             value={settings.sort_by || 'Name'}
                             onChange={(e) => updateSetting('sort_by', e.target.value)}
@@ -291,7 +292,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                     </div>
 
                     <div className="form-group">
-                        <label>Direction:</label>
+                        <label>{zhCN.settings.direction}</label>
                         <select
                             value={settings.sort_direction || 'Ascending'}
                             onChange={(e) => updateSetting('sort_direction', e.target.value)}
@@ -306,7 +307,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
             </div>
 
             <div className="settings-section">
-                <h3>Double-click Behavior</h3>
+                <h3>{zhCN.settings.doubleClickBehavior}</h3>
                 <div className="radio-group">
                     {doubleClickOptions.map(option => (
                         <label key={option.id} className="radio-option">
@@ -332,14 +333,14 @@ const SettingsPanel = ({ isOpen, onClose }) => {
     const renderSearchTab = () => (
         <div className="settings-tab-content">
             <div className="settings-section">
-                <h3>Search Behavior</h3>
+                <h3>{zhCN.settings.searchBehavior}</h3>
                 <label className="checkbox-option">
                     <input
                         type="checkbox"
                         checked={settings.case_sensitive_search || false}
                         onChange={(e) => updateSetting('case_sensitive_search', e.target.checked)}
                     />
-                    <span>Case-sensitive search by default</span>
+                    <span>{zhCN.settings.caseSensitiveSearch}</span>
                 </label>
 
                 <label className="checkbox-option">
@@ -348,7 +349,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.index_hidden_files || false}
                         onChange={(e) => updateSetting('index_hidden_files', e.target.checked)}
                     />
-                    <span>Include hidden files in search index</span>
+                    <span>{zhCN.settings.indexHiddenFiles}</span>
                 </label>
 
                 <label className="checkbox-option">
@@ -357,7 +358,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.fuzzy_search_enabled !== false}
                         onChange={(e) => updateSetting('fuzzy_search_enabled', e.target.checked)}
                     />
-                    <span>Enable fuzzy search</span>
+                    <span>{zhCN.settings.enableFuzzySearch}</span>
                 </label>
 
                 <label className="checkbox-option">
@@ -366,7 +367,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.enable_suggestions !== false}
                         onChange={(e) => updateSetting('enable_suggestions', e.target.checked)}
                     />
-                    <span>Enable search suggestions</span>
+                    <span>{zhCN.settings.enableSuggestions}</span>
                 </label>
 
                 <label className="checkbox-option">
@@ -375,13 +376,13 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.highlight_matches !== false}
                         onChange={(e) => updateSetting('highlight_matches', e.target.checked)}
                     />
-                    <span>Highlight search matches</span>
+                    <span>{zhCN.settings.highlightMatches}</span>
                 </label>
             </div>
 
             <div className="settings-section">
-                <h3>Search Index</h3>
-                <p>Indexing improves search performance but uses disk space.</p>
+                <h3>{zhCN.settings.searchIndex}</h3>
+                <p>{zhCN.settings.searchIndexHint}</p>
 
                 <label className="checkbox-option">
                     <input
@@ -389,14 +390,14 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.search_engine_enabled !== false}
                         onChange={(e) => updateSetting('search_engine_enabled', e.target.checked)}
                     />
-                    <span>Enable search indexing</span>
+                    <span>{zhCN.settings.enableSearchIndex}</span>
                 </label>
 
                 <Button
                     variant="secondary"
                     onClick={handleClearSearchIndex}
                 >
-                    Clear Search Index
+                    {zhCN.settings.clearSearchIndex}
                 </Button>
             </div>
         </div>
@@ -409,9 +410,9 @@ const SettingsPanel = ({ isOpen, onClose }) => {
     const renderAdvancedTab = () => (
         <div className="settings-tab-content">
             <div className="settings-section">
-                <h3>Performance</h3>
+                <h3>{zhCN.settings.performance}</h3>
                 <div className="form-group">
-                    <label>Terminal height (pixels):</label>
+                    <label>{zhCN.settings.terminalHeight}</label>
                     <input
                         type="number"
                         min="200"
@@ -428,7 +429,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.enable_animations_and_transitions !== false}
                         onChange={(e) => updateSetting('enable_animations_and_transitions', e.target.checked)}
                     />
-                    <span>Enable animations and transitions</span>
+                    <span>{zhCN.settings.enableAnimations}</span>
                 </label>
 
                 <label className="checkbox-option">
@@ -437,14 +438,14 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         checked={settings.enable_virtual_scroll_for_large_directories || false}
                         onChange={(e) => updateSetting('enable_virtual_scroll_for_large_directories', e.target.checked)}
                     />
-                    <span>Enable virtual scrolling for large directories</span>
+                    <span>{zhCN.settings.enableVirtualScroll}</span>
                 </label>
             </div>
 
             <div className="settings-section">
-                <h3>Hash Algorithm</h3>
+                <h3>{zhCN.settings.hashAlgorithm}</h3>
                 <div className="form-group">
-                    <label>Default hash algorithm:</label>
+                    <label>{zhCN.settings.defaultHashAlgorithm}</label>
                     <select
                         value={settings.default_checksum_hash || 'SHA256'}
                         onChange={(e) => updateSetting('default_checksum_hash', e.target.value)}
@@ -455,37 +456,37 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                         ))}
                     </select>
                     <div className="input-hint">
-                        Used for generating file hashes and integrity checks.
+                        {zhCN.settings.hashAlgorithmHint}
                     </div>
                 </div>
             </div>
 
             <div className="settings-section">
-                <h3>Default Paths</h3>
+                <h3>{zhCN.settings.defaultPaths}</h3>
                 <div className="form-group">
-                    <label>Default folder on opening:</label>
+                    <label>{zhCN.settings.defaultFolderOnOpen}</label>
                     <input
                         type="text"
                         value={settings.default_folder_path_on_opening || ''}
                         onChange={(e) => updateSetting('default_folder_path_on_opening', e.target.value)}
                         className="settings-input"
-                        placeholder="Leave empty to use system default"
+                        placeholder={zhCN.settings.leaveEmptyForDefault}
                     />
                     <div className="input-hint">
-                        The folder to open when the application starts.
+                        {zhCN.settings.defaultFolderHint}
                     </div>
                 </div>
             </div>
 
             <div className="settings-section danger-zone">
-                <h3>Danger Zone</h3>
-                <p>These actions cannot be undone.</p>
+                <h3>{zhCN.settings.dangerZone}</h3>
+                <p>{zhCN.settings.dangerZoneHint}</p>
                 <Button
                     variant="danger"
                     onClick={handleReset}
                     disabled={isResetting}
                 >
-                    {isResetting ? 'Resetting...' : 'Reset All Settings'}
+                    {isResetting ? zhCN.settings.resetting : zhCN.settings.resetAllSettings}
                 </Button>
             </div>
         </div>
@@ -509,7 +510,7 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="Settings"
+            title={zhCN.settings.title}
             size="lg"
             footer={
                 <div className="settings-footer">
@@ -521,10 +522,10 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                     )}
                     <div className="settings-footer-buttons">
                         <Button variant="primary" onClick={reloadSettings}>
-                            Save & Apply
+                            {zhCN.settings.saveAndApply}
                         </Button>
                         <Button variant="ghost" onClick={onClose}>
-                            Close
+                            {zhCN.common.close}
                         </Button>
                     </div>
                 </div>

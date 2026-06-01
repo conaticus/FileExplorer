@@ -4,6 +4,7 @@ import { useFileSystem } from './FileSystemProvider';
 import { useHistory } from './HistoryProvider';
 import { useSftp } from './SftpProvider';
 import { showNotification, showError, showSuccess, showConfirm } from '../utils/NotificationSystem';
+import zhCN from '../locales/zh-CN.js';
 
 const ContextMenuContext = createContext({
     isOpen: false,
@@ -46,7 +47,7 @@ export default function ContextMenuProvider({ children }) {
             // Check if already in favorites
             const alreadyExists = existingFavorites.some(fav => fav.path === item.path);
             if (alreadyExists) {
-                showNotification('This item is already in your favorites.');
+                showNotification(zhCN.contextMenu.addedToFavorites);
                 return;
             }
 
@@ -66,10 +67,10 @@ export default function ContextMenuProvider({ children }) {
                 newValue: JSON.stringify(updatedFavorites)
             }));
 
-            showSuccess(`Added "${item.name}" to favorites.`);
+            showSuccess(zhCN.contextMenu.addedToFavorites);
         } catch (error) {
             console.error('Failed to add to favorites:', error);
-            showError('Failed to add to favorites.');
+            showError(zhCN.contextMenu.addedToFavorites);
         }
     }, []);
 
@@ -123,17 +124,17 @@ export default function ContextMenuProvider({ children }) {
             }
             
             await navigator.clipboard.writeText(pathToCopy);
-            showSuccess(`Path copied to clipboard: ${pathToCopy}`);
+            showSuccess(zhCN.contextMenu.pathCopied);
         } catch (error) {
             console.error('Failed to copy path:', error);
-            showError('Failed to copy path to clipboard.');
+            showError(zhCN.contextMenu.pathCopied);
         }
     }, [isSftpPath, parseSftpPath]);
 
     // Add as template
     const addAsTemplate = useCallback(async (item) => {
         if (!item || item.isDirectory || 'sub_file_count' in item) {
-            showError('Only files can be added as templates.');
+            showError(zhCN.contextMenu.templateAddFailed || '只有文件才能添加为模板。');
             return;
         }
 
@@ -154,7 +155,7 @@ export default function ContextMenuProvider({ children }) {
                     templatePath = tempPath;
                 } catch (downloadError) {
                     console.error('Failed to download SFTP file for template:', downloadError);
-                    showError(`Failed to download SFTP file: ${downloadError.message || downloadError}`);
+                    showError(`下载 SFTP 文件失败: ${downloadError.message || downloadError}`);
                     return;
                 }
             }
@@ -162,12 +163,12 @@ export default function ContextMenuProvider({ children }) {
             const result = await invoke('add_template', {
                 templatePath: templatePath
             });
-            showSuccess(`Template added successfully: ${result}`);
+            showSuccess(zhCN.templates.templateAdded);
 
             window.dispatchEvent(new CustomEvent('templates-updated'));
         } catch (error) {
             console.error('Failed to add template:', error);
-            showError(`Failed to add template: ${error.message || error}`);
+            showError(`${zhCN.templates.templateAddFailed}: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
@@ -315,7 +316,7 @@ export default function ContextMenuProvider({ children }) {
             await loadDirectory(currentPath);
         } catch (error) {
             console.error('Paste operation failed:', error);
-            showError(`Failed to paste: ${error.message || error}`);
+            showError(`${zhCN.common.paste}失败: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
@@ -326,10 +327,10 @@ export default function ContextMenuProvider({ children }) {
         if (!items.length) return;
 
         const itemNames = items.map(item => item.name).join(', ');
-        const confirmMessage = `Are you sure you want to move ${items.length === 1 ? itemNames : `${items.length} items`} to trash?`;
+        const confirmMessage = `确定要将 ${items.length === 1 ? itemNames : `${items.length} 个项目`} 移到回收站吗？`;
 
         // Use custom confirm dialog
-        const shouldDelete = await showConfirm(confirmMessage, 'Move to Trash');
+        const shouldDelete = await showConfirm(confirmMessage, zhCN.contextMenu.moveToRecycleBin);
         if (!shouldDelete) return;
 
         setIsProcessing(true);
@@ -340,7 +341,7 @@ export default function ContextMenuProvider({ children }) {
             }
         } catch (error) {
             console.error('Delete operation failed:', error);
-            showError(`Failed to delete: ${error.message || error}`);
+            showError(`${zhCN.common.delete}失败: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
@@ -362,7 +363,7 @@ export default function ContextMenuProvider({ children }) {
         const isAllSftp = items.every(item => isSftpPath(item.path));
         
         if (isSftpItems && !isAllSftp) {
-            showError('Cannot mix SFTP and local files in the same archive');
+            showError('无法在同一个压缩包中混合 SFTP 和本地文件');
             return;
         }
 
@@ -376,7 +377,7 @@ export default function ContextMenuProvider({ children }) {
             zipName = `${baseName}.zip`;
         } else {
             // For multiple items, ask user for zip name
-            zipName = window.prompt('Enter name for the zip file:', 'archive.zip');
+            zipName = window.prompt('输入压缩文件名称:', 'archive.zip');
             if (!zipName) return;
             if (!zipName.endsWith('.zip')) {
                 zipName += '.zip';
@@ -396,7 +397,7 @@ export default function ContextMenuProvider({ children }) {
                 for (const item of items) {
                     const tempPath = await downloadAndOpenSftpFile(item.path, false);
                     if (!tempPath) {
-                        throw new Error(`Failed to download ${item.name} for zipping`);
+                        throw new Error(`下载 ${item.name} 失败`);
                     }
                     tempPaths.push(tempPath);
                 }
@@ -419,7 +420,7 @@ export default function ContextMenuProvider({ children }) {
                         
                         // Upload the zip file (we'd need an upload function in SFTP provider)
                         // For now, we'll copy it to local temp and let user know
-                        showSuccess(`ZIP created locally at: ${tempZipPath}. SFTP upload not yet implemented.`);
+                        showSuccess(`ZIP 已在本地创建: ${tempZipPath}。SFTP 上传功能尚未实现。`);
                     }
                 } else {
                     // Copy zip to current local directory
@@ -427,13 +428,13 @@ export default function ContextMenuProvider({ children }) {
                         sourcePath: tempZipPath,
                         destinationPath: destinationPath
                     });
-                    showSuccess(`Successfully created ${zipName}`);
+                    showSuccess(`成功创建 ${zipName}`);
                 }
                 
                 await loadDirectory(currentPath);
             } catch (error) {
                 console.error('SFTP zip operation failed:', error);
-                showError(`Failed to create zip: ${error.message || error}`);
+                showError(`创建 ZIP 失败: ${error.message || error}`);
             } finally {
                 setIsProcessing(false);
             }
@@ -450,10 +451,10 @@ export default function ContextMenuProvider({ children }) {
                 });
 
                 await loadDirectory(currentPath);
-                showSuccess(`Successfully created ${destinationPath.split('/').pop()}`);
+                showSuccess(`成功创建 ${destinationPath.split('/').pop()}`);
             } catch (error) {
                 console.error('Zip operation failed:', error);
-                showError(`Failed to create zip: ${error.message || error}`);
+                showError(`创建 ZIP 失败: ${error.message || error}`);
             } finally {
                 setIsProcessing(false);
             }
@@ -471,7 +472,7 @@ export default function ContextMenuProvider({ children }) {
                 console.log('📡 SFTP zip file detected, downloading for extraction...');
                 const tempZipPath = await downloadAndOpenSftpFile(item.path, false);
                 if (!tempZipPath) {
-                    throw new Error('Failed to download SFTP zip file for extraction');
+                    throw new Error('下载 SZIP 文件失败');
                 }
                 
                 // Extract to temp directory first
@@ -484,20 +485,20 @@ export default function ContextMenuProvider({ children }) {
                 
                 // For now, we'll extract locally and notify user
                 // TODO: Implement upload of extracted files back to SFTP
-                showSuccess(`ZIP extracted locally to: ${tempExtractPath}. SFTP upload of extracted files not yet implemented.`);
+                showSuccess(`ZIP 已解压到本地: ${tempExtractPath}。SFTP 上传解压文件功能尚未实现。`);
             } else {
                 // Handle local zip files (original logic)
                 await invoke('unzip', {
                     zipPaths: [item.path],
                     destinationPath: currentPath
                 });
-                showSuccess(`Successfully extracted ${item.name}`);
+                showSuccess(`成功解压 ${item.name}`);
             }
 
             await loadDirectory(currentPath);
         } catch (error) {
             console.error('Unzip operation failed:', error);
-            showError(`Failed to extract: ${error.message || error}`);
+            showError(`解压失败: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
@@ -509,7 +510,7 @@ export default function ContextMenuProvider({ children }) {
 
         if (!item || item.isDirectory || 'sub_file_count' in item) {
             console.log('❌ Item invalid for hash generation');
-            showError('Hash generation is only available for files.');
+            showError(zhCN.hash.hashGenerateFailed || '哈希生成仅适用于文件。');
             return;
         }
 
@@ -524,7 +525,7 @@ export default function ContextMenuProvider({ children }) {
                 console.log('📡 SFTP file detected, downloading for hash generation...');
                 const tempPath = await downloadAndOpenSftpFile(item.path, false);
                 if (!tempPath) {
-                    throw new Error('Failed to download SFTP file for hash generation');
+                    throw new Error('下载 SFTP 文件失败');
                 }
                 hashPath = tempPath;
                 console.log('✅ SFTP file downloaded to:', hashPath);
@@ -538,7 +539,7 @@ export default function ContextMenuProvider({ children }) {
             // Try to copy hash to clipboard, with fallback if it fails
             try {
                 await navigator.clipboard.writeText(hash);
-                showSuccess(`Hash generated and copied to clipboard: ${hash.substring(0, 16)}...`);
+                showSuccess(zhCN.hash.hashGenerated.replace('{file}', item.name).replace('{hash}', hash.substring(0, 16)));
             } catch (clipboardError) {
                 console.warn('📋 Clipboard access failed, showing hash display modal instead:', clipboardError);
                 
@@ -550,7 +551,7 @@ export default function ContextMenuProvider({ children }) {
             }
         } catch (error) {
             console.error('💥 Hash generation failed:', error);
-            showError(`Failed to generate hash: ${error.message || error}`);
+            showError(`${zhCN.hash.hashGenerateFailed}: ${error.message || error}`);
         } finally {
             setIsProcessing(false);
         }
@@ -562,7 +563,7 @@ export default function ContextMenuProvider({ children }) {
 
         if (!item || item.isDirectory || 'sub_file_count' in item) {
             console.log('❌ Item invalid for hash file generation');
-            showError('Hash generation is only available for files.');
+            showError(zhCN.hash.hashGenerateFailed || '哈希生成仅适用于文件。');
             return;
         }
 
@@ -575,7 +576,7 @@ export default function ContextMenuProvider({ children }) {
             try {
                 const tempPath = await downloadAndOpenSftpFile(item.path, false);
                 if (!tempPath) {
-                    throw new Error('Failed to download SFTP file for hash generation');
+                    throw new Error('下载 SFTP 文件失败');
                 }
                 // Create a modified item with the temp path for hash generation
                 processedItem = {
@@ -586,7 +587,7 @@ export default function ContextMenuProvider({ children }) {
                 console.log('✅ SFTP file downloaded for hash generation:', tempPath);
             } catch (error) {
                 console.error('Failed to download SFTP file for hash generation:', error);
-                showError(`Failed to download SFTP file: ${error.message || error}`);
+                showError(`下载 SFTP 文件失败: ${error.message || error}`);
                 setIsProcessing(false);
                 return;
             } finally {
@@ -612,7 +613,7 @@ export default function ContextMenuProvider({ children }) {
 
         if (!item || item.isDirectory || 'sub_file_count' in item) {
             console.log('❌ Item invalid for hash comparison');
-            showError('Hash comparison is only available for files.');
+            showError(zhCN.hash.compareFailed || '哈希比较仅适用于文件。');
             return;
         }
 
@@ -625,7 +626,7 @@ export default function ContextMenuProvider({ children }) {
             try {
                 const tempPath = await downloadAndOpenSftpFile(item.path, false);
                 if (!tempPath) {
-                    throw new Error('Failed to download SFTP file for hash comparison');
+                    throw new Error('下载 SFTP 文件失败');
                 }
                 // Create a modified item with the temp path for hash comparison
                 processedItem = {
@@ -636,7 +637,7 @@ export default function ContextMenuProvider({ children }) {
                 console.log('✅ SFTP file downloaded for hash comparison:', tempPath);
             } catch (error) {
                 console.error('Failed to download SFTP file for hash comparison:', error);
-                showError(`Failed to download SFTP file: ${error.message || error}`);
+                showError(`下载 SFTP 文件失败: ${error.message || error}`);
                 setIsProcessing(false);
                 return;
             } finally {
@@ -761,7 +762,7 @@ export default function ContextMenuProvider({ children }) {
             return [
                 {
                     id: 'paste',
-                    label: 'Paste',
+                    label: zhCN.contextMenu.paste,
                     icon: 'paste',
                     disabled: !hasClipboard || isProcessing,
                     action: pasteFromClipboard
@@ -769,7 +770,7 @@ export default function ContextMenuProvider({ children }) {
                 { type: 'separator' },
                 {
                     id: 'new-folder',
-                    label: 'New Folder',
+                    label: zhCN.contextMenu.newFolder,
                     icon: 'folder',
                     action: () => {
                         document.dispatchEvent(new CustomEvent('create-folder'));
@@ -777,7 +778,7 @@ export default function ContextMenuProvider({ children }) {
                 },
                 {
                     id: 'new-file',
-                    label: 'New File',
+                    label: zhCN.contextMenu.newFile,
                     icon: 'file',
                     action: () => {
                         document.dispatchEvent(new CustomEvent('create-file'));
@@ -786,14 +787,14 @@ export default function ContextMenuProvider({ children }) {
                 { type: 'separator' },
                 {
                     id: 'properties',
-                    label: 'Properties',
+                    label: zhCN.contextMenu.properties,
                     icon: 'properties',
                     action: () => showProperties(currentPath)
                 },
                 { type: 'separator' },
                 {
                     id: 'refresh',
-                    label: 'Refresh',
+                    label: zhCN.common.refresh,
                     icon: 'refresh',
                     action: () => loadDirectory(currentPath)
                 }
@@ -807,7 +808,7 @@ export default function ContextMenuProvider({ children }) {
         const menuItems = [
             {
                 id: 'open',
-                label: 'Open',
+                label: zhCN.contextMenu.open,
                 icon: 'open',
                 disabled: selectedItems.length > 1,
                 action: async () => {
@@ -825,7 +826,7 @@ export default function ContextMenuProvider({ children }) {
                             }
                         } catch (error) {
                             console.error('Failed to open file:', error);
-                            showError(`Failed to open file: ${error.message || error}`);
+                            showError(`打开文件失败: ${error.message || error}`);
                         }
                     }
                 }
@@ -833,21 +834,21 @@ export default function ContextMenuProvider({ children }) {
             { type: 'separator' },
             {
                 id: 'copy',
-                label: 'Copy',
+                label: zhCN.contextMenu.copy,
                 icon: 'copy',
                 disabled: isProcessing,
                 action: () => copyToClipboard(targetItems)
             },
             {
                 id: 'cut',
-                label: 'Cut',
+                label: zhCN.contextMenu.cut,
                 icon: 'cut',
                 disabled: isProcessing,
                 action: () => cutToClipboard(targetItems)
             },
             {
                 id: 'paste',
-                label: 'Paste',
+                label: zhCN.contextMenu.paste,
                 icon: 'paste',
                 disabled: !hasClipboard || !isDirectory || isProcessing,
                 action: pasteFromClipboard
@@ -855,7 +856,7 @@ export default function ContextMenuProvider({ children }) {
             { type: 'separator' },
             {
                 id: 'copy-path',
-                label: 'Copy Path',
+                label: zhCN.contextMenu.copyPath,
                 icon: 'copy',
                 disabled: selectedItems.length > 1 || isProcessing,
                 action: () => copyPath(contextTarget)
@@ -863,14 +864,14 @@ export default function ContextMenuProvider({ children }) {
             { type: 'separator' },
             {
                 id: 'rename',
-                label: 'Rename',
+                label: zhCN.contextMenu.rename,
                 icon: 'rename',
                 disabled: selectedItems.length > 1 || isProcessing,
                 action: () => renameItem(contextTarget)
             },
             {
                 id: 'delete',
-                label: 'Delete',
+                label: zhCN.contextMenu.delete,
                 icon: 'delete',
                 disabled: isProcessing,
                 action: () => deleteItems(targetItems)
@@ -883,7 +884,7 @@ export default function ContextMenuProvider({ children }) {
                 { type: 'separator' },
                 {
                     id: 'add-as-template',
-                    label: 'Add as Template',
+                    label: zhCN.contextMenu.saveAsTemplate,
                     icon: 'template',
                     disabled: isProcessing,
                     action: () => addAsTemplate(contextTarget)
@@ -897,7 +898,7 @@ export default function ContextMenuProvider({ children }) {
                 { type: 'separator' },
                 {
                     id: 'extract',
-                    label: 'Extract Here',
+                    label: '解压到此处',
                     icon: 'extract',
                     disabled: isProcessing,
                     action: () => unzipItem(contextTarget)
@@ -908,7 +909,7 @@ export default function ContextMenuProvider({ children }) {
                 { type: 'separator' },
                 {
                     id: 'compress',
-                    label: selectedItems.length > 1 ? 'Add to Archive...' : 'Compress to ZIP',
+                    label: selectedItems.length > 1 ? '添加到压缩包...' : '压缩为 ZIP',
                     icon: 'compress',
                     disabled: isProcessing,
                     action: () => zipItems(targetItems)
@@ -923,13 +924,13 @@ export default function ContextMenuProvider({ children }) {
                 { type: 'separator' },
                 {
                     id: 'hash-options',
-                    label: 'Hash',
+                    label: '哈希',
                     icon: 'hash',
                     disabled: isProcessing,
                     submenu: [
                         {
                             id: 'generate-hash',
-                            label: 'Generate & Copy to Clipboard',
+                            label: '生成并复制到剪贴板',
                             icon: 'hash',
                             disabled: isProcessing,
                             action: () => {
@@ -939,7 +940,7 @@ export default function ContextMenuProvider({ children }) {
                         },
                         {
                             id: 'generate-hash-file',
-                            label: 'Save Hash to File...',
+                            label: '保存哈希到文件...',
                             icon: 'hash',
                             disabled: isProcessing,
                             action: () => {
@@ -950,7 +951,7 @@ export default function ContextMenuProvider({ children }) {
                         { type: 'separator' },
                         {
                             id: 'compare-hash',
-                            label: 'Compare with Hash...',
+                            label: '比较哈希值...',
                             icon: 'hash',
                             disabled: isProcessing,
                             action: () => {
@@ -968,7 +969,7 @@ export default function ContextMenuProvider({ children }) {
             { type: 'separator' },
             {
                 id: itemIsInFavorites ? 'remove-from-favorites' : 'add-to-favorites',
-                label: itemIsInFavorites ? 'Remove from Favorites' : 'Add to Favorites',
+                label: itemIsInFavorites ? zhCN.contextMenu.removeFromFavorites : zhCN.contextMenu.addToFavorites,
                 icon: 'star',
                 disabled: selectedItems.length > 1,
                 action: () => {
@@ -986,7 +987,7 @@ export default function ContextMenuProvider({ children }) {
             { type: 'separator' },
             {
                 id: 'properties',
-                label: 'Properties',
+                label: zhCN.contextMenu.properties,
                 icon: 'properties',
                 disabled: selectedItems.length > 1,
                 action: () => showProperties(contextTarget)
