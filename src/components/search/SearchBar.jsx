@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './searchBar.css';
+import zhCN from '../../locales/zh-CN.js';
 
 /**
  * SearchBar component - Provides a search input with expand/collapse functionality
@@ -8,10 +9,10 @@ import './searchBar.css';
  * @param {string} [props.value=''] - Initial value for the search input
  * @param {Function} [props.onChange] - Callback function when input value changes
  * @param {Function} [props.onSubmit] - Callback function when form is submitted
- * @param {string} [props.placeholder='Search files and folders'] - Placeholder text for the input
+ * @param {string} [props.placeholder] - Placeholder text for the input
  * @returns {React.ReactElement} SearchBar component
  */
-const SearchBar = ({ value = '', onChange, onSubmit, placeholder = 'Search files and folders' }) => {
+const SearchBar = ({ value = '', onChange, onSubmit, placeholder = zhCN.search.searchFilesAndFolders }) => {
     const [inputValue, setInputValue] = useState(value);
     const [isFocused, setIsFocused] = useState(false);
     const [isExpanded, setIsExpanded] = useState(true); // Always expanded

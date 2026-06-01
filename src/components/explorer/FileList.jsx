@@ -6,6 +6,7 @@ import { showError } from '../../utils/NotificationSystem';
 import FileItem from './FileItem';
 import EmptyState from './EmptyState';
 import './fileList.css';
+import zhCN from '../../locales/zh-CN.js';
 
 /**
  * Component to display a list of files and directories
@@ -464,7 +465,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, sea
             <div className="file-list-container">
                 <div className="loading-state">
                     <div className="loading-spinner"></div>
-                    <p>Loading...</p>
+                    <p>{zhCN.fileList.loading}</p>
                 </div>
             </div>
         );
@@ -584,7 +585,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, sea
                             className={`file-list-column column-name ${sortConfig.key === 'name' ? `sorted-${sortConfig.direction}` : ''}`}
                             onClick={() => handleSort('name')}
                         >
-                            Name
+                            {zhCN.fileList.name}
                             {sortConfig.key === 'name' && (
                                 <span className={`sort-icon sort-${sortConfig.direction}`}></span>
                             )}
@@ -593,7 +594,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, sea
                             className={`file-list-column column-size ${sortConfig.key === 'size_in_bytes' ? `sorted-${sortConfig.direction}` : ''}`}
                             onClick={() => handleSort('size_in_bytes')}
                         >
-                            Size
+                            {zhCN.fileList.size}
                             {sortConfig.key === 'size_in_bytes' && (
                                 <span className={`sort-icon sort-${sortConfig.direction}`}></span>
                             )}
@@ -602,7 +603,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, sea
                             className={`file-list-column column-type ${sortConfig.key === 'type' ? `sorted-${sortConfig.direction}` : ''}`}
                             onClick={() => handleSort('type')}
                         >
-                            Type
+                            {zhCN.fileList.type}
                             {sortConfig.key === 'type' && (
                                 <span className={`sort-icon sort-${sortConfig.direction}`}></span>
                             )}
@@ -611,7 +612,7 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, sea
                             className={`file-list-column column-modified ${sortConfig.key === 'last_modified' ? `sorted-${sortConfig.direction}` : ''}`}
                             onClick={() => handleSort('last_modified')}
                         >
-                            Modified
+                            {zhCN.fileList.modified}
                             {sortConfig.key === 'last_modified' && (
                                 <span className={`sort-icon sort-${sortConfig.direction}`}></span>
                             )}

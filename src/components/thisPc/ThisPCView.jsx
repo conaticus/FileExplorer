@@ -5,6 +5,7 @@ import { useHistory } from '../../providers/HistoryProvider';
 import { formatFileSize } from '../../utils/formatters';
 import './thisPc.css';
 import {showConfirm, showError, showSuccess} from "../../utils/NotificationSystem.js";
+import zhCN from '../../locales/zh-CN.js';
 
 /**
  * ThisPCView component - Displays system information, user folders, and storage drives
@@ -74,32 +75,32 @@ const ThisPCView = () => {
             // Common user folder paths - some folders might have multiple possible names
             const folderConfigs = [
                 {
-                    name: 'Desktop',
+                    name: zhCN.folders.desktop,
                     paths: [getDesktopPath()],
                     icon: 'desktop'
                 },
                 {
-                    name: 'Documents',
+                    name: zhCN.folders.documents,
                     paths: [getDocumentsPath()],
                     icon: 'documents'
                 },
                 {
-                    name: 'Downloads',
+                    name: zhCN.folders.downloads,
                     paths: [getDownloadsPath()],
                     icon: 'downloads'
                 },
                 {
-                    name: 'Pictures',
+                    name: zhCN.folders.pictures,
                     paths: [getPicturesPath()],
                     icon: 'pictures'
                 },
                 {
-                    name: 'Music',
+                    name: zhCN.folders.music,
                     paths: [getMusicPath()],
                     icon: 'music'
                 },
                 {
-                    name: 'Videos',
+                    name: zhCN.folders.videos,
                     paths: videoPaths,
                     icon: 'videos'
                 }
@@ -243,7 +244,7 @@ const ThisPCView = () => {
             navigateTo(path);
         } catch (error) {
             console.error('Failed to navigate to folder:', error);
-            showError(`Cannot access ${path}. The folder may not exist or is inaccessible.`);
+            showError(`无法访问 ${path}。文件夹可能不存在或无法访问。`);
         }
     };
 
@@ -263,7 +264,7 @@ const ThisPCView = () => {
     const ejectVolume = async (volume) => {
         if (!volume.is_removable) return;
 
-        const confirmEject = await showConfirm(`Are you sure you want to safely eject ${volume.volume_name}?`);
+        const confirmEject = await showConfirm(`确定要安全弹出 ${volume.volume_name} 吗？`);
         if (!confirmEject) return;
 
         try {
@@ -286,13 +287,13 @@ const ThisPCView = () => {
             const commandResponse = JSON.parse(result);
             
             if (commandResponse.status === 0) {
-                showSuccess(`${volume.volume_name} has been safely ejected.`);
+                showSuccess(`${volume.volume_name} 已安全弹出。`);
                 // Reload volumes to update the UI after ejection
                 setTimeout(() => {
                     loadVolumes();
                 }, 1000);
             } else {
-                throw new Error(commandResponse.stderr || commandResponse.stdout || 'Ejection failed');
+                throw new Error(commandResponse.stderr || commandResponse.stdout || '弹出失败');
             }
         } catch (error) {
             console.error('Failed to eject volume:', error);
@@ -306,7 +307,7 @@ const ThisPCView = () => {
                 // If not JSON, use as-is
             }
             
-            showError(`Failed to eject ${volume.volume_name}: ${errorMessage}`);
+            showError(`弹出 ${volume.volume_name} 失败: ${errorMessage}`);
         }
     };
 
@@ -314,7 +315,7 @@ const ThisPCView = () => {
         return (
             <div className="this-pc-loading">
                 <div className="spinner"></div>
-                <p>Loading system information...</p>
+                <p>{zhCN.thisPC.loadingSystemInfo}</p>
             </div>
         );
     }
@@ -322,10 +323,10 @@ const ThisPCView = () => {
     return (
         <div className="this-pc-view">
             <div className="this-pc-header">
-                <h2>This PC</h2>
+                <h2>{zhCN.thisPC.title}</h2>
                 {systemInfo && (
                     <div className="system-info">
-                        <span>Running {systemInfo.current_running_os}</span>
+                        <span>{zhCN.thisPC.runningOn.replace('{os}', systemInfo.current_running_os)}</span>
                         {systemInfo.current_cpu_architecture && (
                             <span> • {systemInfo.current_cpu_architecture}</span>
                         )}
@@ -336,7 +337,7 @@ const ThisPCView = () => {
             {/* User Folders Section */}
             {userFolders.length > 0 && (
                 <div className="pc-section">
-                    <h3>Folders</h3>
+                    <h3>{zhCN.thisPC.folders}</h3>
                     <div className="folders-grid">
                         {userFolders.map((folder) => (
                             <div
@@ -359,7 +360,7 @@ const ThisPCView = () => {
 
             {/* Drives Section */}
             <div className="pc-section">
-                <h3>Drives</h3>
+                <h3>{zhCN.thisPC.drives}</h3>
                 <div className="drives-grid">
                     {volumes.map((volume) => {
                         const usedSpace = volume.size - volume.available_space;
@@ -385,7 +386,7 @@ const ThisPCView = () => {
 
                                     <div className="drive-storage">
                                         <div className="storage-info">
-                                            <span>{formatFileSize(volume.available_space)} free of {formatFileSize(volume.size)}</span>
+                                            <span>{formatFileSize(volume.available_space)} {zhCN.thisPC.freeOf} {formatFileSize(volume.size)}</span>
                                         </div>
                                         <div className="storage-bar">
                                             <div
@@ -404,7 +405,7 @@ const ThisPCView = () => {
                                                 e.stopPropagation();
                                                 ejectVolume(volume);
                                             }}
-                                            title="Safely eject"
+                                            title="安全弹出"
                                         >
                                             <span className="icon icon-eject"></span>
                                         </button>
@@ -419,27 +420,27 @@ const ThisPCView = () => {
             {/* System Information */}
             {systemInfo && (
                 <div className="pc-section">
-                    <h3>System Information</h3>
+                    <h3>{zhCN.thisPC.systemInfo}</h3>
                     <div className="system-details">
                         <div className="detail-row">
-                            <span className="detail-label">Operating System:</span>
+                            <span className="detail-label">{zhCN.thisPC.operatingSystem}</span>
                             <span className="detail-value">{systemInfo.current_running_os}</span>
                         </div>
                         {systemInfo.current_cpu_architecture && (
                             <div className="detail-row">
-                                <span className="detail-label">Architecture:</span>
+                                <span className="detail-label">{zhCN.thisPC.architecture}</span>
                                 <span className="detail-value">{systemInfo.current_cpu_architecture}</span>
                             </div>
                         )}
                         {systemInfo.user_home_dir && (
                             <div className="detail-row">
-                                <span className="detail-label">User Directory:</span>
+                                <span className="detail-label">{zhCN.thisPC.userDirectory}</span>
                                 <span className="detail-value">{systemInfo.user_home_dir}</span>
                             </div>
                         )}
                         {systemInfo.version && (
                             <div className="detail-row">
-                                <span className="detail-label">Version:</span>
+                                <span className="detail-label">{zhCN.thisPC.version}</span>
                                 <span className="detail-value">{systemInfo.version}</span>
                             </div>
                         )}

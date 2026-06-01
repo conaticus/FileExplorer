@@ -13,6 +13,7 @@ import PermissionHelper from '../common/PermissionHelper';
 import {open} from '@tauri-apps/plugin-dialog';
 import './sidebar.css';
 import {showConfirm, showError, showSuccess} from "../../utils/NotificationSystem.js";
+import zhCN from '../../locales/zh-CN.js';
 
 /**
  * Sidebar component - Provides navigation, favorites, and quick access
@@ -47,7 +48,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
         try {
             const selectedPath = await open({
                 directory: true,
-                title: `Browse to your ${folderName} folder`,
+                title: `浏览到您的 ${folderName} 文件夹`,
                 defaultPath: expectedPath ? expectedPath.substring(0, expectedPath.lastIndexOf('/')) : undefined
             });
             
@@ -100,7 +101,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
 
     // Remove SFTP connection with confirmation
     const removeSftpConnection = async (name) => {
-        const confirmRemove = await showConfirm(`Are you sure you want to remove the SFTP connection "${name}"?`);
+        const confirmRemove = await showConfirm(zhCN.network.confirmRemove.replace('{name}', name));
         if (!confirmRemove) return;
         try {
             const existing = JSON.parse(localStorage.getItem('fileExplorerSftpConnections') || '[]');
@@ -111,9 +112,9 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                 key: 'fileExplorerSftpConnections',
                 newValue: JSON.stringify(newConnections)
             }));
-            showSuccess('SFTP COnnection "${name}" removed successfully.', 'success');
+            showSuccess(zhCN.network.connectionRemoved.replace('{name}', name), 'success');
         } catch (err) {
-            showError('Failed to remove SFTP connection: ' + err.message, 'error');
+            showError('移除 SFTP 连接失败: ' + err.message, 'error');
         }
     };
 
@@ -337,21 +338,21 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
 
         if (os === 'windows') {
             dirs.push(
-                { name: 'Desktop', path: `${homeDir}\\Desktop`, icon: 'desktop' },
-                { name: 'Documents', path: `${homeDir}\\Documents`, icon: 'documents' },
-                { name: 'Downloads', path: `${homeDir}\\Downloads`, icon: 'downloads' },
-                { name: 'Pictures', path: `${homeDir}\\Pictures`, icon: 'pictures' },
-                { name: 'Music', path: `${homeDir}\\Music`, icon: 'music' },
-                { name: 'Videos', path: `${homeDir}\\Videos`, icon: 'videos' }
+                { name: zhCN.folders.desktop, path: `${homeDir}\\Desktop`, icon: 'desktop' },
+                { name: zhCN.folders.documents, path: `${homeDir}\\Documents`, icon: 'documents' },
+                { name: zhCN.folders.downloads, path: `${homeDir}\\Downloads`, icon: 'downloads' },
+                { name: zhCN.folders.pictures, path: `${homeDir}\\Pictures`, icon: 'pictures' },
+                { name: zhCN.folders.music, path: `${homeDir}\\Music`, icon: 'music' },
+                { name: zhCN.folders.videos, path: `${homeDir}\\Videos`, icon: 'videos' }
             );
         } else {
             dirs.push(
-                { name: 'Desktop', path: `${homeDir}/Desktop`, icon: 'desktop' },
-                { name: 'Documents', path: `${homeDir}/Documents`, icon: 'documents' },
-                { name: 'Downloads', path: `${homeDir}/Downloads`, icon: 'downloads' },
-                { name: 'Pictures', path: `${homeDir}/Pictures`, icon: 'pictures' },
-                { name: 'Music', path: `${homeDir}/Music`, icon: 'music' },
-                { name: 'Videos', path: `${homeDir}/Movies`, icon: 'videos' }
+                { name: zhCN.folders.desktop, path: `${homeDir}/Desktop`, icon: 'desktop' },
+                { name: zhCN.folders.documents, path: `${homeDir}/Documents`, icon: 'documents' },
+                { name: zhCN.folders.downloads, path: `${homeDir}/Downloads`, icon: 'downloads' },
+                { name: zhCN.folders.pictures, path: `${homeDir}/Pictures`, icon: 'pictures' },
+                { name: zhCN.folders.music, path: `${homeDir}/Music`, icon: 'music' },
+                { name: zhCN.folders.videos, path: `${homeDir}/Movies`, icon: 'videos' }
             );
         }
 
@@ -407,11 +408,11 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                     {/* This PC section */}
                     <section className="sidebar-section">
                         <div className="sidebar-section-header">
-                            <h3 className="sidebar-section-title">This PC</h3>
+                            <h3 className="sidebar-section-title">{zhCN.sidebar.thisPC}</h3>
                             <button
                                 className="section-collapse-button"
                                 onClick={() => toggleSectionCollapse('thisPC')}
-                                aria-label={sectionCollapsed.thisPC ? 'Expand This PC' : 'Collapse This PC'}
+                                aria-label={sectionCollapsed.thisPC ? zhCN.sidebar.expand : zhCN.sidebar.collapse}
                             >
                                 <span className={`icon icon-chevron-${sectionCollapsed.thisPC ? 'up' : 'down'}`}></span>
                             </button>
@@ -420,7 +421,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                             <ul className="sidebar-list">
                                 <SidebarItem
                                     icon="computer"
-                                    name="This PC"
+                                    name={zhCN.sidebar.thisPC}
                                     path="this-pc"
                                     isActive={currentView === 'this-pc'}
                                     onClick={() => {
@@ -433,11 +434,11 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                 {userVolume && (
                                     <SidebarItem
                                         icon="user"
-                                        name={`User (${userVolume.volume_name || 'User Disk'})`}
+                                        name={`用户 (${userVolume.volume_name || zhCN.sidebar.userDisk})`}
                                         path={userVolume.mount_point}
                                         isActive={currentView === 'explorer' && currentPath === userVolume.mount_point}
                                         onClick={() => handleItemClick(userVolume.mount_point)}
-                                        info={`${(userVolume.available_space / 1024 / 1024 / 1024).toFixed(1)}GB free`}
+                                        info={`${(userVolume.available_space / 1024 / 1024 / 1024).toFixed(1)}GB ${zhCN.sidebar.freeSpace}`}
                                     />
                                 )}
 
@@ -467,19 +468,19 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                     {/* Favorites section */}
                     <section className="sidebar-section">
                         <div className="sidebar-section-header">
-                            <h3 className="sidebar-section-title">Favorites</h3>
+                            <h3 className="sidebar-section-title">{zhCN.sidebar.favorites}</h3>
                             <div className="sidebar-section-actions">
                                 <button
                                     className="section-add-button"
                                     onClick={handleAddSource}
-                                    title="Add to Favorites"
+                                    title={zhCN.sidebar.addToFavorites}
                                 >
                                     <span className="icon icon-plus-small"></span>
                                 </button>
                                 <button
                                     className="section-collapse-button"
                                     onClick={() => toggleSectionCollapse('favorites')}
-                                    aria-label={sectionCollapsed.favorites ? 'Expand Favorites' : 'Collapse Favorites'}
+                                    aria-label={sectionCollapsed.favorites ? zhCN.sidebar.expand : zhCN.sidebar.collapse}
                                 >
                                     <span className={`icon icon-chevron-${sectionCollapsed.favorites ? 'up' : 'down'}`}></span>
                                 </button>
@@ -499,11 +500,11 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                     {/* Drives/Volumes section */}
                     <section className="sidebar-section">
                         <div className="sidebar-section-header">
-                            <h3 className="sidebar-section-title">Drives</h3>
+                            <h3 className="sidebar-section-title">{zhCN.sidebar.drives}</h3>
                             <button
                                 className="section-collapse-button"
                                 onClick={() => toggleSectionCollapse('drives')}
-                                aria-label={sectionCollapsed.drives ? 'Expand Drives' : 'Collapse Drives'}
+                                aria-label={sectionCollapsed.drives ? zhCN.sidebar.expand : zhCN.sidebar.collapse}
                             >
                                 <span className={`icon icon-chevron-${sectionCollapsed.drives ? 'up' : 'down'}`}></span>
                             </button>
@@ -518,13 +519,13 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                         path={volume.mount_point}
                                         isActive={currentView === 'explorer' && currentPath === volume.mount_point}
                                         onClick={() => handleItemClick(volume.mount_point)}
-                                        info={`${(volume.available_space / 1024 / 1024 / 1024).toFixed(1)}GB free of ${(volume.size / 1024 / 1024 / 1024).toFixed(1)}GB`}
+                                        info={`${(volume.available_space / 1024 / 1024 / 1024).toFixed(1)}GB ${zhCN.sidebar.freeSpace} ${(volume.size / 1024 / 1024 / 1024).toFixed(1)}GB`}
                                         actions={volume.is_removable ? [
                                             {
                                                 icon: 'eject',
-                                                tooltip: 'Safely eject',
+                                                tooltip: '安全弹出',
                                                 onClick: async () => {
-                                                    const confirmEject = await showConfirm(`Are you sure you want to safely eject ${volume.volume_name}?`);
+                                                    const confirmEject = await showConfirm(`确定要安全弹出 ${volume.volume_name} 吗？`);
                                                     if (!confirmEject) return;
 
                                                     try {
@@ -548,13 +549,13 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                                         const commandResponse = JSON.parse(result);
                                                         
                                                         if (commandResponse.status === 0) {
-                                                            showSuccess(`${volume.volume_name} has been safely ejected.`, 'success');
+                                                            showSuccess(`${volume.volume_name} 已安全弹出。`, 'success');
                                                             // Reload volumes to update the UI after ejection
                                                             setTimeout(() => {
                                                                 loadVolumes();
                                                             }, 1000);
                                                         } else {
-                                                            throw new Error(commandResponse.stderr || commandResponse.stdout || 'Ejection failed');
+                                                            throw new Error(commandResponse.stderr || commandResponse.stdout || '弹出失败');
                                                         }
                                                     } catch (error) {
                                                         console.error('Failed to eject volume:', error);
@@ -568,7 +569,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                                             // If not JSON, use as-is
                                                         }
                                                         
-                                                        showError(`Failed to eject ${volume.volume_name}: ${errorMessage}`, 'error');
+                                                        showError(`弹出 ${volume.volume_name} 失败: ${errorMessage}`, 'error');
                                                     }
                                                 }
                                             }
@@ -581,19 +582,19 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                     {/* Network section */}
                     <section>
                         <div className="sidebar-section-header">
-                            <h3 className="sidebar-section-title">Network</h3>
+                            <h3 className="sidebar-section-title">{zhCN.sidebar.network}</h3>
                             <div className="sidebar-section-actions">
                                 <button
                                     className="section-add-button"
                                     onClick={() => setIsAddSftpModalOpen(true)}
-                                    title="Add SFTP Connection"
+                                    title={zhCN.sidebar.addSftpConnection}
                                 >
                                     <span className="icon icon-plus-small"></span>
                                 </button>
                                 <button
                                     className="section-collapse-button"
                                     onClick={() => toggleSectionCollapse('network')}
-                                    aria-label={sectionCollapsed.network ? 'Expand Network' : 'Collapse Network'}
+                                    aria-label={sectionCollapsed.network ? zhCN.sidebar.expand : zhCN.sidebar.collapse}
                                 >
                                     <span className={`icon icon-chevron-${sectionCollapsed.network ? 'up' : 'down'}`}></span>
                                 </button>
@@ -607,8 +608,8 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                             <span className="icon icon-network"></span>
                                         </div>
                                         <div className="empty-state-text">
-                                            <p>No SFTP connections</p>
-                                            <span>Add a connection to get started</span>
+                                            <p>{zhCN.sidebar.noSftpConnections}</p>
+                                            <span>{zhCN.sidebar.addConnectionToStart}</span>
                                         </div>
                                     </div>
                                 ) : (
@@ -634,7 +635,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                                             }}
                                             actions={[{
                                                 icon: 'x',
-                                                tooltip: 'Remove SFTP Connection',
+                                                tooltip: zhCN.sidebar.removeSftpConnection,
                                                 onClick: () => removeSftpConnection(conn.name)
                                             }]}
                                         />
@@ -671,11 +672,11 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                     <button
                         className={`sidebar-action-button ${isTerminalOpen ? 'active' : ''}`}
                         onClick={onTerminalToggle}
-                        aria-label="Toggle Terminal"
-                        title="Toggle Terminal (Ctrl+`)"
+                        aria-label={zhCN.sidebar.terminal}
+                        title={zhCN.sidebar.terminalShortcut}
                     >
                         <span className="icon icon-terminal"></span>
-                        <span>Terminal</span>
+                        <span>{zhCN.sidebar.terminal}</span>
                     </button>
 
                     <button
@@ -684,11 +685,11 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                             navigateTo(null); // Clear explorer path
                             document.dispatchEvent(new CustomEvent('open-settings'));
                         }}
-                        aria-label="Settings"
-                        title="Settings"
+                        aria-label={zhCN.sidebar.settings}
+                        title={zhCN.sidebar.settings}
                     >
                         <span className="icon icon-settings"></span>
-                        <span>Settings</span>
+                        <span>{zhCN.sidebar.settings}</span>
                     </button>
 
                     <button
@@ -697,21 +698,21 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                             navigateTo(null); // Clear explorer path
                             document.dispatchEvent(new CustomEvent('open-templates'));
                         }}
-                        aria-label="Templates"
-                        title="Templates"
+                        aria-label={zhCN.sidebar.templates}
+                        title={zhCN.sidebar.templates}
                     >
                         <span className="icon icon-template"></span>
-                        <span>Templates</span>
+                        <span>{zhCN.sidebar.templates}</span>
                     </button>
 
                     <button
                         className="sidebar-action-button"
-                        aria-label="Add Datasource"
-                        title="Add Datasource"
+                        aria-label={zhCN.sidebar.addSource}
+                        title={zhCN.sidebar.addSource}
                         onClick={handleAddSource}
                     >
                         <span className="icon icon-plus"></span>
-                        <span>Add Source</span>
+                        <span>{zhCN.sidebar.addSource}</span>
                     </button>
                 </div>
             </aside>
@@ -720,7 +721,7 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
             <Modal
                 isOpen={isAddSourceModalOpen}
                 onClose={() => setIsAddSourceModalOpen(false)}
-                title="Add Data Source"
+                title="添加数据来源"
                 size="sm"
                 footer={
                     <>
@@ -728,21 +729,21 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                             variant="ghost"
                             onClick={() => setIsAddSourceModalOpen(false)}
                         >
-                            Cancel
+                            {zhCN.common.cancel}
                         </Button>
                         <Button
                             variant="primary"
                             onClick={saveNewSource}
                             disabled={!newSourcePath.trim()}
                         >
-                            Add Source
+                            {zhCN.sidebar.addSource}
                         </Button>
                     </>
                 }
             >
                 <form onSubmit={handleAddSourceSubmit}>
                     <div className="form-group">
-                        <label htmlFor="source-path">Data Source Path</label>
+                        <label htmlFor="source-path">数据来源路径</label>
                         <input
                             ref={addSourceInputRef}
                             type="text"
@@ -751,10 +752,10 @@ const Sidebar = ({ onTerminalToggle, isTerminalOpen, currentView }) => {
                             value={newSourcePath}
                             onChange={handleAddSourceInputChange}
                             onKeyDown={handleAddSourceKeyDown}
-                            placeholder="Enter path to folder to add as data source"
+                            placeholder="输入要添加为数据来源的文件夹路径"
                         />
                         <div className="input-hint">
-                            Enter the full path to a folder that you want to add as a data source to favorites.
+                            输入要添加为收藏夹数据来源的文件夹完整路径。
                         </div>
                     </div>
                 </form>

@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import Modal from './Modal';
 import Button from './Button';
 import { showSuccess, showError } from '../../utils/NotificationSystem';
+import zhCN from '../../locales/zh-CN.js';
 
 /**
  * PermissionHelper - Component to help users grant necessary permissions or browse to folder
@@ -22,7 +23,7 @@ const PermissionHelper = ({ isOpen, onClose, directoryPath, directoryName, onDir
             const hasAccess = await invoke('check_directory_access', { path: directoryPath });
             setHasAccess(hasAccess);
             if (hasAccess) {
-                showSuccess(`Access granted to ${directoryName}!`);
+                showSuccess(zhCN.permission.accessGrantedMessage.replace('{name}', directoryName));
                 setTimeout(onClose, 1000); // Close modal after success
             }
         } catch (error) {
@@ -45,7 +46,7 @@ const PermissionHelper = ({ isOpen, onClose, directoryPath, directoryName, onDir
             await invoke('request_full_disk_access');
         } catch (error) {
             console.error('Failed to open System Preferences:', error);
-            showError('Unable to open System Preferences. Please open it manually.');
+            showError(zhCN.permission.failedToOpenPreferences);
         }
     };
 
@@ -64,18 +65,18 @@ const PermissionHelper = ({ isOpen, onClose, directoryPath, directoryName, onDir
             
             selectedPath = await open({
                 directory: true,
-                title: `Browse to your ${directoryName} folder`,
+                title: zhCN.permission.browseToFolder.replace('{name}', directoryName),
                 defaultPath: parentPath || undefined
             });
             
             if (selectedPath) {
-                showSuccess(`Selected ${directoryName} folder: ${selectedPath}`);
+                showSuccess(zhCN.permission.browseToFolder.replace('{name}', directoryName) + ': ' + selectedPath);
                 onDirectorySelected && onDirectorySelected(selectedPath);
                 onClose();
             }
         } catch (error) {
             console.error('Failed to open folder picker:', error);
-            showError('Failed to open folder picker. Please try again.');
+            showError(zhCN.permission.failedToOpenPicker);
         } finally {
             setIsBrowsing(false);
         }
@@ -85,28 +86,28 @@ const PermissionHelper = ({ isOpen, onClose, directoryPath, directoryName, onDir
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={`Access Required: ${directoryName}`}
+            title={zhCN.permission.accessRequired.replace('{name}', directoryName)}
             size="md"
             footer={
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                     <Button variant="ghost" onClick={onClose}>
-                        Cancel
+                        {zhCN.permission.cancel}
                     </Button>
                     {hasAccess ? (
                         <Button variant="success" onClick={onClose}>
                             <span className="icon icon-check"></span>
-                            Access Granted
+                            {zhCN.permission.accessGranted}
                         </Button>
                     ) : (
                         <>
                             <Button variant="ghost" onClick={handleBrowseToFolder} disabled={isBrowsing}>
-                                {isBrowsing ? 'Opening...' : 'Browse to Folder'}
+                                {isBrowsing ? zhCN.permission.opening : zhCN.permission.browseToFolder}
                             </Button>
                             <Button variant="secondary" onClick={handleTryAgain} disabled={isChecking}>
-                                {isChecking ? 'Checking...' : 'Try Again'}
+                                {isChecking ? zhCN.permission.checking : zhCN.permission.tryAgain}
                             </Button>
                             <Button variant="primary" onClick={handleGrantAccess}>
-                                Grant Permission
+                                {zhCN.permission.grantPermission}
                             </Button>
                         </>
                     )}
@@ -125,36 +126,33 @@ const PermissionHelper = ({ isOpen, onClose, directoryPath, directoryName, onDir
                 <div className="permission-content">
                     {hasAccess ? (
                         <div className="success-message">
-                            <h3>Access Granted!</h3>
-                            <p>You now have access to your {directoryName} folder.</p>
+                            <h3>{zhCN.permission.accessGranted}!</h3>
+                            <p>{zhCN.permission.accessGrantedMessage.replace('{name}', directoryName)}</p>
                         </div>
                     ) : (
                         <div className="permission-request">
-                            <h3>Permission Required</h3>
-                            <p>
-                                This application needs permission to access your <strong>{directoryName}</strong> folder.
-                            </p>
+                            <h3>{zhCN.permission.permissionRequired}</h3>
+                            <p dangerouslySetInnerHTML={{ __html: zhCN.permission.permissionNeeded.replace('{name}', directoryName) }} />
                             
                             <div className="instructions">
-                                <h4>Options to access your {directoryName} folder:</h4>
+                                <h4>{zhCN.permission.optionsToAccess.replace('{name}', directoryName)}</h4>
                                 <div className="option-section">
-                                    <h5>Option 1: Browse to folder (Recommended)</h5>
-                                    <p>Click "Browse to Folder" to manually select your {directoryName} directory using the system folder picker.</p>
+                                    <h5>{zhCN.permission.option1Title}</h5>
+                                    <p>{zhCN.permission.option1Desc.replace('{name}', directoryName)}</p>
                                 </div>
                                 <div className="option-section">
-                                    <h5>Option 2: Grant system permission</h5>
+                                    <h5>{zhCN.permission.option2Title}</h5>
                                     <ol>
-                                        <li>Click "Grant Permission" to open System Preferences</li>
-                                        <li>Go to <strong>Privacy & Security → Files and Folders</strong></li>
-                                        <li>Find "Explr" in the list and enable access to "{directoryName}"</li>
-                                        <li>Return to this app and click "Try Again"</li>
+                                        <li>{zhCN.permission.option2Step1}</li>
+                                        <li dangerouslySetInnerHTML={{ __html: zhCN.permission.option2Step2 }} />
+                                        <li dangerouslySetInnerHTML={{ __html: zhCN.permission.option2Step3.replace('{name}', directoryName) }} />
+                                        <li>{zhCN.permission.option2Step4}</li>
                                     </ol>
                                 </div>
                             </div>
                             
                             <div className="help-note">
-                                <p><strong>Note:</strong> This is a macOS security feature that protects your personal files. 
-                                Granting access allows this file explorer to browse your {directoryName} folder.</p>
+                                <p dangerouslySetInnerHTML={{ __html: zhCN.permission.securityNote.replace('{name}', directoryName) }} />
                             </div>
                         </div>
                     )}
